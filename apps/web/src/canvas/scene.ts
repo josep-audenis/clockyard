@@ -338,7 +338,10 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       gesture.at = p;
     } else if (gesture?.type === "box") {
       gesture.to = p;
-      editor.select([...new Set([...gesture.base, ...componentsInBox(editor.circuit, gesture.from, p)])]);
+      const boxed = new Set([...gesture.base, ...componentsInBox(editor.circuit, gesture.from, p)]);
+      // Wires between selected parts are selected too, so the highlight matches what copy and delete take.
+      const wires = editor.circuit.wires.filter((w) => boxed.has(w.from.component) && boxed.has(w.to.component));
+      editor.select([...new Set([...boxed, ...wires.map((w) => w.id)])]);
     }
     const hit = gesture?.type === "wire" || !gesture ? hitTest(editor.circuit, p, pick()) : null;
     hover = hit?.type === "port" ? hit.ref : null;
@@ -387,7 +390,15 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       gesture = null;
       if (undo) editor.undo();
       else editor.redo();
-    } else if (onCanvas && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && ["c", "x", "v", "d", "a"].includes(key)) {
+    } else if (
+      onCanvas &&
+      (e.ctrlKey || e.metaKey) &&
+      !e.altKey &&
+      !e.shiftKey &&
+      ["c", "x", "v", "d", "a"].includes(key) &&
+      // Selected page text (a diagnostic, say) copies the native way.
+      !((key === "c" || key === "x") && !window.getSelection()?.isCollapsed)
+    ) {
       e.preventDefault(); // also stops the browser's own Ctrl+D bookmark and Ctrl+A select-all
       gesture = null;
       if (key === "c") editor.copy();

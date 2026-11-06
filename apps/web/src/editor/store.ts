@@ -24,7 +24,7 @@ export type EditorState = {
   selectAll: () => void;
   /** Parts copied by `copy`/`cut`, with the wires between them. */
   clipboard: Circuit | null;
-  /** Pastes since the last copy; each lands a little further down-right. */
+  /** Pastes since the last copy (-1 after a cut); each lands a little further down-right. */
   pastes: number;
   copy: () => void;
   cut: () => void;
@@ -148,6 +148,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
       const components = circuit.components.filter((c) => !gone.has(c.id));
       // Wires attached to removed parts go too.
       const wires = circuit.wires.filter((w) => !gone.has(w.id) && !gone.has(w.from.component) && !gone.has(w.to.component));
+      // Nothing removed: not an edit, so history (and redo) stays as it is.
+      if (components.length === circuit.components.length && wires.length === circuit.wires.length) return state;
       return edit(state, { components, wires });
     });
   },
@@ -161,8 +163,13 @@ export const useEditor = create<EditorState>()((set, get) => ({
       return part.components.length > 0 ? { clipboard: part, pastes: 0 } : state;
     }),
   cut: () => {
+    const { circuit, selection } = get();
+    // Like copy, cut works on parts; without any it does nothing.
+    if (fragment(circuit, selection).components.length === 0) return;
     get().copy();
-    get().remove(get().selection);
+    get().remove(selection);
+    // The first paste after a cut puts the parts back where they were.
+    set({ pastes: -1 });
   },
   paste: () =>
     set((state) => {

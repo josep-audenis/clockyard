@@ -171,14 +171,43 @@ test("copy and paste clone parts and the wires between them, with new IDs, as on
   expect(ids()).toEqual([s, l, other]);
 });
 
-test("cut removes the selection and paste brings it back", () => {
+test("cut removes the selection and the first paste puts it back in place", () => {
   const { add, select, cut, paste } = useEditor.getState();
-  const s = add("switch", { x: 0, y: 0 });
+  const s = add("switch", { x: 3, y: 4 });
   select([s]);
   cut();
   expect(ids()).toEqual([]);
   paste();
-  expect(useEditor.getState().circuit.components.map((c) => c.kind)).toEqual(["switch"]);
+  expect(useEditor.getState().circuit.components.map((c) => [c.kind, c.position])).toEqual([["switch", { x: 3, y: 4 }]]);
+  paste();
+  expect(useEditor.getState().circuit.components[1]?.position).toEqual({ x: 5, y: 6 });
+});
+
+test("cut or remove with nothing to remove keeps history, so redo still works", () => {
+  const { add, connect, select, undo, redo, cut, remove } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const l = add("led", { x: 4, y: 0 });
+  const w = connect(port(s, "out"), port(l, "in"));
+  undo(); // the wire is now a redo step
+  const { past, future } = useEditor.getState();
+  select([]);
+  cut();
+  remove([]);
+  remove(["missing"]);
+  expect(useEditor.getState().past).toBe(past);
+  expect(useEditor.getState().future).toBe(future);
+  redo();
+  expect(useEditor.getState().circuit.wires.map((wire) => wire.id)).toEqual([w]);
+});
+
+test("cut works on parts: a lone selected wire is left in place", () => {
+  const { add, connect, select, cut } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const l = add("led", { x: 4, y: 0 });
+  const w = connect(port(s, "out"), port(l, "in")) ?? "";
+  select([w]);
+  cut();
+  expect(useEditor.getState().circuit.wires).toHaveLength(1);
 });
 
 test("duplicate copies the selection next to itself and keeps the clipboard", () => {
