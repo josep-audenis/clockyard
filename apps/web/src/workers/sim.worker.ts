@@ -4,13 +4,19 @@ import type { Command, Result } from "../simulation/protocol";
 const reply = (result: Result) => postMessage(result);
 
 // Every command awaits the same promise, so commands still run in arrival order.
+let loaded = false;
 const ready = init().then(
-  () => reply({ type: "ready" }),
+  () => {
+    loaded = true;
+    reply({ type: "ready" });
+  },
   (error: unknown) => reply({ type: "error", message: `failed to load engine: ${String(error)}` }),
 );
 
 onmessage = async (event: MessageEvent<Command>) => {
   await ready;
+  // Load failure was already reported; calling into the uninitialised module would replace that message.
+  if (!loaded) return;
   const command = event.data;
   try {
     switch (command.type) {

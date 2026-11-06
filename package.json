@@ -5,17 +5,17 @@
   "type": "module",
   "packageManager": "pnpm@10.28.1",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   },
   "scripts": {
     "wasm": "node scripts/build-wasm.mjs",
     "dev": "pnpm wasm && pnpm --filter web dev",
     "build": "pnpm wasm && pnpm --filter web build",
     "preview": "pnpm --filter web preview",
-    "test": "pnpm --filter web test",
+    "test": "cargo test --workspace && pnpm --filter web test",
     "lint": "pnpm --filter web lint",
     "typecheck": "pnpm --filter web typecheck",
     "prepare": "git config core.hooksPath .githooks",
-    "verify": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && pnpm wasm && pnpm lint && pnpm typecheck && pnpm test && pnpm --filter web build"
+    "verify": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && pnpm wasm && pnpm lint && pnpm typecheck && pnpm --filter web test && pnpm --filter web build"
   }
 }

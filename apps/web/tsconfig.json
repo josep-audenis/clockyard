@@ -5,7 +5,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "types": ["vite/client", "node"],
+    "types": ["vite/client"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noFallthroughCasesInSwitch": true,
@@ -14,5 +14,7 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "vite.config.ts", "eslint.config.js"]
+  "include": ["src"],
+  // Worker: tsconfig.worker.json (WebWorker lib). Tests and config: tsconfig.node.json (Node types).
+  "exclude": ["src/workers/sim.worker.ts", "src/**/*.test.ts"]
 }
