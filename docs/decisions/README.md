@@ -14,6 +14,7 @@ replacement.
 | [0006](0006-delta-cycle-evaluation.md) | Change-driven evaluation with synchronous deltas | Proposed |
 | [0007](0007-frontend-stack.md) | Frontend stack | Accepted |
 | [0008](0008-visual-identity.md) | Visual identity and design tokens | Accepted |
+| [0009](0009-local-checks-instead-of-ci.md) | Local pre-push checks instead of hosted CI | Accepted |
 
 ## Template
 

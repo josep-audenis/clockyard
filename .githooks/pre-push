@@ -1,0 +1,5 @@
+#!/bin/sh
+# Runs every check before a push; replaces GitHub Actions CI (ADR 0009).
+# Bypass once with: git push --no-verify
+set -e
+exec pnpm verify
