@@ -56,8 +56,10 @@ pnpm typecheck
 pnpm test
 ```
 
-CI runs the same set on every pull request. Playwright (`pnpm test:e2e`)
-arrives with the Phase 1 editor.
+`pnpm verify` runs all of them in order. A pre-push hook runs `pnpm verify`
+(installed by `pnpm install`; see
+[ADR 0009](docs/decisions/0009-local-checks-instead-of-ci.md)). Playwright
+(`pnpm test:e2e`) arrives with the Phase 1 editor.
 
 ## Code style
 
