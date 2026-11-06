@@ -2,9 +2,27 @@
 //! Structured values cross the boundary as JSON; net values as a `Uint8Array`.
 
 use serde::Serialize;
-use sim_core::{CircuitDescription, Diagnostic, PortNets, Simulator};
+use sim_core::{CircuitDescription, Diagnostic, Kind, PortNets, Simulator};
 use std::collections::BTreeMap;
 use wasm_bindgen::prelude::*;
+
+#[derive(Serialize)]
+struct Part {
+    kind: &'static str,
+    inputs: &'static [&'static str],
+    outputs: &'static [&'static str],
+}
+
+/// The built-in catalog as JSON: `[{ kind, inputs, outputs }]` (ADR 0004).
+#[wasm_bindgen]
+pub fn catalog() -> String {
+    let parts = Kind::ALL.map(|kind| Part {
+        kind: kind.name(),
+        inputs: kind.inputs(),
+        outputs: kind.outputs(),
+    });
+    serde_json::to_string(&parts).expect("catalog serializes")
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -10,11 +10,11 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started
 **Phase 0 — ✅ done.** pnpm + Cargo workspaces, a Rust AND evaluator called from
 the browser through WASM in a Web Worker, linting, tests and a pre-push check hook.
 
-**Phase 1 — 🔨 in progress** (branch `feat/phase-1-editor`). Engine slice done:
-`sim-core` catalog, validation, compile and bounded delta settling; `Engine`
-in `sim-wasm`; `load`/`setInput` worker protocol; document type and
-projection. The page drives a fixed two-switch → AND → LED document through
-the engine. Next: canvas editor.
+**Phase 1 — 🔨 in progress** (branch `feat/phase-1-editor`). Engine and canvas
+editor done: parts are placed, dragged, wired, selected and deleted on a
+PixiJS canvas, and every value shown comes from the Rust engine. The
+two-switch → AND → LED slice was built and checked by hand in the browser.
+Next: save/load, part shortcuts, Playwright.
 
 ## Phase 0 — Foundation ✅
 
@@ -58,21 +58,26 @@ Progress:
 - ✅ Circuit description, validation diagnostics, compile to netlist, bounded settle, oscillation report
 - ✅ Worker protocol `load` / `setInput` → `loaded` / `state`
 - ✅ Document format v1 types and projection to the description
-- ⬜ PixiJS canvas with pan/zoom, part placement, dragging, wiring, selection/deletion
-- ⬜ Active/inactive wire colors from engine nets
-- ⬜ JSON import/export, keyboard shortcuts
+- ✅ PixiJS canvas with pan/zoom, part placement, dragging, wiring, selection/deletion
+- ✅ Active/inactive wire colors from engine nets; validation and unstable loops shown in the status bar and on the canvas
+- ✅ Port layouts per kind, checked against the engine catalog (ADR 0004)
+- ⬜ JSON import/export
+- 🔨 Keyboard shortcuts: Delete and Escape done; part shortcuts to do
 - ⬜ Playwright test of the first slice
+
+Acceptance items below are ticked when checked by hand in the browser; the
+Playwright test will cover them.
 
 Acceptance — a user can:
 
-- [ ] Open Clockyard
-- [ ] Place two switches
-- [ ] Place an AND gate
-- [ ] Place an LED
-- [ ] Connect them
-- [ ] Toggle either switch
-- [ ] See the correct LED output (`00→0, 01→0, 10→0, 11→1`)
-- [ ] Move components without breaking connections
+- [x] Open Clockyard
+- [x] Place two switches
+- [x] Place an AND gate
+- [x] Place an LED
+- [x] Connect them
+- [x] Toggle either switch
+- [x] See the correct LED output (`00→0, 01→0, 10→0, 11→1`)
+- [x] Move components without breaking connections
 - [ ] Save the design
 - [ ] Reload it successfully
 - [ ] A cascaded circuit with fan-out also evaluates correctly
@@ -135,6 +140,7 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 1 canvas editor: PixiJS scene and Zustand document store, port layouts
-per catalog kind (with the catalog consistency test from ADR 0004), placing
-and wiring the two-switch → AND → LED slice by hand, then the Playwright test.
+Phase 1 save and load: JSON export/import of the circuit document with format
+and version checks and dangling-reference validation in `storage/`; part
+shortcuts (A, O, N, X, S, L); then the Playwright test of the first slice,
+including a cascaded circuit with fan-out.

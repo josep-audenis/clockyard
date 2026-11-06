@@ -153,6 +153,10 @@ type Result =
 
 - Commands are processed in order. The engine settles after each input change
   and replies with state.
+- `simulation/sync.ts` sends `load` only when the projected description
+  changes, so moving a part keeps the engine's state. Switch positions live in
+  the editor store (transient, never saved) and are re-sent after each load.
+  States that arrive while a newer load is pending are dropped.
 - Phase 1 sends the full net value array (small circuits). Changed-net deltas
   or transferable buffers come when measurements justify them.
 - During continuous runs (Phase 3) the worker advances virtual time in batches
@@ -161,10 +165,14 @@ type Result =
 
 ## Rendering
 
-- PixiJS owns the canvas: grid, component bodies, ports, wires, selection,
-  hover, signal coloring.
-- One Pixi display object per component and per wire; signal updates change
-  only wire/LED tint, not geometry.
+- PixiJS owns the canvas: component bodies, ports, wires, selection, hover,
+  signal coloring (`canvas/scene.ts`, drawn to the design system's CanvasKit
+  spec). The dot grid is the host element's CSS background, moved with the view.
+- Phase 1 redraws three `Graphics` layers (wires, bodies, overlay) on the next
+  animation frame after any store change; the render loop is otherwise idle.
+  Per-object updates replace this when profiling says so.
+- Hit-testing is pure geometry in grid units (`canvas/geometry.ts`); it decides
+  only what the pointer is over, never connectivity.
 - React subscribes to the document store for panels; the canvas subscribes
   outside React render to avoid re-rendering per signal change.
 - High-DPI via Pixi `resolution` = `devicePixelRatio` and `autoDensity`.

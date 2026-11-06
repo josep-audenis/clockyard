@@ -5,6 +5,7 @@ const reply = (result: Result) => postMessage(result);
 
 // Every command awaits the same promise, so commands still run in arrival order.
 let engine: Engine | null = null;
+let hasCircuit = false;
 const ready = init().then(
   () => {
     engine = new Engine();
@@ -22,12 +23,16 @@ onmessage = async (event: MessageEvent<Command>) => {
   const command = event.data;
   try {
     switch (command.type) {
-      case "load":
-        reply({ type: "loaded", ...JSON.parse(engine.load(JSON.stringify(command.circuit))) });
+      case "load": {
+        const loaded = JSON.parse(engine.load(JSON.stringify(command.circuit)));
+        hasCircuit = loaded.netCount > 0;
+        reply({ type: "loaded", ...loaded });
         state([]);
         break;
+      }
       case "setInput":
-        state(JSON.parse(engine.set_input(command.component, command.value === 1)));
+        // After validation errors there is nothing to set; the client re-sends inputs with the next load.
+        if (hasCircuit) state(JSON.parse(engine.set_input(command.component, command.value === 1)));
         break;
     }
   } catch (error) {

@@ -1,56 +1,18 @@
-import { useEffect, useRef, useState } from "react";
-import { project, type CircuitDocument } from "../editor/document";
-import { startSimulation, type SimClient } from "../simulation/client";
-import type { Result } from "../simulation/protocol";
+import { useEffect, useRef } from "react";
+import { mountCanvas } from "../canvas/scene";
+import type { ComponentKind } from "../editor/document";
+import { useEditor } from "../editor/store";
+import { connectEngine, useSim } from "../simulation/sync";
 
-type Engine = { status: "loading" } | { status: "ready" } | { status: "error"; message: string };
-type Loaded = Extract<Result, { type: "loaded" }>;
-
-// Fixed demo until the canvas editor lands; the engine sees only its projection.
-const at = (x: number, y: number) => ({ position: { x, y }, rotation: 0 as const, props: {} });
-const DEMO: CircuitDocument = {
-  format: "clockyard",
-  version: 1,
-  metadata: { name: "AND demo", createdAt: "2026-11-06T00:00:00Z", modifiedAt: "2026-11-06T00:00:00Z" },
-  circuit: {
-    components: [
-      { id: "a", kind: "switch", ...at(0, 0) },
-      { id: "b", kind: "switch", ...at(0, 2) },
-      { id: "and", kind: "and", ...at(4, 1) },
-      { id: "led", kind: "led", ...at(8, 1) },
-    ],
-    wires: [
-      { id: "w-a", from: { component: "a", port: "out" }, to: { component: "and", port: "a" } },
-      { id: "w-b", from: { component: "b", port: "out" }, to: { component: "and", port: "b" } },
-      { id: "w-out", from: { component: "and", port: "out" }, to: { component: "led", port: "in" } },
-    ],
-  },
-};
+const GATES: ComponentKind[] = ["not", "and", "nand", "or", "nor", "xor", "xnor"];
+const LIBRARY: { title: string; parts: { kind: ComponentKind; name: string }[] }[] = [
+  { title: "Inputs", parts: [{ kind: "switch", name: "Switch" }] },
+  { title: "Outputs", parts: [{ kind: "led", name: "LED" }] },
+  { title: "Gates", parts: GATES.map((kind) => ({ kind, name: kind.toUpperCase() })) },
+];
 
 export function App() {
-  const [engine, setEngine] = useState<Engine>({ status: "loading" });
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const [nets, setNets] = useState<Uint8Array | null>(null);
-  const sim = useRef<SimClient | null>(null);
-
-  useEffect(() => {
-    const client = startSimulation((message) => {
-      if (message.type === "ready") setEngine({ status: "ready" });
-      else if (message.type === "error") setEngine({ status: "error", message: message.message });
-      else if (message.type === "loaded") setLoaded(message);
-      else setNets(message.nets);
-    });
-    client.send({ type: "load", circuit: project(DEMO.circuit) });
-    sim.current = client;
-    return () => client.dispose();
-  }, []);
-
-  // Every value shown is read from the engine's nets; null until the engine has replied.
-  const value = (component: string, port: string) => {
-    const net = loaded?.portNets[component]?.[port];
-    return net === undefined ? null : (nets?.[net] ?? null);
-  };
-  const out = value("led", "in");
+  useEffect(() => connectEngine(), []);
 
   return (
     <div className="shell">
@@ -66,43 +28,109 @@ export function App() {
           </svg>
           Clockyard
         </span>
-        <span className={`engine-status engine-${engine.status}`} role="status">
-          engine: {engine.status === "error" ? `error — ${engine.message}` : engine.status}
-        </span>
       </header>
-      <main className="bench">
-        <section className="probe" aria-label="Switches, AND gate and LED">
-          <h1 className="type-heading">PHASE 1 · FIRST SLICE</h1>
-          <div className="probe-row">
-            {(["a", "b"] as const).map((name) => {
-              const on = value(name, "out");
-              return (
-                <button
-                  key={name}
-                  type="button"
-                  className="switch"
-                  aria-pressed={on === 1}
-                  disabled={on === null}
-                  onClick={() => sim.current?.send({ type: "setInput", component: name, value: on === 1 ? 0 : 1 })}
-                >
-                  <span className="type-label">{name.toUpperCase()}</span>
-                  <span className="type-value">{on ?? "–"}</span>
-                </button>
-              );
-            })}
-            <span className="gate type-value">AND</span>
-            <output className="led type-display" data-high={out === 1} aria-label="A AND B">
-              {out ?? "–"}
-            </output>
-          </div>
-          {loaded?.diagnostics.map((d, i) => (
-            <p key={i} className={`type-caption diagnostic diagnostic-${d.severity}`}>
-              {d.message}
-            </p>
-          ))}
-          <p className="type-caption caption">Netlist compiled and settled in Rust (sim-core) through WebAssembly in a Web Worker.</p>
-        </section>
-      </main>
+      <div className="workspace">
+        <PartsLibrary />
+        <Canvas />
+      </div>
+      <StatusBar />
     </div>
+  );
+}
+
+function PartsLibrary() {
+  const armed = useEditor((s) => s.armed);
+  const arm = useEditor((s) => s.arm);
+  return (
+    <aside className="parts" aria-label="Parts">
+      {LIBRARY.map(({ title, parts }) => (
+        <section key={title} className="panel">
+          <h2 className="type-heading panel-title">{title.toUpperCase()}</h2>
+          <div className="part-grid">
+            {parts.map(({ kind, name }) => (
+              <button
+                key={kind}
+                type="button"
+                className="part-tile type-label"
+                aria-pressed={armed === kind}
+                onClick={() => arm(armed === kind ? null : kind)}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
+      <p className="type-caption parts-hint">Pick a part, then click the canvas to place it.</p>
+    </aside>
+  );
+}
+
+function Canvas() {
+  const host = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = host.current;
+    if (!element) return;
+    let disposed = false;
+    let dispose: (() => void) | undefined;
+    // React may unmount before Pixi finishes its async start-up.
+    mountCanvas(element).then(
+      (stop) => (disposed ? stop() : (dispose = stop)),
+      (error: unknown) => (element.textContent = `Canvas failed to start: ${String(error)}`),
+    );
+    return () => {
+      disposed = true;
+      dispose?.();
+    };
+  }, []);
+  return <main ref={host} className="canvas-host" aria-label="Circuit canvas" />;
+}
+
+// Plain sentences for the status bar; the engine's messages name opaque IDs, which the canvas highlights instead.
+const PLAIN: Record<string, string> = {
+  outputToOutput: "A wire connects two outputs.",
+  inputToInput: "A wire connects two inputs, so nothing drives it.",
+  multipleDrivers: "An input has more than one driver.",
+  unconnectedInput: "An input is unconnected and reads 0.",
+  unstable: "The circuit did not settle: a loop keeps oscillating.",
+};
+
+function StatusBar() {
+  const status = useSim((s) => s.status);
+  const error = useSim((s) => s.error);
+  const loaded = useSim((s) => s.loaded);
+  const runtime = useSim((s) => s.runtime);
+  const empty = useEditor((s) => s.circuit.components.length === 0);
+
+  const diagnostics = [...(loaded?.diagnostics ?? []), ...runtime];
+  const errors = diagnostics.filter((d) => d.severity === "error");
+  const [state, tone] =
+    status === "error"
+      ? ["Engine error", "danger"]
+      : status === "loading"
+        ? ["Starting", "muted"]
+        : errors.some((d) => d.code === "unstable")
+          ? ["Unstable", "danger"]
+          : errors.length > 0
+            ? ["Invalid", "danger"]
+            : empty
+              ? ["No circuit", "muted"]
+              : ["Settled", "ok"];
+  const first = errors[0] ?? diagnostics[0];
+  const message =
+    status === "error"
+      ? error
+      : first && `${PLAIN[first.code] ?? first.message}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`;
+
+  return (
+    <footer className="statusbar" role="status">
+      <span className={`status-state status-${tone}`}>
+        <span className="status-dot" aria-hidden="true" />
+        {state}
+      </span>
+      <span className="status-message" title={diagnostics.map((d) => d.message).join("\n")}>
+        {message}
+      </span>
+    </footer>
   );
 }
