@@ -24,6 +24,8 @@ const LIBRARY: { title: string; parts: Part[] }[] = [
   },
 ];
 const SHORTCUTS = new Map(LIBRARY.flatMap(({ parts }) => parts.flatMap(({ kind, key }) => (key ? [[key, kind] as const] : []))));
+/** The platform's name for the shortcut modifier (design system Kbd rule). */
+const MOD = navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl";
 /** Larger files are refused before reading; real circuits are far smaller. */
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -155,7 +157,11 @@ function PartsLibrary() {
           </div>
         </section>
       ))}
-      <p className="type-caption parts-hint">Pick a part or press its key, then click the canvas to place it. Esc cancels.</p>
+      <p className="type-caption parts-hint">
+        Pick a part or press its key, then click the canvas to place it. Esc cancels. <kbd className="kbd">{MOD}</kbd>{" "}
+        <kbd className="kbd">Z</kbd> undoes, <kbd className="kbd">{MOD}</kbd> <kbd className="kbd">Shift</kbd>{" "}
+        <kbd className="kbd">Z</kbd> redoes.
+      </p>
     </aside>
   );
 }

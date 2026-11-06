@@ -145,3 +145,28 @@ test("invalid and unstable circuits are reported and recover", async ({ page }) 
   await expectStates(page, { "Switch 1": 1, "LED 1": 0 });
   await expect(status(page)).toContainText("Settled");
 });
+
+test("undo and redo edits; a drag undoes in one step", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0), out (2,1)
+  await page.keyboard.press("l");
+  await click(page, at(6, 1)); // LED at (5,0), in (5,1)
+  await drag(page, at(2, 1), at(5, 1));
+  await click(page, at(1, 1));
+  await expectStates(page, { "Switch 1": 1, "LED 1": 1 });
+
+  // Switch positions are not edits, so undo takes back the wire.
+  await page.keyboard.press("Control+z");
+  await expectStates(page, { "Switch 1": 1, "LED 1": 0 });
+  await page.keyboard.press("Control+Shift+z");
+  await expectStates(page, { "LED 1": 1 });
+
+  // Drag the LED through several cells; one undo puts it back where it started.
+  await drag(page, at(6.5, 1), at(6.5, 7));
+  await page.keyboard.press("Control+z");
+  await click(page, at(6.5, 1)); // selects the LED only if it is back at (5,0)
+  await page.keyboard.press("Delete");
+  await expect(readout(page, "LED 1")).toHaveCount(0);
+});

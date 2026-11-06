@@ -71,3 +71,62 @@ test("load replaces the document and clears transient state", () => {
   const state = useEditor.getState();
   expect([state.metadata, state.circuit, state.selection, state.inputs]).toEqual([metadata, circuit, [], {}]);
 });
+
+const ids = () => useEditor.getState().circuit.components.map((c) => c.id);
+
+test("undo and redo step through edits; a new edit clears redo", () => {
+  const { add, undo, redo } = useEditor.getState();
+  const a = add("switch", { x: 0, y: 0 });
+  const b = add("led", { x: 4, y: 0 });
+  undo();
+  expect(ids()).toEqual([a]);
+  undo();
+  expect(ids()).toEqual([]);
+  undo(); // nothing left: no change
+  expect(ids()).toEqual([]);
+  redo();
+  redo();
+  expect(ids()).toEqual([a, b]);
+  undo();
+  const c = add("not", { x: 8, y: 0 });
+  redo(); // cleared by the new edit
+  expect(ids()).toEqual([a, c]);
+});
+
+test("a drag is one undo step: record once, then move without history", () => {
+  const { add, record, move, undo } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  record();
+  move(s, { x: 1, y: 0 });
+  move(s, { x: 2, y: 0 });
+  move(s, { x: 3, y: 1 });
+  undo();
+  expect(useEditor.getState().circuit.components[0]?.position).toEqual({ x: 0, y: 0 });
+});
+
+test("undo restores a removed part with its wires, and drops state for parts it removes", () => {
+  const { add, connect, toggle, select, remove, undo } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const l = add("led", { x: 4, y: 0 });
+  const w = connect(port(s, "out"), port(l, "in"));
+  remove([s]);
+  undo();
+  expect(useEditor.getState().circuit.wires.map((wire) => wire.id)).toEqual([w]);
+  // Undo past the switch's creation: its position and selection must not outlive it.
+  toggle(s);
+  select([s]);
+  undo(); // the wire
+  undo(); // the LED
+  undo(); // the switch
+  expect(useEditor.getState().inputs).toEqual({});
+  expect(useEditor.getState().selection).toEqual([]);
+});
+
+test("loading a document clears history", () => {
+  const { add, load, undo } = useEditor.getState();
+  add("switch", { x: 0, y: 0 });
+  const metadata = { name: "x", createdAt: "", modifiedAt: "" };
+  load({ format: "clockyard", version: 1, metadata, circuit: { components: [], wires: [] } });
+  undo();
+  expect(ids()).toEqual([]);
+});

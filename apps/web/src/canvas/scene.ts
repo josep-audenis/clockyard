@@ -43,7 +43,7 @@ function readTheme(): Theme {
 
 type Gesture =
   | { type: "pan"; last: Point }
-  | { type: "move"; id: string; grab: Point; start: Point; moved: boolean }
+  | { type: "move"; id: string; grab: Point; start: Point; moved: boolean; recorded: boolean }
   | { type: "wire"; from: PortRef; at: Point };
 
 export async function mountCanvas(host: HTMLElement): Promise<() => void> {
@@ -279,7 +279,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       } else if (part) {
         if (!editor.selection.includes(part.id)) editor.select([part.id]);
         const grab = { x: p.x - part.position.x, y: p.y - part.position.y };
-        gesture = { type: "move", id: part.id, grab, start: { x: e.clientX, y: e.clientY }, moved: false };
+        gesture = { type: "move", id: part.id, grab, start: { x: e.clientX, y: e.clientY }, moved: false, recorded: false };
       } else if (hit?.type === "wire") {
         editor.select([hit.id]);
       } else {
@@ -303,6 +303,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const id = gesture.id;
       const part = editor.circuit.components.find((c) => c.id === id);
       if (gesture.moved && part && (part.position.x !== position.x || part.position.y !== position.y)) {
+        // The whole drag is one undo step.
+        if (!gesture.recorded) editor.record();
+        gesture.recorded = true;
         editor.move(part.id, position);
       }
     } else if (gesture?.type === "wire") {
@@ -344,7 +347,16 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const editor = useEditor.getState();
     // Only with focus on the page itself: Backspace on a focused button or field is not a canvas edit.
     const onCanvas = e.target === document.body;
-    if (onCanvas && (e.key === "Delete" || e.key === "Backspace") && editor.selection.length > 0) {
+    const key = e.key.toLowerCase();
+    const undo = (e.ctrlKey || e.metaKey) && !e.altKey && key === "z" && !e.shiftKey;
+    const redo = (e.ctrlKey || e.metaKey) && !e.altKey && ((key === "z" && e.shiftKey) || (key === "y" && !e.shiftKey));
+    if (undo || redo) {
+      e.preventDefault();
+      // A gesture in progress refers to the circuit being replaced.
+      gesture = null;
+      if (undo) editor.undo();
+      else editor.redo();
+    } else if (onCanvas && (e.key === "Delete" || e.key === "Backspace") && editor.selection.length > 0) {
       e.preventDefault();
       gesture = null;
       editor.remove(editor.selection);

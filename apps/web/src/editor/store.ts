@@ -22,13 +22,37 @@ export type EditorState = {
   select: (ids: string[]) => void;
   toggle: (id: string) => void;
   arm: (kind: ComponentKind | null) => void;
-  /** Replaces the whole document, e.g. from an imported file. */
+  /** Replaces the whole document, e.g. from an imported file. Clears history. */
   load: (document: CircuitDocument) => void;
+  /** Earlier circuits, most recent last; `undo` restores them. */
+  past: Circuit[];
+  /** Circuits undone, next first; any new edit clears them. */
+  future: Circuit[];
+  /** Makes the current circuit an undo step before edits that skip history (`move` during a drag). */
+  record: () => void;
+  undo: () => void;
+  redo: () => void;
 };
 
 const samePort = (a: PortRef, b: PortRef) => a.component === b.component && a.port === b.port;
 
 const now = new Date().toISOString();
+const HISTORY_LIMIT = 200;
+
+/** Sets the circuit and drops selection and switch positions that point at items no longer in it. */
+function withCircuit(state: EditorState, circuit: Circuit) {
+  const kept = new Set([...circuit.components, ...circuit.wires].map((item) => item.id));
+  return {
+    circuit,
+    selection: state.selection.filter((id) => kept.has(id)),
+    inputs: Object.fromEntries(Object.entries(state.inputs).filter(([id]) => kept.has(id))),
+  };
+}
+
+const remember = (state: EditorState) => ({ past: [...state.past, state.circuit].slice(-HISTORY_LIMIT), future: [] });
+
+/** A document edit: undoable, and it clears redo. */
+const edit = (state: EditorState, circuit: Circuit) => ({ ...withCircuit(state, circuit), ...remember(state) });
 
 export const useEditor = create<EditorState>()((set, get) => ({
   metadata: { name: "Untitled", createdAt: now, modifiedAt: now },
@@ -36,11 +60,13 @@ export const useEditor = create<EditorState>()((set, get) => ({
   selection: [],
   inputs: {},
   armed: null,
+  past: [],
+  future: [],
 
   add: (kind, position) => {
     const id = crypto.randomUUID();
-    set(({ circuit }) => ({
-      circuit: { ...circuit, components: [...circuit.components, { id, kind, position, rotation: 0, props: {} }] },
+    set((state) => ({
+      ...edit(state, { ...state.circuit, components: [...state.circuit.components, { id, kind, position, rotation: 0, props: {} }] }),
       selection: [id],
       armed: null,
     }));
@@ -61,27 +87,37 @@ export const useEditor = create<EditorState>()((set, get) => ({
     const present = [from, to].every((end) => components.some((c) => c.id === end.component));
     if (samePort(from, to) || exists || !present) return null;
     const id = crypto.randomUUID();
-    set(({ circuit }) => ({ circuit: { ...circuit, wires: [...circuit.wires, { id, from, to }] }, selection: [id] }));
+    set((state) => ({ ...edit(state, { ...state.circuit, wires: [...state.circuit.wires, { id, from, to }] }), selection: [id] }));
     return id;
   },
 
   remove: (ids) => {
     const gone = new Set(ids);
-    set(({ circuit, selection, inputs }) => {
+    set((state) => {
+      const { circuit } = state;
       const components = circuit.components.filter((c) => !gone.has(c.id));
+      // Wires attached to removed parts go too.
       const wires = circuit.wires.filter((w) => !gone.has(w.id) && !gone.has(w.from.component) && !gone.has(w.to.component));
-      // Wires removed along with their parts leave the selection too.
-      const kept = new Set([...components, ...wires].map((item) => item.id));
-      return {
-        circuit: { components, wires },
-        selection: selection.filter((id) => kept.has(id)),
-        inputs: Object.fromEntries(Object.entries(inputs).filter(([id]) => kept.has(id))),
-      };
+      return edit(state, { components, wires });
     });
   },
 
   select: (ids) => set({ selection: ids }),
   toggle: (id) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: inputs[id] === 1 ? 0 : 1 } })),
   arm: (kind) => set({ armed: kind }),
-  load: ({ metadata, circuit }) => set({ metadata, circuit, selection: [], inputs: {}, armed: null }),
+  load: ({ metadata, circuit }) => set({ metadata, circuit, selection: [], inputs: {}, armed: null, past: [], future: [] }),
+
+  record: () => set(remember),
+  undo: () =>
+    set((state) => {
+      const previous = state.past.at(-1);
+      if (!previous) return state;
+      return { ...withCircuit(state, previous), past: state.past.slice(0, -1), future: [state.circuit, ...state.future] };
+    }),
+  redo: () =>
+    set((state) => {
+      const [next, ...rest] = state.future;
+      if (!next) return state;
+      return { ...withCircuit(state, next), past: [...state.past, state.circuit], future: rest };
+    }),
 }));

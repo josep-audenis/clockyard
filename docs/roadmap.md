@@ -10,10 +10,12 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started
 **Phase 0 — ✅ done.** pnpm + Cargo workspaces, a Rust AND evaluator called from
 the browser through WASM in a Web Worker, linting, tests and a pre-push check hook.
 
-**Phase 1 — ✅ done** (branch `feat/phase-1-editor`). Circuits are built on a
+**Phase 1 — ✅ done** (merged in PR #7). Circuits are built on a
 PixiJS canvas, simulated by the Rust engine in a worker, exported and imported
 as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
-Next: Phase 2.
+
+**Phase 2 — 🔨 in progress** (branch `feat/phase-2-editing`). Undo/redo done.
+Next: copy/paste, duplicate, box selection.
 
 ## Phase 0 — Foundation ✅
 
@@ -94,6 +96,21 @@ circuits.
 Target demo: a 4-bit adder built from a user-defined full adder instanced four
 times. Hierarchical elaboration and per-instance separation are tested.
 
+Planned order: editing comfort first (no engine change), then component
+properties and labelled pins, then nets and junctions (file format v2, ADR),
+then custom components (ADR), then multi-bit signals (ADR), then examples.
+
+Progress:
+
+- ✅ Undo/redo: Ctrl/⌘ Z, Ctrl/⌘ Shift Z or Ctrl Y; one step per drag; last 200
+  edits; switch positions and selection are not edits; importing clears history
+- ⬜ Copy/paste, duplicate, box selection
+- ⬜ Component properties, inspector, labelled input/output pins
+- ⬜ Explicit junctions and nets, better wire routing (format v2 + migration)
+- ⬜ Custom reusable components and nested definitions
+- ⬜ Multi-bit signals, buses, splitters
+- ⬜ 4-bit adder example and tests
+
 ## Phase 3 — Clocks and sequential logic
 
 Goal: hardware with memory and time.
@@ -140,6 +157,7 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 2 planning: undo/redo, copy/paste, explicit junctions and nets, then the
-4-bit adder from a reusable full adder. Known Phase 1 limits to revisit: wires
-from different nets can share a bend column, no part rotation, no autosave.
+Phase 2 editing comfort: copy/paste and duplicate (new IDs, internal wires
+kept), box selection and moving a multi-part selection, each one undo step.
+Known Phase 1 limits still open: wires from different nets can share a bend
+column, no part rotation, no autosave.
