@@ -31,6 +31,15 @@ test("unknown fields are dropped", () => {
   const result = broken((doc, component) => {
     Object.assign(doc, { extra: 1 });
     Object.assign(component, { selected: true });
+    Object.assign(component.props, { colour: "red" });
+  });
+  expect(result).toEqual({ ok: true, document });
+});
+
+test("labels are trimmed and a blank one is dropped", () => {
+  const result = broken((doc, component) => {
+    component.props.label = "  A ";
+    Object.assign(doc.circuit.components[1] as CircuitComponent, { props: { label: "   " } });
   });
   expect(result).toEqual({ ok: true, document });
 });
@@ -44,6 +53,8 @@ test.each([
   ["a bad rotation", () => broken((_, c) => Object.assign(c, { rotation: 45 })), "rotation"],
   ["a duplicate ID", () => broken((_, _c, w) => (w.id = "a")), "ID a is used more than once"],
   ["a dangling wire", () => broken((_, _c, w) => (w.to.component = "gone")), "missing component gone"],
+  ["a label that is not text", () => broken((_, c) => Object.assign(c.props, { label: 7 })), "label must be text"],
+  ["an over-long label", () => broken((_, c) => (c.props.label = "x".repeat(33))), "longer than 32"],
   ["missing wires", () => broken((doc) => Reflect.deleteProperty(doc.circuit, "wires")), "circuit.wires must be a list"],
 ])("rejects %s", (_name, parse, message) => {
   const result = parse();

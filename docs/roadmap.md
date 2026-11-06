@@ -14,9 +14,9 @@ the browser through WASM in a Web Worker, linting, tests and a pre-push check ho
 PixiJS canvas, simulated by the Rust engine in a worker, exported and imported
 as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
 
-**Phase 2 — 🔨 in progress** (branch `feat/phase-2-editing`). Editing comfort
-done: undo/redo, copy/paste, duplicate, box selection, group moves. Next:
-component properties and labelled pins.
+**Phase 2 — 🔨 in progress** (branch `feat/phase-2-properties`). Editing
+comfort merged in PR #8. Component labels, the inspector and labelled pins done.
+Next: explicit junctions and nets (format v2).
 
 ## Phase 0 — Foundation ✅
 
@@ -111,7 +111,14 @@ Progress:
 - ✅ Box selection (drag empty space; Shift adds), Shift+click, select all
   (Ctrl/⌘ A), dragging a selection moves it as one undo step; panning moved to
   Space+drag or middle-button drag
-- ⬜ Component properties, inspector, labelled input/output pins
+- ✅ Inspector (Properties panel) for a single selected part; label field
+  committed on blur or Enter, Escape cancels, one undo step per change
+- ✅ Labels (`props.label`, up to 32 characters) drawn under parts and saved in
+  the file; unknown props dropped on import
+- ✅ Labelled pins: a switch's or LED's label names the circuit's input or output
+  pin; the readout and status bar use labels ("Switch A", "(AND carry)").
+  No separate pin parts: switches and LEDs become a custom component's ports
+  when that lands; duplicate pin names are checked then
 - ⬜ Explicit junctions and nets, better wire routing (format v2 + migration)
 - ⬜ Custom reusable components and nested definitions
 - ⬜ Multi-bit signals, buses, splitters
@@ -163,8 +170,7 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 2 component properties: an inspector for the selection (label, and later
-per-kind settings), labelled input/output pin parts for custom components, and
-the readout and status bar using labels. Known Phase 1 limits still open:
-wires from different nets can share a bend column, no part rotation, no
-autosave.
+Phase 2 explicit junctions and nets, with better wire routing: file format v2
+with a migration from v1, and an ADR. Known limits still open: wires from
+different nets can share a bend column, no part rotation, no autosave, the
+inspector does not collapse on narrow screens yet.

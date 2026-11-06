@@ -2,7 +2,7 @@
 // through `useEditor.getState()` / `subscribe`.
 import { create } from "zustand";
 import type { PortRef } from "../simulation/protocol";
-import type { Circuit, CircuitDocument, ComponentKind } from "./document";
+import { MAX_LABEL, type Circuit, type CircuitDocument, type ComponentKind } from "./document";
 
 export type EditorState = {
   metadata: CircuitDocument["metadata"];
@@ -31,6 +31,8 @@ export type EditorState = {
   paste: () => void;
   /** Copies the selected parts next to themselves, leaving the clipboard alone. */
   duplicate: () => void;
+  /** Sets a part's label as one edit; blank removes it. Trimmed and capped at `MAX_LABEL`. */
+  setLabel: (id: string, label: string) => void;
   toggle: (id: string) => void;
   arm: (kind: ComponentKind | null) => void;
   /** Replaces the whole document, e.g. from an imported file. Clears history. */
@@ -181,6 +183,16 @@ export const useEditor = create<EditorState>()((set, get) => ({
     set((state) => {
       const part = fragment(state.circuit, state.selection);
       return part.components.length > 0 ? insert(state, cloned(part, 2)) : state;
+    }),
+  setLabel: (id, label) =>
+    set((state) => {
+      const text = label.trim().slice(0, MAX_LABEL);
+      const part = state.circuit.components.find((c) => c.id === id);
+      if (!part || (part.props.label ?? "") === text) return state;
+      const props = { ...part.props };
+      if (text) props.label = text;
+      else delete props.label;
+      return edit(state, { ...state.circuit, components: state.circuit.components.map((c) => (c === part ? { ...c, props } : c)) });
     }),
   toggle: (id) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: inputs[id] === 1 ? 0 : 1 } })),
   arm: (kind) => set({ armed: kind }),

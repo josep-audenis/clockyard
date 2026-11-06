@@ -1,7 +1,7 @@
 // The PixiJS circuit canvas (ADR 0007), drawn to the design system's CanvasKit
 // spec. Reads the editor and engine stores outside React and redraws on change.
 // shortcut: the whole scene is redrawn per change; move to per-object updates when profiling says so.
-import { Application, Container, Graphics } from "pixi.js";
+import { Application, Container, Graphics, Text } from "pixi.js";
 import type { CircuitComponent } from "../editor/document";
 import { useEditor } from "../editor/store";
 import type { PortRef } from "../simulation/protocol";
@@ -30,7 +30,7 @@ const COLORS = [
 ] as const;
 const SIZES = ["grid-cell", "wire-width", "wire-width-high", "select-width", "port-size", "hit-slop", "radius-sm"] as const;
 
-type Theme = { color: Record<(typeof COLORS)[number], string>; size: Record<(typeof SIZES)[number], number> };
+type Theme = { color: Record<(typeof COLORS)[number], string>; size: Record<(typeof SIZES)[number], number>; mono: string };
 
 // Pixi cannot read CSS variables: copy the tokens once, and again on theme change.
 function readTheme(): Theme {
@@ -39,6 +39,7 @@ function readTheme(): Theme {
   return {
     color: Object.fromEntries(COLORS.map((name) => [name, token(name)])) as Theme["color"],
     size: Object.fromEntries(SIZES.map((name) => [name, parseFloat(token(name))])) as Theme["size"],
+    mono: token("font-mono"),
   };
 }
 
@@ -70,7 +71,10 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   const wires = new Graphics();
   const bodies = new Graphics();
   const overlay = new Graphics();
-  world.addChild(wires, bodies, overlay);
+  const labels = new Container();
+  world.addChild(wires, bodies, labels, overlay);
+  /** Label text objects by component ID, reused across redraws. */
+  const texts = new Map<string, Text>();
   app.stage.addChild(world);
 
   let theme = readTheme();
@@ -149,6 +153,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       }
     }
 
+    drawLabels(circuit.components);
+
     if (gesture?.type === "wire") {
       const fromPart = byId.get(gesture.from.component);
       const start = fromPart && portAt(fromPart, gesture.from.port);
@@ -171,6 +177,33 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     if (hoverAt) {
       const { x, y } = px(hoverAt);
       overlay.circle(x, y, size["port-size"]).stroke({ width: 2, color: color.accent });
+    }
+  }
+
+  // CanvasKit: labels in the canvas-label style, ink-muted, centred below the body.
+  function drawLabels(components: CircuitComponent[]) {
+    const c = cell();
+    const style = { fontFamily: theme.mono, fontSize: 11, fontWeight: "500", fill: theme.color["ink-muted"] } as const;
+    const seen = new Set<string>();
+    for (const component of components) {
+      const label = component.props.label;
+      if (!label) continue;
+      seen.add(component.id);
+      let text = texts.get(component.id);
+      if (!text) {
+        // shortcut: rendered at twice the device ratio, so labels soften beyond 2x zoom; switch to BitmapText if that bothers.
+        text = new Text({ text: label, style, anchor: { x: 0.5, y: 0 }, resolution: 2 * window.devicePixelRatio });
+        texts.set(component.id, text);
+        labels.addChild(text);
+      }
+      if (text.text !== label) text.text = label;
+      const { width, height } = LAYOUTS[component.kind];
+      text.position.set((component.position.x + width / 2) * c, (component.position.y + height) * c + 6);
+    }
+    for (const [id, text] of texts) {
+      if (seen.has(id)) continue;
+      texts.delete(id);
+      text.destroy();
     }
   }
 
@@ -280,6 +313,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
 
   const onPointerDown = (e: PointerEvent) => {
     const p = toWorld(e);
+    // Leaving a field commits it (the inspector's label) before this press changes the selection.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const editor = useEditor.getState();
     canvas.setPointerCapture(e.pointerId);
     // A press on the canvas ends any page text selection, so the next copy is the canvas's again.
@@ -451,6 +486,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   const scheme = window.matchMedia("(prefers-color-scheme: dark)");
   const onScheme = () => {
     theme = readTheme();
+    // Labels are recreated in the new theme's ink.
+    for (const text of texts.values()) text.destroy();
+    texts.clear();
     schedule();
   };
   scheme.addEventListener("change", onScheme);
