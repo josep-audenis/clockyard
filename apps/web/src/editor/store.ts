@@ -2,9 +2,10 @@
 // through `useEditor.getState()` / `subscribe`.
 import { create } from "zustand";
 import type { PortRef } from "../simulation/protocol";
-import type { Circuit, ComponentKind } from "./document";
+import type { Circuit, CircuitDocument, ComponentKind } from "./document";
 
 export type EditorState = {
+  metadata: CircuitDocument["metadata"];
   circuit: Circuit;
   /** Selected component and wire IDs. */
   selection: string[];
@@ -21,11 +22,16 @@ export type EditorState = {
   select: (ids: string[]) => void;
   toggle: (id: string) => void;
   arm: (kind: ComponentKind | null) => void;
+  /** Replaces the whole document, e.g. from an imported file. */
+  load: (document: CircuitDocument) => void;
 };
 
 const samePort = (a: PortRef, b: PortRef) => a.component === b.component && a.port === b.port;
 
+const now = new Date().toISOString();
+
 export const useEditor = create<EditorState>()((set, get) => ({
+  metadata: { name: "Untitled", createdAt: now, modifiedAt: now },
   circuit: { components: [], wires: [] },
   selection: [],
   inputs: {},
@@ -74,4 +80,5 @@ export const useEditor = create<EditorState>()((set, get) => ({
   select: (ids) => set({ selection: ids }),
   toggle: (id) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: inputs[id] === 1 ? 0 : 1 } })),
   arm: (kind) => set({ armed: kind }),
+  load: ({ metadata, circuit }) => set({ metadata, circuit, selection: [], inputs: {}, armed: null }),
 }));

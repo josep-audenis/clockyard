@@ -13,8 +13,8 @@ the browser through WASM in a Web Worker, linting, tests and a pre-push check ho
 **Phase 1 — 🔨 in progress** (branch `feat/phase-1-editor`). Engine and canvas
 editor done: parts are placed, dragged, wired, selected and deleted on a
 PixiJS canvas, and every value shown comes from the Rust engine. The
-two-switch → AND → LED slice was built and checked by hand in the browser.
-Next: save/load, part shortcuts, Playwright.
+two-switch → AND → LED slice was built and checked by hand in the browser,
+exported, reloaded and imported again. Next: Playwright.
 
 ## Phase 0 — Foundation ✅
 
@@ -61,8 +61,8 @@ Progress:
 - ✅ PixiJS canvas with pan/zoom, part placement, dragging, wiring, selection/deletion
 - ✅ Active/inactive wire colors from engine nets; validation and unstable loops shown in the status bar and on the canvas
 - ✅ Port layouts per kind, checked against the engine catalog (ADR 0004)
-- ⬜ JSON import/export
-- 🔨 Keyboard shortcuts: Delete and Escape done; part shortcuts to do
+- ✅ JSON import/export with validation (no autosave yet: that is a later IndexedDB item)
+- ✅ Keyboard shortcuts: Delete, Escape, and part keys S, L, N, A, O, X
 - ⬜ Playwright test of the first slice
 
 Acceptance items below are ticked when checked by hand in the browser; the
@@ -78,8 +78,8 @@ Acceptance — a user can:
 - [x] Toggle either switch
 - [x] See the correct LED output (`00→0, 01→0, 10→0, 11→1`)
 - [x] Move components without breaking connections
-- [ ] Save the design
-- [ ] Reload it successfully
+- [x] Save the design
+- [x] Reload it successfully
 - [ ] A cascaded circuit with fan-out also evaluates correctly
 
 ## Phase 2 — Proper circuit construction
@@ -140,7 +140,6 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 1 save and load: JSON export/import of the circuit document with format
-and version checks and dangling-reference validation in `storage/`; part
-shortcuts (A, O, N, X, S, L); then the Playwright test of the first slice,
-including a cascaded circuit with fan-out.
+Phase 1 Playwright test: build two switches → AND → LED through the UI, check
+all four input combinations, move a part, export and re-import; plus a
+cascaded circuit with fan-out. Then close Phase 1.

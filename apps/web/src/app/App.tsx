@@ -1,15 +1,31 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { mountCanvas } from "../canvas/scene";
 import type { ComponentKind } from "../editor/document";
 import { useEditor } from "../editor/store";
 import { connectEngine, useSim } from "../simulation/sync";
+import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
 
-const GATES: ComponentKind[] = ["not", "and", "nand", "or", "nor", "xor", "xnor"];
-const LIBRARY: { title: string; parts: { kind: ComponentKind; name: string }[] }[] = [
-  { title: "Inputs", parts: [{ kind: "switch", name: "Switch" }] },
-  { title: "Outputs", parts: [{ kind: "led", name: "LED" }] },
-  { title: "Gates", parts: GATES.map((kind) => ({ kind, name: kind.toUpperCase() })) },
+type Part = { kind: ComponentKind; name: string; key?: string };
+// Shortcut letters follow the design system's PartTile spec.
+const LIBRARY: { title: string; parts: Part[] }[] = [
+  { title: "Inputs", parts: [{ kind: "switch", name: "Switch", key: "S" }] },
+  { title: "Outputs", parts: [{ kind: "led", name: "LED", key: "L" }] },
+  {
+    title: "Gates",
+    parts: [
+      { kind: "not", name: "NOT", key: "N" },
+      { kind: "and", name: "AND", key: "A" },
+      { kind: "nand", name: "NAND" },
+      { kind: "or", name: "OR", key: "O" },
+      { kind: "nor", name: "NOR" },
+      { kind: "xor", name: "XOR", key: "X" },
+      { kind: "xnor", name: "XNOR" },
+    ],
+  },
 ];
+const SHORTCUTS = new Map(LIBRARY.flatMap(({ parts }) => parts.flatMap(({ kind, key }) => (key ? [[key, kind] as const] : []))));
+/** Larger files are refused before reading; real circuits are far smaller. */
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export function App() {
   useEffect(() => connectEngine(), []);
@@ -28,6 +44,7 @@ export function App() {
           </svg>
           Clockyard
         </span>
+        <FileActions />
       </header>
       <div className="workspace">
         <PartsLibrary />
@@ -38,30 +55,106 @@ export function App() {
   );
 }
 
+function FileActions() {
+  const name = useEditor((s) => s.metadata.name);
+  const [error, setError] = useState<string | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+
+  const exportFile = () => {
+    const { metadata, circuit } = useEditor.getState();
+    const modifiedAt = new Date().toISOString();
+    const text = serializeDocument({ format: "clockyard", version: FORMAT_VERSION, metadata: { ...metadata, modifiedAt }, circuit });
+    const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    const link = Object.assign(document.createElement("a"), { href: url, download: `${slug(metadata.name)}.clockyard.json` });
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url));
+    setError(null);
+  };
+
+  const importFile = async (file: File) => {
+    if (file.size > MAX_FILE_BYTES) return setError(`Could not open ${file.name}: it is too large to be a Clockyard circuit.`);
+    const result = parseDocument(await file.text());
+    if (!result.ok) return setError(`Could not open ${file.name}: ${result.error}`);
+    const replacing = useEditor.getState().circuit.components.length > 0;
+    if (replacing && !window.confirm("Replace the current circuit? Changes since your last export will be lost.")) return;
+    useEditor.getState().load(result.document);
+    setError(null);
+  };
+
+  return (
+    <div className="file-actions">
+      <span className="project-name type-label">{name}</span>
+      {error && (
+        <span className="file-error type-caption" role="alert" title={error}>
+          {error}
+        </span>
+      )}
+      <button type="button" className="button type-label" onClick={() => picker.current?.click()}>
+        Import
+      </button>
+      <button type="button" className="button type-label" onClick={exportFile}>
+        Export
+      </button>
+      <input
+        ref={picker}
+        type="file"
+        accept=".json,application/json"
+        hidden
+        data-testid="import-file"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = ""; // so picking the same file again still fires
+          if (file) void importFile(file);
+        }}
+      />
+    </div>
+  );
+}
+
+const slug = (name: string) =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || "circuit";
+
 function PartsLibrary() {
   const armed = useEditor((s) => s.armed);
   const arm = useEditor((s) => s.arm);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const kind = SHORTCUTS.get(e.key.toUpperCase());
+      if (kind) useEditor.getState().arm(kind);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <aside className="parts" aria-label="Parts">
       {LIBRARY.map(({ title, parts }) => (
         <section key={title} className="panel">
           <h2 className="type-heading panel-title">{title.toUpperCase()}</h2>
           <div className="part-grid">
-            {parts.map(({ kind, name }) => (
+            {parts.map(({ kind, name, key }) => (
               <button
                 key={kind}
                 type="button"
                 className="part-tile type-label"
                 aria-pressed={armed === kind}
+                aria-keyshortcuts={key}
                 onClick={() => arm(armed === kind ? null : kind)}
               >
                 {name}
+                {key && <kbd className="kbd">{key}</kbd>}
               </button>
             ))}
           </div>
         </section>
       ))}
-      <p className="type-caption parts-hint">Pick a part, then click the canvas to place it.</p>
+      <p className="type-caption parts-hint">Pick a part or press its key, then click the canvas to place it. Esc cancels.</p>
     </aside>
   );
 }

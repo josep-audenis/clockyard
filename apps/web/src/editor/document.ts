@@ -2,14 +2,17 @@
 // Connectivity is explicit: wires reference ports by ID, never by geometry.
 import type { CircuitDescription, PortRef } from "../simulation/protocol";
 
-export type ComponentKind = "switch" | "led" | "not" | "and" | "nand" | "or" | "nor" | "xor" | "xnor";
+export const COMPONENT_KINDS = ["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor"] as const;
+export type ComponentKind = (typeof COMPONENT_KINDS)[number];
+
+export const ROTATIONS = [0, 90, 180, 270] as const;
 
 export type CircuitComponent = {
   id: string;
   kind: ComponentKind;
   /** Grid units. */
   position: { x: number; y: number };
-  rotation: 0 | 90 | 180 | 270;
+  rotation: (typeof ROTATIONS)[number];
   props: Record<string, unknown>;
 };
 

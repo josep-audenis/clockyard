@@ -60,3 +60,13 @@ test("toggle flips a switch position", () => {
   toggle(s);
   expect(useEditor.getState().inputs).toEqual({ [s]: 0 });
 });
+
+test("load replaces the document and clears transient state", () => {
+  const { add, toggle, load } = useEditor.getState();
+  toggle(add("switch", { x: 0, y: 0 }));
+  const metadata = { name: "Loaded", createdAt: "2026-01-01T00:00:00Z", modifiedAt: "2026-01-02T00:00:00Z" };
+  const circuit = { components: [], wires: [] };
+  load({ format: "clockyard", version: 1, metadata, circuit });
+  const state = useEditor.getState();
+  expect([state.metadata, state.circuit, state.selection, state.inputs]).toEqual([metadata, circuit, [], {}]);
+});

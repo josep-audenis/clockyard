@@ -86,6 +86,10 @@ Rules:
   document.
 - Loading an older `version` runs explicit migrations in `storage/`. Unknown
   future versions are rejected with a clear message.
+- Import (`storage/file.ts`) treats the file as untrusted: every field is
+  type-checked, unknown fields are dropped, IDs must be unique and wires must
+  reference existing components. Port names are checked by the engine on load.
+  Switch positions are transient and never saved.
 
 ## Circuit description (engine input)
 
