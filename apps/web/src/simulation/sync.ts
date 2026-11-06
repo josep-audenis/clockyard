@@ -54,12 +54,13 @@ export function connectEngine(): () => void {
   let sent: EditorState["inputs"] = {};
   const sync = ({ circuit, inputs }: EditorState) => {
     // Moving a part changes only geometry, so the engine keeps its state.
-    const next = JSON.stringify(project(circuit));
+    const projected = project(circuit);
+    const next = JSON.stringify(projected);
     if (next !== description) {
       description = next;
       pending++;
       useSim.setState({ stale: true });
-      client.send({ type: "load", circuit: project(circuit) });
+      client.send({ type: "load", circuit: projected });
       sent = {};
     }
     for (const [component, value] of Object.entries(inputs)) {

@@ -27,13 +27,14 @@ test("moving keeps wires attached by port ID", () => {
   expect(circuit.wires).toEqual([{ id: w, from: port(s, "out"), to: port(l, "in") }]);
 });
 
-test("connect refuses self-loops on one port and duplicates in either direction", () => {
+test("connect refuses one-port loops, duplicates in either direction and missing parts", () => {
   const { add, connect } = useEditor.getState();
   const s = add("switch", { x: 0, y: 0 });
   const l = add("led", { x: 4, y: 0 });
   expect(connect(port(s, "out"), port(s, "out"))).toBeNull();
   expect(connect(port(s, "out"), port(l, "in"))).not.toBeNull();
   expect(connect(port(l, "in"), port(s, "out"))).toBeNull();
+  expect(connect(port("deleted", "out"), port(l, "in"))).toBeNull();
   expect(useEditor.getState().circuit.wires).toHaveLength(1);
 });
 

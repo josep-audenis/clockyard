@@ -2,7 +2,7 @@
 //! Structured values cross the boundary as JSON; net values as a `Uint8Array`.
 
 use serde::Serialize;
-use sim_core::{CircuitDescription, Diagnostic, Kind, PortNets, Simulator};
+use sim_core::{CircuitDescription, Code, Diagnostic, Kind, PortNets, Simulator};
 use std::collections::BTreeMap;
 use wasm_bindgen::prelude::*;
 
@@ -30,7 +30,10 @@ struct Loaded<'a> {
     net_count: usize,
     wire_nets: &'a BTreeMap<String, u32>,
     port_nets: &'a PortNets,
+    /// Validation results: errors, or warnings such as unconnected inputs.
     diagnostics: &'a [Diagnostic],
+    /// Result of the initial settle (an unstable loop), superseded by later settles.
+    runtime: &'a [Diagnostic],
 }
 
 /// One loaded circuit. `load` replaces it.
@@ -48,7 +51,7 @@ impl Engine {
     }
 
     /// Compiles a circuit description (JSON). Returns
-    /// `{ netCount, wireNets, portNets, diagnostics }` as JSON; on validation
+    /// `{ netCount, wireNets, portNets, diagnostics, runtime }` as JSON; on validation
     /// errors the maps are empty and no circuit is loaded.
     pub fn load(&mut self, description: &str) -> Result<String, JsError> {
         let description: CircuitDescription = serde_json::from_str(description)?;
@@ -58,11 +61,15 @@ impl Engine {
             Err(errors) => (None, errors),
         };
         self.sim = sim;
+        let (runtime, diagnostics): (Vec<_>, Vec<_>) = diagnostics
+            .into_iter()
+            .partition(|d| d.code == Code::Unstable);
         let loaded = Loaded {
             net_count: self.sim.as_ref().map_or(0, |sim| sim.nets().len()),
             wire_nets: self.sim.as_ref().map_or(&empty.0, Simulator::wire_nets),
             port_nets: self.sim.as_ref().map_or(&empty.1, Simulator::port_nets),
             diagnostics: &diagnostics,
+            runtime: &runtime,
         };
         Ok(serde_json::to_string(&loaded)?)
     }

@@ -356,7 +356,11 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   canvas.addEventListener("pointerdown", onPointerDown);
   canvas.addEventListener("pointermove", onPointerMove);
   canvas.addEventListener("pointerup", onPointerUp);
-  canvas.addEventListener("pointercancel", onPointerUp);
+  // A cancelled press (OS interruption, lost touch) is not a release: change nothing.
+  canvas.addEventListener("pointercancel", () => {
+    gesture = null;
+    schedule();
+  });
   canvas.addEventListener("wheel", onWheel, { passive: false });
   window.addEventListener("keydown", onKeyDown);
 

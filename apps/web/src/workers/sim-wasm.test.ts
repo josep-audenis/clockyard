@@ -44,6 +44,22 @@ test("engine settles switches → AND → LED through the boundary", () => {
   expect(engine.nets()[loaded.wireNets.w3 ?? -1]).toBe(1);
 });
 
+test("an unstable initial settle is reported apart from validation, so a later settle can replace it", () => {
+  // o = NOR(s, o) oscillates from all-zero; switching s on settles it.
+  const engine = new Engine();
+  const loop = {
+    components: [
+      { id: "s", kind: "switch" },
+      { id: "o", kind: "nor" },
+    ],
+    connections: [wire("w1", "s.out", "o.a"), wire("w2", "o.out", "o.b")],
+  };
+  const loaded = JSON.parse(engine.load(JSON.stringify(loop))) as Loaded & { runtime: Diagnostic[] };
+  expect(loaded.diagnostics).toEqual([]);
+  expect(loaded.runtime.map((d) => d.code)).toEqual(["unstable"]);
+  expect(JSON.parse(engine.set_input("s", true))).toEqual([]);
+});
+
 test("validation errors come back as diagnostics, not exceptions", () => {
   const engine = new Engine();
   const bad = { components: [{ id: "x", kind: "flux" }], connections: [] };

@@ -24,10 +24,11 @@ onmessage = async (event: MessageEvent<Command>) => {
   try {
     switch (command.type) {
       case "load": {
-        const loaded = JSON.parse(engine.load(JSON.stringify(command.circuit)));
+        // The initial settle's result goes with the state, so the next settle (e.g. restored switch positions) replaces it.
+        const { runtime, ...loaded } = JSON.parse(engine.load(JSON.stringify(command.circuit)));
         hasCircuit = loaded.netCount > 0;
         reply({ type: "loaded", ...loaded });
-        state([]);
+        state(runtime);
         break;
       }
       case "setInput":

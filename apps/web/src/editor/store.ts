@@ -15,7 +15,7 @@ export type EditorState = {
   armed: ComponentKind | null;
   add: (kind: ComponentKind, position: { x: number; y: number }) => string;
   move: (id: string, position: { x: number; y: number }) => void;
-  /** Adds a wire unless it joins a port to itself or duplicates an existing wire. */
+  /** Adds a wire unless it joins a port to itself, duplicates a wire or names a missing part. */
   connect: (from: PortRef, to: PortRef) => string | null;
   /** Removes components (with their wires) and wires. */
   remove: (ids: string[]) => void;
@@ -53,10 +53,13 @@ export const useEditor = create<EditorState>()((set, get) => ({
     })),
 
   connect: (from, to) => {
-    const exists = get().circuit.wires.some(
+    const { components, wires } = get().circuit;
+    const exists = wires.some(
       (w) => (samePort(w.from, from) && samePort(w.to, to)) || (samePort(w.from, to) && samePort(w.to, from)),
     );
-    if (samePort(from, to) || exists) return null;
+    // A part can be deleted mid-drag; never leave a wire to nothing.
+    const present = [from, to].every((end) => components.some((c) => c.id === end.component));
+    if (samePort(from, to) || exists || !present) return null;
     const id = crypto.randomUUID();
     set(({ circuit }) => ({ circuit: { ...circuit, wires: [...circuit.wires, { id, from, to }] }, selection: [id] }));
     return id;

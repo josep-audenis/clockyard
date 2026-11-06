@@ -27,6 +27,9 @@ pub struct Simulator {
     nets: Vec<u8>,
     wire_nets: BTreeMap<String, u32>,
     port_nets: PortNets,
+    /// Components still dirty when the last settle hit its delta limit; the
+    /// next settle resumes them, so a live loop is reported until it resolves.
+    unsettled: Vec<u32>,
 }
 
 enum End {
@@ -119,7 +122,17 @@ impl Simulator {
         let mut drivers: Vec<Vec<Option<(u32, &str)>>> =
             kinds.iter().map(|k| vec![None; k.inputs().len()]).collect();
         let mut wire_nets = BTreeMap::new();
+        let mut wire_ids = std::collections::BTreeSet::new();
         for wire in &description.connections {
+            if !wire_ids.insert(wire.id.as_str()) {
+                let message = format!("wire ID {} is used more than once", wire.id);
+                errors.push(Diagnostic::error(
+                    Code::DuplicateId,
+                    message,
+                    vec![wire.id.clone()],
+                ));
+                continue;
+            }
             let (driver, reader, slot) =
                 match (resolve(&wire.id, &wire.from), resolve(&wire.id, &wire.to)) {
                     (Ok(End::Out(d)), Ok(End::In(r, s))) | (Ok(End::In(r, s)), Ok(End::Out(d))) => {
@@ -213,6 +226,7 @@ impl Simulator {
             nets: vec![0; net_count as usize],
             wire_nets,
             port_nets,
+            unsettled: Vec::new(),
         };
         warnings.extend(sim.settle((0..count as u32).collect()));
         Ok((sim, warnings))
@@ -266,6 +280,7 @@ impl Simulator {
     fn settle(&mut self, mut dirty: Vec<u32>) -> Option<Diagnostic> {
         // Acyclic circuits settle in at most depth + 1 <= components + 1 deltas.
         let limit = self.kinds.len() + 64;
+        dirty.append(&mut self.unsettled);
         let mut changed = Vec::new();
         for _ in 0..limit {
             dirty.sort_unstable();
@@ -296,6 +311,7 @@ impl Simulator {
             .filter_map(|&net| self.outputs.iter().position(|&out| out == Some(net)))
             .map(|c| self.ids[c].clone())
             .collect();
+        self.unsettled = dirty;
         let message = format!("circuit did not settle within {limit} deltas: oscillating loop");
         Some(Diagnostic::error(Code::Unstable, message, culprits))
     }
@@ -471,8 +487,41 @@ mod tests {
         assert_eq!(warnings.len(), 1);
         assert_eq!(warnings[0].code, Code::Unstable);
         assert_eq!(warnings[0].ids, vec!["n".to_string()]);
-        // The engine keeps working afterwards.
+        // The engine keeps working, and the loop, still live, is reported again.
+        let again = sim.set_input("s", true).unwrap().expect("still unstable");
+        assert_eq!(
+            (again.code, again.ids),
+            (Code::Unstable, vec!["n".to_string()])
+        );
+    }
+
+    #[test]
+    fn an_unrelated_input_does_not_hide_a_live_loop() {
+        // o = NAND(en, o) oscillates while en = 1; t is unrelated.
+        let mut sim = load(&circuit(
+            &[("en", "switch"), ("o", "nand"), ("t", "switch")],
+            &[("en.out", "o.a"), ("o.out", "o.b")],
+        ));
+        let unstable = |r: Result<Option<Diagnostic>, String>| r.unwrap().map(|d| d.code);
+        assert_eq!(unstable(sim.set_input("en", true)), Some(Code::Unstable));
+        assert_eq!(unstable(sim.set_input("t", true)), Some(Code::Unstable));
+        // Disabling the loop settles it consistently: NAND(0, x) = 1.
+        assert_eq!(unstable(sim.set_input("en", false)), None);
+        assert_eq!(value(&sim, "o", "out"), 1);
+        assert_eq!(value(&sim, "o", "b"), 1);
+    }
+
+    #[test]
+    fn an_input_can_settle_a_loop_left_unstable_by_load() {
+        // o = NOR(s, o) oscillates from the all-zero start; s = 1 makes it stable.
+        let (mut sim, warnings) = Simulator::load(&circuit(
+            &[("s", "switch"), ("o", "nor")],
+            &[("s.out", "o.a"), ("o.out", "o.b")],
+        ))
+        .unwrap();
+        assert_eq!(warnings[0].code, Code::Unstable);
         assert_eq!(sim.set_input("s", true), Ok(None));
+        assert_eq!(value(&sim, "o", "out"), 0);
     }
 
     #[test]
@@ -487,6 +536,19 @@ mod tests {
         assert_eq!(value(&sim, "o", "out"), 1);
         assert_eq!(sim.set_input("s", false), Ok(None));
         assert_eq!(value(&sim, "o", "out"), 1);
+    }
+
+    #[test]
+    fn duplicate_wire_ids_are_rejected() {
+        let mut description = circuit(
+            &[("a", "switch"), ("b", "switch"), ("g", "and")],
+            &[("a.out", "g.a"), ("b.out", "g.b")],
+        );
+        description.connections[1].id = "w0".into();
+        assert_eq!(
+            codes(Simulator::load(&description)),
+            vec![Code::DuplicateId]
+        );
     }
 
     #[test]

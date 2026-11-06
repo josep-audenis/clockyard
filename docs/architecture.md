@@ -161,6 +161,9 @@ type Result =
   changes, so moving a part keeps the engine's state. Switch positions live in
   the editor store (transient, never saved) and are re-sent after each load.
   States that arrive while a newer load is pending are dropped.
+- `loaded.diagnostics` holds validation results only. The initial settle's
+  runtime result (an unstable loop) arrives with the first `state`, so the
+  settles that follow, such as restored switch positions, replace it.
 - Phase 1 sends the full net value array (small circuits). Changed-net deltas
   or transferable buffers come when measurements justify them.
 - During continuous runs (Phase 3) the worker advances virtual time in batches
