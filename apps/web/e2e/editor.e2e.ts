@@ -195,3 +195,17 @@ test("box-select, duplicate, drag the copy as a group, select all and delete", a
   await expect(readout(page, "Switch 1")).toHaveCount(0);
   await expect(status(page)).toContainText("No circuit");
 });
+
+test("copying selected page text does not stop the canvas copying afterwards", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  await page.keyboard.press("s");
+  await click(page, at(1, 1));
+
+  // Select some page text (the parts hint), as when reading a message, then go back to the canvas.
+  await page.getByText("Pick a part or press its key").click({ clickCount: 3 });
+  await drag(page, at(-1, -1), at(3, 3));
+  await page.keyboard.press("Control+c");
+  await page.keyboard.press("Control+v");
+  await expectStates(page, { "Switch 2": 0 });
+});

@@ -282,6 +282,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const p = toWorld(e);
     const editor = useEditor.getState();
     canvas.setPointerCapture(e.pointerId);
+    // A press on the canvas ends any page text selection, so the next copy is the canvas's again.
+    window.getSelection()?.removeAllRanges();
     if (e.button === 1 || (e.button === 0 && spaceHeld)) {
       gesture = { type: "pan", last: { x: e.clientX, y: e.clientY } };
     } else if (e.button === 0 && editor.armed) {
