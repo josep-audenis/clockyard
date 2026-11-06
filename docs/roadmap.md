@@ -16,6 +16,7 @@ Goal: repository set up; browser ↔ Rust/WASM round trip proven.
 
 - ✅ Repository structure, licenses (MIT OR Apache-2.0), README, contributing guide
 - ✅ Architecture, simulation model, roadmap, initial ADRs
+- ✅ Visual identity and design tokens (`apps/web/src/styles/tokens.css`, ADR 0008)
 - ⬜ pnpm workspace + Vite + React + strict TypeScript in `apps/web`
 - ⬜ Cargo workspace with `sim-core` and `sim-wasm`
 - ⬜ wasm-bindgen build step wired into `pnpm dev`

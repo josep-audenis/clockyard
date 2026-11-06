@@ -4,6 +4,8 @@ The browser application: React shell, PixiJS circuit canvas, document store,
 local persistence, and the Web Worker that hosts the WASM simulation engine.
 
 > Status: not scaffolded yet. Phase 0 creates the Vite + React + TypeScript app here.
+> Design tokens already live in `src/styles/tokens.css` (see
+> [ADR 0008](../../docs/decisions/0008-visual-identity.md)).
 
 ## Planned layout
 
