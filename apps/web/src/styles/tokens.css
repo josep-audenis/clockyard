@@ -1,0 +1,143 @@
+/* Clockyard — generated from tokens.json */
+/* Source of truth: the Clockyard design system (docs/decisions/0008-visual-identity.md). Change it there first, then mirror the values here. */
+
+:root, [data-theme="dark"] {
+  --bench: #121518;
+  --bench-grid: #262c33;
+  --panel: #1a1e23;
+  --panel-raised: #232931;
+  --line: #2c333c;
+  --line-strong: #6b7684;
+  --ink: #e9ecef;
+  --ink-muted: #9aa4af;
+  --ink-faint: #5d6773;
+  --accent: #5cb8ff;
+  --accent-soft: #132c42;
+  --on-accent: #0b1520;
+  --signal-high: #ffb224;
+  --signal-high-soft: #3a2a0c;
+  --on-signal-high: #121518;
+  --signal-low: #6e7885;
+  --signal-x: #ff6b8b;
+  --signal-z: #6fa8e8;
+  --signal-bus: #4fd1c5;
+  --danger: #ff7a66;
+  --danger-soft: #3d1a16;
+  --caution: #f5d76e;
+  --caution-soft: #352d10;
+  --ok: #5fd3a8;
+  --ok-soft: #11302a;
+  --select: var(--accent);
+  --focus: var(--accent);
+  --shadow-pop: 0 8px 24px -4px #000000b3, 0 0 0 1px #2c333c;
+  --shadow-lift: 0 6px 16px -2px #00000099;
+  --glow-high: 0 0 12px 2px #ffb22466;
+  --focus-ring: 0 0 0 2px #121518, 0 0 0 4px #5cb8ff;
+}
+
+[data-theme="light"] {
+  --bench: #f3f0e8;
+  --bench-grid: #dcd6c9;
+  --panel: #fbfaf6;
+  --panel-raised: #ffffff;
+  --line: #e3ded3;
+  --line-strong: #8b857a;
+  --ink: #1c2024;
+  --ink-muted: #585e66;
+  --ink-faint: #a19b90;
+  --accent: #0a64c2;
+  --accent-soft: #e3eefa;
+  --on-accent: #ffffff;
+  --signal-high: #8f4700;
+  --signal-high-soft: #fbe9cf;
+  --on-signal-high: #ffffff;
+  --signal-low: #848a92;
+  --signal-x: #c2185b;
+  --signal-z: #2f6db3;
+  --signal-bus: #00796b;
+  --danger: #c0392b;
+  --danger-soft: #fbe5e1;
+  --caution: #7d5c00;
+  --caution-soft: #f8efcf;
+  --ok: #1d7a5a;
+  --ok-soft: #ddf3ea;
+  --select: var(--accent);
+  --focus: var(--accent);
+  --shadow-pop: 0 8px 24px -6px #1c202433, 0 0 0 1px #e3ded3;
+  --shadow-lift: 0 6px 16px -4px #1c202440;
+  --glow-high: 0 0 8px 1px #c2700040;
+  --focus-ring: 0 0 0 2px #f3f0e8, 0 0 0 4px #0a64c2;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --bench: #f3f0e8;
+    --bench-grid: #dcd6c9;
+    --panel: #fbfaf6;
+    --panel-raised: #ffffff;
+    --line: #e3ded3;
+    --line-strong: #8b857a;
+    --ink: #1c2024;
+    --ink-muted: #585e66;
+    --ink-faint: #a19b90;
+    --accent: #0a64c2;
+    --accent-soft: #e3eefa;
+    --on-accent: #ffffff;
+    --signal-high: #8f4700;
+    --signal-high-soft: #fbe9cf;
+    --on-signal-high: #ffffff;
+    --signal-low: #848a92;
+    --signal-x: #c2185b;
+    --signal-z: #2f6db3;
+    --signal-bus: #00796b;
+    --danger: #c0392b;
+    --danger-soft: #fbe5e1;
+    --caution: #7d5c00;
+    --caution-soft: #f8efcf;
+    --ok: #1d7a5a;
+    --ok-soft: #ddf3ea;
+    --select: var(--accent);
+    --focus: var(--accent);
+    --shadow-pop: 0 8px 24px -6px #1c202433, 0 0 0 1px #e3ded3;
+    --shadow-lift: 0 6px 16px -4px #1c202440;
+    --glow-high: 0 0 8px 1px #c2700040;
+    --focus-ring: 0 0 0 2px #f3f0e8, 0 0 0 4px #0a64c2;
+  }
+}
+
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-full: 9999px;
+  --grid-cell: 16px;
+  --wire-width: 2px;
+  --wire-width-high: 3px;
+  --bus-width: 5px;
+  --port-size: 8px;
+  --hit-slop: 6px;
+  --select-width: 2px;
+  --toolbar-height: 44px;
+  --statusbar-height: 28px;
+  --sidebar-width: 232px;
+  --inspector-width: 280px;
+  --control-height: 28px;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Menlo, monospace;
+}
+
+.type-title { font-family: var(--font-sans); font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -0.005em; }
+.type-heading { font-family: var(--font-sans); font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.08em; }
+.type-body { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 400; }
+.type-label { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 500; }
+.type-caption { font-family: var(--font-sans); font-size: 11px; line-height: 14px; font-weight: 400; }
+.type-display { font-family: var(--font-mono); font-size: 40px; line-height: 44px; font-weight: 600; letter-spacing: -0.02em; }
+.type-value { font-family: var(--font-mono); font-size: 13px; line-height: 16px; font-weight: 500; }
+.type-canvas-label { font-family: var(--font-mono); font-size: 11px; line-height: 12px; font-weight: 500; }
+.type-code { font-family: var(--font-mono); font-size: 13px; line-height: 20px; font-weight: 400; }

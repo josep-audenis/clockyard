@@ -13,6 +13,7 @@ replacement.
 | [0005](0005-simulation-in-worker.md) | Host the engine in a Web Worker from the start | Accepted |
 | [0006](0006-delta-cycle-evaluation.md) | Change-driven evaluation with synchronous deltas | Proposed |
 | [0007](0007-frontend-stack.md) | Frontend stack | Accepted |
+| [0008](0008-visual-identity.md) | Visual identity and design tokens | Accepted |
 
 ## Template
 
