@@ -1,6 +1,6 @@
 # 0003. WASM toolchain
 
-- Status: Proposed — confirm during Phase 0 against current tool releases
+- Status: Accepted (confirmed in Phase 0 with wasm-bindgen 0.2.130)
 - Date: 2026-11-06
 
 ## Context
@@ -23,4 +23,6 @@ worker. Add `wasm-opt` for release builds only if size measurements justify it.
 - Fewest moving parts; no dependency on a wrapper tool's release cadence.
 - `--target web` output is a plain ES module that works in a module worker.
 - CI must install the matching `wasm-bindgen-cli` version.
+- `scripts/build-wasm.mjs` fails early with the install command when the CLI
+  version does not match the crate pin.
 - Revisit if a maintained tool clearly simplifies the dev loop (e.g. watch mode).

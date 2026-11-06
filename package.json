@@ -1,0 +1,19 @@
+{
+  "name": "clockyard",
+  "private": true,
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "packageManager": "pnpm@10.28.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "wasm": "node scripts/build-wasm.mjs",
+    "dev": "pnpm wasm && pnpm --filter web dev",
+    "build": "pnpm wasm && pnpm --filter web build",
+    "preview": "pnpm --filter web preview",
+    "test": "pnpm --filter web test",
+    "lint": "pnpm --filter web lint",
+    "typecheck": "pnpm --filter web typecheck"
+  }
+}

@@ -1,0 +1,127 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bench);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.shell {
+  display: grid;
+  grid-template-rows: var(--toolbar-height) 1fr;
+  height: 100%;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-4);
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.wordmark {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.engine-status {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.engine-ready {
+  color: var(--ok);
+}
+
+.engine-error {
+  color: var(--danger);
+}
+
+.bench {
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background-color: var(--bench);
+  background-image: radial-gradient(var(--bench-grid) 1px, transparent 1px);
+  background-size: var(--grid-cell) var(--grid-cell);
+}
+
+.probe {
+  padding: var(--space-6);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.probe h1 {
+  margin: 0 0 var(--space-4);
+  color: var(--ink-muted);
+}
+
+.probe-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.switch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 48px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--panel-raised);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.switch[aria-pressed="true"] {
+  background: var(--signal-high-soft);
+  border-color: var(--signal-high);
+  color: var(--signal-high);
+}
+
+.gate {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+}
+
+.led {
+  min-width: 64px;
+  text-align: center;
+  color: var(--signal-low);
+}
+
+.led[data-high="true"] {
+  color: var(--signal-high);
+  text-shadow: var(--glow-high);
+}
+
+.caption {
+  margin: var(--space-4) 0 0;
+  color: var(--ink-faint);
+}

@@ -7,31 +7,31 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started
 
 ## Current status
 
-**Phase 0 — 🔨 in progress.** Repository structure, licenses and design docs
-are in place. No code yet.
+**Phase 0 — ✅ done.** pnpm + Cargo workspaces, a Rust AND evaluator called from
+the browser through WASM in a Web Worker, linting, tests and CI. Next: Phase 1.
 
-## Phase 0 — Foundation
+## Phase 0 — Foundation ✅
 
 Goal: repository set up; browser ↔ Rust/WASM round trip proven.
 
 - ✅ Repository structure, licenses (MIT OR Apache-2.0), README, contributing guide
 - ✅ Architecture, simulation model, roadmap, initial ADRs
 - ✅ Visual identity and design tokens (`apps/web/src/styles/tokens.css`, ADR 0008)
-- ⬜ pnpm workspace + Vite + React + strict TypeScript in `apps/web`
-- ⬜ Cargo workspace with `sim-core` and `sim-wasm`
-- ⬜ wasm-bindgen build step wired into `pnpm dev`
-- ⬜ Worker hosting the WASM module
-- ⬜ Rust AND evaluator, called from the browser, result shown in the UI
-- ⬜ Vitest, ESLint, rustfmt, Clippy, `cargo test`
-- ⬜ GitHub Actions CI running all checks
+- ✅ pnpm workspace + Vite + React + strict TypeScript in `apps/web`
+- ✅ Cargo workspace with `sim-core` and `sim-wasm`
+- ✅ wasm-bindgen build step wired into `pnpm dev`
+- ✅ Worker hosting the WASM module
+- ✅ Rust AND evaluator, called from the browser, result shown in the UI
+- ✅ Vitest, ESLint, rustfmt, Clippy, `cargo test`
+- ✅ GitHub Actions CI running all checks
 
 Acceptance:
 
-- [ ] Frontend builds
-- [ ] Rust core builds and tests pass
-- [ ] WASM loads in the browser; browser → Rust call works
-- [ ] Runs without any backend service
-- [ ] One documented command starts development
+- [x] Frontend builds
+- [x] Rust core builds and tests pass
+- [x] WASM loads in the browser; browser → Rust call works
+- [x] Runs without any backend service
+- [x] One documented command starts development
 
 ## Phase 1 — First playable circuit editor
 
@@ -118,5 +118,6 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 0 scaffolding: workspaces, Vite app shell, `sim-core` with an AND
-evaluator and tests, `sim-wasm`, build script, worker round trip, CI.
+Phase 1 first vertical slice: two switches → AND → LED through the engine,
+starting with the circuit description, `sim-core` compile + settle, and the
+Phase 1 worker protocol.

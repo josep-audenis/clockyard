@@ -4,7 +4,7 @@ Thin `wasm-bindgen` layer that exposes [`sim-core`](../sim-core) to
 TypeScript. It converts between JS values and engine types and contains no
 simulation logic of its own.
 
-> Status: not scaffolded yet. Phase 0 creates the crate and the build step.
+> Status: Phase 0 — exposes `and_gate`. Built by `pnpm wasm` (`scripts/build-wasm.mjs`).
 
 ## Responsibilities
 
@@ -18,8 +18,8 @@ simulation logic of its own.
 
 ## Build
 
-Planned (verify tool versions at Phase 0, see
-[ADR 0003](../../docs/decisions/0003-wasm-toolchain.md)):
+Run `pnpm wasm` from the repo root. It does the equivalent of
+([ADR 0003](../../docs/decisions/0003-wasm-toolchain.md)):
 
 ```bash
 cargo build -p sim-wasm --target wasm32-unknown-unknown --release
