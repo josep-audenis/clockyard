@@ -36,7 +36,7 @@ updated as code lands; anything not yet built is marked *planned*.
 |---------|-------|
 | Canvas rendering, positions, wire geometry, selection, input handling | `apps/web` (canvas, editor) |
 | Menus, panels, inspector | `apps/web` (app, components) |
-| Undo/redo of editing actions | `apps/web` (editor) |
+| Undo/redo of editing actions (circuit snapshots in the store; transient state is not history) | `apps/web` (editor) |
 | Project file format, versions, migrations, persistence | `apps/web` (storage) |
 | Built-in component catalog: kinds, port names, directions, widths | `sim-core` (exported via `sim-wasm`) |
 | Port *layout* (where a port sits on a component's body) | `apps/web` (canvas) |

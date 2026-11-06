@@ -10,10 +10,13 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started
 **Phase 0 — ✅ done.** pnpm + Cargo workspaces, a Rust AND evaluator called from
 the browser through WASM in a Web Worker, linting, tests and a pre-push check hook.
 
-**Phase 1 — ✅ done** (branch `feat/phase-1-editor`). Circuits are built on a
+**Phase 1 — ✅ done** (merged in PR #7). Circuits are built on a
 PixiJS canvas, simulated by the Rust engine in a worker, exported and imported
 as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
-Next: Phase 2.
+
+**Phase 2 — 🔨 in progress** (branch `feat/phase-2-editing`). Editing comfort
+done: undo/redo, copy/paste, duplicate, box selection, group moves. Next:
+component properties and labelled pins.
 
 ## Phase 0 — Foundation ✅
 
@@ -94,6 +97,26 @@ circuits.
 Target demo: a 4-bit adder built from a user-defined full adder instanced four
 times. Hierarchical elaboration and per-instance separation are tested.
 
+Planned order: editing comfort first (no engine change), then component
+properties and labelled pins, then nets and junctions (file format v2, ADR),
+then custom components (ADR), then multi-bit signals (ADR), then examples.
+
+Progress:
+
+- ✅ Undo/redo: Ctrl/⌘ Z, Ctrl/⌘ Shift Z or Ctrl Y; one step per drag; last 200
+  edits; switch positions and selection are not edits; importing clears history
+- ✅ Copy/cut/paste and duplicate (Ctrl/⌘ C, X, V, D): new IDs, wires between the
+  copied parts kept, each paste one step further down-right; clipboard is
+  in-memory, same tab only
+- ✅ Box selection (drag empty space; Shift adds), Shift+click, select all
+  (Ctrl/⌘ A), dragging a selection moves it as one undo step; panning moved to
+  Space+drag or middle-button drag
+- ⬜ Component properties, inspector, labelled input/output pins
+- ⬜ Explicit junctions and nets, better wire routing (format v2 + migration)
+- ⬜ Custom reusable components and nested definitions
+- ⬜ Multi-bit signals, buses, splitters
+- ⬜ 4-bit adder example and tests
+
 ## Phase 3 — Clocks and sequential logic
 
 Goal: hardware with memory and time.
@@ -140,6 +163,8 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 2 planning: undo/redo, copy/paste, explicit junctions and nets, then the
-4-bit adder from a reusable full adder. Known Phase 1 limits to revisit: wires
-from different nets can share a bend column, no part rotation, no autosave.
+Phase 2 component properties: an inspector for the selection (label, and later
+per-kind settings), labelled input/output pin parts for custom components, and
+the readout and status bar using labels. Known Phase 1 limits still open:
+wires from different nets can share a bend column, no part rotation, no
+autosave.

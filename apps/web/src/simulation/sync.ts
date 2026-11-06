@@ -40,12 +40,15 @@ export function connectEngine(): () => void {
       case "error":
         useSim.setState({ status: "error", error: message.message });
         break;
+      // A reply means the engine works again, so an earlier command error no longer applies.
       case "loaded":
         pending--;
-        useSim.setState({ loaded: message });
+        useSim.setState({ loaded: message, status: "ready", error: null });
         break;
       case "state":
-        if (pending === 0) useSim.setState({ nets: message.nets, runtime: message.diagnostics, stale: false });
+        if (pending === 0) {
+          useSim.setState({ nets: message.nets, runtime: message.diagnostics, stale: false, status: "ready", error: null });
+        }
         break;
     }
   });

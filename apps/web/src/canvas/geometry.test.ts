@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { Circuit, CircuitComponent } from "../editor/document";
-import { hitTest, portAt, wirePoints } from "./geometry";
+import { componentsInBox, hitTest, portAt, wirePoints } from "./geometry";
 
 const part = (id: string, kind: CircuitComponent["kind"], x: number, y: number): CircuitComponent => ({
   id,
@@ -37,4 +37,11 @@ test("hit-testing prefers ports, then bodies, then wires", () => {
   expect(hitTest(circuit, { x: 7, y: 2 }, 0.5)).toEqual({ type: "component", id: "g" });
   expect(hitTest(circuit, { x: 4.1, y: 2 }, 0.5)).toEqual({ type: "wire", id: "w" });
   expect(hitTest(circuit, { x: 20, y: 20 }, 0.5)).toBeNull();
+});
+
+test("a box selects only parts wholly inside it, dragged in any direction", () => {
+  // Switch spans (0,0)-(2,2); AND spans (6,0)-(10,4).
+  expect(componentsInBox(circuit, { x: -1, y: -1 }, { x: 3, y: 3 })).toEqual(["s"]);
+  expect(componentsInBox(circuit, { x: 11, y: 5 }, { x: -1, y: -1 })).toEqual(["s", "g"]);
+  expect(componentsInBox(circuit, { x: -1, y: -1 }, { x: 9, y: 9 })).toEqual(["s"]); // AND only partly inside
 });

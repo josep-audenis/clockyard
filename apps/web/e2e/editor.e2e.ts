@@ -114,3 +114,98 @@ test("a broken file is refused and the circuit is kept", async ({ page }) => {
   await expect(page.getByRole("alert")).toContainText("newer Clockyard");
   await expect(readout(page, "LED 1")).toHaveText("LED 1: off");
 });
+
+test("invalid and unstable circuits are reported and recover", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  for (const [x, y] of [[1, 1], [1, 6]] as const) {
+    await page.keyboard.press("s");
+    await click(page, at(x, y));
+  }
+
+  // Two outputs wired together: invalid until the (selected) new wire is deleted.
+  await drag(page, at(2, 1), at(2, 6));
+  await expect(status(page)).toContainText("Invalid");
+  await expect(status(page)).toContainText("A wire connects two outputs.");
+  await page.keyboard.press("Delete");
+  await expect(status(page)).toContainText("Settled");
+
+  // o = NOR(s, o) oscillates while switch 1 is off and settles once it is on.
+  await page.getByRole("button", { name: "NOR", exact: true }).click();
+  await click(page, at(8, 4)); // NOR at (6,2): a (6,3), b (6,5), out (10,4)
+  await drag(page, at(2, 1), at(6, 3));
+  await drag(page, at(10, 4), at(6, 5));
+  await expect(status(page)).toContainText("Unstable");
+  await click(page, at(1, 1));
+  await expect(status(page)).toContainText("Settled");
+
+  // An unrelated edit reloads the engine from all-zero; the restored switch settles the loop again.
+  await page.keyboard.press("l");
+  await click(page, at(15, 10));
+  await expectStates(page, { "Switch 1": 1, "LED 1": 0 });
+  await expect(status(page)).toContainText("Settled");
+});
+
+test("undo and redo edits; a drag undoes in one step", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0), out (2,1)
+  await page.keyboard.press("l");
+  await click(page, at(6, 1)); // LED at (5,0), in (5,1)
+  await drag(page, at(2, 1), at(5, 1));
+  await click(page, at(1, 1));
+  await expectStates(page, { "Switch 1": 1, "LED 1": 1 });
+
+  // Switch positions are not edits, so undo takes back the wire.
+  await page.keyboard.press("Control+z");
+  await expectStates(page, { "Switch 1": 1, "LED 1": 0 });
+  await page.keyboard.press("Control+Shift+z");
+  await expectStates(page, { "LED 1": 1 });
+
+  // Drag the LED through several cells; one undo puts it back where it started.
+  await drag(page, at(6.5, 1), at(6.5, 7));
+  await page.keyboard.press("Control+z");
+  await click(page, at(6.5, 1)); // selects the LED only if it is back at (5,0)
+  await page.keyboard.press("Delete");
+  await expect(readout(page, "LED 1")).toHaveCount(0);
+});
+
+test("box-select, duplicate, drag the copy as a group, select all and delete", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0), out (2,1)
+  await page.keyboard.press("l");
+  await click(page, at(6, 1)); // LED at (5,0), in (5,1)
+  await drag(page, at(2, 1), at(5, 1));
+
+  // Box around both parts, then duplicate: the copy lands 2 cells down-right with its own wire.
+  await drag(page, at(-1, -1), at(8, 3));
+  await page.keyboard.press("Control+d");
+  await expectStates(page, { "Switch 2": 0, "LED 2": 0 });
+
+  // The copy is selected: dragging its LED moves the copied switch too.
+  await drag(page, at(8.5, 3), at(8.5, 9)); // LED copy from (7,2) to (7,8)
+  await click(page, at(3, 9)); // the switch copy, now at (2,8)
+  await expectStates(page, { "Switch 1": 0, "LED 1": 0, "Switch 2": 1, "LED 2": 1 });
+
+  await page.keyboard.press("Control+a");
+  await page.keyboard.press("Delete");
+  await expect(readout(page, "Switch 1")).toHaveCount(0);
+  await expect(status(page)).toContainText("No circuit");
+});
+
+test("copying selected page text does not stop the canvas copying afterwards", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  await page.keyboard.press("s");
+  await click(page, at(1, 1));
+
+  // Select some page text (the parts hint), as when reading a message, then go back to the canvas.
+  await page.getByText("Pick a part or press its key").click({ clickCount: 3 });
+  await drag(page, at(-1, -1), at(3, 3));
+  await page.keyboard.press("Control+c");
+  await page.keyboard.press("Control+v");
+  await expectStates(page, { "Switch 2": 0 });
+});
