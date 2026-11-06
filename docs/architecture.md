@@ -1,0 +1,194 @@
+# Architecture
+
+Status: **proposed** — describes the target design for Phase 0–1. Sections are
+updated as code lands; anything not yet built is marked *planned*.
+
+## Goals
+
+- Entirely client-side, deployable as static files.
+- One simulation engine, in Rust, compiled to WebAssembly.
+- Editor, rendering and persistence in TypeScript.
+- Clear seams so the engine can be tested natively and reused outside the browser.
+
+## System overview
+
+```
+┌──────────────────────────── Main thread ────────────────────────────┐
+│                                                                     │
+│  app/        React shell: toolbar, parts panel, inspector, status   │
+│  editor/     Document store (Zustand), editing commands, undo/redo  │
+│  canvas/     PixiJS scene, hit-testing, pan/zoom, signal colors     │
+│  storage/    Import/export, schema validation, migrations           │
+│  simulation/ Worker client; document → circuit description          │
+│                                                                     │
+└──────────────┬──────────────────────────────────────▲───────────────┘
+               │ postMessage (typed commands)         │ postMessage (results)
+┌──────────────▼──────────────── Worker ──────────────┴───────────────┐
+│  workers/sim.worker.ts   command loop, run pacing                   │
+│  sim-wasm                wasm-bindgen adapter (JSON / typed arrays) │
+│  sim-core                validate → elaborate → compile → simulate  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+## Ownership
+
+| Concern | Owner |
+|---------|-------|
+| Canvas rendering, positions, wire geometry, selection, input handling | `apps/web` (canvas, editor) |
+| Menus, panels, inspector | `apps/web` (app, components) |
+| Undo/redo of editing actions | `apps/web` (editor) |
+| Project file format, versions, migrations, persistence | `apps/web` (storage) |
+| Built-in component catalog: kinds, port names, directions, widths | `sim-core` (exported via `sim-wasm`) |
+| Port *layout* (where a port sits on a component's body) | `apps/web` (canvas) |
+| Validation of connectivity, elaboration of custom components | `sim-core` |
+| Signal state, propagation, scheduling, clocks, sequential state, virtual time | `sim-core` |
+| Stability/oscillation detection, runtime diagnostics | `sim-core` |
+
+The UI never computes a signal value. It renders values received from the worker.
+
+## Circuit document
+
+The editable design. Owned by the frontend, serialized as JSON, versioned.
+
+Sketch of format version 1 (Phase 1 scope; exact schema fixed in code with
+validation):
+
+```json
+{
+  "format": "clockyard",
+  "version": 1,
+  "metadata": { "name": "AND demo", "createdAt": "2026-11-06T12:00:00Z", "modifiedAt": "2026-11-06T12:00:00Z" },
+  "circuit": {
+    "components": [
+      { "id": "k3f9a", "kind": "switch", "position": { "x": 0, "y": 0 }, "rotation": 0, "props": { "label": "A" } },
+      { "id": "p81c2", "kind": "and",    "position": { "x": 6, "y": 1 }, "rotation": 0, "props": {} },
+      { "id": "m02de", "kind": "led",    "position": { "x": 12, "y": 1 }, "rotation": 0, "props": {} }
+    ],
+    "wires": [
+      { "id": "w7a10", "from": { "component": "k3f9a", "port": "out" }, "to": { "component": "p81c2", "port": "a" } },
+      { "id": "w7a11", "from": { "component": "p81c2", "port": "out" }, "to": { "component": "m02de", "port": "in" } }
+    ]
+  }
+}
+```
+
+Rules:
+
+- IDs are stable, opaque strings generated in the browser. Never array indices.
+- Positions are in grid units; rendering scales them.
+- **Wires reference ports explicitly.** Connectivity comes from references,
+  never from geometry. Two wires crossing on screen are not connected.
+- Phase 2 replaces point-to-point wires with *nets*: explicit junction nodes and
+  segments, plus a width. A junction is a document object, not an overlap.
+- Custom component definitions live in a `definitions` section; instances refer
+  to them by definition ID (Phase 2).
+- Transient simulation data (signal values, clock count) is never part of the
+  document.
+- Loading an older `version` runs explicit migrations in `storage/`. Unknown
+  future versions are rejected with a clear message.
+
+## Circuit description (engine input)
+
+The worker does not receive the document. `simulation/` projects the document
+into a geometry-free **circuit description**: component IDs, kinds, properties,
+definitions and connections. This keeps the engine contract small and lets the
+file format evolve (migrations, layout fields) without touching Rust.
+
+```ts
+// Phase 1 sketch
+type CircuitDescription = {
+  components: { id: string; kind: string; props: Record<string, unknown> }[];
+  connections: { from: PortRef; to: PortRef }[];
+};
+type PortRef = { component: string; port: string };
+```
+
+The projection is a pure function with unit tests.
+
+## Compiled netlist
+
+Produced inside `sim-core` from a circuit description:
+
+```
+circuit description
+   → validate (known kinds, existing ports, directions, widths, single driver)
+   → resolve definitions (Phase 2: missing / recursive definitions are errors)
+   → elaborate hierarchy into flat primitives (each instance gets its own state)
+   → build nets (one driver, N readers)
+   → compiled netlist: dense arrays indexed by u32
+```
+
+Compile returns either a list of validation diagnostics (each pointing at
+document IDs) or a netlist plus an **ID map**: document port/wire ID → net
+index. The renderer uses the map to color wires from the net value array.
+
+## Worker protocol
+
+Typed discriminated unions over `postMessage`. No RPC library at first.
+
+```ts
+// main → worker
+type Command =
+  | { type: "load"; circuit: CircuitDescription }
+  | { type: "setInput"; component: string; value: 0 | 1 }
+  | { type: "reset" }
+  | { type: "stepClock" }              // Phase 3
+  | { type: "run"; cyclesPerSecond: number } // Phase 3
+  | { type: "pause" };                 // Phase 3
+
+// worker → main
+type Result =
+  | { type: "loaded"; netCount: number; idMap: Record<string, number>; diagnostics: Diagnostic[] }
+  | { type: "state"; nets: Uint8Array; diagnostics: Diagnostic[] }
+  | { type: "error"; message: string };
+```
+
+- Commands are processed in order. The engine settles after each input change
+  and replies with state.
+- Phase 1 sends the full net value array (small circuits). Changed-net deltas
+  or transferable buffers come when measurements justify them.
+- During continuous runs (Phase 3) the worker advances virtual time in batches
+  and posts state at most once per animation frame's worth of wall time. The
+  main thread renders the latest state it has; frame rate never affects results.
+
+## Rendering
+
+- PixiJS owns the canvas: grid, component bodies, ports, wires, selection,
+  hover, signal coloring.
+- One Pixi display object per component and per wire; signal updates change
+  only wire/LED tint, not geometry.
+- React subscribes to the document store for panels; the canvas subscribes
+  outside React render to avoid re-rendering per signal change.
+- High-DPI via Pixi `resolution` = `devicePixelRatio` and `autoDensity`.
+- Optimizations (batching, culling, caching) only after profiling.
+
+## Build and run
+
+*Planned* (Phase 0):
+
+1. `cargo build -p sim-wasm --target wasm32-unknown-unknown`
+2. `wasm-bindgen --target web` → `apps/web/src/generated/sim-wasm/` (gitignored)
+3. Vite dev server serves the app; the worker imports the generated module.
+
+`pnpm dev` at the repo root runs all three. Output of `pnpm build` is a static
+directory deployable to any static host.
+
+## Testing
+
+| Layer | Tool | Covers |
+|-------|------|--------|
+| `sim-core` | `cargo test`, property tests | Truth tables, propagation, fan-out, order independence, oscillation, clocking, elaboration |
+| `sim-wasm` | `cargo test` + a small Vitest smoke test loading the built module | Boundary conversions |
+| `apps/web` | Vitest | Document edits, projection, serialization, import validation, worker protocol |
+| Browser | Playwright | Switch → gate → LED workflow; later save/load and clock stepping |
+| Performance | Criterion-style benchmarks (chosen at Phase 1) | Cascades, fan-out, large combinational, registers, counters |
+
+## Decisions
+
+See [decisions/](decisions/). Key ones:
+[monorepo layout](decisions/0002-monorepo-layout.md),
+[WASM toolchain](decisions/0003-wasm-toolchain.md),
+[document vs netlist](decisions/0004-document-vs-netlist.md),
+[engine in a worker](decisions/0005-simulation-in-worker.md),
+[delta-cycle evaluation](decisions/0006-delta-cycle-evaluation.md),
+[frontend stack](decisions/0007-frontend-stack.md).
