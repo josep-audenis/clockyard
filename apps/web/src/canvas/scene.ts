@@ -342,8 +342,11 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     const editor = useEditor.getState();
-    if ((e.key === "Delete" || e.key === "Backspace") && editor.selection.length > 0) {
+    // Only with focus on the page itself: Backspace on a focused button or field is not a canvas edit.
+    const onCanvas = e.target === document.body;
+    if (onCanvas && (e.key === "Delete" || e.key === "Backspace") && editor.selection.length > 0) {
       e.preventDefault();
+      gesture = null;
       editor.remove(editor.selection);
     } else if (e.key === "Escape") {
       gesture = null;

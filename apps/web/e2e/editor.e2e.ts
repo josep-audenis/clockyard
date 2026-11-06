@@ -114,3 +114,34 @@ test("a broken file is refused and the circuit is kept", async ({ page }) => {
   await expect(page.getByRole("alert")).toContainText("newer Clockyard");
   await expect(readout(page, "LED 1")).toHaveText("LED 1: off");
 });
+
+test("invalid and unstable circuits are reported and recover", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  for (const [x, y] of [[1, 1], [1, 6]] as const) {
+    await page.keyboard.press("s");
+    await click(page, at(x, y));
+  }
+
+  // Two outputs wired together: invalid until the (selected) new wire is deleted.
+  await drag(page, at(2, 1), at(2, 6));
+  await expect(status(page)).toContainText("Invalid");
+  await expect(status(page)).toContainText("A wire connects two outputs.");
+  await page.keyboard.press("Delete");
+  await expect(status(page)).toContainText("Settled");
+
+  // o = NOR(s, o) oscillates while switch 1 is off and settles once it is on.
+  await page.getByRole("button", { name: "NOR", exact: true }).click();
+  await click(page, at(8, 4)); // NOR at (6,2): a (6,3), b (6,5), out (10,4)
+  await drag(page, at(2, 1), at(6, 3));
+  await drag(page, at(10, 4), at(6, 5));
+  await expect(status(page)).toContainText("Unstable");
+  await click(page, at(1, 1));
+  await expect(status(page)).toContainText("Settled");
+
+  // An unrelated edit reloads the engine from all-zero; the restored switch settles the loop again.
+  await page.keyboard.press("l");
+  await click(page, at(15, 10));
+  await expectStates(page, { "Switch 1": 1, "LED 1": 0 });
+  await expect(status(page)).toContainText("Settled");
+});
