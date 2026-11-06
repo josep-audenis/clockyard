@@ -63,7 +63,7 @@ only renders what the engine reports. Details: [architecture](docs/architecture.
 | State | Zustand (document store) |
 | Engine | Rust → WebAssembly via `wasm-bindgen`, hosted in a Web Worker |
 | Storage | JSON project files; IndexedDB later |
-| Tooling | pnpm, Cargo, Vitest, Playwright, ESLint, rustfmt, Clippy, GitHub Actions |
+| Tooling | pnpm, Cargo, Vitest, Playwright, ESLint, rustfmt, Clippy, pre-push hook |
 
 Exact versions are pinned in `package.json` and `Cargo.toml` (see
 [ADR 0007](docs/decisions/0007-frontend-stack.md)).

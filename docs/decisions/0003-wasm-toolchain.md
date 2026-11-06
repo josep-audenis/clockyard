@@ -22,7 +22,8 @@ worker. Add `wasm-opt` for release builds only if size measurements justify it.
 
 - Fewest moving parts; no dependency on a wrapper tool's release cadence.
 - `--target web` output is a plain ES module that works in a module worker.
-- CI must install the matching `wasm-bindgen-cli` version.
+- Every machine running checks must install the matching `wasm-bindgen-cli`
+  version (hosted CI removed in ADR 0009).
 - `scripts/build-wasm.mjs` fails early with the install command when the CLI
   version does not match the crate pin.
 - Revisit if a maintained tool clearly simplifies the dev loop (e.g. watch mode).

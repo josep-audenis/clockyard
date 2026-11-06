@@ -8,7 +8,7 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started
 ## Current status
 
 **Phase 0 — ✅ done.** pnpm + Cargo workspaces, a Rust AND evaluator called from
-the browser through WASM in a Web Worker, linting, tests and CI. Next: Phase 1.
+the browser through WASM in a Web Worker, linting, tests and a pre-push check hook. Next: Phase 1.
 
 ## Phase 0 — Foundation ✅
 
@@ -23,7 +23,7 @@ Goal: repository set up; browser ↔ Rust/WASM round trip proven.
 - ✅ Worker hosting the WASM module
 - ✅ Rust AND evaluator, called from the browser, result shown in the UI
 - ✅ Vitest, ESLint, rustfmt, Clippy, `cargo test`
-- ✅ GitHub Actions CI running all checks
+- ✅ Pre-push hook running all checks via `pnpm verify` (replaced GitHub Actions CI, ADR 0009)
 
 Acceptance:
 
