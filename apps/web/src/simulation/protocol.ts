@@ -1,10 +1,37 @@
-// Messages between the main thread and the simulation worker (ADR 0005).
-// Phase 0 only proves the round trip; the Phase 1 commands in
-// docs/architecture.md#worker-protocol replace `evalAnd`.
+// Messages between the main thread and the simulation worker (ADR 0005,
+// docs/architecture.md#worker-protocol). Shapes mirror sim-core's
+// `description` module.
 
-export type Command = { type: "evalAnd"; a: boolean; b: boolean };
+export type PortRef = { component: string; port: string };
+
+/** Geometry-free engine input, projected from the circuit document. */
+export type CircuitDescription = {
+  components: { id: string; kind: string }[];
+  connections: { id: string; from: PortRef; to: PortRef }[];
+};
+
+export type Diagnostic = {
+  severity: "error" | "warning";
+  code: string;
+  message: string;
+  /** Document IDs (components, wires) involved. */
+  ids: string[];
+};
+
+export type Command =
+  | { type: "load"; circuit: CircuitDescription }
+  | { type: "setInput"; component: string; value: 0 | 1 };
 
 export type Result =
   | { type: "ready" }
-  | { type: "andResult"; a: boolean; b: boolean; out: boolean }
+  | {
+      type: "loaded";
+      netCount: number;
+      /** Wire ID → net index. */
+      wireNets: Record<string, number>;
+      /** Component ID → port name → net index. */
+      portNets: Record<string, Record<string, number>>;
+      diagnostics: Diagnostic[];
+    }
+  | { type: "state"; nets: Uint8Array; diagnostics: Diagnostic[] }
   | { type: "error"; message: string };

@@ -8,7 +8,13 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started
 ## Current status
 
 **Phase 0 — ✅ done.** pnpm + Cargo workspaces, a Rust AND evaluator called from
-the browser through WASM in a Web Worker, linting, tests and a pre-push check hook. Next: Phase 1.
+the browser through WASM in a Web Worker, linting, tests and a pre-push check hook.
+
+**Phase 1 — 🔨 in progress** (branch `feat/phase-1-editor`). Engine slice done:
+`sim-core` catalog, validation, compile and bounded delta settling; `Engine`
+in `sim-wasm`; `load`/`setInput` worker protocol; document type and
+projection. The page drives a fixed two-switch → AND → LED document through
+the engine. Next: canvas editor.
 
 ## Phase 0 — Foundation ✅
 
@@ -45,6 +51,17 @@ import/export, initial keyboard shortcuts.
 First vertical slice (inside Phase 1): two switches → AND → LED, end to end
 through the engine. Validate all four input combinations visually and in a
 Playwright test.
+
+Progress:
+
+- ✅ Built-in catalog (switch, LED, NOT/AND/NAND/OR/NOR/XOR/XNOR) in `sim-core`
+- ✅ Circuit description, validation diagnostics, compile to netlist, bounded settle, oscillation report
+- ✅ Worker protocol `load` / `setInput` → `loaded` / `state`
+- ✅ Document format v1 types and projection to the description
+- ⬜ PixiJS canvas with pan/zoom, part placement, dragging, wiring, selection/deletion
+- ⬜ Active/inactive wire colors from engine nets
+- ⬜ JSON import/export, keyboard shortcuts
+- ⬜ Playwright test of the first slice
 
 Acceptance — a user can:
 
@@ -118,6 +135,6 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 1 first vertical slice: two switches → AND → LED through the engine,
-starting with the circuit description, `sim-core` compile + settle, and the
-Phase 1 worker protocol.
+Phase 1 canvas editor: PixiJS scene and Zustand document store, port layouts
+per catalog kind (with the catalog consistency test from ADR 0004), placing
+and wiring the two-switch → AND → LED slice by hand, then the Playwright test.

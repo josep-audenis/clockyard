@@ -95,13 +95,17 @@ definitions and connections. This keeps the engine contract small and lets the
 file format evolve (migrations, layout fields) without touching Rust.
 
 ```ts
-// Phase 1 sketch
+// Phase 1 (apps/web/src/simulation/protocol.ts ↔ sim-core `description`)
 type CircuitDescription = {
-  components: { id: string; kind: string; props: Record<string, unknown> }[];
-  connections: { from: PortRef; to: PortRef }[];
+  components: { id: string; kind: string }[];
+  connections: { id: string; from: PortRef; to: PortRef }[]; // id = document wire ID
 };
 type PortRef = { component: string; port: string };
 ```
+
+A connection may list its output end in either `from` or `to`; the engine
+normalizes direction. Component `props` join the description when a kind needs
+one.
 
 The projection is a pure function with unit tests.
 
@@ -119,8 +123,10 @@ circuit description
 ```
 
 Compile returns either a list of validation diagnostics (each pointing at
-document IDs) or a netlist plus an **ID map**: document port/wire ID → net
-index. The renderer uses the map to color wires from the net value array.
+document IDs) or a netlist plus **ID maps**: wire ID → net index and
+component ID → port name → net index. Net 0 is an undriven ground that
+unconnected inputs read. The renderer uses the maps to color wires and LEDs
+from the net value array.
 
 ## Worker protocol
 
@@ -131,14 +137,16 @@ Typed discriminated unions over `postMessage`. No RPC library at first.
 type Command =
   | { type: "load"; circuit: CircuitDescription }
   | { type: "setInput"; component: string; value: 0 | 1 }
-  | { type: "reset" }
+  | { type: "reset" }                  // planned
   | { type: "stepClock" }              // Phase 3
   | { type: "run"; cyclesPerSecond: number } // Phase 3
   | { type: "pause" };                 // Phase 3
 
 // worker → main
 type Result =
-  | { type: "loaded"; netCount: number; idMap: Record<string, number>; diagnostics: Diagnostic[] }
+  | { type: "ready" }
+  | { type: "loaded"; netCount: number; wireNets: Record<string, number>;
+      portNets: Record<string, Record<string, number>>; diagnostics: Diagnostic[] }
   | { type: "state"; nets: Uint8Array; diagnostics: Diagnostic[] }
   | { type: "error"; message: string };
 ```

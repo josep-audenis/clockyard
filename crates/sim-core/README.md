@@ -4,7 +4,9 @@ Pure Rust digital logic simulation engine. No DOM, no browser APIs, no
 `wasm-bindgen`. Runs natively for tests and benchmarks, and in the browser
 through [`sim-wasm`](../sim-wasm).
 
-> Status: Phase 0 — a single `and_gate` evaluator with a truth-table test.
+> Status: Phase 1 — 1-bit combinational engine: built-in catalog (switch, LED,
+> NOT/AND/NAND/OR/NOR/XOR/XNOR), validation diagnostics, compile to a netlist,
+> bounded delta settling with oscillation detection. Entry point: `Simulator::load`.
 
 ## Planned modules
 

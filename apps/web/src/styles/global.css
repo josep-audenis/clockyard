@@ -129,3 +129,15 @@ button:focus-visible {
   margin: var(--space-4) 0 0;
   color: var(--ink-faint);
 }
+
+.diagnostic {
+  margin: var(--space-2) 0 0;
+}
+
+.diagnostic-error {
+  color: var(--danger);
+}
+
+.diagnostic-warning {
+  color: var(--caution);
+}

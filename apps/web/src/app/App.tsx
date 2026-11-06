@@ -1,34 +1,56 @@
 import { useEffect, useRef, useState } from "react";
+import { project, type CircuitDocument } from "../editor/document";
 import { startSimulation, type SimClient } from "../simulation/client";
 import type { Result } from "../simulation/protocol";
 
 type Engine = { status: "loading" } | { status: "ready" } | { status: "error"; message: string };
-type AndResult = Extract<Result, { type: "andResult" }>;
+type Loaded = Extract<Result, { type: "loaded" }>;
 
-const bit = (value: boolean) => (value ? "1" : "0");
+// Fixed demo until the canvas editor lands; the engine sees only its projection.
+const at = (x: number, y: number) => ({ position: { x, y }, rotation: 0 as const, props: {} });
+const DEMO: CircuitDocument = {
+  format: "clockyard",
+  version: 1,
+  metadata: { name: "AND demo", createdAt: "2026-11-06T00:00:00Z", modifiedAt: "2026-11-06T00:00:00Z" },
+  circuit: {
+    components: [
+      { id: "a", kind: "switch", ...at(0, 0) },
+      { id: "b", kind: "switch", ...at(0, 2) },
+      { id: "and", kind: "and", ...at(4, 1) },
+      { id: "led", kind: "led", ...at(8, 1) },
+    ],
+    wires: [
+      { id: "w-a", from: { component: "a", port: "out" }, to: { component: "and", port: "a" } },
+      { id: "w-b", from: { component: "b", port: "out" }, to: { component: "and", port: "b" } },
+      { id: "w-out", from: { component: "and", port: "out" }, to: { component: "led", port: "in" } },
+    ],
+  },
+};
 
 export function App() {
   const [engine, setEngine] = useState<Engine>({ status: "loading" });
-  const [inputs, setInputs] = useState({ a: false, b: false });
-  const [result, setResult] = useState<AndResult | null>(null);
+  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [nets, setNets] = useState<Uint8Array | null>(null);
   const sim = useRef<SimClient | null>(null);
 
   useEffect(() => {
     const client = startSimulation((message) => {
       if (message.type === "ready") setEngine({ status: "ready" });
       else if (message.type === "error") setEngine({ status: "error", message: message.message });
-      else setResult(message);
+      else if (message.type === "loaded") setLoaded(message);
+      else setNets(message.nets);
     });
+    client.send({ type: "load", circuit: project(DEMO.circuit) });
     sim.current = client;
     return () => client.dispose();
   }, []);
 
-  useEffect(() => {
-    sim.current?.send({ type: "evalAnd", ...inputs });
-  }, [inputs]);
-
-  // Only show an output the engine computed for the inputs currently shown.
-  const out = result && result.a === inputs.a && result.b === inputs.b ? result.out : null;
+  // Every value shown is read from the engine's nets; null until the engine has replied.
+  const value = (component: string, port: string) => {
+    const net = loaded?.portNets[component]?.[port];
+    return net === undefined ? null : (nets?.[net] ?? null);
+  };
+  const out = value("led", "in");
 
   return (
     <div className="shell">
@@ -49,27 +71,36 @@ export function App() {
         </span>
       </header>
       <main className="bench">
-        <section className="probe" aria-label="Engine round trip">
-          <h1 className="type-heading">PHASE 0 · ENGINE ROUND TRIP</h1>
+        <section className="probe" aria-label="Switches, AND gate and LED">
+          <h1 className="type-heading">PHASE 1 · FIRST SLICE</h1>
           <div className="probe-row">
-            {(["a", "b"] as const).map((name) => (
-              <button
-                key={name}
-                type="button"
-                className="switch"
-                aria-pressed={inputs[name]}
-                onClick={() => setInputs((current) => ({ ...current, [name]: !current[name] }))}
-              >
-                <span className="type-label">{name.toUpperCase()}</span>
-                <span className="type-value">{bit(inputs[name])}</span>
-              </button>
-            ))}
+            {(["a", "b"] as const).map((name) => {
+              const on = value(name, "out");
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  className="switch"
+                  aria-pressed={on === 1}
+                  disabled={on === null}
+                  onClick={() => sim.current?.send({ type: "setInput", component: name, value: on === 1 ? 0 : 1 })}
+                >
+                  <span className="type-label">{name.toUpperCase()}</span>
+                  <span className="type-value">{on ?? "–"}</span>
+                </button>
+              );
+            })}
             <span className="gate type-value">AND</span>
-            <output className="led type-display" data-high={out === true} aria-label="A AND B">
-              {out === null ? "–" : bit(out)}
+            <output className="led type-display" data-high={out === 1} aria-label="A AND B">
+              {out ?? "–"}
             </output>
           </div>
-          <p className="type-caption caption">Computed in Rust (sim-core) through WebAssembly in a Web Worker.</p>
+          {loaded?.diagnostics.map((d, i) => (
+            <p key={i} className={`type-caption diagnostic diagnostic-${d.severity}`}>
+              {d.message}
+            </p>
+          ))}
+          <p className="type-caption caption">Netlist compiled and settled in Rust (sim-core) through WebAssembly in a Web Worker.</p>
         </section>
       </main>
     </div>
