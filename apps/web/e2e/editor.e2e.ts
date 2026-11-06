@@ -1,0 +1,116 @@
+import { expect, test, type Page } from "@playwright/test";
+import { fileURLToPath } from "node:url";
+
+// Must match the canvas defaults in src/canvas/scene.ts: view offset and grid cell, in CSS px.
+const ORIGIN = 48;
+const CELL = 16;
+
+type At = { x: number; y: number };
+
+/** Screen position of a grid point at the default view. */
+async function grid(page: Page): Promise<(x: number, y: number) => At> {
+  const box = await page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
+  if (!box) throw new Error("canvas not visible");
+  return (x, y) => ({ x: box.x + ORIGIN + x * CELL, y: box.y + ORIGIN + y * CELL });
+}
+
+const click = (page: Page, at: At) => page.mouse.click(at.x, at.y);
+
+async function drag(page: Page, from: At, to: At) {
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 5 });
+  await page.mouse.up();
+}
+
+const status = (page: Page) => page.getByRole("status");
+const readout = (page: Page, name: string) =>
+  page.getByRole("list", { name: "Inputs and outputs" }).getByText(new RegExp(`^${name}:`));
+const onOff = (bit: number) => (bit ? "on" : "off");
+
+async function expectStates(page: Page, states: Record<string, number>) {
+  for (const [name, bit] of Object.entries(states)) await expect(readout(page, name)).toHaveText(`${name}: ${onOff(bit)}`);
+}
+
+const example = (name: string) => fileURLToPath(new URL(`../../../examples/${name}.clockyard.json`, import.meta.url));
+
+test("build two switches → AND → LED by hand, move a part, save and reload", async ({ page }) => {
+  await page.goto("/");
+  await expect(status(page)).toContainText("No circuit");
+  const at = await grid(page);
+
+  // Place with the part shortcuts; a click places the part centred on the cursor.
+  for (const [key, x, y] of [["s", 1, 1], ["s", 1, 6], ["a", 8, 4], ["l", 14, 4]] as const) {
+    await page.keyboard.press(key);
+    await click(page, at(x, y));
+  }
+  // Ports: switch out at (2,1) and (2,6); AND a (6,3), b (6,5), out (10,4); LED in (13,4).
+  await drag(page, at(2, 1), at(6, 3));
+  await drag(page, at(2, 6), at(6, 5));
+  await drag(page, at(10, 4), at(13, 4));
+  await expect(status(page)).toContainText("Settled");
+
+  const switches = { a: 0, b: 0 };
+  const set = async (a: number, b: number) => {
+    if (switches.a !== a) await click(page, at(1, 1));
+    if (switches.b !== b) await click(page, at(1, 6));
+    Object.assign(switches, { a, b });
+    await expectStates(page, { "Switch 1": a, "Switch 2": b });
+  };
+  for (const [a, b] of [[0, 0], [0, 1], [1, 0], [1, 1]] as const) {
+    await set(a, b);
+    await expectStates(page, { "LED 1": a & b });
+  }
+
+  // Drag the AND body (clear of its ports) down four cells: wires stay attached by port ID.
+  await drag(page, at(7, 4), at(7, 8));
+  await expectStates(page, { "LED 1": 1 });
+  await set(0, 1);
+  await expectStates(page, { "LED 1": 0 });
+  await set(1, 1);
+  await expectStates(page, { "LED 1": 1 });
+
+  // Save, reload the page, import the file: the circuit comes back; switch positions do not.
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export" }).click();
+  const saved = await download;
+  expect(saved.suggestedFilename()).toBe("untitled.clockyard.json");
+  const file = await saved.path();
+  await page.reload();
+  await expect(status(page)).toContainText("No circuit");
+  await page.locator('[data-testid="import-file"]').setInputFiles(file);
+  await expect(status(page)).toContainText("Settled");
+  await expectStates(page, { "Switch 1": 0, "Switch 2": 0, "LED 1": 0 });
+  await click(page, at(1, 1));
+  await click(page, at(1, 6));
+  await expectStates(page, { "Switch 1": 1, "Switch 2": 1, "LED 1": 1 });
+});
+
+test("a cascaded circuit with fan-out evaluates every input combination", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("cascade-fanout"));
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+
+  // Switch a at (0,0), b at (0,6); LED 1 shows a (fan-out), LED 2 shows (a XOR b) AND a.
+  const switches = { a: 0, b: 0 };
+  for (const [a, b] of [[0, 0], [0, 1], [1, 0], [1, 1]] as const) {
+    if (switches.a !== a) await click(page, at(1, 1));
+    if (switches.b !== b) await click(page, at(1, 7));
+    Object.assign(switches, { a, b });
+    await expectStates(page, { "Switch 1": a, "Switch 2": b, "LED 1": a, "LED 2": (a ^ b) & a });
+  }
+});
+
+test("a broken file is refused and the circuit is kept", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("and-gate"));
+  await expect(status(page)).toContainText("Settled");
+  await page.locator('[data-testid="import-file"]').setInputFiles({
+    name: "broken.clockyard.json",
+    mimeType: "application/json",
+    buffer: Buffer.from('{"format":"clockyard","version":99}'),
+  });
+  await expect(page.getByRole("alert")).toContainText("newer Clockyard");
+  await expect(readout(page, "LED 1")).toHaveText("LED 1: off");
+});

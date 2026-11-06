@@ -16,6 +16,7 @@
     "lint": "pnpm --filter web lint",
     "typecheck": "pnpm --filter web typecheck",
     "prepare": "git config core.hooksPath .githooks",
-    "verify": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && pnpm wasm && pnpm lint && pnpm typecheck && pnpm --filter web test && pnpm --filter web build"
+    "verify": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && pnpm wasm && pnpm lint && pnpm typecheck && pnpm --filter web test && pnpm --filter web build && pnpm --filter web e2e",
+    "test:e2e": "pnpm wasm && pnpm --filter web e2e"
   }
 }

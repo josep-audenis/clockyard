@@ -49,6 +49,7 @@ export function App() {
       <div className="workspace">
         <PartsLibrary />
         <Canvas />
+        <Readout />
       </div>
       <StatusBar />
     </div>
@@ -177,6 +178,30 @@ function Canvas() {
     };
   }, []);
   return <main ref={host} className="canvas-host" aria-label="Circuit canvas" />;
+}
+
+/** The canvas is pixels only; this lists switch and LED states for screen readers (and browser tests). */
+function Readout() {
+  const components = useEditor((s) => s.circuit.components);
+  const loaded = useSim((s) => s.loaded);
+  const nets = useSim((s) => s.nets);
+  const stale = useSim((s) => s.stale);
+  const value = (id: string, port: string) => {
+    const net = loaded?.portNets[id]?.[port];
+    return stale || !nets || net === undefined ? "unknown" : nets[net] === 1 ? "on" : "off";
+  };
+  const switches = components.filter((c) => c.kind === "switch");
+  const leds = components.filter((c) => c.kind === "led");
+  return (
+    <ul className="visually-hidden" aria-label="Inputs and outputs">
+      {switches.map((c, i) => (
+        <li key={c.id}>{`Switch ${i + 1}: ${value(c.id, "out")}`}</li>
+      ))}
+      {leds.map((c, i) => (
+        <li key={c.id}>{`LED ${i + 1}: ${value(c.id, "in")}`}</li>
+      ))}
+    </ul>
+  );
 }
 
 // Plain sentences for the status bar; the engine's messages name opaque IDs, which the canvas highlights instead.

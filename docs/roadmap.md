@@ -10,11 +10,10 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started
 **Phase 0 — ✅ done.** pnpm + Cargo workspaces, a Rust AND evaluator called from
 the browser through WASM in a Web Worker, linting, tests and a pre-push check hook.
 
-**Phase 1 — 🔨 in progress** (branch `feat/phase-1-editor`). Engine and canvas
-editor done: parts are placed, dragged, wired, selected and deleted on a
-PixiJS canvas, and every value shown comes from the Rust engine. The
-two-switch → AND → LED slice was built and checked by hand in the browser,
-exported, reloaded and imported again. Next: Playwright.
+**Phase 1 — ✅ done** (branch `feat/phase-1-editor`). Circuits are built on a
+PixiJS canvas, simulated by the Rust engine in a worker, exported and imported
+as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
+Next: Phase 2.
 
 ## Phase 0 — Foundation ✅
 
@@ -39,7 +38,7 @@ Acceptance:
 - [x] Runs without any backend service
 - [x] One documented command starts development
 
-## Phase 1 — First playable circuit editor
+## Phase 1 — First playable circuit editor ✅
 
 Goal: build and run basic combinational circuits.
 
@@ -63,10 +62,11 @@ Progress:
 - ✅ Port layouts per kind, checked against the engine catalog (ADR 0004)
 - ✅ JSON import/export with validation (no autosave yet: that is a later IndexedDB item)
 - ✅ Keyboard shortcuts: Delete, Escape, and part keys S, L, N, A, O, X
-- ⬜ Playwright test of the first slice
+- ✅ Playwright tests: the slice built by hand (all four inputs, move, export, reload, import), the cascade/fan-out example, a refused file
+- ✅ Examples `and-gate`, `cascade-fanout` and `half-adder`, checked natively; the first two also in the browser
 
-Acceptance items below are ticked when checked by hand in the browser; the
-Playwright test will cover them.
+The canvas is pixels only, so a visually hidden list states each switch and
+LED for screen readers; the browser tests read the same list.
 
 Acceptance — a user can:
 
@@ -80,7 +80,7 @@ Acceptance — a user can:
 - [x] Move components without breaking connections
 - [x] Save the design
 - [x] Reload it successfully
-- [ ] A cascaded circuit with fan-out also evaluates correctly
+- [x] A cascaded circuit with fan-out also evaluates correctly
 
 ## Phase 2 — Proper circuit construction
 
@@ -140,6 +140,6 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 1 Playwright test: build two switches → AND → LED through the UI, check
-all four input combinations, move a part, export and re-import; plus a
-cascaded circuit with fan-out. Then close Phase 1.
+Phase 2 planning: undo/redo, copy/paste, explicit junctions and nets, then the
+4-bit adder from a reusable full adder. Known Phase 1 limits to revisit: wires
+from different nets can share a bend column, no part rotation, no autosave.

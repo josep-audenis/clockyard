@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import type { CircuitComponent, CircuitDocument, ComponentKind, Wire } from "../editor/document";
 import { parseDocument, serializeDocument } from "./file";
@@ -48,4 +49,10 @@ test.each([
   const result = parse();
   expect(result.ok).toBe(false);
   expect(result.ok ? "" : result.error).toContain(message);
+});
+
+const examples = new URL("../../../../examples/", import.meta.url);
+test.each(readdirSync(examples).filter((name) => name.endsWith(".clockyard.json")))("example %s is a valid project file", (name) => {
+  const result = parseDocument(readFileSync(new URL(name, examples), "utf8"));
+  expect(result.ok ? "ok" : result.error).toBe("ok");
 });
