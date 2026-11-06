@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/clockyard-mark-light.svg">
+  <img src="docs/assets/clockyard-mark.svg" alt="" width="64" height="64">
+</picture>
+
 # Clockyard
 
 **Build computers from their very first pulse.**
