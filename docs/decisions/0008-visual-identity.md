@@ -46,8 +46,10 @@ identity is decided before the first component is written.
   fixes happen in one place.
 - `tokens.css` is a mirror; it must be updated by hand (or by a small script)
   when the system changes. Revisit if drift becomes a problem.
-- No logo and no third-party icon set yet: the wordmark is plain Plex Mono and
-  a handful of house glyphs cover the toolbar. Choose a licence-compatible icon
-  set (MIT, ISC or Apache-2.0) when more than a dozen icons are needed.
+- The logo is the wire C: a 0 that rises into a lit 1, bent into the letter C
+  (`docs/assets/`, `apps/web/public/favicon.svg`; the toolbar draws it inline on
+  tokens). No third-party icon set yet: a handful of house glyphs cover the
+  toolbar. Choose a licence-compatible icon set (MIT, ISC or Apache-2.0) when
+  more than a dozen icons are needed.
 - X and the amber 1 are close in luminance in the light theme; the dash
   pattern and letter carry the difference. Do not drop them.
