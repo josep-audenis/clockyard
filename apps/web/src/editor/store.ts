@@ -14,12 +14,23 @@ export type EditorState = {
   /** Part waiting to be placed by the next canvas click. */
   armed: ComponentKind | null;
   add: (kind: ComponentKind, position: { x: number; y: number }) => string;
-  move: (id: string, position: { x: number; y: number }) => void;
+  /** Sets positions by component ID in one update; not recorded (see `record`). */
+  move: (positions: Record<string, { x: number; y: number }>) => void;
   /** Adds a wire unless it joins a port to itself, duplicates a wire or names a missing part. */
   connect: (from: PortRef, to: PortRef) => string | null;
   /** Removes components (with their wires) and wires. */
   remove: (ids: string[]) => void;
   select: (ids: string[]) => void;
+  selectAll: () => void;
+  /** Parts copied by `copy`/`cut`, with the wires between them. */
+  clipboard: Circuit | null;
+  /** Pastes since the last copy; each lands a little further down-right. */
+  pastes: number;
+  copy: () => void;
+  cut: () => void;
+  paste: () => void;
+  /** Copies the selected parts next to themselves, leaving the clipboard alone. */
+  duplicate: () => void;
   toggle: (id: string) => void;
   arm: (kind: ComponentKind | null) => void;
   /** Replaces the whole document, e.g. from an imported file. Clears history. */
@@ -49,6 +60,43 @@ function withCircuit(state: EditorState, circuit: Circuit) {
   };
 }
 
+/** The chosen parts and the wires running between them; wires to other parts are left out. */
+function fragment(circuit: Circuit, ids: string[]): Circuit {
+  const chosen = new Set(ids);
+  const components = circuit.components.filter((c) => chosen.has(c.id));
+  const inside = new Set(components.map((c) => c.id));
+  const wires = circuit.wires.filter((w) => inside.has(w.from.component) && inside.has(w.to.component));
+  return { components, wires };
+}
+
+/** A copy of `part` with fresh IDs, shifted down-right by `offset` cells. */
+function cloned(part: Circuit, offset: number): Circuit {
+  const ids = new Map(part.components.map((c) => [c.id, crypto.randomUUID()]));
+  const id = (old: string) => ids.get(old) ?? old;
+  return {
+    components: part.components.map((c) => ({
+      ...c,
+      id: id(c.id),
+      position: { x: c.position.x + offset, y: c.position.y + offset },
+      props: structuredClone(c.props),
+    })),
+    wires: part.wires.map((w) => ({
+      id: crypto.randomUUID(),
+      from: { ...w.from, component: id(w.from.component) },
+      to: { ...w.to, component: id(w.to.component) },
+    })),
+  };
+}
+
+/** Adds `part` to the circuit as one edit and selects it. */
+const insert = (state: EditorState, part: Circuit) => ({
+  ...edit(state, {
+    components: [...state.circuit.components, ...part.components],
+    wires: [...state.circuit.wires, ...part.wires],
+  }),
+  selection: [...part.components, ...part.wires].map((item) => item.id),
+});
+
 const remember = (state: EditorState) => ({ past: [...state.past, state.circuit].slice(-HISTORY_LIMIT), future: [] });
 
 /** A document edit: undoable, and it clears redo. */
@@ -62,6 +110,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
   armed: null,
   past: [],
   future: [],
+  clipboard: null,
+  pastes: 0,
 
   add: (kind, position) => {
     const id = crypto.randomUUID();
@@ -73,9 +123,9 @@ export const useEditor = create<EditorState>()((set, get) => ({
     return id;
   },
 
-  move: (id, position) =>
+  move: (positions) =>
     set(({ circuit }) => ({
-      circuit: { ...circuit, components: circuit.components.map((c) => (c.id === id ? { ...c, position } : c)) },
+      circuit: { ...circuit, components: circuit.components.map((c) => ({ ...c, position: positions[c.id] ?? c.position })) },
     })),
 
   connect: (from, to) => {
@@ -103,6 +153,28 @@ export const useEditor = create<EditorState>()((set, get) => ({
   },
 
   select: (ids) => set({ selection: ids }),
+  selectAll: () => set(({ circuit }) => ({ selection: [...circuit.components, ...circuit.wires].map((item) => item.id) })),
+
+  copy: () =>
+    set((state) => {
+      const part = fragment(state.circuit, state.selection);
+      return part.components.length > 0 ? { clipboard: part, pastes: 0 } : state;
+    }),
+  cut: () => {
+    get().copy();
+    get().remove(get().selection);
+  },
+  paste: () =>
+    set((state) => {
+      if (!state.clipboard?.components.length) return state;
+      const pastes = state.pastes + 1;
+      return { ...insert(state, cloned(state.clipboard, 2 * pastes)), pastes };
+    }),
+  duplicate: () =>
+    set((state) => {
+      const part = fragment(state.circuit, state.selection);
+      return part.components.length > 0 ? insert(state, cloned(part, 2)) : state;
+    }),
   toggle: (id) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: inputs[id] === 1 ? 0 : 1 } })),
   arm: (kind) => set({ armed: kind }),
   load: ({ metadata, circuit }) => set({ metadata, circuit, selection: [], inputs: {}, armed: null, past: [], future: [] }),

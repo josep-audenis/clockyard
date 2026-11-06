@@ -158,7 +158,10 @@ function PartsLibrary() {
         </section>
       ))}
       <p className="type-caption parts-hint">
-        Pick a part or press its key, then click the canvas to place it. Esc cancels. <kbd className="kbd">{MOD}</kbd>{" "}
+        Pick a part or press its key, then click the canvas to place it. Esc cancels. Drag empty space to select, Shift
+        to add; hold Space and drag to pan. <kbd className="kbd">{MOD}</kbd> <kbd className="kbd">C</kbd>{" "}
+        <kbd className="kbd">X</kbd> <kbd className="kbd">V</kbd> <kbd className="kbd">D</kbd> copy, cut, paste and
+        duplicate. <kbd className="kbd">{MOD}</kbd>{" "}
         <kbd className="kbd">Z</kbd> undoes, <kbd className="kbd">{MOD}</kbd> <kbd className="kbd">Shift</kbd>{" "}
         <kbd className="kbd">Z</kbd> redoes.
       </p>

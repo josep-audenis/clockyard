@@ -68,3 +68,15 @@ export function hitTest(circuit: Circuit, p: Point, pick: number): Hit {
   }
   return null;
 }
+
+/** IDs of components lying wholly inside the box spanned by two corners (any order). */
+export function componentsInBox(circuit: Circuit, a: Point, b: Point): string[] {
+  const [left, right] = [Math.min(a.x, b.x), Math.max(a.x, b.x)];
+  const [top, bottom] = [Math.min(a.y, b.y), Math.max(a.y, b.y)];
+  return circuit.components
+    .filter(({ kind, position: { x, y } }) => {
+      const { width, height } = LAYOUTS[kind];
+      return x >= left && y >= top && x + width <= right && y + height <= bottom;
+    })
+    .map((c) => c.id);
+}

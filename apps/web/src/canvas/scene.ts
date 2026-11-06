@@ -6,7 +6,7 @@ import type { CircuitComponent } from "../editor/document";
 import { useEditor } from "../editor/store";
 import type { PortRef } from "../simulation/protocol";
 import { useSim } from "../simulation/sync";
-import { hitTest, portAt, wirePoints, type Point } from "./geometry";
+import { componentsInBox, hitTest, portAt, wirePoints, type Point } from "./geometry";
 import { LAYOUTS } from "./layout";
 
 const MIN_ZOOM = 0.25;
@@ -25,6 +25,7 @@ const COLORS = [
   "signal-low",
   "select",
   "accent",
+  "accent-soft",
   "danger",
 ] as const;
 const SIZES = ["grid-cell", "wire-width", "wire-width-high", "select-width", "port-size", "hit-slop", "radius-sm"] as const;
@@ -43,8 +44,13 @@ function readTheme(): Theme {
 
 type Gesture =
   | { type: "pan"; last: Point }
-  | { type: "move"; id: string; grab: Point; start: Point; moved: boolean; recorded: boolean }
-  | { type: "wire"; from: PortRef; at: Point };
+  // Drags every selected part; `id` is the one under the pointer, `starts` where each part began.
+  | { type: "move"; id: string; grab: Point; starts: Record<string, Point>; start: Point; moved: boolean; recorded: boolean }
+  | { type: "wire"; from: PortRef; at: Point }
+  // Marquee selection; `base` is the selection kept from before (Shift).
+  | { type: "box"; from: Point; to: Point; base: string[] };
+
+const toggled = (ids: string[], id: string) => (ids.includes(id) ? ids.filter((other) => other !== id) : [...ids, id]);
 
 export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   const app = new Application();
@@ -71,6 +77,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   const view = { x: 48, y: 48, zoom: 1 };
   let gesture: Gesture | null = null;
   let hover: PortRef | null = null;
+  /** Space held: a left drag pans. */
+  let spaceHeld = false;
 
   let frame = 0;
   const schedule = () => {
@@ -96,7 +104,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const step = c * view.zoom * (view.zoom < 0.5 ? 4 : 1);
     host.style.backgroundSize = `${step}px ${step}px`;
     host.style.backgroundPosition = `${view.x - step / 2}px ${view.y - step / 2}px`;
-    canvas.style.cursor = armed ? "crosshair" : gesture?.type === "pan" ? "grabbing" : "default";
+    canvas.style.cursor = armed ? "crosshair" : gesture?.type === "pan" ? "grabbing" : spaceHeld ? "grab" : "default";
 
     const culprits = new Set(
       [...(loaded?.diagnostics ?? []), ...runtime].filter((d) => d.severity === "error").flatMap((d) => d.ids),
@@ -149,6 +157,14 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         const b = px(gesture.at);
         overlay.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 1.5, color: color.accent, cap: "round" });
       }
+    }
+    if (gesture?.type === "box") {
+      const a = px(gesture.from);
+      const b = px(gesture.to);
+      overlay
+        .rect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y))
+        .fill({ color: color["accent-soft"], alpha: 0.4 })
+        .stroke({ width: 1 / view.zoom, color: color.select });
     }
     const hoverPart = hover && byId.get(hover.component);
     const hoverAt = hover && hoverPart && portAt(hoverPart, hover.port);
@@ -266,7 +282,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const p = toWorld(e);
     const editor = useEditor.getState();
     canvas.setPointerCapture(e.pointerId);
-    if (e.button === 1) {
+    if (e.button === 1 || (e.button === 0 && spaceHeld)) {
       gesture = { type: "pan", last: { x: e.clientX, y: e.clientY } };
     } else if (e.button === 0 && editor.armed) {
       const { width, height } = LAYOUTS[editor.armed];
@@ -276,15 +292,20 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const part = hit?.type === "component" ? editor.circuit.components.find((c) => c.id === hit.id) : undefined;
       if (hit?.type === "port") {
         gesture = { type: "wire", from: hit.ref, at: p };
+      } else if (part && e.shiftKey) {
+        editor.select(toggled(editor.selection, part.id));
       } else if (part) {
         if (!editor.selection.includes(part.id)) editor.select([part.id]);
+        const selected = new Set(useEditor.getState().selection);
+        const starts = Object.fromEntries(editor.circuit.components.filter((c) => selected.has(c.id)).map((c) => [c.id, c.position]));
         const grab = { x: p.x - part.position.x, y: p.y - part.position.y };
-        gesture = { type: "move", id: part.id, grab, start: { x: e.clientX, y: e.clientY }, moved: false, recorded: false };
+        gesture = { type: "move", id: part.id, grab, starts, start: { x: e.clientX, y: e.clientY }, moved: false, recorded: false };
       } else if (hit?.type === "wire") {
-        editor.select([hit.id]);
+        editor.select(e.shiftKey ? toggled(editor.selection, hit.id) : [hit.id]);
       } else {
-        editor.select([]);
-        gesture = { type: "pan", last: { x: e.clientX, y: e.clientY } };
+        const base = e.shiftKey ? editor.selection : [];
+        editor.select(base);
+        gesture = { type: "box", from: p, to: p, base };
       }
     }
     schedule();
@@ -298,20 +319,28 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       view.y += e.clientY - gesture.last.y;
       gesture.last = { x: e.clientX, y: e.clientY };
     } else if (gesture?.type === "move") {
-      gesture.moved ||= Math.hypot(e.clientX - gesture.start.x, e.clientY - gesture.start.y) > DRAG_THRESHOLD;
-      const position = { x: Math.round(p.x - gesture.grab.x), y: Math.round(p.y - gesture.grab.y) };
-      const id = gesture.id;
-      const part = editor.circuit.components.find((c) => c.id === id);
-      if (gesture.moved && part && (part.position.x !== position.x || part.position.y !== position.y)) {
-        // The whole drag is one undo step.
-        if (!gesture.recorded) editor.record();
-        gesture.recorded = true;
-        editor.move(part.id, position);
+      const g = gesture;
+      g.moved ||= Math.hypot(e.clientX - g.start.x, e.clientY - g.start.y) > DRAG_THRESHOLD;
+      const anchor = g.starts[g.id];
+      const part = editor.circuit.components.find((c) => c.id === g.id);
+      if (g.moved && anchor && part) {
+        // Snap the part under the pointer; every other selected part moves by the same cells.
+        const dx = Math.round(p.x - g.grab.x) - anchor.x;
+        const dy = Math.round(p.y - g.grab.y) - anchor.y;
+        if (part.position.x !== anchor.x + dx || part.position.y !== anchor.y + dy) {
+          // The whole drag is one undo step.
+          if (!g.recorded) editor.record();
+          g.recorded = true;
+          editor.move(Object.fromEntries(Object.entries(g.starts).map(([id, s]) => [id, { x: s.x + dx, y: s.y + dy }])));
+        }
       }
     } else if (gesture?.type === "wire") {
       gesture.at = p;
+    } else if (gesture?.type === "box") {
+      gesture.to = p;
+      editor.select([...new Set([...gesture.base, ...componentsInBox(editor.circuit, gesture.from, p)])]);
     }
-    const hit = gesture?.type === "pan" || gesture?.type === "move" ? null : hitTest(editor.circuit, p, pick());
+    const hit = gesture?.type === "wire" || !gesture ? hitTest(editor.circuit, p, pick()) : null;
     hover = hit?.type === "port" ? hit.ref : null;
     schedule();
   };
@@ -320,6 +349,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const editor = useEditor.getState();
     if (gesture?.type === "move" && !gesture.moved) {
       const id = gesture.id;
+      // A plain click inside a multi-selection narrows it to the clicked part.
+      if (editor.selection.length > 1) editor.select([id]);
       if (editor.circuit.components.find((c) => c.id === id)?.kind === "switch") editor.toggle(id);
     } else if (gesture?.type === "wire") {
       const hit = hitTest(editor.circuit, toWorld(e), pick());
@@ -356,6 +387,18 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       gesture = null;
       if (undo) editor.undo();
       else editor.redo();
+    } else if (onCanvas && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && ["c", "x", "v", "d", "a"].includes(key)) {
+      e.preventDefault(); // also stops the browser's own Ctrl+D bookmark and Ctrl+A select-all
+      gesture = null;
+      if (key === "c") editor.copy();
+      else if (key === "x") editor.cut();
+      else if (key === "v") editor.paste();
+      else if (key === "d") editor.duplicate();
+      else editor.selectAll();
+    } else if (onCanvas && e.key === " ") {
+      e.preventDefault();
+      spaceHeld = true;
+      schedule();
     } else if (onCanvas && (e.key === "Delete" || e.key === "Backspace") && editor.selection.length > 0) {
       e.preventDefault();
       gesture = null;
@@ -378,6 +421,13 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   });
   canvas.addEventListener("wheel", onWheel, { passive: false });
   window.addEventListener("keydown", onKeyDown);
+  const releaseSpace = (e: KeyboardEvent | FocusEvent) => {
+    if (e instanceof KeyboardEvent && e.key !== " ") return;
+    spaceHeld = false;
+    schedule();
+  };
+  window.addEventListener("keyup", releaseSpace);
+  window.addEventListener("blur", releaseSpace);
 
   const resize = new ResizeObserver(() => {
     app.renderer.resize(host.clientWidth, host.clientHeight);
@@ -401,6 +451,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     resize.disconnect();
     scheme.removeEventListener("change", onScheme);
     window.removeEventListener("keydown", onKeyDown);
+    window.removeEventListener("keyup", releaseSpace);
+    window.removeEventListener("blur", releaseSpace);
     app.destroy(true, { children: true });
   };
 }

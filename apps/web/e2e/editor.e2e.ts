@@ -170,3 +170,28 @@ test("undo and redo edits; a drag undoes in one step", async ({ page }) => {
   await page.keyboard.press("Delete");
   await expect(readout(page, "LED 1")).toHaveCount(0);
 });
+
+test("box-select, duplicate, drag the copy as a group, select all and delete", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0), out (2,1)
+  await page.keyboard.press("l");
+  await click(page, at(6, 1)); // LED at (5,0), in (5,1)
+  await drag(page, at(2, 1), at(5, 1));
+
+  // Box around both parts, then duplicate: the copy lands 2 cells down-right with its own wire.
+  await drag(page, at(-1, -1), at(8, 3));
+  await page.keyboard.press("Control+d");
+  await expectStates(page, { "Switch 2": 0, "LED 2": 0 });
+
+  // The copy is selected: dragging its LED moves the copied switch too.
+  await drag(page, at(8.5, 3), at(8.5, 9)); // LED copy from (7,2) to (7,8)
+  await click(page, at(3, 9)); // the switch copy, now at (2,8)
+  await expectStates(page, { "Switch 1": 0, "LED 1": 0, "Switch 2": 1, "LED 2": 1 });
+
+  await page.keyboard.press("Control+a");
+  await page.keyboard.press("Delete");
+  await expect(readout(page, "Switch 1")).toHaveCount(0);
+  await expect(status(page)).toContainText("No circuit");
+});

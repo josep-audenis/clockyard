@@ -21,7 +21,7 @@ test("moving keeps wires attached by port ID", () => {
   const s = add("switch", { x: 0, y: 0 });
   const l = add("led", { x: 4, y: 0 });
   const w = connect(port(s, "out"), port(l, "in"));
-  move(l, { x: 9, y: 5 });
+  move({ [l]: { x: 9, y: 5 } });
   const { circuit } = useEditor.getState();
   expect(circuit.components.find((c) => c.id === l)?.position).toEqual({ x: 9, y: 5 });
   expect(circuit.wires).toEqual([{ id: w, from: port(s, "out"), to: port(l, "in") }]);
@@ -97,9 +97,9 @@ test("a drag is one undo step: record once, then move without history", () => {
   const { add, record, move, undo } = useEditor.getState();
   const s = add("switch", { x: 0, y: 0 });
   record();
-  move(s, { x: 1, y: 0 });
-  move(s, { x: 2, y: 0 });
-  move(s, { x: 3, y: 1 });
+  move({ [s]: { x: 1, y: 0 } });
+  move({ [s]: { x: 2, y: 0 } });
+  move({ [s]: { x: 3, y: 1 } });
   undo();
   expect(useEditor.getState().circuit.components[0]?.position).toEqual({ x: 0, y: 0 });
 });
@@ -129,4 +129,86 @@ test("loading a document clears history", () => {
   load({ format: "clockyard", version: 1, metadata, circuit: { components: [], wires: [] } });
   undo();
   expect(ids()).toEqual([]);
+});
+
+const wireEnds = () => useEditor.getState().circuit.wires.map((w) => [w.from.component, w.to.component]);
+
+test("move sets several positions in one update", () => {
+  const { add, move } = useEditor.getState();
+  const a = add("switch", { x: 0, y: 0 });
+  const b = add("led", { x: 4, y: 0 });
+  move({ [a]: { x: 1, y: 1 }, [b]: { x: 5, y: 1 } });
+  expect(useEditor.getState().circuit.components.map((c) => c.position)).toEqual([
+    { x: 1, y: 1 },
+    { x: 5, y: 1 },
+  ]);
+});
+
+test("copy and paste clone parts and the wires between them, with new IDs, as one undo step", () => {
+  const { add, connect, select, copy, paste, undo } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const l = add("led", { x: 4, y: 0 });
+  const other = add("led", { x: 4, y: 4 });
+  connect(port(s, "out"), port(l, "in"));
+  connect(port(s, "out"), port(other, "in")); // leaves the copied group: not copied
+  select([s, l]);
+  copy();
+  paste();
+  const state = useEditor.getState();
+  const pasted = state.circuit.components.slice(3);
+  expect(pasted.map((c) => [c.kind, c.position])).toEqual([
+    ["switch", { x: 2, y: 2 }],
+    ["led", { x: 6, y: 2 }],
+  ]);
+  expect(pasted.map((c) => c.id)).not.toContain(s);
+  const [newS, newL] = pasted.map((c) => c.id);
+  expect(wireEnds().slice(2)).toEqual([[newS, newL]]);
+  expect(state.selection).toHaveLength(3); // two parts and their wire
+  paste(); // a second paste lands further on
+  expect(useEditor.getState().circuit.components.at(-1)?.position).toEqual({ x: 8, y: 4 });
+  undo();
+  undo();
+  expect(ids()).toEqual([s, l, other]);
+});
+
+test("cut removes the selection and paste brings it back", () => {
+  const { add, select, cut, paste } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  select([s]);
+  cut();
+  expect(ids()).toEqual([]);
+  paste();
+  expect(useEditor.getState().circuit.components.map((c) => c.kind)).toEqual(["switch"]);
+});
+
+test("duplicate copies the selection next to itself and keeps the clipboard", () => {
+  const { add, select, copy, duplicate } = useEditor.getState();
+  const a = add("and", { x: 0, y: 0 });
+  const n = add("not", { x: 10, y: 0 });
+  select([n]);
+  copy();
+  select([a]);
+  duplicate();
+  const state = useEditor.getState();
+  expect(state.circuit.components.map((c) => c.kind)).toEqual(["and", "not", "and"]);
+  expect(state.circuit.components[2]?.position).toEqual({ x: 2, y: 2 });
+  expect(state.clipboard?.components.map((c) => c.id)).toEqual([n]);
+});
+
+test("copy, duplicate and paste do nothing without parts to work on", () => {
+  const { copy, duplicate, paste } = useEditor.getState();
+  copy();
+  duplicate();
+  paste();
+  expect(useEditor.getState().past).toEqual([]);
+});
+
+test("select all selects every part and wire", () => {
+  const { add, connect, select, selectAll } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const l = add("led", { x: 4, y: 0 });
+  const w = connect(port(s, "out"), port(l, "in"));
+  select([]);
+  selectAll();
+  expect(useEditor.getState().selection).toEqual([s, l, w]);
 });

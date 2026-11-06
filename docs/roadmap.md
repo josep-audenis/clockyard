@@ -14,8 +14,9 @@ the browser through WASM in a Web Worker, linting, tests and a pre-push check ho
 PixiJS canvas, simulated by the Rust engine in a worker, exported and imported
 as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
 
-**Phase 2 — 🔨 in progress** (branch `feat/phase-2-editing`). Undo/redo done.
-Next: copy/paste, duplicate, box selection.
+**Phase 2 — 🔨 in progress** (branch `feat/phase-2-editing`). Editing comfort
+done: undo/redo, copy/paste, duplicate, box selection, group moves. Next:
+component properties and labelled pins.
 
 ## Phase 0 — Foundation ✅
 
@@ -104,7 +105,12 @@ Progress:
 
 - ✅ Undo/redo: Ctrl/⌘ Z, Ctrl/⌘ Shift Z or Ctrl Y; one step per drag; last 200
   edits; switch positions and selection are not edits; importing clears history
-- ⬜ Copy/paste, duplicate, box selection
+- ✅ Copy/cut/paste and duplicate (Ctrl/⌘ C, X, V, D): new IDs, wires between the
+  copied parts kept, each paste one step further down-right; clipboard is
+  in-memory, same tab only
+- ✅ Box selection (drag empty space; Shift adds), Shift+click, select all
+  (Ctrl/⌘ A), dragging a selection moves it as one undo step; panning moved to
+  Space+drag or middle-button drag
 - ⬜ Component properties, inspector, labelled input/output pins
 - ⬜ Explicit junctions and nets, better wire routing (format v2 + migration)
 - ⬜ Custom reusable components and nested definitions
@@ -157,7 +163,8 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 2 editing comfort: copy/paste and duplicate (new IDs, internal wires
-kept), box selection and moving a multi-part selection, each one undo step.
-Known Phase 1 limits still open: wires from different nets can share a bend
-column, no part rotation, no autosave.
+Phase 2 component properties: an inspector for the selection (label, and later
+per-kind settings), labelled input/output pin parts for custom components, and
+the readout and status bar using labels. Known Phase 1 limits still open:
+wires from different nets can share a bend column, no part rotation, no
+autosave.
