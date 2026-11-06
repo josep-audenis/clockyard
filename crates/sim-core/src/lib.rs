@@ -1,23 +1,13 @@
 //! Clockyard simulation engine.
 //!
-//! Phase 0 holds a single AND evaluator that proves the browser → WASM → Rust
-//! round trip. The netlist, settling and diagnostics described in
-//! `docs/simulation-model.md` arrive in Phase 1.
+//! Phase 1: 1-bit combinational logic. A [`CircuitDescription`] is validated
+//! and compiled into a netlist by [`Simulator::load`], then settled with
+//! synchronous deltas as described in `docs/simulation-model.md`.
 
-/// Two-input AND gate.
-pub fn and_gate(a: bool, b: bool) -> bool {
-    a && b
-}
+pub mod catalog;
+pub mod description;
+pub mod sim;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn and_truth_table() {
-        assert!(!and_gate(false, false));
-        assert!(!and_gate(false, true));
-        assert!(!and_gate(true, false));
-        assert!(and_gate(true, true));
-    }
-}
+pub use catalog::Kind;
+pub use description::{CircuitDescription, Code, Diagnostic, PortRef, Severity};
+pub use sim::{PortNets, Simulator};

@@ -1,0 +1,27 @@
+{
+  "format": "clockyard",
+  "version": 1,
+  "metadata": {
+    "name": "Half adder",
+    "createdAt": "2026-11-06T12:00:00.000Z",
+    "modifiedAt": "2026-11-06T12:00:00.000Z"
+  },
+  "circuit": {
+    "components": [
+      { "id": "a", "kind": "switch", "position": { "x": 0, "y": 0 }, "rotation": 0, "props": {} },
+      { "id": "b", "kind": "switch", "position": { "x": 0, "y": 6 }, "rotation": 0, "props": {} },
+      { "id": "sum", "kind": "xor", "position": { "x": 6, "y": 0 }, "rotation": 0, "props": {} },
+      { "id": "carry", "kind": "and", "position": { "x": 6, "y": 6 }, "rotation": 0, "props": {} },
+      { "id": "led-sum", "kind": "led", "position": { "x": 13, "y": 1 }, "rotation": 0, "props": {} },
+      { "id": "led-carry", "kind": "led", "position": { "x": 13, "y": 7 }, "rotation": 0, "props": {} }
+    ],
+    "wires": [
+      { "id": "w-a-sum", "from": { "component": "a", "port": "out" }, "to": { "component": "sum", "port": "a" } },
+      { "id": "w-b-sum", "from": { "component": "b", "port": "out" }, "to": { "component": "sum", "port": "b" } },
+      { "id": "w-a-carry", "from": { "component": "a", "port": "out" }, "to": { "component": "carry", "port": "a" } },
+      { "id": "w-b-carry", "from": { "component": "b", "port": "out" }, "to": { "component": "carry", "port": "b" } },
+      { "id": "w-sum-led", "from": { "component": "sum", "port": "out" }, "to": { "component": "led-sum", "port": "in" } },
+      { "id": "w-carry-led", "from": { "component": "carry", "port": "out" }, "to": { "component": "led-carry", "port": "in" } }
+    ]
+  }
+}

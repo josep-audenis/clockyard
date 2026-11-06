@@ -108,6 +108,12 @@ pnpm install
 pnpm dev
 ```
 
+For the browser tests, install Chromium for Playwright once:
+
+```bash
+pnpm --filter web exec playwright install chromium
+```
+
 `pnpm dev` builds the WASM engine and starts Vite at http://localhost:5173.
 After changing Rust code, run `pnpm wasm` (the page reloads). `pnpm build`
 produces a static site in `apps/web/dist`.

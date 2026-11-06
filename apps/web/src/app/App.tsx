@@ -1,34 +1,34 @@
 import { useEffect, useRef, useState } from "react";
-import { startSimulation, type SimClient } from "../simulation/client";
-import type { Result } from "../simulation/protocol";
+import { mountCanvas } from "../canvas/scene";
+import type { ComponentKind } from "../editor/document";
+import { useEditor } from "../editor/store";
+import { connectEngine, useSim } from "../simulation/sync";
+import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
 
-type Engine = { status: "loading" } | { status: "ready" } | { status: "error"; message: string };
-type AndResult = Extract<Result, { type: "andResult" }>;
-
-const bit = (value: boolean) => (value ? "1" : "0");
+type Part = { kind: ComponentKind; name: string; key?: string };
+// Shortcut letters follow the design system's PartTile spec.
+const LIBRARY: { title: string; parts: Part[] }[] = [
+  { title: "Inputs", parts: [{ kind: "switch", name: "Switch", key: "S" }] },
+  { title: "Outputs", parts: [{ kind: "led", name: "LED", key: "L" }] },
+  {
+    title: "Gates",
+    parts: [
+      { kind: "not", name: "NOT", key: "N" },
+      { kind: "and", name: "AND", key: "A" },
+      { kind: "nand", name: "NAND" },
+      { kind: "or", name: "OR", key: "O" },
+      { kind: "nor", name: "NOR" },
+      { kind: "xor", name: "XOR", key: "X" },
+      { kind: "xnor", name: "XNOR" },
+    ],
+  },
+];
+const SHORTCUTS = new Map(LIBRARY.flatMap(({ parts }) => parts.flatMap(({ kind, key }) => (key ? [[key, kind] as const] : []))));
+/** Larger files are refused before reading; real circuits are far smaller. */
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export function App() {
-  const [engine, setEngine] = useState<Engine>({ status: "loading" });
-  const [inputs, setInputs] = useState({ a: false, b: false });
-  const [result, setResult] = useState<AndResult | null>(null);
-  const sim = useRef<SimClient | null>(null);
-
-  useEffect(() => {
-    const client = startSimulation((message) => {
-      if (message.type === "ready") setEngine({ status: "ready" });
-      else if (message.type === "error") setEngine({ status: "error", message: message.message });
-      else setResult(message);
-    });
-    sim.current = client;
-    return () => client.dispose();
-  }, []);
-
-  useEffect(() => {
-    sim.current?.send({ type: "evalAnd", ...inputs });
-  }, [inputs]);
-
-  // Only show an output the engine computed for the inputs currently shown.
-  const out = result && result.a === inputs.a && result.b === inputs.b ? result.out : null;
+  useEffect(() => connectEngine(), []);
 
   return (
     <div className="shell">
@@ -44,34 +44,211 @@ export function App() {
           </svg>
           Clockyard
         </span>
-        <span className={`engine-status engine-${engine.status}`} role="status">
-          engine: {engine.status === "error" ? `error — ${engine.message}` : engine.status}
-        </span>
+        <FileActions />
       </header>
-      <main className="bench">
-        <section className="probe" aria-label="Engine round trip">
-          <h1 className="type-heading">PHASE 0 · ENGINE ROUND TRIP</h1>
-          <div className="probe-row">
-            {(["a", "b"] as const).map((name) => (
+      <div className="workspace">
+        <PartsLibrary />
+        <Canvas />
+        <Readout />
+      </div>
+      <StatusBar />
+    </div>
+  );
+}
+
+function FileActions() {
+  const name = useEditor((s) => s.metadata.name);
+  const [error, setError] = useState<string | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+
+  const exportFile = () => {
+    const { metadata, circuit } = useEditor.getState();
+    const modifiedAt = new Date().toISOString();
+    const text = serializeDocument({ format: "clockyard", version: FORMAT_VERSION, metadata: { ...metadata, modifiedAt }, circuit });
+    const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    const link = Object.assign(document.createElement("a"), { href: url, download: `${slug(metadata.name)}.clockyard.json` });
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url));
+    setError(null);
+  };
+
+  const importFile = async (file: File) => {
+    if (file.size > MAX_FILE_BYTES) return setError(`Could not open ${file.name}: it is too large to be a Clockyard circuit.`);
+    const result = parseDocument(await file.text());
+    if (!result.ok) return setError(`Could not open ${file.name}: ${result.error}`);
+    const replacing = useEditor.getState().circuit.components.length > 0;
+    if (replacing && !window.confirm("Replace the current circuit? Changes since your last export will be lost.")) return;
+    useEditor.getState().load(result.document);
+    setError(null);
+  };
+
+  return (
+    <div className="file-actions">
+      <span className="project-name type-label">{name}</span>
+      {error && (
+        <span className="file-error type-caption" role="alert" title={error}>
+          {error}
+        </span>
+      )}
+      <button type="button" className="button type-label" onClick={() => picker.current?.click()}>
+        Import
+      </button>
+      <button type="button" className="button type-label" onClick={exportFile}>
+        Export
+      </button>
+      <input
+        ref={picker}
+        type="file"
+        accept=".json,application/json"
+        hidden
+        data-testid="import-file"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = ""; // so picking the same file again still fires
+          if (file) void importFile(file);
+        }}
+      />
+    </div>
+  );
+}
+
+const slug = (name: string) =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || "circuit";
+
+function PartsLibrary() {
+  const armed = useEditor((s) => s.armed);
+  const arm = useEditor((s) => s.arm);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const kind = SHORTCUTS.get(e.key.toUpperCase());
+      if (kind) useEditor.getState().arm(kind);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  return (
+    <aside className="parts" aria-label="Parts">
+      {LIBRARY.map(({ title, parts }) => (
+        <section key={title} className="panel">
+          <h2 className="type-heading panel-title">{title.toUpperCase()}</h2>
+          <div className="part-grid">
+            {parts.map(({ kind, name, key }) => (
               <button
-                key={name}
+                key={kind}
                 type="button"
-                className="switch"
-                aria-pressed={inputs[name]}
-                onClick={() => setInputs((current) => ({ ...current, [name]: !current[name] }))}
+                className="part-tile type-label"
+                aria-pressed={armed === kind}
+                aria-keyshortcuts={key}
+                onClick={() => arm(armed === kind ? null : kind)}
               >
-                <span className="type-label">{name.toUpperCase()}</span>
-                <span className="type-value">{bit(inputs[name])}</span>
+                {name}
+                {key && <kbd className="kbd">{key}</kbd>}
               </button>
             ))}
-            <span className="gate type-value">AND</span>
-            <output className="led type-display" data-high={out === true} aria-label="A AND B">
-              {out === null ? "–" : bit(out)}
-            </output>
           </div>
-          <p className="type-caption caption">Computed in Rust (sim-core) through WebAssembly in a Web Worker.</p>
         </section>
-      </main>
-    </div>
+      ))}
+      <p className="type-caption parts-hint">Pick a part or press its key, then click the canvas to place it. Esc cancels.</p>
+    </aside>
+  );
+}
+
+function Canvas() {
+  const host = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = host.current;
+    if (!element) return;
+    let disposed = false;
+    let dispose: (() => void) | undefined;
+    // React may unmount before Pixi finishes its async start-up.
+    mountCanvas(element).then(
+      (stop) => (disposed ? stop() : (dispose = stop)),
+      (error: unknown) => (element.textContent = `Canvas failed to start: ${String(error)}`),
+    );
+    return () => {
+      disposed = true;
+      dispose?.();
+    };
+  }, []);
+  return <main ref={host} className="canvas-host" aria-label="Circuit canvas" />;
+}
+
+/** The canvas is pixels only; this lists switch and LED states for screen readers (and browser tests). */
+function Readout() {
+  const components = useEditor((s) => s.circuit.components);
+  const loaded = useSim((s) => s.loaded);
+  const nets = useSim((s) => s.nets);
+  const stale = useSim((s) => s.stale);
+  const value = (id: string, port: string) => {
+    const net = loaded?.portNets[id]?.[port];
+    return stale || !nets || net === undefined ? "unknown" : nets[net] === 1 ? "on" : "off";
+  };
+  const switches = components.filter((c) => c.kind === "switch");
+  const leds = components.filter((c) => c.kind === "led");
+  return (
+    <ul className="visually-hidden" aria-label="Inputs and outputs">
+      {switches.map((c, i) => (
+        <li key={c.id}>{`Switch ${i + 1}: ${value(c.id, "out")}`}</li>
+      ))}
+      {leds.map((c, i) => (
+        <li key={c.id}>{`LED ${i + 1}: ${value(c.id, "in")}`}</li>
+      ))}
+    </ul>
+  );
+}
+
+// Plain sentences for the status bar; the engine's messages name opaque IDs, which the canvas highlights instead.
+const PLAIN: Record<string, string> = {
+  outputToOutput: "A wire connects two outputs.",
+  inputToInput: "A wire connects two inputs, so nothing drives it.",
+  multipleDrivers: "An input has more than one driver.",
+  unconnectedInput: "An input is unconnected and reads 0.",
+  unstable: "The circuit did not settle: a loop keeps oscillating.",
+};
+
+function StatusBar() {
+  const status = useSim((s) => s.status);
+  const error = useSim((s) => s.error);
+  const loaded = useSim((s) => s.loaded);
+  const runtime = useSim((s) => s.runtime);
+  const empty = useEditor((s) => s.circuit.components.length === 0);
+
+  const diagnostics = [...(loaded?.diagnostics ?? []), ...runtime];
+  const errors = diagnostics.filter((d) => d.severity === "error");
+  const [state, tone] =
+    status === "error"
+      ? ["Engine error", "danger"]
+      : status === "loading"
+        ? ["Starting", "muted"]
+        : errors.some((d) => d.code === "unstable")
+          ? ["Unstable", "danger"]
+          : errors.length > 0
+            ? ["Invalid", "danger"]
+            : empty
+              ? ["No circuit", "muted"]
+              : ["Settled", "ok"];
+  const first = errors[0] ?? diagnostics[0];
+  const message =
+    status === "error"
+      ? error
+      : first && `${PLAIN[first.code] ?? first.message}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`;
+
+  return (
+    <footer className="statusbar" role="status">
+      <span className={`status-state status-${tone}`}>
+        <span className="status-dot" aria-hidden="true" />
+        {state}
+      </span>
+      <span className="status-message" title={diagnostics.map((d) => d.message).join("\n")}>
+        {message}
+      </span>
+    </footer>
   );
 }

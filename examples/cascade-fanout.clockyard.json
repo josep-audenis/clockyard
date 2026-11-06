@@ -1,0 +1,27 @@
+{
+  "format": "clockyard",
+  "version": 1,
+  "metadata": {
+    "name": "Cascade with fan-out",
+    "createdAt": "2026-11-06T12:00:00.000Z",
+    "modifiedAt": "2026-11-06T12:00:00.000Z"
+  },
+  "circuit": {
+    "components": [
+      { "id": "a", "kind": "switch", "position": { "x": 0, "y": 0 }, "rotation": 0, "props": {} },
+      { "id": "b", "kind": "switch", "position": { "x": 0, "y": 6 }, "rotation": 0, "props": {} },
+      { "id": "x", "kind": "xor", "position": { "x": 5, "y": 1 }, "rotation": 0, "props": {} },
+      { "id": "y", "kind": "and", "position": { "x": 12, "y": 3 }, "rotation": 0, "props": {} },
+      { "id": "led-a", "kind": "led", "position": { "x": 12, "y": 10 }, "rotation": 0, "props": {} },
+      { "id": "led-y", "kind": "led", "position": { "x": 19, "y": 4 }, "rotation": 0, "props": {} }
+    ],
+    "wires": [
+      { "id": "w-a-x", "from": { "component": "a", "port": "out" }, "to": { "component": "x", "port": "a" } },
+      { "id": "w-b-x", "from": { "component": "b", "port": "out" }, "to": { "component": "x", "port": "b" } },
+      { "id": "w-x-y", "from": { "component": "x", "port": "out" }, "to": { "component": "y", "port": "a" } },
+      { "id": "w-a-y", "from": { "component": "a", "port": "out" }, "to": { "component": "y", "port": "b" } },
+      { "id": "w-a-led", "from": { "component": "a", "port": "out" }, "to": { "component": "led-a", "port": "in" } },
+      { "id": "w-y-led", "from": { "component": "y", "port": "out" }, "to": { "component": "led-y", "port": "in" } }
+    ]
+  }
+}

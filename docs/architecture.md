@@ -86,6 +86,10 @@ Rules:
   document.
 - Loading an older `version` runs explicit migrations in `storage/`. Unknown
   future versions are rejected with a clear message.
+- Import (`storage/file.ts`) treats the file as untrusted: every field is
+  type-checked, unknown fields are dropped, IDs must be unique and wires must
+  reference existing components. Port names are checked by the engine on load.
+  Switch positions are transient and never saved.
 
 ## Circuit description (engine input)
 
@@ -95,13 +99,17 @@ definitions and connections. This keeps the engine contract small and lets the
 file format evolve (migrations, layout fields) without touching Rust.
 
 ```ts
-// Phase 1 sketch
+// Phase 1 (apps/web/src/simulation/protocol.ts ↔ sim-core `description`)
 type CircuitDescription = {
-  components: { id: string; kind: string; props: Record<string, unknown> }[];
-  connections: { from: PortRef; to: PortRef }[];
+  components: { id: string; kind: string }[];
+  connections: { id: string; from: PortRef; to: PortRef }[]; // id = document wire ID
 };
 type PortRef = { component: string; port: string };
 ```
+
+A connection may list its output end in either `from` or `to`; the engine
+normalizes direction. Component `props` join the description when a kind needs
+one.
 
 The projection is a pure function with unit tests.
 
@@ -119,8 +127,10 @@ circuit description
 ```
 
 Compile returns either a list of validation diagnostics (each pointing at
-document IDs) or a netlist plus an **ID map**: document port/wire ID → net
-index. The renderer uses the map to color wires from the net value array.
+document IDs) or a netlist plus **ID maps**: wire ID → net index and
+component ID → port name → net index. Net 0 is an undriven ground that
+unconnected inputs read. The renderer uses the maps to color wires and LEDs
+from the net value array.
 
 ## Worker protocol
 
@@ -131,20 +141,29 @@ Typed discriminated unions over `postMessage`. No RPC library at first.
 type Command =
   | { type: "load"; circuit: CircuitDescription }
   | { type: "setInput"; component: string; value: 0 | 1 }
-  | { type: "reset" }
+  | { type: "reset" }                  // planned
   | { type: "stepClock" }              // Phase 3
   | { type: "run"; cyclesPerSecond: number } // Phase 3
   | { type: "pause" };                 // Phase 3
 
 // worker → main
 type Result =
-  | { type: "loaded"; netCount: number; idMap: Record<string, number>; diagnostics: Diagnostic[] }
+  | { type: "ready" }
+  | { type: "loaded"; netCount: number; wireNets: Record<string, number>;
+      portNets: Record<string, Record<string, number>>; diagnostics: Diagnostic[] }
   | { type: "state"; nets: Uint8Array; diagnostics: Diagnostic[] }
   | { type: "error"; message: string };
 ```
 
 - Commands are processed in order. The engine settles after each input change
   and replies with state.
+- `simulation/sync.ts` sends `load` only when the projected description
+  changes, so moving a part keeps the engine's state. Switch positions live in
+  the editor store (transient, never saved) and are re-sent after each load.
+  States that arrive while a newer load is pending are dropped.
+- `loaded.diagnostics` holds validation results only. The initial settle's
+  runtime result (an unstable loop) arrives with the first `state`, so the
+  settles that follow, such as restored switch positions, replace it.
 - Phase 1 sends the full net value array (small circuits). Changed-net deltas
   or transferable buffers come when measurements justify them.
 - During continuous runs (Phase 3) the worker advances virtual time in batches
@@ -153,10 +172,14 @@ type Result =
 
 ## Rendering
 
-- PixiJS owns the canvas: grid, component bodies, ports, wires, selection,
-  hover, signal coloring.
-- One Pixi display object per component and per wire; signal updates change
-  only wire/LED tint, not geometry.
+- PixiJS owns the canvas: component bodies, ports, wires, selection, hover,
+  signal coloring (`canvas/scene.ts`, drawn to the design system's CanvasKit
+  spec). The dot grid is the host element's CSS background, moved with the view.
+- Phase 1 redraws three `Graphics` layers (wires, bodies, overlay) on the next
+  animation frame after any store change; the render loop is otherwise idle.
+  Per-object updates replace this when profiling says so.
+- Hit-testing is pure geometry in grid units (`canvas/geometry.ts`); it decides
+  only what the pointer is over, never connectivity.
 - React subscribes to the document store for panels; the canvas subscribes
   outside React render to avoid re-rendering per signal change.
 - High-DPI via Pixi `resolution` = `devicePixelRatio` and `autoDensity`.

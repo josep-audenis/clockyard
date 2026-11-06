@@ -1,0 +1,121 @@
+// Project files: the circuit document as JSON (docs/architecture.md#circuit-document).
+// Imported files are untrusted: every field is checked and unknown fields are dropped.
+import {
+  COMPONENT_KINDS,
+  ROTATIONS,
+  type CircuitComponent,
+  type CircuitDocument,
+  type ComponentKind,
+  type Wire,
+} from "../editor/document";
+
+export const FORMAT_VERSION = 1;
+
+export type ParseResult = { ok: true; document: CircuitDocument } | { ok: false; error: string };
+
+export function serializeDocument(document: CircuitDocument): string {
+  return JSON.stringify(document, null, 2);
+}
+
+export function parseDocument(text: string): ParseResult {
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return { ok: false, error: "This file is not valid JSON." };
+  }
+  try {
+    return { ok: true, document: readDocument(data) };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+function object(value: unknown, where: string): Record<string, unknown> {
+  if (!isObject(value)) throw new Error(`${where} must be an object.`);
+  return value;
+}
+
+function array(value: unknown, where: string): unknown[] {
+  if (!Array.isArray(value)) throw new Error(`${where} must be a list.`);
+  return value;
+}
+
+function text(value: unknown, where: string): string {
+  if (typeof value !== "string") throw new Error(`${where} must be text.`);
+  return value;
+}
+
+function id(value: unknown, where: string): string {
+  if (typeof value !== "string" || value === "") throw new Error(`${where} must be a non-empty ID.`);
+  return value;
+}
+
+function integer(value: unknown, where: string): number {
+  if (!Number.isInteger(value)) throw new Error(`${where} must be a whole number.`);
+  return value as number;
+}
+
+function readDocument(data: unknown): CircuitDocument {
+  if (!isObject(data) || data.format !== "clockyard") throw new Error("This is not a Clockyard file.");
+  const version = data.version;
+  if (typeof version !== "number") throw new Error("The file has no format version.");
+  if (version > FORMAT_VERSION) {
+    throw new Error(`This file uses format version ${version}, from a newer Clockyard. This version reads up to ${FORMAT_VERSION}.`);
+  }
+  // Migrations from older versions go here once a version 2 exists.
+  if (version !== FORMAT_VERSION) throw new Error(`Format version ${version} is not supported.`);
+
+  const metadata = object(data.metadata, "metadata");
+  const circuit = object(data.circuit, "circuit");
+  const seen = new Set<string>();
+  const unique = (value: string, where: string) => {
+    if (seen.has(value)) throw new Error(`${where}: ID ${value} is used more than once.`);
+    seen.add(value);
+    return value;
+  };
+
+  const components = array(circuit.components, "circuit.components").map((raw, i): CircuitComponent => {
+    const where = `Component ${i + 1}`;
+    const c = object(raw, where);
+    const kind = text(c.kind, `${where} kind`);
+    if (!(COMPONENT_KINDS as readonly string[]).includes(kind)) throw new Error(`${where} has unknown kind "${kind}".`);
+    const position = object(c.position, `${where} position`);
+    const rotation = c.rotation;
+    if (!(ROTATIONS as readonly unknown[]).includes(rotation)) throw new Error(`${where} rotation must be 0, 90, 180 or 270.`);
+    return {
+      id: unique(id(c.id, `${where} id`), where),
+      kind: kind as ComponentKind,
+      position: { x: integer(position.x, `${where} x`), y: integer(position.y, `${where} y`) },
+      rotation: rotation as CircuitComponent["rotation"],
+      props: object(c.props, `${where} props`),
+    };
+  });
+
+  const componentIds = new Set(components.map((c) => c.id));
+  const port = (raw: unknown, where: string) => {
+    const ref = object(raw, where);
+    const component = id(ref.component, `${where} component`);
+    if (!componentIds.has(component)) throw new Error(`${where} refers to missing component ${component}.`);
+    return { component, port: id(ref.port, `${where} port`) };
+  };
+  const wires = array(circuit.wires, "circuit.wires").map((raw, i): Wire => {
+    const where = `Wire ${i + 1}`;
+    const w = object(raw, where);
+    return { id: unique(id(w.id, `${where} id`), where), from: port(w.from, `${where} start`), to: port(w.to, `${where} end`) };
+  });
+
+  return {
+    format: "clockyard",
+    version: FORMAT_VERSION,
+    metadata: {
+      name: text(metadata.name, "metadata.name"),
+      createdAt: text(metadata.createdAt, "metadata.createdAt"),
+      modifiedAt: text(metadata.modifiedAt, "metadata.modifiedAt"),
+    },
+    circuit: { components, wires },
+  };
+}

@@ -8,7 +8,12 @@ Legend: ✅ done · 🔨 in progress · ⬜ not started
 ## Current status
 
 **Phase 0 — ✅ done.** pnpm + Cargo workspaces, a Rust AND evaluator called from
-the browser through WASM in a Web Worker, linting, tests and a pre-push check hook. Next: Phase 1.
+the browser through WASM in a Web Worker, linting, tests and a pre-push check hook.
+
+**Phase 1 — ✅ done** (branch `feat/phase-1-editor`). Circuits are built on a
+PixiJS canvas, simulated by the Rust engine in a worker, exported and imported
+as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
+Next: Phase 2.
 
 ## Phase 0 — Foundation ✅
 
@@ -33,7 +38,7 @@ Acceptance:
 - [x] Runs without any backend service
 - [x] One documented command starts development
 
-## Phase 1 — First playable circuit editor
+## Phase 1 — First playable circuit editor ✅
 
 Goal: build and run basic combinational circuits.
 
@@ -46,19 +51,36 @@ First vertical slice (inside Phase 1): two switches → AND → LED, end to end
 through the engine. Validate all four input combinations visually and in a
 Playwright test.
 
+Progress:
+
+- ✅ Built-in catalog (switch, LED, NOT/AND/NAND/OR/NOR/XOR/XNOR) in `sim-core`
+- ✅ Circuit description, validation diagnostics, compile to netlist, bounded settle, oscillation report
+- ✅ Worker protocol `load` / `setInput` → `loaded` / `state`
+- ✅ Document format v1 types and projection to the description
+- ✅ PixiJS canvas with pan/zoom, part placement, dragging, wiring, selection/deletion
+- ✅ Active/inactive wire colors from engine nets; validation and unstable loops shown in the status bar and on the canvas
+- ✅ Port layouts per kind, checked against the engine catalog (ADR 0004)
+- ✅ JSON import/export with validation (no autosave yet: that is a later IndexedDB item)
+- ✅ Keyboard shortcuts: Delete, Escape, and part keys S, L, N, A, O, X
+- ✅ Playwright tests: the slice built by hand (all four inputs, move, export, reload, import), the cascade/fan-out example, a refused file
+- ✅ Examples `and-gate`, `cascade-fanout` and `half-adder`, checked natively; the first two also in the browser
+
+The canvas is pixels only, so a visually hidden list states each switch and
+LED for screen readers; the browser tests read the same list.
+
 Acceptance — a user can:
 
-- [ ] Open Clockyard
-- [ ] Place two switches
-- [ ] Place an AND gate
-- [ ] Place an LED
-- [ ] Connect them
-- [ ] Toggle either switch
-- [ ] See the correct LED output (`00→0, 01→0, 10→0, 11→1`)
-- [ ] Move components without breaking connections
-- [ ] Save the design
-- [ ] Reload it successfully
-- [ ] A cascaded circuit with fan-out also evaluates correctly
+- [x] Open Clockyard
+- [x] Place two switches
+- [x] Place an AND gate
+- [x] Place an LED
+- [x] Connect them
+- [x] Toggle either switch
+- [x] See the correct LED output (`00→0, 01→0, 10→0, 11→1`)
+- [x] Move components without breaking connections
+- [x] Save the design
+- [x] Reload it successfully
+- [x] A cascaded circuit with fan-out also evaluates correctly
 
 ## Phase 2 — Proper circuit construction
 
@@ -118,6 +140,6 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 1 first vertical slice: two switches → AND → LED through the engine,
-starting with the circuit description, `sim-core` compile + settle, and the
-Phase 1 worker protocol.
+Phase 2 planning: undo/redo, copy/paste, explicit junctions and nets, then the
+4-bit adder from a reusable full adder. Known Phase 1 limits to revisit: wires
+from different nets can share a bend column, no part rotation, no autosave.

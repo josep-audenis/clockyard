@@ -28,8 +28,9 @@ writing code rather than following older examples.
 
 React 19.3, Vite 8.3, Vitest 5.1, ESLint 10, typescript-eslint 8.72.
 TypeScript is pinned to **6.0.x**, not 7.x: typescript-eslint 8.72 supports
-`typescript <6.1`. Move to 7.x when typescript-eslint does. PixiJS and Zustand
-are added in Phase 1 when code needs them.
+`typescript <6.1`. Move to 7.x when typescript-eslint does.
+
+Phase 1 adds PixiJS 8.21 and Zustand 5.0 (exact pins in `apps/web/package.json`).
 
 ## Consequences
 

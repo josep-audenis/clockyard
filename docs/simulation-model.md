@@ -74,9 +74,11 @@ Properties:
 - **Feedback is allowed.** Stable feedback settles normally.
 - **Bounded.** The delta limit (default proportional to component count, with a
   floor) guarantees termination. An oscillating loop, such as a NOT gate fed
-  back to itself, yields an `Unstable` diagnostic naming the nets still
-  changing. The engine stops settling, keeps the last values, and waits for the
-  next command. It never freezes.
+  back to itself, yields an `Unstable` diagnostic naming the components whose
+  outputs were still changing. The engine stops settling, keeps the last
+  values, and waits for the next command. It never freezes. The components
+  still pending are kept and resumed by the next settle, so a live loop is
+  reported again after every input change until an input breaks it.
 
 Known consequence: with uniform one-delta gate delay, a cross-coupled NOR latch
 released from `S=R=1` to `S=R=0` simultaneously oscillates. Real hardware
