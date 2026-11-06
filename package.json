@@ -12,7 +12,7 @@
     "dev": "pnpm wasm && pnpm --filter web dev",
     "build": "pnpm wasm && pnpm --filter web build",
     "preview": "pnpm --filter web preview",
-    "test": "pnpm --filter web test",
+    "test": "cargo test --workspace && pnpm --filter web test",
     "lint": "pnpm --filter web lint",
     "typecheck": "pnpm --filter web typecheck"
   }
