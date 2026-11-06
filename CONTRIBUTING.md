@@ -1,7 +1,7 @@
 # Contributing to Clockyard
 
-Thanks for your interest. Clockyard is early: the structure and design docs
-exist, the code does not yet. The [roadmap](docs/roadmap.md) shows what is
+Thanks for your interest. Clockyard is early: the foundation (Phase 0) is in
+place and the circuit editor is next. The [roadmap](docs/roadmap.md) shows what is
 being worked on.
 
 ## Principles
@@ -30,7 +30,7 @@ being worked on.
 
 ## Checks
 
-Planned commands (available once Phase 0 lands):
+Build the WASM module first (`pnpm wasm`); the web checks import it.
 
 ```bash
 cargo fmt --all --check
@@ -56,11 +56,8 @@ pnpm typecheck
 pnpm test
 ```
 
-```bash
-pnpm test:e2e
-```
-
-CI runs the same set on every pull request.
+CI runs the same set on every pull request. Playwright (`pnpm test:e2e`)
+arrives with the Phase 1 editor.
 
 ## Code style
 

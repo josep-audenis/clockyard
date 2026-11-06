@@ -9,8 +9,9 @@ execute it — one clock edge at a time.
 
 Everything runs locally in your browser. No accounts, no servers, no cloud.
 
-> **Status: pre-alpha — project structure and design docs only.**
-> No runnable code yet. Phase 0 (foundation) is next. See the [roadmap](docs/roadmap.md).
+> **Status: pre-alpha — Phase 0 (foundation) done.** The app loads the Rust
+> engine through WASM and evaluates a single AND gate. The circuit editor
+> arrives in Phase 1. See the [roadmap](docs/roadmap.md).
 
 ## Why
 
@@ -64,7 +65,8 @@ only renders what the engine reports. Details: [architecture](docs/architecture.
 | Storage | JSON project files; IndexedDB later |
 | Tooling | pnpm, Cargo, Vitest, Playwright, ESLint, rustfmt, Clippy, GitHub Actions |
 
-Exact versions are pinned when the project is scaffolded in Phase 0.
+Exact versions are pinned in `package.json` and `Cargo.toml` (see
+[ADR 0007](docs/decisions/0007-frontend-stack.md)).
 
 ## Repository layout
 
@@ -79,7 +81,19 @@ clockyard/
 
 ## Getting started
 
-Not available yet — arrives with Phase 0. The target is one command:
+Prerequisites: Node.js 22+, pnpm 10, a stable Rust toolchain with the
+`wasm32-unknown-unknown` target, and the `wasm-bindgen` CLI matching the crate
+pin:
+
+```bash
+rustup target add wasm32-unknown-unknown
+```
+
+```bash
+cargo install wasm-bindgen-cli --version 0.2.130 --locked
+```
+
+Then:
 
 ```bash
 pnpm install
@@ -89,9 +103,9 @@ pnpm install
 pnpm dev
 ```
 
-Planned prerequisites: Node.js LTS, pnpm, a stable Rust toolchain with the
-`wasm32-unknown-unknown` target, and the `wasm-bindgen` CLI matching the
-crate version.
+`pnpm dev` builds the WASM engine and starts Vite at http://localhost:5173.
+After changing Rust code, run `pnpm wasm` (the page reloads). `pnpm build`
+produces a static site in `apps/web/dist`.
 
 ## Documentation
 

@@ -24,6 +24,13 @@ a document store with undo/redo, and a small dependency footprint.
 Verify current stable APIs (e.g. PixiJS async `Application.init`) before
 writing code rather than following older examples.
 
+## Pinned versions (Phase 0)
+
+React 19.3, Vite 8.3, Vitest 5.1, ESLint 10, typescript-eslint 8.72.
+TypeScript is pinned to **6.0.x**, not 7.x: typescript-eslint 8.72 supports
+`typescript <6.1`. Move to 7.x when typescript-eslint does. PixiJS and Zustand
+are added in Phase 1 when code needs them.
+
 ## Consequences
 
 - Few dependencies to audit and keep license-compatible.

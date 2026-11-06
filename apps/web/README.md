@@ -3,9 +3,11 @@
 The browser application: React shell, PixiJS circuit canvas, document store,
 local persistence, and the Web Worker that hosts the WASM simulation engine.
 
-> Status: not scaffolded yet. Phase 0 creates the Vite + React + TypeScript app here.
-> Design tokens already live in `src/styles/tokens.css` (see
-> [ADR 0008](../../docs/decisions/0008-visual-identity.md)).
+> Status: Phase 0 — Vite + React + strict TypeScript shell. A module worker
+> (`src/workers/sim.worker.ts`) loads the WASM engine; the UI toggles two inputs
+> and shows the AND result computed in Rust. Design tokens live in
+> `src/styles/tokens.css` ([ADR 0008](../../docs/decisions/0008-visual-identity.md));
+> IBM Plex is not bundled yet, so the font stacks fall back to system fonts.
 
 ## Planned layout
 

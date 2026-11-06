@@ -1,0 +1,11 @@
+[package]
+name = "sim-core"
+description = "Clockyard digital logic simulation engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+# No browser or wasm-bindgen dependencies here (ADR 0002).
+[dependencies]

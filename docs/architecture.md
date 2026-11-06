@@ -164,14 +164,17 @@ type Result =
 
 ## Build and run
 
-*Planned* (Phase 0):
+`scripts/build-wasm.mjs` (`pnpm wasm`):
 
-1. `cargo build -p sim-wasm --target wasm32-unknown-unknown`
-2. `wasm-bindgen --target web` → `apps/web/src/generated/sim-wasm/` (gitignored)
-3. Vite dev server serves the app; the worker imports the generated module.
+1. Checks the installed `wasm-bindgen` CLI matches the crate pin in `crates/sim-wasm/Cargo.toml`.
+2. `cargo build -p sim-wasm --target wasm32-unknown-unknown --release`
+3. `wasm-bindgen --target web` → `apps/web/src/generated/sim-wasm/` (gitignored)
 
-`pnpm dev` at the repo root runs all three. Output of `pnpm build` is a static
-directory deployable to any static host.
+`pnpm dev` at the repo root runs `pnpm wasm` once, then the Vite dev server; the
+module worker (`src/workers/sim.worker.ts`) imports the generated module. Rust
+changes need a `pnpm wasm` (or restart of `pnpm dev`); there is no Rust watch
+mode yet. `pnpm build` writes a static directory (`apps/web/dist`) deployable
+to any static host.
 
 ## Testing
 
