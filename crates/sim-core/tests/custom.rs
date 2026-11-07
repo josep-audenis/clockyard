@@ -44,7 +44,7 @@ fn description(value: Value) -> CircuitDescription {
     serde_json::from_value(value).expect("description")
 }
 
-fn value(sim: &Simulator, component: &str, port: &str) -> u8 {
+fn value(sim: &Simulator, component: &str, port: &str) -> u32 {
     sim.nets()[sim.port_nets()[component][port] as usize]
 }
 
@@ -87,9 +87,9 @@ fn a_full_adder_instance_adds_and_two_instances_keep_separate_state() {
     .expect("valid");
     assert_eq!(warnings, vec![]);
     for (a, b, c) in [(0, 0, 0), (1, 0, 0), (1, 1, 0), (1, 1, 1), (0, 1, 1)] {
-        sim.set_input("fa", a == 1).unwrap();
-        sim.set_input("fb", b == 1).unwrap();
-        sim.set_input("fc", c == 1).unwrap();
+        sim.set_input("fa", a).unwrap();
+        sim.set_input("fb", b).unwrap();
+        sim.set_input("fc", c).unwrap();
         let total = a + b + c;
         assert_eq!(value(&sim, "fs", "in"), total & 1, "S of {a}+{b}+{c}");
         assert_eq!(value(&sim, "fco", "in"), total >> 1, "Cout of {a}+{b}+{c}");
@@ -144,12 +144,12 @@ fn definitions_nest_and_an_unconnected_instance_input_reads_zero() {
             .all(|d| d.code == Code::UnconnectedInput && d.ids == vec!["x".to_string()])
     );
     assert!(!warnings.is_empty());
-    for a in 0..4u8 {
-        for b in 0..4u8 {
-            sim.set_input("A0", a & 1 == 1).unwrap();
-            sim.set_input("A1", a >> 1 == 1).unwrap();
-            sim.set_input("B0", b & 1 == 1).unwrap();
-            sim.set_input("B1", b >> 1 == 1).unwrap();
+    for a in 0..4u32 {
+        for b in 0..4u32 {
+            sim.set_input("A0", a & 1).unwrap();
+            sim.set_input("A1", a >> 1).unwrap();
+            sim.set_input("B0", b & 1).unwrap();
+            sim.set_input("B1", b >> 1).unwrap();
             let sum =
                 value(&sim, "S0", "in") + 2 * value(&sim, "S1", "in") + 4 * value(&sim, "C", "in");
             assert_eq!(sum, a + b, "{a}+{b}");

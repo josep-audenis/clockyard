@@ -11,9 +11,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::catalog::Kind;
 use crate::description::{
     CircuitDescription, Code, ComponentDesc, Connection, DefinitionDesc, Diagnostic, Endpoint,
-    JunctionDesc, PinDesc, PortRef,
+    JunctionDesc, PortRef,
 };
-use crate::sim::{find, wires_verb};
+use crate::sim::{find, width_mismatch, wires_verb};
 
 /// Kind of a part that is an instance of a definition.
 pub const CUSTOM: &str = "custom";
@@ -56,12 +56,14 @@ pub fn elaborate(
         &description.connections[..],
     );
     check_ids(top_level, None, &mut errors);
+    check_widths(&description.components, None, &mut errors);
     for d in &description.definitions {
         check_ids(
             (&d.components, &d.junctions, &d.connections),
             Some(&d.id),
             &mut errors,
         );
+        check_widths(&d.components, Some(&d.id), &mut errors);
     }
     let has_instances = description.components.iter().any(|c| c.kind == CUSTOM);
     if errors.is_empty() && description.definitions.is_empty() && !has_instances {
@@ -138,6 +140,23 @@ fn check_ids(
     }
 }
 
+/// Widths and fields must be whole numbers in range, on the kinds that take them (ADR 0014). Like
+/// `check_ids` this checks every definition, used or not, because pin widths type instance ports.
+fn check_widths(
+    components: &[ComponentDesc],
+    definition: Option<&str>,
+    errors: &mut Vec<Diagnostic>,
+) {
+    for c in components {
+        if let Err(problem) = c.widths() {
+            let at = definition.map_or_else(String::new, |d| format!("definition {d}: "));
+            let message = format!("{at}{}: {problem}", c.id);
+            let id = definition.unwrap_or(&c.id).to_string();
+            errors.push(Diagnostic::error(Code::InvalidWidth, message, vec![id]));
+        }
+    }
+}
+
 /// Pin names must be present and unique, and name a switch (input) or LED (output) of the definition.
 /// Problems are reported against `instance`, the part the user can see.
 fn check_pins(definition: &DefinitionDesc, instance: &str, errors: &mut Vec<Diagnostic>) {
@@ -183,11 +202,12 @@ enum Role {
     Reads,
 }
 
-/// Checks one level's own wiring where it touches pins, as the user drew it. Flattening joins
-/// levels through pins, so only here can two pins driving one wire, or inputs joined with nothing
-/// driving them, be told from a pin passing a signal through. An instance's input port reads and
-/// its output port drives; inside a definition, its pin switches drive and its pin LEDs read.
-/// Nets that touch no pin are left to net resolution, which sees them whole.
+/// Checks one level's own wiring as the user drew it. Flattening joins levels through pins, so
+/// only here can two pins driving one wire, or inputs joined with nothing driving them, be told
+/// from a pin passing a signal through; and pins become junctions, which have no width. An
+/// instance's input port reads and its output port drives; inside a definition, its pin switches
+/// drive and its pin LEDs read. Every net's widths are checked (ADR 0014); its drivers and readers
+/// only where it touches a pin, the rest being left to net resolution, which sees nets whole.
 fn check_wiring<'a>(
     components: &[ComponentDesc],
     connections: &'a [Connection],
@@ -195,43 +215,50 @@ fn check_wiring<'a>(
     pins: &BTreeMap<&str, &str>,
     instances: &BTreeMap<&str, &DefinitionDesc>,
 ) -> Vec<Diagnostic> {
-    let kinds: BTreeMap<&str, &str> = components
-        .iter()
-        .map(|c| (c.id.as_str(), c.kind.as_str()))
-        .collect();
-    // Role of a port end, and whether it is a pin (an instance's port or a pin part).
-    let role = |port: &PortRef| -> Option<(Role, bool)> {
+    let parts: BTreeMap<&str, &ComponentDesc> =
+        components.iter().map(|c| (c.id.as_str(), c)).collect();
+    // A switch's or LED's width; widths were checked before any wiring.
+    let width = |c: &ComponentDesc| c.widths().map_or(1, |(width, _)| width);
+    // Role of a port end, whether it is a pin (an instance's port or a pin part), and its width.
+    let role = |port: &PortRef| -> Option<(Role, bool, u32)> {
         let name = port.port.as_str();
         if let Some(definition) = instances.get(port.component.as_str()) {
-            let has = |list: &[PinDesc]| list.iter().any(|p| p.name == name);
-            return if has(&definition.inputs) {
-                Some((Role::Reads, true))
-            } else if has(&definition.outputs) {
-                Some((Role::Drives, true))
-            } else {
-                None
-            };
+            let inputs = definition.inputs.iter().map(|p| (p, Role::Reads));
+            let outputs = definition.outputs.iter().map(|p| (p, Role::Drives));
+            let (pin, role) = inputs.chain(outputs).find(|(p, _)| p.name == name)?;
+            // Pins were checked to name a part of the definition before it was expanded.
+            let part = definition
+                .components
+                .iter()
+                .find(|c| c.id == pin.component)?;
+            return Some((role, true, width(part)));
         }
+        let part = *parts.get(port.component.as_str())?;
         if let Some(&own) = pins.get(port.component.as_str()) {
             let role = if own == "out" {
                 Role::Drives
             } else {
                 Role::Reads
             };
-            return (name == own).then_some((role, true));
+            return (name == own).then_some((role, true, width(part)));
         }
-        let kind = Kind::from_name(kinds.get(port.component.as_str())?)?;
-        if kind.outputs().contains(&name) {
-            Some((Role::Drives, false))
-        } else if kind.inputs().contains(&name) {
-            Some((Role::Reads, false))
+        let kind = Kind::from_name(&part.kind)?;
+        let (part_width, fields) = part.widths().ok()?;
+        let port = kind
+            .ports(part_width, &fields)
+            .into_iter()
+            .find(|p| p.name == name)?;
+        let role = if port.output {
+            Role::Drives
         } else {
-            None
-        }
+            Role::Reads
+        };
+        Some((role, false, port.width))
     };
     // Union-find over this level's ends: ports by (component, port), junctions by ID.
     let mut nodes: BTreeMap<(bool, &'a str, &'a str), usize> = BTreeMap::new();
     let mut ends = Vec::new();
+    let mut keys = Vec::new();
     let mut node = |end: &'a Endpoint| -> usize {
         let key = match end {
             Endpoint::Port(p) => (false, p.component.as_str(), p.port.as_str()),
@@ -242,6 +269,7 @@ fn check_wiring<'a>(
                 Endpoint::Port(p) => role(p),
                 Endpoint::Junction { .. } => None,
             });
+            keys.push((key.1, key.2));
             ends.len() - 1
         })
     };
@@ -254,40 +282,82 @@ fn check_wiring<'a>(
         let (ra, rb) = (find(&mut parent, a), find(&mut parent, b));
         parent[ra] = rb;
     }
-    // Per net (by root): drivers, readers and whether it touches a pin.
-    let mut tally = vec![(0usize, 0usize, false); ends.len()];
+    // Per net (by root): drivers, readers, whether it touches a pin, and its first port of each width.
+    #[derive(Clone, Default)]
+    struct Tally {
+        drives: usize,
+        reads: usize,
+        pin: bool,
+        widths: Vec<(u32, usize)>,
+    }
+    let mut tally = vec![Tally::default(); ends.len()];
     for (node, end) in ends.iter().enumerate() {
-        if let Some((role, pin)) = *end {
+        if let Some((role, pin, width)) = *end {
             let net = &mut tally[find(&mut parent, node)];
             match role {
-                Role::Drives => net.0 += 1,
-                Role::Reads => net.1 += 1,
+                Role::Drives => net.drives += 1,
+                Role::Reads => net.reads += 1,
             }
-            net.2 |= pin;
+            net.pin |= pin;
+            // Name each width by its first port in (component, port) order, never by wire direction.
+            match net.widths.iter_mut().find(|w| w.0 == width) {
+                Some(w) if keys[node] < keys[w.1] => w.1 = node,
+                Some(_) => {}
+                None => net.widths.push((width, node)),
+            }
         }
+    }
+    for net in &mut tally {
+        net.widths.sort_by_key(|&(_, node)| keys[node]);
     }
     // The wires of each net that breaks a rule, nets in order of their first wire.
     let mut broken: BTreeMap<usize, usize> = BTreeMap::new();
-    let mut found: Vec<(Code, Vec<String>)> = Vec::new();
+    let mut found: Vec<(Code, usize, Vec<String>)> = Vec::new();
     for &(wire, a, _) in &joined {
         let root = find(&mut parent, a);
-        let code = match tally[root] {
-            (_, _, false) => continue,
-            (2.., 0, _) => Code::OutputToOutput,
-            (2.., _, _) => Code::MultipleDrivers,
-            (0, 2.., _) => Code::InputToInput,
+        let net = &tally[root];
+        let code = match (net.widths.len(), net.drives, net.reads, net.pin) {
+            (2.., ..) => Code::WidthMismatch,
+            (_, _, _, false) => continue,
+            (_, 2.., 0, _) => Code::OutputToOutput,
+            (_, 2.., _, _) => Code::MultipleDrivers,
+            (_, 0, 2.., _) => Code::InputToInput,
             _ => continue,
         };
         let at = *broken.entry(root).or_insert_with(|| {
-            found.push((code, Vec::new()));
+            found.push((code, root, Vec::new()));
             found.len() - 1
         });
-        found[at].1.push(format!("{prefix}{wire}"));
+        found[at].2.push(format!("{prefix}{wire}"));
     }
     found
         .into_iter()
-        .map(|(code, mut wires)| {
+        .map(|(code, root, mut wires)| {
             wires.sort();
+            if code == Code::WidthMismatch {
+                // One port per width, then the IDs: the net's wires and those ports' parts.
+                let ports: Vec<(String, u32)> = tally[root]
+                    .widths
+                    .iter()
+                    .map(|&(width, node)| {
+                        (format!("{prefix}{}.{}", keys[node].0, keys[node].1), width)
+                    })
+                    .collect();
+                let message = width_mismatch(&wires, &ports);
+                let parts = tally[root]
+                    .widths
+                    .iter()
+                    .map(|&(_, node)| format!("{prefix}{}", keys[node].0));
+                let mut seen = BTreeSet::new();
+                let ids = wires
+                    .iter()
+                    .cloned()
+                    .chain(parts)
+                    .map(|id| top(&id).to_string())
+                    .filter(|id| seen.insert(id.clone()))
+                    .collect();
+                return Diagnostic::error(code, message, ids);
+            }
             let what = match code {
                 Code::OutputToOutput => "outputs",
                 Code::MultipleDrivers => "an input to more than one driver",
@@ -372,11 +442,7 @@ impl<'a> Flat<'a> {
             } else if pins.contains_key(c.id.as_str()) {
                 self.out.junctions.push(JunctionDesc { id, pin: true });
             } else {
-                self.out.components.push(ComponentDesc {
-                    id,
-                    kind: c.kind.clone(),
-                    definition: None,
-                });
+                self.out.components.push(ComponentDesc { id, ..c.clone() });
             }
             if self.size > MAX_PARTS {
                 return;

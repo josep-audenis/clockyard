@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::catalog::Kind;
+use crate::catalog::{Kind, Port, mask};
 use crate::description::{CircuitDescription, Code, Diagnostic, Endpoint};
 use crate::elaborate::{elaborate, lift};
 
@@ -15,29 +15,51 @@ pub type PortNets = BTreeMap<String, BTreeMap<String, u32>>;
 
 /// A compiled circuit and its current signal values.
 ///
-/// Components are indexed in ascending document ID order, so the same
-/// description always compiles to the same indices.
+/// Parts are indexed in ascending document ID order, so the same description
+/// always compiles to the same indices. Parts compile to primitives (ADR 0014),
+/// each with one output: primitive `p` drives net `p + 1`.
 #[derive(Debug)]
 pub struct Simulator {
     ids: Vec<String>,
     kinds: Vec<Kind>,
-    inputs: Vec<Vec<u32>>,
-    outputs: Vec<Option<u32>>,
-    state: Vec<u8>,
+    prims: Vec<Prim>,
+    /// Net → the primitives reading it, each once.
     fanout: Vec<Vec<u32>>,
-    nets: Vec<u8>,
+    nets: Vec<u32>,
     wire_nets: BTreeMap<String, u32>,
     port_nets: PortNets,
-    /// Components still dirty when the last settle hit its delta limit; the
+    /// Primitives still dirty when the last settle hit its delta limit; the
     /// next settle resumes them, so a live loop is reported until it resolves.
     unsettled: Vec<u32>,
 }
 
-/// A node of the connection graph: a component port or a junction.
+/// What a primitive computes. A split compiles to one `Field` per field; an
+/// LED, which drives nothing, to no primitive.
+#[derive(Debug)]
+enum Op {
+    Switch,
+    Gate(Kind),
+    Field { shift: u32 },
+    Merge { shifts: Vec<u32> },
+}
+
+#[derive(Debug)]
+struct Prim {
+    op: Op,
+    /// Net read by each input.
+    inputs: Vec<u32>,
+    /// The output's width, as a mask every result is cut to.
+    mask: u32,
+    /// The part it came from, named in diagnostics.
+    part: u32,
+    /// A switch's user-set value.
+    state: u32,
+}
+
+/// A node of the connection graph: a part's port (part, slot) or a junction.
 #[derive(Clone, Copy)]
 enum End {
-    Out(usize),
-    In(usize, usize),
+    Port(usize, usize),
     /// `true` for a custom component's pin.
     Junction(bool),
 }
@@ -61,11 +83,32 @@ pub(crate) fn wires_verb(wires: &[String], verb: &str) -> String {
     format!("wire{s} {} {verb}{verb_s}", wires.join(", "))
 }
 
-/// One net as joined by wires: its outputs, inputs (component, slot) and wires.
+/// "1 bit" or "8 bits".
+pub(crate) fn bits(width: u32) -> String {
+    format!("{width} bit{}", if width == 1 { "" } else { "s" })
+}
+
+/// "wires w1, w2 connect ports of different widths: `a.out` is 8 bits, `l.in` is 1 bit",
+/// naming one port for each width found.
+pub(crate) fn width_mismatch(wires: &[String], ports: &[(String, u32)]) -> String {
+    let found: Vec<String> = ports
+        .iter()
+        .map(|(port, width)| format!("`{port}` is {}", bits(*width)))
+        .collect();
+    format!(
+        "{} ports of different widths: {}",
+        wires_verb(wires, "connect"),
+        found.join(", ")
+    )
+}
+
+/// One net as joined by wires: its output and input ports (part, slot), wires,
+/// and the first port of each width it joins.
 #[derive(Default)]
 struct Group<'a> {
-    outputs: Vec<usize>,
+    outputs: Vec<(usize, usize)>,
     inputs: Vec<(usize, usize)>,
+    widths: Vec<(u32, usize, usize)>,
     wires: Vec<&'a str>,
     /// Reaches a custom component's pin: with no output, a pin left unconnected.
     pin: bool,
@@ -95,6 +138,8 @@ impl Simulator {
         sorted.sort_by(|a, b| a.id.cmp(&b.id));
         let mut ids = Vec::new();
         let mut kinds = Vec::new();
+        let mut ports: Vec<Vec<Port>> = Vec::new();
+        let mut fields = Vec::new();
         for (i, component) in sorted.iter().enumerate() {
             if i > 0 && sorted[i - 1].id == component.id {
                 let message = format!("component ID {} is used more than once", component.id);
@@ -104,8 +149,13 @@ impl Simulator {
                     vec![component.id.clone()],
                 ));
             } else if let Some(kind) = Kind::from_name(&component.kind) {
+                let (width, part_fields) = component
+                    .widths()
+                    .expect("widths are checked level by level before compiling");
                 ids.push(component.id.clone());
                 kinds.push(kind);
+                ports.push(kind.ports(width, &part_fields));
+                fields.push(part_fields);
             } else {
                 let message = format!("{} has unknown kind '{}'", component.id, component.kind);
                 errors.push(Diagnostic::error(
@@ -115,15 +165,12 @@ impl Simulator {
                 ));
             }
         }
-        // Graph nodes: every port, inputs before the output, then every junction.
+        // Graph nodes: every port of every part, then every junction.
         let mut ends = Vec::new();
         let mut base = Vec::new();
-        for (c, kind) in kinds.iter().enumerate() {
+        for (c, part_ports) in ports.iter().enumerate() {
             base.push(ends.len());
-            ends.extend((0..kind.inputs().len()).map(|slot| End::In(c, slot)));
-            if !kind.outputs().is_empty() {
-                ends.push(End::Out(c));
-            }
+            ends.extend((0..part_ports.len()).map(|slot| End::Port(c, slot)));
         }
         let mut junctions = BTreeMap::new();
         for junction in &description.junctions {
@@ -166,23 +213,21 @@ impl Simulator {
                     vec![wire.into()],
                 ));
             };
-            let kind = kinds[c];
-            if kind.outputs().contains(&port.port.as_str()) {
-                Ok(base[c] + kind.inputs().len())
-            } else if let Some(slot) = kind.inputs().iter().position(|name| *name == port.port) {
-                Ok(base[c] + slot)
-            } else {
-                let message = format!(
-                    "wire {wire}: {} {} has no port '{}'",
-                    kind.name(),
-                    port.component,
-                    port.port
-                );
-                Err(Diagnostic::error(
-                    Code::UnknownPort,
-                    message,
-                    vec![wire.into(), port.component.clone()],
-                ))
+            match ports[c].iter().position(|p| p.name == port.port) {
+                Some(slot) => Ok(base[c] + slot),
+                None => {
+                    let message = format!(
+                        "wire {wire}: {} {} has no port '{}'",
+                        kinds[c].name(),
+                        port.component,
+                        port.port
+                    );
+                    Err(Diagnostic::error(
+                        Code::UnknownPort,
+                        message,
+                        vec![wire.into(), port.component.clone()],
+                    ))
+                }
             }
         };
 
@@ -232,33 +277,57 @@ impl Simulator {
                 order.push(root);
             }
             match *end {
-                End::Out(c) => group.outputs.push(c),
-                End::In(c, slot) => group.inputs.push((c, slot)),
+                End::Port(c, slot) => {
+                    let port = &ports[c][slot];
+                    if group.widths.iter().all(|w| w.0 != port.width) {
+                        group.widths.push((port.width, c, slot));
+                    }
+                    if port.output {
+                        group.outputs.push((c, slot));
+                    } else {
+                        group.inputs.push((c, slot));
+                    }
+                }
                 End::Junction(pin) => group.pin |= pin,
             }
         }
 
+        // Every output port drives a net of its own, in part and slot order;
+        // inputs read ground until a group gives them their driver's net.
         let mut net_count = 1;
-        let outputs: Vec<Option<u32>> = kinds
-            .iter()
-            .map(|kind| {
-                (!kind.outputs().is_empty()).then(|| {
+        let mut port_net: Vec<Vec<u32>> = Vec::new();
+        for part_ports in &ports {
+            let mut nets = Vec::new();
+            for port in part_ports {
+                if port.output {
+                    nets.push(net_count);
                     net_count += 1;
-                    net_count - 1
-                })
-            })
-            .collect();
+                } else {
+                    nets.push(GROUND);
+                }
+            }
+            port_net.push(nets);
+        }
 
-        // Per component, per input slot: the driving net.
-        let mut drivers: Vec<Vec<Option<u32>>> =
-            kinds.iter().map(|k| vec![None; k.inputs().len()]).collect();
         let mut wire_nets = BTreeMap::new();
         for root in order {
             let group = &groups[&root];
             let mut wires: Vec<String> = group.wires.iter().map(|w| (*w).to_string()).collect();
             wires.sort();
+            if group.widths.len() > 1 {
+                let named: Vec<(String, u32)> = group
+                    .widths
+                    .iter()
+                    .map(|&(width, c, slot)| (format!("{}.{}", ids[c], ports[c][slot].name), width))
+                    .collect();
+                let message = width_mismatch(&wires, &named);
+                let mut culprits = wires;
+                culprits.extend(group.widths.iter().map(|&(_, c, _)| ids[c].clone()));
+                errors.push(Diagnostic::error(Code::WidthMismatch, message, culprits));
+                continue;
+            }
             let net = match (group.outputs.as_slice(), group.inputs.as_slice()) {
-                ([driver], _) => outputs[*driver].expect("an output port has a net"),
+                ([(driver, slot)], _) => port_net[*driver][*slot],
                 // A dangling branch: its input (if any) stays unconnected and reads 0.
                 ([], []) | ([], [_]) => GROUND,
                 // A pin left unconnected (an instance input outside, an output inside): its readers
@@ -284,8 +353,7 @@ impl Simulator {
                 (_, [(reader, slot), ..]) => {
                     let message = format!(
                         "input {}.{} has more than one driver",
-                        ids[*reader],
-                        kinds[*reader].inputs()[*slot]
+                        ids[*reader], ports[*reader][*slot].name
                     );
                     let mut culprits: Vec<String> =
                         group.inputs.iter().map(|(c, _)| ids[*c].clone()).collect();
@@ -295,8 +363,8 @@ impl Simulator {
                     continue;
                 }
             };
-            for (reader, slot) in &group.inputs {
-                drivers[*reader][*slot] = Some(net);
+            for &(reader, slot) in &group.inputs {
+                port_net[reader][slot] = net;
             }
             wire_nets.extend(wires.into_iter().map(|w| (w, net)));
         }
@@ -304,44 +372,81 @@ impl Simulator {
             return Err(errors);
         }
 
+        // Warnings are per part port, so a split's `in` warns once, not once per field.
         let mut warnings = Vec::new();
-        let mut inputs = Vec::new();
         let mut port_nets = PortNets::new();
-        let mut fanout = vec![Vec::new(); net_count as usize];
-        for (c, slots) in drivers.iter().enumerate() {
-            let kind = kinds[c];
-            let mut ports = BTreeMap::new();
-            let mut nets = Vec::new();
-            for (slot, driver) in slots.iter().enumerate() {
-                let name = kind.inputs()[slot];
-                let net = driver.unwrap_or(GROUND);
-                if net == GROUND {
-                    let message = format!("input {}.{name} is unconnected and reads 0", ids[c]);
+        for (c, part_ports) in ports.iter().enumerate() {
+            let mut named = BTreeMap::new();
+            for (port, &net) in part_ports.iter().zip(&port_net[c]) {
+                if !port.output && net == GROUND {
+                    let message =
+                        format!("input {}.{} is unconnected and reads 0", ids[c], port.name);
                     warnings.push(Diagnostic::warning(
                         Code::UnconnectedInput,
                         message,
                         vec![ids[c].clone()],
                     ));
-                } else if fanout[net as usize].last() != Some(&(c as u32)) {
-                    fanout[net as usize].push(c as u32);
                 }
-                ports.insert(name.to_string(), net);
-                nets.push(net);
+                named.insert(port.name.to_string(), net);
             }
-            if let Some(net) = outputs[c] {
-                ports.insert(kind.outputs()[0].to_string(), net);
-            }
-            port_nets.insert(ids[c].clone(), ports);
-            inputs.push(nets);
+            port_nets.insert(ids[c].clone(), named);
         }
 
-        let count = ids.len();
+        // Primitives in the order their output nets were numbered above.
+        let mut prims = Vec::new();
+        for (c, &kind) in kinds.iter().enumerate() {
+            let nets = &port_net[c];
+            let mut add = |op, inputs: &[u32], slot: usize| {
+                debug_assert_eq!(nets[slot] as usize, prims.len() + 1);
+                prims.push(Prim {
+                    op,
+                    inputs: inputs.to_vec(),
+                    mask: mask(ports[c][slot].width),
+                    part: c as u32,
+                    state: 0,
+                });
+            };
+            match kind {
+                Kind::Led => {}
+                Kind::Switch => add(Op::Switch, &[], 0),
+                Kind::Split => {
+                    let mut shift = 0;
+                    for (i, width) in fields[c].iter().enumerate() {
+                        add(Op::Field { shift }, &nets[..1], 1 + i);
+                        shift += width;
+                    }
+                }
+                Kind::Merge => {
+                    let n = fields[c].len();
+                    let shifts = fields[c]
+                        .iter()
+                        .scan(0, |shift, width| {
+                            *shift += width;
+                            Some(*shift - width)
+                        })
+                        .collect();
+                    add(Op::Merge { shifts }, &nets[..n], n);
+                }
+                gate => {
+                    let n = gate.inputs().len();
+                    add(Op::Gate(gate), &nets[..n], n);
+                }
+            }
+        }
+        let mut fanout = vec![Vec::new(); net_count as usize];
+        for (p, prim) in prims.iter().enumerate() {
+            for &net in &prim.inputs {
+                if net != GROUND && fanout[net as usize].last() != Some(&(p as u32)) {
+                    fanout[net as usize].push(p as u32);
+                }
+            }
+        }
+
+        let count = prims.len() as u32;
         let mut sim = Simulator {
             ids,
             kinds,
-            inputs,
-            outputs,
-            state: vec![0; count],
+            prims,
             fanout,
             nets: vec![0; net_count as usize],
             wire_nets,
@@ -349,70 +454,55 @@ impl Simulator {
             unsettled: Vec::new(),
         };
         sim.presettle();
-        warnings.extend(sim.settle((0..count as u32).collect()));
+        warnings.extend(sim.settle((0..count).collect()));
         Ok((sim, warnings))
     }
 
-    /// Before the first settle, gives every component that cannot reach a
+    /// Before the first settle, gives every primitive that cannot reach a
     /// feedback loop its settled value, in topological order. Otherwise the
     /// all-zero start sends a wave down each chain, one delta per gate: on a
     /// chain of n gates that is n²/2 evaluations.
     ///
-    /// Results are unchanged, whatever values these components start with:
+    /// Results are unchanged, whatever values these primitives start with:
     /// no loop (nor anything feeding one) reads them, so loops see exactly
     /// the same deltas; and loop-free logic forgets its starting values after
-    /// at most one delta per component, well inside the delta limit, so from
+    /// at most one delta per primitive, well inside the delta limit, so from
     /// then on every net matches the plain all-zero settle delta by delta.
-    /// This needs `eval` to be pure while settling: a component whose state
+    /// This needs `eval` to be pure while settling: a primitive whose state
     /// changes during a settle (a future flip-flop) must count as a loop here.
     /// Any settle from all-zero nets (a future reset too) should call it first.
     fn presettle(&mut self) {
-        // Every net but ground is an output's; ground is skipped below. A net
-        // with no driver (say, a future bus) makes `readers[d]` below panic
-        // rather than silently corrupt another component's reader count.
-        let mut driver = vec![usize::MAX; self.nets.len()];
-        for (c, net) in self.outputs.iter().enumerate() {
-            if let Some(net) = net {
-                driver[*net as usize] = c;
-            }
-        }
-        // Peel components whose readers are all peeled, from the sinks back:
+        // Peel primitives whose readers are all peeled, from the sinks back:
         // what remains can reach a loop.
-        let mut readers: Vec<usize> = self
-            .outputs
-            .iter()
-            .map(|net| net.map_or(0, |net| self.fanout[net as usize].len()))
+        let mut readers: Vec<usize> = (0..self.prims.len())
+            .map(|p| self.fanout[p + 1].len())
             .collect();
-        let mut peeled: Vec<usize> = (0..readers.len()).filter(|&c| readers[c] == 0).collect();
+        let mut peeled: Vec<usize> = (0..readers.len()).filter(|&p| readers[p] == 0).collect();
         let mut next = 0;
-        while let Some(&c) = peeled.get(next) {
+        while let Some(&p) = peeled.get(next) {
             next += 1;
-            for (slot, &net) in self.inputs[c].iter().enumerate() {
-                // `fanout` lists a component once per net, however many slots read it.
-                if net == GROUND || self.inputs[c][..slot].contains(&net) {
+            let inputs = &self.prims[p].inputs;
+            for (slot, &net) in inputs.iter().enumerate() {
+                // `fanout` lists a primitive once per net, however many inputs read it.
+                if net == GROUND || inputs[..slot].contains(&net) {
                     continue;
                 }
-                let d = driver[net as usize];
+                // Every net but ground is the output of primitive `net - 1`.
+                let d = net as usize - 1;
                 readers[d] -= 1;
                 if readers[d] == 0 {
                     peeled.push(d);
                 }
             }
         }
-        for &c in peeled.iter().rev() {
-            if let Some(net) = self.outputs[c] {
-                self.nets[net as usize] = self.eval(c);
-            }
+        for &p in peeled.iter().rev() {
+            self.nets[p + 1] = self.eval(p);
         }
     }
 
-    /// Sets a switch and settles. Returns an `Unstable` diagnostic if the
-    /// circuit did not settle.
-    pub fn set_input(
-        &mut self,
-        component: &str,
-        value: bool,
-    ) -> Result<Option<Diagnostic>, String> {
+    /// Sets a switch to `value` and settles. Refuses a value wider than the
+    /// switch. Returns an `Unstable` diagnostic if the circuit did not settle.
+    pub fn set_input(&mut self, component: &str, value: u32) -> Result<Option<Diagnostic>, String> {
         let c = self
             .ids
             .binary_search_by(|id| id.as_str().cmp(component))
@@ -423,12 +513,20 @@ impl Simulator {
                 self.kinds[c].name()
             ));
         }
-        self.state[c] = value.into();
-        Ok(self.settle(vec![c as u32]).map(|d| lift(vec![d]).remove(0)))
+        let p = self.port_nets[component]["out"] as usize - 1;
+        let prim = &mut self.prims[p];
+        if value > prim.mask {
+            let width = bits(prim.mask.count_ones());
+            return Err(format!(
+                "{component} is {width} wide, so {value} does not fit"
+            ));
+        }
+        prim.state = value;
+        Ok(self.settle(vec![p as u32]).map(|d| lift(vec![d]).remove(0)))
     }
 
-    /// Current value of every net, 0 or 1. Net 0 is ground.
-    pub fn nets(&self) -> &[u8] {
+    /// Current value of every net, cut to its width. Net 0 is ground.
+    pub fn nets(&self) -> &[u32] {
         &self.nets
     }
 
@@ -441,19 +539,25 @@ impl Simulator {
         &self.port_nets
     }
 
-    fn eval(&self, c: usize) -> u8 {
-        let input = |slot: usize| {
-            self.inputs[c]
-                .get(slot)
-                .map_or(0, |&net| self.nets[net as usize])
+    fn eval(&self, p: usize) -> u32 {
+        let prim = &self.prims[p];
+        let input = |i: usize| prim.inputs.get(i).map_or(0, |&net| self.nets[net as usize]);
+        let value = match &prim.op {
+            Op::Switch => prim.state,
+            Op::Gate(kind) => kind.gate(input(0), input(1)),
+            Op::Field { shift } => input(0) >> shift,
+            Op::Merge { shifts } => shifts
+                .iter()
+                .enumerate()
+                .fold(0, |value, (i, shift)| value | input(i) << shift),
         };
-        self.kinds[c].eval(input(0), input(1), self.state[c])
+        value & prim.mask
     }
 
     /// Runs deltas until no net changes, bounded so oscillation cannot hang.
     fn settle(&mut self, mut dirty: Vec<u32>) -> Option<Diagnostic> {
-        // Acyclic circuits settle in at most depth + 1 <= components + 1 deltas.
-        let limit = self.kinds.len() + 64;
+        // Acyclic circuits settle in at most depth + 1 <= primitives + 1 deltas.
+        let limit = self.prims.len() + 64;
         dirty.append(&mut self.unsettled);
         let mut changed = Vec::new();
         for _ in 0..limit {
@@ -462,28 +566,34 @@ impl Simulator {
             if dirty.is_empty() {
                 return None;
             }
-            // Every dirty component reads the same snapshot; writes apply after.
-            let writes: Vec<(u32, u8)> = dirty
+            // Every dirty primitive reads the same snapshot; writes apply after.
+            let writes: Vec<(usize, u32)> = dirty
                 .iter()
-                .filter_map(|&c| Some((self.outputs[c as usize]?, self.eval(c as usize))))
+                .map(|&p| (p as usize + 1, self.eval(p as usize)))
                 .collect();
             dirty.clear();
             changed.clear();
             for (net, value) in writes {
-                if self.nets[net as usize] != value {
-                    self.nets[net as usize] = value;
+                if self.nets[net] != value {
+                    self.nets[net] = value;
                     changed.push(net);
-                    dirty.extend_from_slice(&self.fanout[net as usize]);
+                    dirty.extend_from_slice(&self.fanout[net]);
                 }
             }
         }
         if dirty.is_empty() {
             return None;
         }
-        let culprits = changed
+        // Name each part once, however many of its primitives were still changing.
+        let mut parts: Vec<u32> = changed
             .iter()
-            .filter_map(|&net| self.outputs.iter().position(|&out| out == Some(net)))
-            .map(|c| self.ids[c].clone())
+            .map(|&net| self.prims[net - 1].part)
+            .collect();
+        parts.sort_unstable();
+        parts.dedup();
+        let culprits = parts
+            .iter()
+            .map(|&c| self.ids[c as usize].clone())
             .collect();
         self.unsettled = dirty;
         let message = format!("circuit did not settle within {limit} deltas: oscillating loop");
@@ -520,7 +630,7 @@ mod tests {
                 .map(|(id, kind)| ComponentDesc {
                     id: (*id).into(),
                     kind: (*kind).into(),
-                    definition: None,
+                    ..Default::default()
                 })
                 .collect(),
             connections: wires
@@ -541,7 +651,7 @@ mod tests {
         sim
     }
 
-    fn value(sim: &Simulator, component: &str, port: &str) -> u8 {
+    fn value(sim: &Simulator, component: &str, port: &str) -> u32 {
         sim.nets()[sim.port_nets()[component][port] as usize]
     }
 
@@ -564,8 +674,8 @@ mod tests {
     fn switches_and_led_follow_all_four_combinations() {
         let mut sim = load(&and_demo());
         for (a, b, led) in [(0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 1), (0, 1, 0)] {
-            assert_eq!(sim.set_input("a", a == 1), Ok(None));
-            assert_eq!(sim.set_input("b", b == 1), Ok(None));
+            assert_eq!(sim.set_input("a", a), Ok(None));
+            assert_eq!(sim.set_input("b", b), Ok(None));
             assert_eq!(value(&sim, "l", "in"), led, "a={a} b={b}");
             // Every wire carries its driver's value.
             assert_eq!(sim.nets()[sim.wire_nets()["w2"] as usize], led);
@@ -594,8 +704,8 @@ mod tests {
             ],
         ));
         for (a, b) in [(0, 0), (1, 0), (1, 1), (0, 1), (1, 0)] {
-            sim.set_input("a", a == 1).unwrap();
-            sim.set_input("b", b == 1).unwrap();
+            sim.set_input("a", a).unwrap();
+            sim.set_input("b", b).unwrap();
             assert_eq!(value(&sim, "la", "in"), a);
             assert_eq!(value(&sim, "ly", "in"), a & (b ^ 1), "a={a} b={b}");
         }
@@ -621,9 +731,9 @@ mod tests {
                 ("one.out", "x1.b"),
             ],
         ));
-        sim.set_input("one", true).unwrap();
+        sim.set_input("one", 1).unwrap();
         for x in [0, 1, 0] {
-            sim.set_input("x", x == 1).unwrap();
+            sim.set_input("x", x).unwrap();
             assert_eq!(value(&sim, "n2", "out"), x, "NOT(NOT x) = x");
             assert_eq!(value(&sim, "xx", "out"), 0, "x XOR x = 0");
             assert_eq!(value(&sim, "x1", "out"), x, "x AND 1 = x");
@@ -640,8 +750,8 @@ mod tests {
         }
         let (mut a, mut b) = (load(&forward), load(&reversed));
         for sim in [&mut a, &mut b] {
-            sim.set_input("a", true).unwrap();
-            sim.set_input("b", true).unwrap();
+            sim.set_input("a", 1).unwrap();
+            sim.set_input("b", 1).unwrap();
         }
         assert_eq!(a.nets(), b.nets());
         assert_eq!(a.port_nets(), b.port_nets());
@@ -671,7 +781,7 @@ mod tests {
         assert_eq!(warnings[0].code, Code::Unstable);
         assert_eq!(warnings[0].ids, vec!["n".to_string()]);
         // The engine keeps working, and the loop, still live, is reported again.
-        let again = sim.set_input("s", true).unwrap().expect("still unstable");
+        let again = sim.set_input("s", 1).unwrap().expect("still unstable");
         assert_eq!(
             (again.code, again.ids),
             (Code::Unstable, vec!["n".to_string()])
@@ -686,10 +796,10 @@ mod tests {
             &[("en.out", "o.a"), ("o.out", "o.b")],
         ));
         let unstable = |r: Result<Option<Diagnostic>, String>| r.unwrap().map(|d| d.code);
-        assert_eq!(unstable(sim.set_input("en", true)), Some(Code::Unstable));
-        assert_eq!(unstable(sim.set_input("t", true)), Some(Code::Unstable));
+        assert_eq!(unstable(sim.set_input("en", 1)), Some(Code::Unstable));
+        assert_eq!(unstable(sim.set_input("t", 1)), Some(Code::Unstable));
         // Disabling the loop settles it consistently: NAND(0, x) = 1.
-        assert_eq!(unstable(sim.set_input("en", false)), None);
+        assert_eq!(unstable(sim.set_input("en", 0)), None);
         assert_eq!(value(&sim, "o", "out"), 1);
         assert_eq!(value(&sim, "o", "b"), 1);
     }
@@ -703,7 +813,7 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(warnings[0].code, Code::Unstable);
-        assert_eq!(sim.set_input("s", true), Ok(None));
+        assert_eq!(sim.set_input("s", 1), Ok(None));
         assert_eq!(value(&sim, "o", "out"), 0);
     }
 
@@ -715,9 +825,9 @@ mod tests {
             &[("s.out", "o.a"), ("o.out", "o.b")],
         ));
         assert_eq!(value(&sim, "o", "out"), 0);
-        assert_eq!(sim.set_input("s", true), Ok(None));
+        assert_eq!(sim.set_input("s", 1), Ok(None));
         assert_eq!(value(&sim, "o", "out"), 1);
-        assert_eq!(sim.set_input("s", false), Ok(None));
+        assert_eq!(sim.set_input("s", 0), Ok(None));
         assert_eq!(value(&sim, "o", "out"), 1);
     }
 
@@ -763,7 +873,7 @@ mod tests {
                 .map(|i| ComponentDesc {
                     id: name(i),
                     kind: "not".into(),
-                    definition: None,
+                    ..Default::default()
                 })
                 .collect(),
             connections: (1..n)
@@ -843,8 +953,8 @@ mod tests {
     #[test]
     fn set_input_rejects_non_switches() {
         let mut sim = load(&and_demo());
-        assert!(sim.set_input("g", true).is_err());
-        assert!(sim.set_input("missing", true).is_err());
+        assert!(sim.set_input("g", 1).is_err());
+        assert!(sim.set_input("missing", 1).is_err());
     }
 
     fn with_junctions(mut description: CircuitDescription, ids: &[&str]) -> CircuitDescription {
@@ -876,7 +986,7 @@ mod tests {
         );
         let mut sim = load(&description);
         for a in [0, 1] {
-            sim.set_input("a", a == 1).unwrap();
+            sim.set_input("a", a).unwrap();
             assert_eq!(value(&sim, "l", "in"), a, "a AND a = a");
             for wire in ["w0", "w1", "w2"] {
                 assert_eq!(sim.nets()[sim.wire_nets()[wire] as usize], a, "{wire}");
@@ -910,7 +1020,7 @@ mod tests {
             vec![(Code::UnconnectedInput, vec!["n".to_string()])]
         );
         assert_eq!(sim.wire_nets()["w4"], GROUND);
-        sim.set_input("a", true).unwrap();
+        sim.set_input("a", 1).unwrap();
         assert_eq!(value(&sim, "l", "in"), 1);
         assert_eq!(
             sim.nets()[sim.wire_nets()["w3"] as usize],

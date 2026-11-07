@@ -18,14 +18,17 @@ implementation.
 
 ## Signal values
 
-Phase 1: binary, 1 bit. `0` low, `1` high. One `u8` per net.
+Binary. A net carries `width` bits (1–32, ADR 0014), each `0` low or `1`
+high, stored as one `u32` cut to that width. A 1-bit net holds `0` or `1`.
+Widths are declared on parts (`width` on switches, LEDs and gates, `fields`
+on splits and merges) and never inferred. They are checked when a circuit
+loads: a bad `width` or `fields` is `invalidWidth`, and ports of different
+widths on one net are `widthMismatch`, never a silent truncation. The engine
+handles widths now; the protocol, file format and editor follow in ADR 0014
+steps 2–4.
 
 Designed to extend to:
 
-- **Multi-bit** (Phase 2, planned in ADR 0014): a net carries `width` bits
-  (1–32), stored as a `u32` word plus width. Width is checked at compile
-  time; a mismatch is a validation error (`widthMismatch`), never a silent
-  truncation.
 - **Four-state** (later): `0`, `1`, `X` (unknown/conflict), `Z` (high
   impedance), stored as value + unknown masks. Introduced together with
   tri-state outputs and multi-driver nets.
@@ -84,6 +87,13 @@ Dense, index-based, built once per load:
 Component order is fixed at compile time (sorted by stable document ID) so the
 same circuit compiles to the same indices on every machine.
 
+Parts compile to primitives, each with one output net: a switch or gate to
+one, a split to one per field, a merge to one, an LED to none. Gates are
+bitwise at their width (a 4-bit NOT of `0000` is `1111`). Split field *i* is
+`in` shifted right past the fields below it and masked to its width; a merge
+places each field at its offset, `f0` lowest. Every primitive adds one delta
+of delay. Below, "component" means a primitive.
+
 ## Combinational evaluation
 
 Change-driven, with **synchronous deltas**:
@@ -113,10 +123,10 @@ Properties:
   that cannot reach a loop is first evaluated in topological order (see
   Initial state); results are identical.
 - **Feedback is allowed.** Stable feedback settles normally.
-- **Bounded.** The delta limit (default proportional to component count, with a
+- **Bounded.** The delta limit (default proportional to primitive count, with a
   floor) guarantees termination. An oscillating loop, such as a NOT gate fed
-  back to itself, yields an `Unstable` diagnostic naming the components whose
-  outputs were still changing. The engine stops settling, keeps the last
+  back to itself, yields an `Unstable` diagnostic naming, once each, the parts
+  whose outputs were still changing. The engine stops settling, keeps the last
   values, and waits for the next command. It never freezes. The components
   still pending are kept and resumed by the next settle, so a live loop is
   reported again after every input change until an input breaks it.
@@ -146,7 +156,8 @@ take the same step, or resetting long chains turns quadratic again.
 
 ### Unconnected inputs
 
-Phase 1: an unconnected input reads `0` and produces a warning diagnostic.
+An unconnected input of any width reads `0` and produces one warning per part
+port (a split's `in` warns once, not once per field).
 With four-state logic it reads `Z`/`X` instead.
 
 ### Multiple drivers
@@ -214,7 +225,7 @@ Two distinct categories:
 
 | Category | When | Examples |
 |----------|------|----------|
-| Validation (compile time) | Loading a circuit | Unknown kind, missing port, output-to-output connection, width mismatch, multiple drivers, missing or recursive definition, circuit too large |
+| Validation (compile time) | Loading a circuit | Unknown kind, missing port, output-to-output connection, width mismatch, invalid width or fields, multiple drivers, missing or recursive definition, circuit too large |
 | Runtime | During simulation | Unstable/oscillating loop, delta limit exceeded |
 
 Document-level problems (corrupt JSON, unsupported file version) are caught by
