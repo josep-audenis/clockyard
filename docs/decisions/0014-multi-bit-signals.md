@@ -67,8 +67,9 @@ evaluated once in topological order before the first settle (PR #20,
    component per document part:
    - Compiled **primitives** are separate from parts. Each primitive carries
      its parameters (width, or shift and mask, or the list of field widths)
-     and the ID of the part it came from. Diagnostics name parts, and
-     `Unstable` culprits are de-duplicated by part.
+     and the ID of the part it came from. Diagnostics name parts and are
+     de-duplicated by part and port, so `Unstable` names a part once and an
+     unconnected `split.in` warns once, not once per field.
    - `Kind::eval` becomes an evaluation over a primitive and its input values
      (`u32`). A data-free `eval(a, b, state)` cannot express a field's shift
      and mask, or a merge with up to 32 inputs.
