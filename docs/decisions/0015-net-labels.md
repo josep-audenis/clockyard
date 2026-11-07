@@ -22,7 +22,8 @@ Constraints from earlier records:
 - Wires and junctions carry no width; a net takes the width of its ports
   (ADR 0014).
 - A custom component's interface is its pins (ADRs 0012 and 0013).
-- Each level's wiring that touches pins is checked as drawn before
+- Each level's wiring that touches pins (every net, once ADR 0014 lands) is
+  checked as drawn before
   flattening (`check_wiring`), then the flat circuit is checked again in
   `compile` (ADRs 0012 and 0014). Elaboration only returns errors; warnings
   come from `compile`, lifted to top-level IDs (`lift`).
@@ -79,8 +80,9 @@ Constraints from earlier records:
    same (instance path, name) groups, so it needs no warning channel out of
    elaboration and covers the main sheet with or without definitions:
    - On the main sheet it names the junction.
-   - Inside a definition, `lift` names the instance, so each instance of a
-     definition with an unmatched label warns once, naming itself.
+   - Inside a definition, `lift` names the top-level instance, so each
+     flattened copy of a definition with an unmatched label warns once,
+     naming the top-level instance it sits in (as `unconnectedInput` does).
      Definitions that no instance uses are not checked, since they are not
      compiled.
    - Like every warning today, it is not reported while validation errors
@@ -101,8 +103,11 @@ Constraints from earlier records:
    it needs no rotation of its own. Signal colour comes from `wireNets` as
    for any junction's wires, so both halves of a label net light together.
    A label named by an `unmatchedLabel` warning draws its tag outline in
-   `--caution`; today the canvas highlights only error IDs, so this is a new,
-   narrow case for that one warning. Routing (ADR 0011) does not yet treat
+   `--caution` (added to the canvas `COLORS` list; the token exists). Today
+   the canvas highlights only error IDs, so this is a new, narrow case for
+   that one warning. A warning from inside a definition names the instance,
+   so its tag shows the outline only when the definition is opened on its
+   own sheet. Routing (ADR 0011) does not yet treat
    tags as obstacles; a wire may pass under one.
 8. **Editing.**
    - The parts panel gains **Label**, which places a named junction. It
@@ -177,9 +182,10 @@ Browser (Playwright):
 
 - A switch and an LED far apart, each wired to a Label named `go`: toggling
   the switch lights the LED. Renaming one label to `stop` turns the LED off,
-  and both tags draw in `--caution`. (The status bar shows one diagnostic
-  at a time, and the LED's `unconnectedInput` may come first, so the test
-  checks the tags.)
+  and the status bar message's `title` (which joins every diagnostic
+  message) contains both "label `go` joins nothing" and "label `stop` joins
+  nothing". The canvas is not readable from Playwright, so the caution
+  outline stays a visual cue and is not asserted.
 
 ## Consequences
 
