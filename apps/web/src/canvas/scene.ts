@@ -142,8 +142,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   let hover: Point | null = null;
   /** Space held: a left drag pans. */
   let spaceHeld = false;
-  /** Pointer position in grid units while it is over the canvas: where an armed part would be placed. */
-  let pointer: Point | null = null;
+  /** Pointer position on screen while it is over the canvas: where an armed part would be placed (after pan or zoom too). */
+  let pointer: { clientX: number; clientY: number } | null = null;
 
   let frame = 0;
   const schedule = () => {
@@ -231,7 +231,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     // The armed part, half see-through, where a click would place it, turned as it would be.
     if (armed && pointer && !gesture) {
       const rotation = useEditor.getState().armedRotation;
-      const ghost = { id: GHOST, kind: armed, rotation, position: placement(armed, rotation, pointer), props: {} };
+      const ghost = { id: GHOST, kind: armed, rotation, position: placement(armed, rotation, toWorld(pointer)), props: {} };
       // Outlined in the danger colour where a click would be refused.
       drawBody(ghost, placementStacks(circuit, ghost), () => null);
       present.add(GHOST);
@@ -533,7 +533,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   };
 
   const onPointerMove = (e: PointerEvent) => {
-    pointer = toWorld(e);
+    pointer = { clientX: e.clientX, clientY: e.clientY };
     const p = toWorld(e);
     const editor = useEditor.getState();
     if (gesture?.type === "pan") {
@@ -658,7 +658,14 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       e.preventDefault();
       gesture = null;
       editor.remove(editor.selection);
-    } else if (onCanvas && !e.ctrlKey && !e.metaKey && !e.altKey && key === "r" && (editor.armed || editor.selection.length > 0)) {
+    } else if (
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      key === "r" &&
+      // Armed from a part tile, focus is still on that button: R must still turn the part being placed.
+      (editor.armed || (onCanvas && editor.selection.length > 0))
+    ) {
       e.preventDefault();
       gesture = null;
       // While placing, R turns the part about to be placed; otherwise the selection.

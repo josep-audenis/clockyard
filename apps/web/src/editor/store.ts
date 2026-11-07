@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { simplify, stacksJunction } from "../canvas/geometry";
 import { layoutOf } from "../canvas/layout";
+import { forgetRoutes } from "../canvas/routing";
 import type { Endpoint } from "../simulation/protocol";
 import {
   endOwner,
@@ -372,9 +373,14 @@ export const useEditor = create<EditorState>()((set, get) => ({
         positions[j.id] = turnPoint(j.position);
         return { ...j, position: positions[j.id] as Point };
       });
-      const wires = circuit.wires.map((w) =>
-        w.bends && chosen.has(endOwner(w.from)) && chosen.has(endOwner(w.to)) ? { ...w, bends: w.bends.map(turnPoint) } : w,
-      );
+      const wires = circuit.wires.map((w) => {
+        if (!w.bends) return w;
+        const inside = [chosen.has(endOwner(w.from)), chosen.has(endOwner(w.to))];
+        if (inside[0] && inside[1]) return { ...w, bends: w.bends.map(turnPoint) };
+        // Half inside, the old shape would cut back across the turned part: route it automatically again.
+        if (inside[0] || inside[1]) return { id: w.id, from: w.from, to: w.to };
+        return w;
+      });
       const turned = { components, junctions, wires };
       if (stacksJunction(turned, positions)) return state;
       return edit(state, turned);
@@ -383,7 +389,11 @@ export const useEditor = create<EditorState>()((set, get) => ({
   turnArmed: (turn) => set(({ armedRotation }) => ({ armedRotation: ((armedRotation + 90 * turn + 360) % 360) as typeof armedRotation })),
   toggle: (id) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: inputs[id] === 1 ? 0 : 1 } })),
   arm: (kind) => set({ armed: kind, armedRotation: 0 }),
-  load: ({ metadata, circuit }) => set({ metadata, circuit, selection: [], inputs: {}, armed: null, past: [], future: [] }),
+  load: ({ metadata, circuit }) => {
+    // An opened file is routed afresh, never shaped by whatever was on screen before.
+    forgetRoutes();
+    set({ metadata, circuit, selection: [], inputs: {}, armed: null, past: [], future: [] });
+  },
 
   record: () => set(remember),
   undo: () =>

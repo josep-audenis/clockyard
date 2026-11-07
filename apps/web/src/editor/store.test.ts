@@ -566,3 +566,22 @@ test("revert takes back a recorded drag without leaving anything to redo", () =>
   redo();
   expect(useEditor.getState().circuit.components[0]?.position).toEqual({ x: 0, y: 0 });
 });
+
+test("turning a part on its own drops the shape of a wire that leaves the turned group", () => {
+  useEditor.setState({
+    circuit: {
+      components: [
+        { id: "g", kind: "and", position: { x: 0, y: 0 }, rotation: 0, props: {} },
+        { id: "l", kind: "led", position: { x: 12, y: 8 }, rotation: 0, props: {} },
+      ],
+      junctions: [],
+      wires: [{ id: "w", from: { component: "g", port: "out" }, to: { component: "l", port: "in" }, bends: [{ x: 8, y: 2 }, { x: 8, y: 9 }] }],
+    },
+  });
+  useEditor.getState().rotate(["g"], 1);
+  expect(useEditor.getState().circuit.wires[0]).toEqual({
+    id: "w",
+    from: { component: "g", port: "out" },
+    to: { component: "l", port: "in" },
+  });
+});

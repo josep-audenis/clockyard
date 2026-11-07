@@ -28,7 +28,8 @@ by adding junctions.
    - the search is bounded to the ends' box plus a margin of 8 cells, then 24
      when nothing fits, and not attempted when that box is larger than 40,000
      cells. Then, or when nothing fits either, the old half-way route is used,
-     and only then can a wire touch another net. One wire therefore never
+     and only then can a wire touch another net, cross a part or meet a
+     junction (rare: an exhaustive check of two-wire layouts found none). One wire therefore never
      costs more than two 40,000-cell searches, however far apart a file places
      its parts.
 
@@ -41,7 +42,9 @@ by adding junctions.
    user's choice and may touch other nets; automatic ones keep away from them. A shape is kept only
    while it has at most 64 bends, the most a file may hold. When an end moves, the
    wire is made orthogonal again by inserting corners; when both ends move
-   together (a group drag), the bends move with them. **Reset route** in the
+   together (a group drag or rotation), the bends move with them; a shaped
+   wire with only one end in a rotated selection is routed automatically
+   again, since its old shape would cut back across the turned part. **Reset route** in the
    inspector removes `bends`. Each drag and each reset is one undo step.
 3. **Only what an edit touches is routed again.** After any edit (a release,
    a delete, an undo, a rotation), a wire keeps its route when it is unchanged,

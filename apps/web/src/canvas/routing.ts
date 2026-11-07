@@ -288,6 +288,11 @@ const kept = new WeakMap<Circuit, Map<string, Point[]>>();
 /** The circuit `routes` last worked out, so the next one only routes what changed. */
 let last: { circuit: Circuit; routes: Map<string, Point[]> } | null = null;
 
+/** Forgets the last routed circuit, so the next one is routed afresh (opening a file). */
+export function forgetRoutes() {
+  last = null;
+}
+
 /**
  * Every wire's route, by wire ID. Wires an edit leaves alone keep their routes
  * (see `unaffected`); the rest are routed, shaped wires first, then automatic
@@ -329,11 +334,29 @@ function unaffected(prev: Circuit, before: Map<string, Point[]>, next: Circuit):
     ...next.components.filter((c) => !stays(c.id)).map((c) => ({ ...c.position, ...size(c) })),
     ...next.junctions.filter((j) => !stays(j.id)).map((j) => ({ ...j.position, width: 0, height: 0 })),
   ];
+  // A shaped wire whose route changed is laid as given, avoiding nothing, so kept routes must not touch it either.
+  const at = places(next);
+  for (const wire of next.wires) {
+    const [a, b] = [endAt(at, wire.from), endAt(at, wire.to)];
+    if (!wire.bends || !a || !b) continue;
+    const points = orthogonal(a, wire.bends, b, [exitOf(at, wire.from), exitOf(at, wire.to)]);
+    if (JSON.stringify(points) === JSON.stringify(before.get(wire.id))) continue;
+    for (let i = 1; i < points.length; i++) {
+      const [p, q] = [points[i - 1] as Point, points[i] as Point];
+      obstacles.push({ x: Math.min(p.x, q.x), y: Math.min(p.y, q.y), width: Math.abs(q.x - p.x), height: Math.abs(q.y - p.y) });
+    }
+  }
+  /** Each wire's net, named by the sorted IDs of all its wires: equal names mean the net kept the same wires. */
   const members = (circuit: Circuit) => {
     const netOf = nets(circuit);
     const byNet = new Map<string, string[]>();
-    for (const [wire, net] of netOf) byNet.set(net, [...(byNet.get(net) ?? []), wire]);
-    return new Map([...netOf].map(([wire, net]) => [wire, (byNet.get(net) ?? []).sort().join()]));
+    for (const [wire, net] of netOf) {
+      const list = byNet.get(net);
+      if (list) list.push(wire);
+      else byNet.set(net, [wire]);
+    }
+    const names = new Map([...byNet].map(([net, list]) => [net, list.sort().join()]));
+    return new Map([...netOf].map(([wire, net]) => [wire, names.get(net)]));
   };
   const [netBefore, netNow] = [members(prev), members(next)];
   const kept = new Map<string, Point[]>();

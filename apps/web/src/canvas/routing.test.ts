@@ -1,7 +1,10 @@
-import { expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 import type { Circuit, CircuitComponent, Wire } from "../editor/document";
 import type { Point } from "./geometry";
-import { routes, routesKeeping } from "./routing";
+import { forgetRoutes, routes, routesKeeping } from "./routing";
+
+// Each test starts as if a file had just been opened: no earlier circuit to compare with.
+beforeEach(forgetRoutes);
 
 const part = (id: string, kind: CircuitComponent["kind"], x: number, y: number): CircuitComponent => ({
   id,
@@ -160,4 +163,38 @@ test("after an edit, wires it leaves alone keep their routes; wires it touches o
   expect(rerouted.get("fwd")).toBe(before.get("fwd"));
   expect(rerouted.get("back")).not.toBe(before.get("back"));
   expect(cells(rerouted.get("back") ?? []).some((p) => p.x === onRoute.x && p.y === onRoute.y)).toBe(false);
+});
+
+test("a shaped wire moved onto an automatic one of another net makes that one move away", () => {
+  const k = wire("k", "s1.out", "l1.in");
+  const s = { ...wire("s", "s2.out", "l2.in"), bends: [{ x: 5, y: 11 }] };
+  const base: Circuit = {
+    components: [part("s1", "switch", 0, 0), part("l1", "led", 20, 0), part("s2", "switch", 0, 10), part("l2", "led", 20, 10)],
+    junctions: [],
+    wires: [k, s],
+  };
+  routes(base);
+  // What dragging the shaped wire's middle up onto row 1 produces.
+  const dragged: Circuit = { ...base, wires: [k, { ...s, bends: [{ x: 6, y: 11 }, { x: 6, y: 1 }, { x: 14, y: 1 }, { x: 14, y: 11 }] }] };
+  const after = routes(dragged);
+  const shared = unitEdges(after.get("k") ?? []).filter((e) => unitEdges(after.get("s") ?? []).includes(e));
+  expect(shared).toEqual([]);
+});
+
+test("after forgetRoutes (opening a file) everything is routed afresh", () => {
+  // A wire routed round a blocking LED keeps its detour after the LED is deleted...
+  const blocked: Circuit = {
+    components: [part("s", "switch", 0, 0), part("l", "led", 20, 0), part("x", "led", 9, 0)],
+    junctions: [],
+    wires: [wire("w", "s.out", "l.in")],
+  };
+  const detour = routes(blocked).get("w");
+  const cleared: Circuit = { ...blocked, components: blocked.components.filter((c) => c.id !== "x") };
+  expect(routes(cleared).get("w")).toBe(detour);
+  // ...until the circuit is opened again.
+  forgetRoutes();
+  expect(routes(structuredClone(cleared)).get("w")).toEqual([
+    { x: 2, y: 1 },
+    { x: 20, y: 1 },
+  ]);
 });

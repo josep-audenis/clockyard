@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import type { CircuitDocument } from "../src/editor/document";
 
 // Must match the canvas defaults in src/canvas/scene.ts: view offset and grid cell, in CSS px.
 const ORIGIN = 48;
@@ -420,4 +422,17 @@ test("a part cannot be placed with a port on a junction; it stays armed for a be
   // Still armed: a click on free ground places it.
   await click(page, at(7.6, 12));
   expect(await count()).toContain("8 items selected");
+});
+
+test("R turns a part armed from the parts panel, before it is placed", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  await page.getByRole("button", { name: /^NOT/ }).click(); // focus stays on the tile
+  await page.keyboard.press("r");
+  await click(page, at(6, 6));
+  // Read back from the saved file: the NOT was placed turned.
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export" }).click();
+  const saved = JSON.parse(readFileSync((await (await download).path()) as string, "utf8")) as CircuitDocument;
+  expect(saved.circuit.components[0]?.rotation).toBe(90);
 });
