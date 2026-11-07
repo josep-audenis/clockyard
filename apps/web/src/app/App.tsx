@@ -161,7 +161,7 @@ function PartsLibrary() {
       ))}
       <p className="type-caption parts-hint">
         Pick a part or press its key, then click the canvas to place it. Esc cancels. Drag from a port to wire it;
-        drop on a wire to branch it. Drag empty space to select, Shift
+        drop on a wire to branch it; drag a wire to reshape it. Drag empty space to select, Shift
         to add; hold Space and drag to pan. <kbd className="kbd">{MOD}</kbd> <kbd className="kbd">C</kbd>{" "}
         <kbd className="kbd">X</kbd> <kbd className="kbd">V</kbd> <kbd className="kbd">D</kbd> <kbd className="kbd">A</kbd>{" "}
         copy, cut, paste, duplicate and select all. <kbd className="kbd">{MOD}</kbd>{" "}
@@ -195,6 +195,8 @@ function Canvas() {
 function Inspector() {
   const selection = useEditor((s) => s.selection);
   const part = useEditor((s) => (s.selection.length === 1 ? s.circuit.components.find((c) => c.id === s.selection[0]) : undefined));
+  const wire = useEditor((s) => (s.selection.length === 1 ? s.circuit.wires.find((w) => w.id === s.selection[0]) : undefined));
+  const resetRoute = useEditor((s) => s.resetRoute);
   return (
     <aside className="inspector" aria-label="Inspector">
       <section className="panel">
@@ -202,12 +204,24 @@ function Inspector() {
         {part ? (
           // Remounts for another part, or when undo changes the label, so the field shows the saved value.
           <PartProperties key={`${part.id}:${part.props.label ?? ""}`} part={part} />
+        ) : wire ? (
+          <div className="inspector-body">
+            <p className="type-label inspector-kind">Wire</p>
+            <p className="type-body inspector-empty">
+              {wire.bends ? "Route shaped by hand." : "Routed automatically. Drag a segment to reshape it."}
+            </p>
+            {wire.bends && (
+              <button type="button" className="button type-label" onClick={() => resetRoute(wire.id)}>
+                Reset route
+              </button>
+            )}
+          </div>
         ) : (
           <p className="type-body inspector-empty">
             {selection.length === 0
               ? "Select a component to edit its properties."
               : selection.length === 1
-                ? "Wires and junctions have no properties yet."
+                ? "Junctions have no properties."
                 : `${selection.length} items selected. Select one component to edit its properties.`}
           </p>
         )}

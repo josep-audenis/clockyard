@@ -1,6 +1,18 @@
 import { expect, test } from "vitest";
 import type { Circuit, CircuitComponent } from "../editor/document";
-import { hitTest, itemsInBox, nearestOnRoute, occupied, places, portAt, stacksJunction, wirePoints } from "./geometry";
+import {
+  dragSegment,
+  hitTest,
+  itemsInBox,
+  nearestOnRoute,
+  occupied,
+  orthogonal,
+  places,
+  portAt,
+  simplify,
+  stacksJunction,
+  wirePoints,
+} from "./geometry";
 
 const part = (id: string, kind: CircuitComponent["kind"], x: number, y: number): CircuitComponent => ({
   id,
@@ -64,11 +76,12 @@ test("the nearest grid point on a route stays on it", () => {
 });
 
 test("hit-testing prefers ports, then junctions, then bodies, then wires", () => {
-  expect(hitTest(circuit, { x: 6.1, y: 1 }, 0.5)).toEqual({ type: "port", ref: { component: "g", port: "a" } });
-  expect(hitTest(circuit, { x: 3.2, y: 9.1 }, 0.5)).toEqual({ type: "junction", id: "j" });
-  expect(hitTest(circuit, { x: 7, y: 2 }, 0.5)).toEqual({ type: "component", id: "g" });
-  expect(hitTest(circuit, { x: 4.1, y: 2 }, 0.5)).toEqual({ type: "wire", id: "w" });
-  expect(hitTest(circuit, { x: 20, y: 20 }, 0.5)).toBeNull();
+  const routes = new Map([["w", [{ x: 2, y: 1 }, { x: 4, y: 1 }, { x: 4, y: 3 }, { x: 6, y: 3 }]]]);
+  expect(hitTest(circuit, { x: 6.1, y: 1 }, 0.5, routes)).toEqual({ type: "port", ref: { component: "g", port: "a" } });
+  expect(hitTest(circuit, { x: 3.2, y: 9.1 }, 0.5, routes)).toEqual({ type: "junction", id: "j" });
+  expect(hitTest(circuit, { x: 7, y: 2 }, 0.5, routes)).toEqual({ type: "component", id: "g" });
+  expect(hitTest(circuit, { x: 4.1, y: 2 }, 0.5, routes)).toEqual({ type: "wire", id: "w", segment: 1 });
+  expect(hitTest(circuit, { x: 20, y: 20 }, 0.5, routes)).toBeNull();
 });
 
 test("a box selects parts wholly inside it and the junctions inside it, dragged in any direction", () => {
@@ -89,4 +102,64 @@ test("a junction may not land on a port or another junction, nor a port on a jun
   expect(stacksJunction(circuit, { l: { x: 3, y: 8 } })).toBe(true); // the LED's input onto the junction
   // Moving the junction with the LED keeps them apart as they were.
   expect(stacksJunction(circuit, { j: { x: 3, y: 10 }, l: { x: 6, y: 9 } })).toBe(false);
+});
+
+test("simplify drops repeats and the middle of straight runs", () => {
+  expect(
+    simplify([
+      { x: 0, y: 0 },
+      { x: 0, y: 0 },
+      { x: 2, y: 0 },
+      { x: 5, y: 0 },
+      { x: 5, y: 3 },
+      { x: 5, y: 1 }, // doubles back: still one straight run
+    ]),
+  ).toEqual([
+    { x: 0, y: 0 },
+    { x: 5, y: 0 },
+    { x: 5, y: 1 },
+  ]);
+});
+
+test("a shaped route gets corners where an end has moved out of line", () => {
+  // Bends (4,1) and (4,5); the start moved down to (2,2), the end to (8,6).
+  expect(orthogonal({ x: 2, y: 2 }, [{ x: 4, y: 1 }, { x: 4, y: 5 }], { x: 8, y: 6 })).toEqual([
+    { x: 2, y: 2 },
+    { x: 4, y: 2 },
+    { x: 4, y: 6 },
+    { x: 8, y: 6 },
+  ]);
+});
+
+test("dragging a middle segment moves it; dragging an end segment adds a stub so the end stays put", () => {
+  const route = [
+    { x: 2, y: 1 },
+    { x: 4, y: 1 },
+    { x: 4, y: 3 },
+    { x: 6, y: 3 },
+  ];
+  expect(dragSegment(route, 1, { x: 5, y: 2 }, [1, -1])).toEqual([
+    { x: 2, y: 1 },
+    { x: 5, y: 1 },
+    { x: 5, y: 3 },
+    { x: 6, y: 3 },
+  ]);
+  // The first segment, from an output on the right of its part (exit +1), moved down to row 2.
+  expect(dragSegment(route, 0, { x: 3, y: 2 }, [1, -1])).toEqual([
+    { x: 2, y: 1 },
+    { x: 3, y: 1 },
+    { x: 3, y: 2 },
+    { x: 4, y: 2 },
+    { x: 4, y: 3 },
+    { x: 6, y: 3 },
+  ]);
+  // A straight wire between two ports, pulled down: both ends keep their stubs.
+  expect(dragSegment([{ x: 2, y: 1 }, { x: 8, y: 1 }], 0, { x: 5, y: 4 }, [1, -1])).toEqual([
+    { x: 2, y: 1 },
+    { x: 3, y: 1 },
+    { x: 3, y: 4 },
+    { x: 7, y: 4 },
+    { x: 7, y: 1 },
+    { x: 8, y: 1 },
+  ]);
 });

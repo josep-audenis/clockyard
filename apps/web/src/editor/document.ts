@@ -36,7 +36,11 @@ export type CircuitComponent = {
 /** A point joining wires into one net. Grid units. */
 export type Junction = { id: string; position: { x: number; y: number } };
 
-export type Wire = { id: string; from: Endpoint; to: Endpoint };
+/** `bends`: interior route points (grid units) of a wire the user shaped; absent means routed automatically (ADR 0011). */
+export type Wire = { id: string; from: Endpoint; to: Endpoint; bends?: { x: number; y: number }[] };
+
+/** Most bends a shaped wire may carry. */
+export const MAX_BENDS = 64;
 
 export type Circuit = { components: CircuitComponent[]; junctions: Junction[]; wires: Wire[] };
 

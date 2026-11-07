@@ -2,6 +2,7 @@
 // Imported files are untrusted: every field is checked and unknown fields are dropped.
 import {
   COMPONENT_KINDS,
+  MAX_BENDS,
   MAX_LABEL,
   normalizeLabel,
   ROTATIONS,
@@ -144,7 +145,16 @@ function readDocument(data: unknown): CircuitDocument {
     const to = end(w.to, `${where} end`);
     // The editor never draws one; on screen it would be an invisible, unclickable wire.
     if (sameEnd(from, to)) throw new Error(`${where} starts and ends at the same place.`);
-    return { id: unique(id(w.id, `${where} id`), where), from, to };
+    const wire: Wire = { id: unique(id(w.id, `${where} id`), where), from, to };
+    if (w.bends !== undefined) {
+      const bends = array(w.bends, `${where} bends`);
+      if (bends.length > MAX_BENDS) throw new Error(`${where} has more than ${MAX_BENDS} bends.`);
+      wire.bends = bends.map((raw, j) => {
+        const point = object(raw, `${where} bend ${j + 1}`);
+        return { x: integer(point.x, `${where} bend ${j + 1} x`), y: integer(point.y, `${where} bend ${j + 1} y`) };
+      });
+    }
+    return wire;
   });
 
   return {

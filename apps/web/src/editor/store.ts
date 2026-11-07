@@ -26,8 +26,15 @@ export type EditorState = {
   /** Part waiting to be placed by the next canvas click. */
   armed: ComponentKind | null;
   add: (kind: ComponentKind, position: { x: number; y: number }) => string;
-  /** Sets positions by component or junction ID in one update; not recorded (see `record`). */
+  /**
+   * Sets positions by component or junction ID in one update; not recorded (see `record`).
+   * Bends of shaped wires whose two ends move by the same amount move with them.
+   */
   move: (positions: Record<string, Point>) => void;
+  /** Sets a wire's bends while dragging its segment; not recorded (see `record`). */
+  shape: (wire: string, bends: Point[]) => void;
+  /** Drops a wire's bends so it is routed automatically again; one edit, none if it had none. */
+  resetRoute: (wire: string) => void;
   /** Adds a wire unless it joins an end to itself, duplicates a wire or names a missing part or junction. */
   connect: (from: Endpoint, to: Endpoint) => string | null;
   /**
@@ -104,7 +111,12 @@ function cloned(part: Circuit, offset: number): Circuit {
       props: structuredClone(c.props),
     })),
     junctions: part.junctions.map((j) => ({ id: id(j.id), position: { x: j.position.x + offset, y: j.position.y + offset } })),
-    wires: part.wires.map((w) => ({ id: crypto.randomUUID(), from: end(w.from), to: end(w.to) })),
+    wires: part.wires.map((w) => ({
+      id: crypto.randomUUID(),
+      from: end(w.from),
+      to: end(w.to),
+      ...(w.bends && { bends: w.bends.map((b) => ({ x: b.x + offset, y: b.y + offset })) }),
+    })),
   };
 }
 
@@ -176,13 +188,36 @@ export const useEditor = create<EditorState>()((set, get) => ({
   },
 
   move: (positions) =>
-    set(({ circuit }) => ({
-      circuit: {
-        ...circuit,
-        components: circuit.components.map((c) => ({ ...c, position: positions[c.id] ?? c.position })),
-        junctions: circuit.junctions.map((j) => ({ ...j, position: positions[j.id] ?? j.position })),
-      },
-    })),
+    set(({ circuit }) => {
+      const old = new Map([...circuit.components, ...circuit.junctions].map((item) => [item.id, item.position]));
+      const shift = (id: string) => {
+        const [from, to] = [old.get(id), positions[id]];
+        return from && to && { x: to.x - from.x, y: to.y - from.y };
+      };
+      return {
+        circuit: {
+          components: circuit.components.map((c) => ({ ...c, position: positions[c.id] ?? c.position })),
+          junctions: circuit.junctions.map((j) => ({ ...j, position: positions[j.id] ?? j.position })),
+          wires: circuit.wires.map((w) => {
+            const [a, b] = [shift(endOwner(w.from)), shift(endOwner(w.to))];
+            // Carried along only when both ends move together; otherwise the ends' corners adapt (ADR 0011).
+            if (!w.bends || !a || !b || a.x !== b.x || a.y !== b.y) return w;
+            return { ...w, bends: w.bends.map((p) => ({ x: p.x + a.x, y: p.y + a.y })) };
+          }),
+        },
+      };
+    }),
+
+  shape: (id, bends) =>
+    set(({ circuit }) => ({ circuit: { ...circuit, wires: circuit.wires.map((w) => (w.id === id ? { ...w, bends } : w)) } })),
+
+  resetRoute: (id) =>
+    set((state) => {
+      const wire = state.circuit.wires.find((w) => w.id === id);
+      if (!wire?.bends) return state;
+      const plain = { id: wire.id, from: wire.from, to: wire.to };
+      return edit(state, { ...state.circuit, wires: state.circuit.wires.map((w) => (w === wire ? plain : w)) });
+    }),
 
   connect: (from, to) => {
     const { circuit } = get();
@@ -205,7 +240,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
         junctions: [...state.circuit.junctions, { id: junction.junction, position: at }],
         // The split wire keeps its ID on its first half.
         wires: [
-          ...state.circuit.wires.map((w) => (w === wire ? { ...w, to: junction } : w)),
+          // Split at a new point, so the old shape no longer applies: both halves route automatically.
+          ...state.circuit.wires.map((w) => (w === wire ? { id: w.id, from: w.from, to: junction } : w)),
           { id: crypto.randomUUID(), from: junction, to: wire.to },
           { id, from, to: junction },
         ],
