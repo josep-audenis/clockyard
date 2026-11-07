@@ -140,7 +140,8 @@ still set a latch); and loop-free logic forgets its starting values within one
 delta per component, inside the delta limit. Logic feeding a loop still
 settles delta by delta from zero, since its glitches are real behaviour; a
 component whose state changes while settling (a Phase 3 flip-flop) will count
-as a loop for this.
+as a loop for this. Reset (Phase 3) settles from all-zero nets too, so it must
+take the same step, or resetting long chains turns quadratic again.
 
 ### Unconnected inputs
 
