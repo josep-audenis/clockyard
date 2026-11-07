@@ -41,7 +41,7 @@ export type EditorState = {
   selectAll: () => void;
   /** Parts copied by `copy`/`cut`, with the wires between them. */
   clipboard: Circuit | null;
-  /** Pastes since the last copy (-1 after a cut); each lands a little further down-right. */
+  /** Steps of 2 cells the last paste went down-right (0 after a copy, -1 after a cut); the next goes one step further. */
   pastes: number;
   copy: () => void;
   cut: () => void;

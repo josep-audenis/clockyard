@@ -59,8 +59,13 @@ function id(value: unknown, where: string): string {
   return value;
 }
 
+/** Grid coordinates stay well inside exact integer range, so stepping a paste always moves it. */
+const MAX_COORDINATE = 1_000_000;
+
 function integer(value: unknown, where: string): number {
-  if (!Number.isInteger(value)) throw new Error(`${where} must be a whole number.`);
+  if (!Number.isInteger(value) || Math.abs(value as number) > MAX_COORDINATE) {
+    throw new Error(`${where} must be a whole number from -${MAX_COORDINATE} to ${MAX_COORDINATE}.`);
+  }
   return value as number;
 }
 

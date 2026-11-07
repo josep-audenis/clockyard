@@ -95,7 +95,8 @@ Rules:
   rejected with a clear message. Export always writes the current version.
 - Import (`storage/file.ts`) treats the file as untrusted: every field is
   type-checked, unknown fields are dropped, IDs must be unique across parts,
-  junctions and wires, and wires must reference existing parts and junctions. Port names are checked by the engine on load.
+  junctions and wires, wires must reference existing parts and junctions, and
+  positions are whole numbers within ±1,000,000 grid cells. Port names are checked by the engine on load.
   Switch positions are transient and never saved.
 - `props` holds editor-only properties; the engine never sees them. Today that
   is `label`: one line of text, at most 32 characters, edited in the inspector
