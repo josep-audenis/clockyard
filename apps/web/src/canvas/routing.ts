@@ -345,6 +345,8 @@ function unaffected(
         old.definition === now.definition &&
         (old.kind !== "custom" || sameLayouts) &&
         old.rotation === now.rotation &&
+        // A width edit can resize a part (ADR 0014); layouts are cached, so the same one is the same object.
+        layoutOf(old) === layoutOf(now) &&
         samePoint(old.position, now.position)
       );
     }

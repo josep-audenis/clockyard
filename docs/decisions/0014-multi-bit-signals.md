@@ -332,3 +332,23 @@ Browser (Playwright):
   the layouts are a fixed table for every kind any more. The layout test
   covers the generated names.
 - A v5 file cannot be opened by a v4 build, as designed.
+
+## Amendment (2026-11-07): building it
+
+- **Splitters and mergers are imported with the editor step.** Format v5
+  (step 3) accepts `width` only; `split`, `merge` and `fields` are refused on
+  import until the canvas can lay them out, so a file never opens with a part
+  the editor cannot draw. Their `fields` checks, the parts and the 8-bit adder
+  example arrive together.
+- **Bus drawing follows the design system** (ADR 0008 makes it the source of
+  truth), which already specified buses when this record was written:
+  - the stroke is the existing `bus-width` token (5px), not a new
+    `--wire-width-bus` (4px);
+  - the slash and width ("/8") are always shown, and the hex value tag appears
+    when the bus is hovered, as the CanvasKit spec says, next to the status
+    bar's "8 bits: 44, 0x2C";
+  - junctions on a bus keep the CanvasKit size (a 4px dot) in `signal-bus`,
+    rather than being drawn larger.
+- **The Value field commits on Enter without leaving the field**, so ↑ and ↓
+  can keep stepping; blur also commits and Escape cancels, as in item 17.
+

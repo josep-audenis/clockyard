@@ -836,3 +836,25 @@ test("deleting from another sheet drops steps holding its instances from the mai
   useEditor.getState().openSheet(outer);
   expect(reachable().some(holds)).toBe(false);
 });
+
+test("setWidth is one undo step, 1 removes the prop, bad widths and chips are refused, a switch keeps what fits", () => {
+  const { add, setWidth, setInput, undo } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const props = () => useEditor.getState().circuit.components.find((c) => c.id === s)?.props;
+  setWidth(s, 8);
+  expect(props()).toEqual({ width: 8 });
+  setInput(s, 0b1010_1100);
+  const { past } = useEditor.getState();
+  for (const bad of [0, 33, 2.5, Number.NaN, 8]) setWidth(s, bad);
+  expect(useEditor.getState().past).toBe(past);
+  setWidth(s, 4);
+  expect(useEditor.getState().inputs[s]).toBe(0b1100);
+  setWidth(s, 1);
+  expect(props()).toEqual({});
+  expect(useEditor.getState().inputs[s]).toBe(0);
+  undo();
+  expect(props()).toEqual({ width: 4 });
+  const chip = add("custom", { x: 9, y: 0 });
+  setWidth(chip, 8);
+  expect(useEditor.getState().circuit.components.find((c) => c.id === chip)?.props).toEqual({});
+});

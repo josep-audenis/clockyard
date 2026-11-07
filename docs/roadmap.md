@@ -20,7 +20,8 @@ Editing comfort, labels, junctions and nets, routing and rotation merged (PRs
 pins renamed safely by part ID (ADR 0013, file format v4); definitions can be
 renamed and deleted (ADR 0012 amendment). Multi-bit signals, buses and
 splitters are designed in ADR 0014 (proposed); the engine (PR #26),
-boundary (PR #27) and format v5 steps are built, the editor is next.
+boundary (PR #27) and format v5 (PR #28) steps are built; in the editor,
+wide parts are built and splitters and mergers are next.
 
 ## Phase 0 — Foundation ✅
 
@@ -189,11 +190,18 @@ Progress:
      decimal and hex ("44 (0x2C)"). `split`, `merge` and `fields` are still
      refused on import, since the canvas cannot draw them yet; they move to
      step 4. Until then a wide part draws and toggles like a 1-bit one.
-  4. Editor: Width, Fields and Value in the inspector; Splitter and Merger
-     in the parts panel, with layouts that depend on props, and accepted on
-     import with their `fields` checks; wide switches and LEDs as hex
-     bodies; buses in `--signal-bus` with a width slash and a hex value tag
-     (design system first); the 8-bit adder in `examples/`.
+  4. Editor, in two parts (ADR 0014 amendment):
+     - ✅ Wide parts: Width in the inspector (one undo step; 1 removes it;
+       a switch keeps the bits that still fit); wide switches and LEDs as
+       5×2 bodies showing hex; a wide switch is set in the inspector's
+       Value field (decimal, `0x…`, `0b…`, ↑ and ↓), which a click on it
+       focuses; buses in `signal-bus` at `bus-width` with a "/8" slash, a
+       hex tag on hover and "8 bits: 44, 0x2C" in the status bar; layouts
+       depend on props, and a width edit re-routes the part's wires.
+     - Splitters and mergers: Fields in the inspector, Splitter and Merger
+       in the parts panel, their layouts with bit ranges, import with their
+       `fields` checks, an 8-way fan-out routing test, and the 8-bit adder
+       in `examples/`.
   5. Playwright: the 8-bit adder in the browser, and a mismatch shown then
      fixed.
 - 🔨 Named connections (net labels): designed in ADR 0015 (proposed), not

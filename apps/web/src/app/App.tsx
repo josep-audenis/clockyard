@@ -1,7 +1,18 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { definitionName } from "../canvas/layout";
-import { mountCanvas } from "../canvas/scene";
-import { contains, MAX_LABEL, showValue, type CircuitComponent, type ComponentKind, type PartKind } from "../editor/document";
+import { mountCanvas, useCanvasHints } from "../canvas/scene";
+import {
+  contains,
+  hex,
+  MAX_LABEL,
+  MAX_WIDTH,
+  maxValue,
+  parseValue,
+  showValue,
+  type CircuitComponent,
+  type ComponentKind,
+  type PartKind,
+} from "../editor/document";
 import { deleteRefusal, liveDefinitions, mainCircuit, useEditor } from "../editor/store";
 import { connectEngine, useSim } from "../simulation/sync";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
@@ -408,6 +419,17 @@ function PartProperties({ part }: { part: CircuitComponent }) {
         // One undoable edit.
         onCommit={(value) => useEditor.getState().setLabel(part.id, value)}
       />
+      {part.kind !== "custom" && (
+        <CommitField
+          key={`width:${part.props.width ?? 1}`}
+          label="Width"
+          saved={String(part.props.width ?? 1)}
+          hint={`Bits on every port, 1 to ${MAX_WIDTH}.`}
+          // One undoable edit; anything but a whole number in range leaves the width as it was.
+          onCommit={(value) => useEditor.getState().setWidth(part.id, Number(value.trim()))}
+        />
+      )}
+      {part.kind === "switch" && (part.props.width ?? 1) > 1 && <ValueField part={part} />}
       {part.definition && name !== undefined && (
         <CommitField
           key={name}
@@ -426,6 +448,77 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           Edit component
         </button>
       )}
+    </div>
+  );
+}
+
+/**
+ * A wide switch's value (ADR 0014): decimal, 0x… or 0b…, committed on Enter or blur, Escape cancels,
+ * ↑ and ↓ step by 1. Not an edit, like a toggle. Focused when the switch is clicked on the canvas.
+ */
+function ValueField({ part }: { part: CircuitComponent }) {
+  const width = part.props.width ?? 1;
+  const value = useEditor((s) => s.inputs[part.id] ?? 0);
+  const focus = useCanvasHints((s) => s.focusValue === part.id);
+  /** What is being typed; null shows the stored value. */
+  const [draft, setDraft] = useState<string | null>(null);
+  const [wrong, setWrong] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const id = useId();
+  useEffect(() => {
+    if (!focus) return;
+    input.current?.focus();
+    input.current?.select();
+    useCanvasHints.setState({ focusValue: null });
+  }, [focus]);
+  const set = (next: number) => {
+    useEditor.getState().setInput(part.id, next);
+    setDraft(null);
+    setWrong(false);
+  };
+  const commit = () => {
+    if (draft === null) return;
+    const parsed = parseValue(draft, width);
+    if (parsed === null) setWrong(true);
+    else set(parsed);
+  };
+  return (
+    <div className="field">
+      <label className="field-label" htmlFor={`${id}-input`}>
+        Value
+      </label>
+      <input
+        ref={input}
+        id={`${id}-input`}
+        aria-describedby={`${id}-hint`}
+        aria-invalid={wrong}
+        className="input type-value"
+        value={draft ?? String(value)}
+        spellCheck={false}
+        autoComplete="off"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          commit();
+          setDraft(null);
+        }}
+        onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+          if (e.key === "Enter") commit();
+          else if (e.key === "Escape") {
+            setDraft(null);
+            setWrong(false);
+          } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            e.preventDefault();
+            const from = (draft === null ? null : parseValue(draft, width)) ?? value;
+            set(Math.min(Math.max(from + (e.key === "ArrowUp" ? 1 : -1), 0), maxValue(width)));
+          }
+        }}
+      />
+      <p id={`${id}-hint`} className={`field-hint${wrong ? " field-error" : ""}`} role={wrong ? "alert" : undefined}>
+        {wrong
+          ? `Not a value from 0 to ${maxValue(width)}.`
+          : `${hex(value, width)}. Decimal, 0x… or 0b…; ↑ and ↓ step by 1.`}
+      </p>
     </div>
   );
 }
@@ -469,6 +562,8 @@ const PLAIN: Record<string, string> = {
   multipleDrivers: "An input has more than one driver.",
   unconnectedInput: "An input is unconnected and reads 0.",
   unstable: "The circuit did not settle: a loop keeps oscillating.",
+  widthMismatch: "Ports of different widths are wired together.",
+  invalidWidth: "A part has a width or fields the engine cannot use.",
   unknownDefinition: "A component's definition is missing.",
   recursiveDefinition: "A component contains itself, so it cannot be built.",
   invalidPin: "A component has an invalid pin.",
@@ -484,6 +579,13 @@ function StatusBar() {
   const runtime = useSim((s) => s.runtime);
   const components = useEditor((s) => s.circuit.components);
   const empty = components.length === 0;
+  const nets = useSim((s) => s.nets);
+  const stale = useSim((s) => s.stale);
+  const hovered = useCanvasHints((s) => s.wire);
+  // A bus under the pointer: its value, as "8 bits: 44, 0x2C" (ADR 0014).
+  const bits = hovered === null || stale ? 1 : (loaded?.wireWidths[hovered] ?? 1);
+  const net = hovered === null ? undefined : loaded?.wireNets[hovered];
+  const probed = bits > 1 && net !== undefined ? nets?.[net] : undefined;
 
   const diagnostics = [...(loaded?.diagnostics ?? []), ...runtime];
   const errors = diagnostics.filter((d) => d.severity === "error");
@@ -507,7 +609,9 @@ function StatusBar() {
   const message =
     status === "error"
       ? error
-      : first &&
+      : probed !== undefined
+        ? `${bits} bits: ${probed}, ${hex(probed, bits)}`
+        : first &&
         `${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`;
 
   return (
