@@ -31,13 +31,14 @@ four full adders. ADR 0004 already says `sim-core` elaborates hierarchy.
    wires are copied with IDs prefixed `instance/`, and each pin switch or LED
    becomes a junction that the instance's port is joined to. Net resolution
    (ADR 0010) then sees one flat circuit, so an input pin left unconnected
-   outside reads 0 inside, and each instance has its own state. An undriven
-   net is judged level by level (see `docs/simulation-model.md`): joining an
-   undriven instance input to another input with nothing driving them is
-   still `inputToInput`.
+   outside reads 0 inside, and each instance has its own state. Before
+   flattening, each level's wiring that touches pins is checked as drawn,
+   with instances as black boxes (see `docs/simulation-model.md`), so two
+   pins driving one wire and inputs joined with nothing driving them are
+   reported where the user wired them.
 4. **Errors.** An unknown definition, a definition that contains itself
-   (directly or through others), an invalid pin (missing or repeated name, or
-   a pin that is not a switch or LED; since ADR 0013 the editor names pins by
+   (directly or through others), an invalid pin (missing or repeated name, two
+   pins on one part, or a pin that is not a switch or LED; since ADR 0013 the editor names pins by
    part ID, so only a hand-made file can have one) and a flattened circuit of more than
    200,000 items are validation errors. Parts, junctions, wires and instance
    expansions all count, so a small file of nested definitions cannot expand

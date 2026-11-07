@@ -8,10 +8,12 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::catalog::Kind;
 use crate::description::{
     CircuitDescription, Code, ComponentDesc, Connection, DefinitionDesc, Diagnostic, Endpoint,
-    JunctionDesc, PinSide, PortRef,
+    JunctionDesc, PinDesc, PortRef,
 };
+use crate::sim::{find, wires_verb};
 
 /// Kind of a part that is an instance of a definition.
 pub const CUSTOM: &str = "custom";
@@ -88,6 +90,7 @@ pub fn elaborate(
         errors: Vec::new(),
         stack: Vec::new(),
         pins_ok: BTreeMap::new(),
+        wired: BTreeSet::new(),
         size: 0,
     };
     flat.level(
@@ -144,6 +147,7 @@ fn check_pins(definition: &DefinitionDesc, instance: &str, errors: &mut Vec<Diag
         .map(|c| (c.id.as_str(), c.kind.as_str()))
         .collect();
     let mut names = BTreeSet::new();
+    let mut parts = BTreeSet::new();
     let pins = definition
         .inputs
         .iter()
@@ -154,6 +158,8 @@ fn check_pins(definition: &DefinitionDesc, instance: &str, errors: &mut Vec<Diag
             Some("has a pin without a name".to_string())
         } else if !names.insert(pin.name.as_str()) {
             Some(format!("has more than one pin named '{}'", pin.name))
+        } else if !parts.insert(pin.component.as_str()) {
+            Some(format!("has more than one pin on part {}", pin.component))
         } else if kinds.get(pin.component.as_str()) != Some(&kind) {
             Some(format!("pin '{}' is not a {kind} of it", pin.name))
         } else {
@@ -170,6 +176,132 @@ fn check_pins(definition: &DefinitionDesc, instance: &str, errors: &mut Vec<Diag
     }
 }
 
+/// What a wire end does on its own level: drives the wires there, or reads them.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Role {
+    Drives,
+    Reads,
+}
+
+/// Checks one level's own wiring where it touches pins, as the user drew it. Flattening joins
+/// levels through pins, so only here can two pins driving one wire, or inputs joined with nothing
+/// driving them, be told from a pin passing a signal through. An instance's input port reads and
+/// its output port drives; inside a definition, its pin switches drive and its pin LEDs read.
+/// Nets that touch no pin are left to net resolution, which sees them whole.
+fn check_wiring<'a>(
+    components: &[ComponentDesc],
+    connections: &'a [Connection],
+    prefix: &str,
+    pins: &BTreeMap<&str, &str>,
+    instances: &BTreeMap<&str, &DefinitionDesc>,
+) -> Vec<Diagnostic> {
+    let kinds: BTreeMap<&str, &str> = components
+        .iter()
+        .map(|c| (c.id.as_str(), c.kind.as_str()))
+        .collect();
+    // Role of a port end, and whether it is a pin (an instance's port or a pin part).
+    let role = |port: &PortRef| -> Option<(Role, bool)> {
+        let name = port.port.as_str();
+        if let Some(definition) = instances.get(port.component.as_str()) {
+            let has = |list: &[PinDesc]| list.iter().any(|p| p.name == name);
+            return if has(&definition.inputs) {
+                Some((Role::Reads, true))
+            } else if has(&definition.outputs) {
+                Some((Role::Drives, true))
+            } else {
+                None
+            };
+        }
+        if let Some(&own) = pins.get(port.component.as_str()) {
+            let role = if own == "out" {
+                Role::Drives
+            } else {
+                Role::Reads
+            };
+            return (name == own).then_some((role, true));
+        }
+        let kind = Kind::from_name(kinds.get(port.component.as_str())?)?;
+        if kind.outputs().contains(&name) {
+            Some((Role::Drives, false))
+        } else if kind.inputs().contains(&name) {
+            Some((Role::Reads, false))
+        } else {
+            None
+        }
+    };
+    // Union-find over this level's ends: ports by (component, port), junctions by ID.
+    let mut nodes: BTreeMap<(bool, &'a str, &'a str), usize> = BTreeMap::new();
+    let mut ends = Vec::new();
+    let mut node = |end: &'a Endpoint| -> usize {
+        let key = match end {
+            Endpoint::Port(p) => (false, p.component.as_str(), p.port.as_str()),
+            Endpoint::Junction { junction } => (true, junction.as_str(), ""),
+        };
+        *nodes.entry(key).or_insert_with(|| {
+            ends.push(match end {
+                Endpoint::Port(p) => role(p),
+                Endpoint::Junction { .. } => None,
+            });
+            ends.len() - 1
+        })
+    };
+    let joined: Vec<(&str, usize, usize)> = connections
+        .iter()
+        .map(|w| (w.id.as_str(), node(&w.from), node(&w.to)))
+        .collect();
+    let mut parent: Vec<usize> = (0..ends.len()).collect();
+    for &(_, a, b) in &joined {
+        let (ra, rb) = (find(&mut parent, a), find(&mut parent, b));
+        parent[ra] = rb;
+    }
+    // Per net (by root): drivers, readers and whether it touches a pin.
+    let mut tally = vec![(0usize, 0usize, false); ends.len()];
+    for (node, end) in ends.iter().enumerate() {
+        if let Some((role, pin)) = *end {
+            let net = &mut tally[find(&mut parent, node)];
+            match role {
+                Role::Drives => net.0 += 1,
+                Role::Reads => net.1 += 1,
+            }
+            net.2 |= pin;
+        }
+    }
+    // The wires of each net that breaks a rule, nets in order of their first wire.
+    let mut broken: BTreeMap<usize, usize> = BTreeMap::new();
+    let mut found: Vec<(Code, Vec<String>)> = Vec::new();
+    for &(wire, a, _) in &joined {
+        let root = find(&mut parent, a);
+        let code = match tally[root] {
+            (_, _, false) => continue,
+            (2.., 0, _) => Code::OutputToOutput,
+            (2.., _, _) => Code::MultipleDrivers,
+            (0, 2.., _) => Code::InputToInput,
+            _ => continue,
+        };
+        let at = *broken.entry(root).or_insert_with(|| {
+            found.push((code, Vec::new()));
+            found.len() - 1
+        });
+        found[at].1.push(format!("{prefix}{wire}"));
+    }
+    found
+        .into_iter()
+        .map(|(code, mut wires)| {
+            wires.sort();
+            let what = match code {
+                Code::OutputToOutput => "outputs",
+                Code::MultipleDrivers => "an input to more than one driver",
+                _ => "inputs and nothing drives them",
+            };
+            let message = format!("{} {what}", wires_verb(&wires, "connect"));
+            let mut ids: Vec<String> = wires.iter().map(|w| top(w).to_string()).collect();
+            ids.sort();
+            ids.dedup();
+            Diagnostic::error(code, message, ids)
+        })
+        .collect()
+}
+
 struct Flat<'a> {
     definitions: BTreeMap<&'a str, &'a DefinitionDesc>,
     out: CircuitDescription,
@@ -179,6 +311,8 @@ struct Flat<'a> {
     /// Whether each definition expanded so far has valid pins. Unused definitions are not checked,
     /// so an unlabelled switch in one does not break circuits that do not use it.
     pins_ok: BTreeMap<&'a str, bool>,
+    /// Definitions whose own wiring has been checked (once, at their first instance).
+    wired: BTreeSet<&'a str>,
     /// Items emitted or expanded so far, against `MAX_PARTS`.
     size: usize,
 }
@@ -236,14 +370,7 @@ impl<'a> Flat<'a> {
                     }
                 }
             } else if pins.contains_key(c.id.as_str()) {
-                let side = match pins[c.id.as_str()] {
-                    "out" => PinSide::Input, // a switch
-                    _ => PinSide::Output,
-                };
-                self.out.junctions.push(JunctionDesc {
-                    id,
-                    pin: Some(side),
-                });
+                self.out.junctions.push(JunctionDesc { id, pin: true });
             } else {
                 self.out.components.push(ComponentDesc {
                     id,
@@ -260,7 +387,7 @@ impl<'a> Flat<'a> {
             if !self.grow(&id) {
                 return;
             }
-            self.out.junctions.push(JunctionDesc { id, pin: None });
+            self.out.junctions.push(JunctionDesc { id, pin: false });
         }
         for w in connections {
             let id = format!("{prefix}{}", w.id);
@@ -274,6 +401,10 @@ impl<'a> Flat<'a> {
             if let (Some(from), Some(to)) = (from, to) {
                 self.out.connections.push(Connection { id, from, to });
             }
+        }
+        if definition.is_none_or(|d| self.wired.insert(d.id.as_str())) {
+            let found = check_wiring(components, connections, prefix, &pins, &instances);
+            self.errors.extend(found);
         }
     }
 

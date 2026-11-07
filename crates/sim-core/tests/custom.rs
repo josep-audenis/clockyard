@@ -186,6 +186,17 @@ fn missing_recursive_and_badly_pinned_definitions_are_errors() {
         codes(looping),
         vec![(Code::RecursiveDefinition, ids(&["x"]))]
     );
+    // Two pins on one part would join two outside wires through one switch.
+    let mut shared = full_adder();
+    shared["inputs"][1]["component"] = json!("a");
+    assert_eq!(
+        codes(json!({
+            "components": [{ "id": "x", "kind": "custom", "definition": "fa" }],
+            "connections": [],
+            "definitions": [shared]
+        })),
+        vec![(Code::InvalidPin, ids(&["x"]))]
+    );
     let mut bad = full_adder();
     bad["inputs"][1]["name"] = json!("A"); // two pins named A
     bad["outputs"][0]["component"] = json!("x1"); // an XOR is not an LED
@@ -215,7 +226,7 @@ fn missing_recursive_and_badly_pinned_definitions_are_errors() {
 
 #[test]
 fn errors_inside_an_instance_name_the_instance() {
-    // Inside "bad", two outputs drive one LED pin: reported against the top-level instance "x".
+    // Inside "bad", two outputs drive one LED pin, as its own sheet would say: reported against instance "x".
     let bad = json!({
         "id": "bad",
         "components": [{ "id": "n1", "kind": "not" }, { "id": "n2", "kind": "not" }, { "id": "o", "kind": "led" }],
@@ -226,7 +237,7 @@ fn errors_inside_an_instance_name_the_instance() {
     let found = codes(json!({
         "components": [{ "id": "x", "kind": "custom", "definition": "bad" }], "connections": [], "definitions": [bad]
     }));
-    assert_eq!(found, vec![(Code::OutputToOutput, vec!["x".to_string()])]);
+    assert_eq!(found, vec![(Code::MultipleDrivers, vec!["x".to_string()])]);
 }
 
 #[test]
@@ -273,16 +284,16 @@ fn an_undriven_instance_input_joined_to_other_inputs_is_still_an_error() {
     // Joined to a gate's input, or to another instance's input, nothing drives either: an error.
     assert_eq!(
         found(wires(&[("w", "x.A", "g.a")])),
-        vec![(Code::InputToInput, ids(&["w", "x"]))]
+        vec![(Code::InputToInput, ids(&["w"]))]
     );
     assert_eq!(
         found(wires(&[("w", "x.A", "y.B")])),
-        vec![(Code::InputToInput, ids(&["w", "x", "y"]))]
+        vec![(Code::InputToInput, ids(&["w"]))]
     );
     // Two inputs of one instance joined with nothing driving them, likewise.
     assert_eq!(
         found(wires(&[("w", "x.A", "x.B")])),
-        vec![(Code::InputToInput, ids(&["w", "x"]))]
+        vec![(Code::InputToInput, ids(&["w"]))]
     );
     // Even when nothing inside reads those inputs.
     let unused = json!({
@@ -394,5 +405,51 @@ fn the_engine_enforces_id_rules_and_pin_ports() {
             "definitions": [wrong]
         })),
         vec![(Code::UnknownPort, ids(&["x"]))]
+    );
+}
+
+#[test]
+fn pins_that_drive_one_wire_are_outputs_joined() {
+    let ids = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    // "si": its two input pins shorted inside; "u": one output pin driven by nothing inside.
+    let si = json!({
+        "id": "si",
+        "components": [{ "id": "a", "kind": "switch" }, { "id": "b", "kind": "switch" }, { "id": "g", "kind": "and" }],
+        "connections": wires(&[("short", "a.out", "b.out"), ("r", "b.out", "g.a")]),
+        "inputs": [{ "name": "a", "component": "a" }, { "name": "b", "component": "b" }],
+        "outputs": []
+    });
+    let u = json!({
+        "id": "u", "components": [{ "id": "o", "kind": "led" }], "connections": [],
+        "inputs": [], "outputs": [{ "name": "o", "component": "o" }]
+    });
+    let load = |components: Value, connections: Value| {
+        codes(
+            json!({ "components": components, "connections": connections, "definitions": [si.clone(), u.clone()] }),
+        )
+    };
+    // Shorted inside: an error on the instance, whether or not anything drives it outside.
+    let x = json!([{ "id": "x", "kind": "custom", "definition": "si" }, { "id": "s", "kind": "switch" }]);
+    assert_eq!(
+        load(x.clone(), json!([])),
+        vec![(Code::MultipleDrivers, ids(&["x"]))]
+    );
+    assert_eq!(
+        load(x, wires(&[("w", "s.out", "x.a")])),
+        vec![(Code::MultipleDrivers, ids(&["x"]))]
+    );
+    // Two instance outputs joined outside, undriven inside or not.
+    let two = json!([
+        { "id": "p", "kind": "custom", "definition": "u" },
+        { "id": "q", "kind": "custom", "definition": "u" },
+        { "id": "h", "kind": "not" }
+    ]);
+    assert_eq!(
+        load(two.clone(), wires(&[("w", "p.o", "q.o")])),
+        vec![(Code::OutputToOutput, ids(&["w"]))]
+    );
+    assert_eq!(
+        load(two, wires(&[("w", "p.o", "q.o"), ("v", "q.o", "h.in")])),
+        vec![(Code::MultipleDrivers, ids(&["v", "w"]))]
     );
 }

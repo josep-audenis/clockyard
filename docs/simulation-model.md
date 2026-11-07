@@ -38,15 +38,19 @@ Before nets are resolved, `sim-core` flattens every instance of a custom
 component (ADR 0012), depth first: the definition's parts, junctions and wires
 are copied with IDs prefixed `instance/`, and each of its pin switches and LEDs
 becomes a junction that the instance's port is joined to. Each instance thus
-has its own state. A net with no output that reaches a pin (an instance input
-left unconnected outside, or an output pin driven by nothing inside) is judged
-level by level, as it was wired: inside an instance its input pin drives and
-its output pin reads; one level up, the instance's input port reads and its
-output port drives. If no level joins two or more inputs without something
-there that drives them, its readers read 0 and warn; otherwise it is
-`inputToInput`, as for joined inputs anywhere. So a pin passed straight
-through an instance and left unconnected reads 0 on the far side, while an
-instance input wired to another input with no driver is an error. Diagnostics
+has its own state.
+
+Flattening joins levels through pins, so wiring that touches a pin is checked
+first, level by level, as the user drew it: on the main circuit and in each
+definition used, an instance is a black box whose input ports read and output
+ports drive, and inside a definition its pin switches drive and its pin LEDs
+read. The table below then applies to each such group of wires on its own:
+two pins driving one wire is `outputToOutput` (or `multipleDrivers` with a
+reader), and inputs joined to a pin with nothing driving them `inputToInput`,
+whatever the flattened net would show. After flattening, a net with no output
+that reaches a pin is a pin left unconnected: its readers read 0 and warn. So
+a pin passed straight through an instance and left unconnected reads 0 on the
+far side. Diagnostics
 name the top-level part an inner ID belongs to. Unknown or recursive
 definitions, bad pins (checked where a definition is used) and more than
 200,000 expanded items (parts, junctions, wires and instances) are errors, as
