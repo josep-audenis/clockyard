@@ -2,11 +2,13 @@ import { expect, test } from "vitest";
 import type { Circuit, CircuitComponent } from "../editor/document";
 import {
   dragSegment,
+  exitOf,
   hitTest,
   itemsInBox,
   nearestOnRoute,
   occupied,
   orthogonal,
+  placementStacks,
   places,
   portAt,
   simplify,
@@ -138,14 +140,14 @@ test("dragging a middle segment moves it; dragging an end segment adds a stub so
     { x: 4, y: 3 },
     { x: 6, y: 3 },
   ];
-  expect(dragSegment(route, 1, { x: 5, y: 2 }, [1, -1])).toEqual([
+  expect(dragSegment(route, 1, { x: 5, y: 2 }, [0, 1])).toEqual([
     { x: 2, y: 1 },
     { x: 5, y: 1 },
     { x: 5, y: 3 },
     { x: 6, y: 3 },
   ]);
-  // The first segment, from an output on the right of its part (exit +1), moved down to row 2.
-  expect(dragSegment(route, 0, { x: 3, y: 2 }, [1, -1])).toEqual([
+  // The first segment, from an output on the right of its part (exit 0, rightwards), moved down to row 2.
+  expect(dragSegment(route, 0, { x: 3, y: 2 }, [0, 1])).toEqual([
     { x: 2, y: 1 },
     { x: 3, y: 1 },
     { x: 3, y: 2 },
@@ -154,7 +156,7 @@ test("dragging a middle segment moves it; dragging an end segment adds a stub so
     { x: 6, y: 3 },
   ]);
   // A straight wire between two ports, pulled down: both ends keep their stubs.
-  expect(dragSegment([{ x: 2, y: 1 }, { x: 8, y: 1 }], 0, { x: 5, y: 4 }, [1, -1])).toEqual([
+  expect(dragSegment([{ x: 2, y: 1 }, { x: 8, y: 1 }], 0, { x: 5, y: 4 }, [0, 1])).toEqual([
     { x: 2, y: 1 },
     { x: 3, y: 1 },
     { x: 3, y: 4 },
@@ -181,25 +183,60 @@ test("simplify keeps checking after a removal lines up earlier points", () => {
 });
 
 test("the segment next to a port's first run cannot be dragged back over that port", () => {
-  // From an output at (2,1) heading right (exit +1): its first vertical stays at x >= 3.
+  // From an output at (2,1) heading right (exit 0, rightwards): its first vertical stays at x >= 3.
   const route = [
     { x: 2, y: 1 },
     { x: 5, y: 1 },
     { x: 5, y: 4 },
     { x: 9, y: 4 },
   ];
-  expect(dragSegment(route, 1, { x: 0, y: 2 }, [1, -1])).toEqual([
+  expect(dragSegment(route, 1, { x: 0, y: 2 }, [0, 1])).toEqual([
     { x: 2, y: 1 },
     { x: 3, y: 1 },
     { x: 3, y: 4 },
     { x: 9, y: 4 },
   ]);
-  // An output at x 2 (needs x >= 3) and an input at x 3 (needs x <= 2): no room, so the drag is ignored.
+  // An output at x 2 (exit 0, needs x >= 3) and an input at x 3 (exit 1, needs x <= 2): no room, so the drag is ignored.
   const tight = [
     { x: 2, y: 1 },
     { x: 5, y: 1 },
     { x: 5, y: 4 },
     { x: 3, y: 4 },
   ];
-  expect(dragSegment(tight, 1, { x: 4, y: 2 }, [1, -1])).toBe(tight);
+  expect(dragSegment(tight, 1, { x: 4, y: 2 }, [0, 1])).toBe(tight);
+});
+
+test("a rotated port exits away from the side it now sits on", () => {
+  const turned: Circuit = { components: [{ ...part("g", "and", 0, 0), rotation: 90 }], junctions: [], wires: [] };
+  const at = places(turned);
+  expect(portAt(turned.components[0] as CircuitComponent, "a")).toEqual({ x: 3, y: 0 });
+  expect(exitOf(at, { component: "g", port: "a" })).toBe(3); // up
+  expect(exitOf(at, { component: "g", port: "out" })).toBe(2); // down
+  expect(exitOf(at, { junction: "j" })).toBe(-1);
+});
+
+test("shaped routes leave and enter vertical ports vertically", () => {
+  // From a port facing down (exit 2) at (0,0) to a port facing left (exit 1) at (6,4), no bends.
+  expect(orthogonal({ x: 0, y: 0 }, [], { x: 6, y: 4 }, [2, 1])).toEqual([
+    { x: 0, y: 0 },
+    { x: 0, y: 4 },
+    { x: 6, y: 4 },
+  ]);
+  // Dragging the run next to a downward port keeps it below that port.
+  const route = [
+    { x: 0, y: 0 },
+    { x: 0, y: 3 },
+    { x: 6, y: 3 },
+    { x: 6, y: 6 },
+  ];
+  expect(dragSegment(route, 1, { x: 3, y: -2 }, [2, -1])[1]).toEqual({ x: 0, y: 1 });
+});
+
+test("placing a part is refused where one of its ports would sit on a junction", () => {
+  // The junction is at (3,9). A NOT's input is at (0,1) from its corner: at (3,8) it lands on the junction.
+  expect(placementStacks(circuit, part("n", "not", 3, 8))).toBe(true);
+  expect(placementStacks(circuit, part("n", "not", 3, 10))).toBe(false);
+  // Turned upright (input on top at (1,0)), the same spot is fine, and (2,9) is not.
+  expect(placementStacks(circuit, { ...part("n", "not", 3, 8), rotation: 90 })).toBe(false);
+  expect(placementStacks(circuit, { ...part("n", "not", 2, 9), rotation: 90 })).toBe(true);
 });

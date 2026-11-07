@@ -471,3 +471,117 @@ test("a shape is simplified, and one with more bends than a file may hold is not
   shape(w, zigzag);
   expect(bends()).toEqual([{ x: 5, y: 1 }, { x: 5, y: 5 }]);
 });
+
+test("rotate turns the selection as a whole about its centre; a turn and its reverse cancel; one undo step", () => {
+  const { add, rotate, undo } = useEditor.getState();
+  // NOT (3x2) at (0,0) and AND (4x4) at (6,0): their box is (0,0)-(10,4), centre (5,2).
+  const n = add("not", { x: 0, y: 0 });
+  const g = add("and", { x: 6, y: 0 });
+  const parts = () => useEditor.getState().circuit.components.map((c) => [c.rotation, c.position]);
+  rotate([n, g], 1);
+  // Clockwise: the AND, right of the NOT, ends up below it.
+  expect(parts()).toEqual([
+    [90, { x: 5, y: -3 }],
+    [90, { x: 3, y: 3 }],
+  ]);
+  rotate([n, g], -1);
+  expect(parts()).toEqual([
+    [0, { x: 0, y: 0 }],
+    [0, { x: 6, y: 0 }],
+  ]);
+  // A lone part whose centre is off the grid: the nudged centre still makes the two turns cancel, both ways.
+  rotate([n], 1);
+  expect(parts()[0]).toEqual([90, { x: 1, y: -1 }]);
+  rotate([n], -1);
+  expect(parts()[0]).toEqual([0, { x: 0, y: 0 }]);
+  rotate([n], -1);
+  rotate([n], 1);
+  expect(parts()[0]).toEqual([0, { x: 0, y: 0 }]);
+  undo();
+  expect(parts()[0]?.[0]).toBe(270);
+  const { past } = useEditor.getState();
+  rotate([], 1);
+  rotate(["missing"], 1);
+  expect(useEditor.getState().past).toBe(past);
+});
+
+test("rotating a group turns its junctions and the bends of shaped wires inside it", () => {
+  useEditor.setState({
+    circuit: {
+      components: [
+        { id: "s", kind: "switch", position: { x: 0, y: 0 }, rotation: 0, props: {} },
+        { id: "l", kind: "led", position: { x: 8, y: 0 }, rotation: 0, props: {} },
+      ],
+      junctions: [{ id: "j", position: { x: 4, y: 1 } }],
+      wires: [
+        { id: "w", from: { component: "s", port: "out" }, to: { junction: "j" } },
+        { id: "v", from: { junction: "j" }, to: { component: "l", port: "in" }, bends: [{ x: 6, y: 1 }] },
+      ],
+    },
+  });
+  // Box (0,0)-(10,2), centre (5,1): clockwise, (x, y) goes to (6 - y, x - 4).
+  useEditor.getState().rotate(["s", "l", "j"], 1);
+  const { circuit } = useEditor.getState();
+  expect(circuit.junctions[0]?.position).toEqual({ x: 5, y: 0 });
+  expect(circuit.wires[1]?.bends).toEqual([{ x: 5, y: 2 }]);
+  expect(circuit.components.map((c) => c.position)).toEqual([
+    { x: 4, y: -4 },
+    { x: 4, y: 4 },
+  ]);
+});
+
+test("R while placing turns the part about to be placed; picking a part starts it upright", () => {
+  const { arm, turnArmed, add } = useEditor.getState();
+  arm("and");
+  turnArmed(1);
+  turnArmed(1);
+  turnArmed(-1);
+  expect(useEditor.getState().armedRotation).toBe(90);
+  add("and", { x: 0, y: 0 });
+  expect(useEditor.getState().circuit.components[0]?.rotation).toBe(90);
+  arm("not");
+  expect(useEditor.getState().armedRotation).toBe(0);
+});
+
+test("rotate is refused where a port would land on a junction", () => {
+  // AND at (0,0): turned clockwise, input a moves to (3,0), where a junction sits.
+  useEditor.setState({
+    circuit: {
+      components: [{ id: "g", kind: "and", position: { x: 0, y: 0 }, rotation: 0, props: {} }],
+      junctions: [{ id: "j", position: { x: 3, y: 0 } }],
+      wires: [],
+    },
+  });
+  useEditor.getState().rotate(["g"], 1);
+  expect(useEditor.getState().circuit.components[0]?.rotation).toBe(0);
+});
+
+test("revert takes back a recorded drag without leaving anything to redo", () => {
+  const { add, record, move, revert, redo } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  record();
+  move({ [s]: { x: 5, y: 5 } });
+  revert();
+  expect(useEditor.getState().circuit.components[0]?.position).toEqual({ x: 0, y: 0 });
+  redo();
+  expect(useEditor.getState().circuit.components[0]?.position).toEqual({ x: 0, y: 0 });
+});
+
+test("turning a part on its own drops the shape of a wire that leaves the turned group", () => {
+  useEditor.setState({
+    circuit: {
+      components: [
+        { id: "g", kind: "and", position: { x: 0, y: 0 }, rotation: 0, props: {} },
+        { id: "l", kind: "led", position: { x: 12, y: 8 }, rotation: 0, props: {} },
+      ],
+      junctions: [],
+      wires: [{ id: "w", from: { component: "g", port: "out" }, to: { component: "l", port: "in" }, bends: [{ x: 8, y: 2 }, { x: 8, y: 9 }] }],
+    },
+  });
+  useEditor.getState().rotate(["g"], 1);
+  expect(useEditor.getState().circuit.wires[0]).toEqual({
+    id: "w",
+    from: { component: "g", port: "out" },
+    to: { component: "l", port: "in" },
+  });
+});

@@ -125,12 +125,21 @@ Progress:
   junctions are selected, dragged, copied and deleted like parts, and one left
   without wires is removed; a junction never lands on a port or another
   junction: a drop there is refused, a drag shows the blocked cell in danger
-  and waits at the last free one, and paste or duplicate steps further on;
+  and waits at the last free one, paste or duplicate steps further on, and
+  placing a part there is refused (its preview turns to the danger colour);
   half-adder example uses junctions
 - ✅ Routing (ADR 0011): wires are routed on the grid around part bodies and
   away from other nets (crossings allowed); dragging a wire segment reshapes
   it, kept as `bends` in the file; Reset route in the inspector goes back to
   automatic
+- ✅ Rotation: R turns the selection 90° clockwise as a whole (parts,
+  junctions and shaped wires between them), Shift R back; a turn and its
+  reverse cancel exactly; one undo step; refused where a port would land on a
+  junction. While placing, R and Shift R turn the part shown under the
+  pointer. Ports, routing, drawing and hit-testing follow `rotation`, which
+  files already held
+- ✅ Routing keeps nets strictly apart (crossings only), routes again only the
+  wires an edit or a drag touches, and Escape cancels a drag in progress
 - ⬜ Custom reusable components and nested definitions
 - ⬜ Multi-bit signals, buses, splitters
 - ⬜ 4-bit adder example and tests
@@ -183,7 +192,7 @@ analysis, plugin system, full game campaign during the MVP.
 
 Phase 2 custom reusable components and nested definitions (ADR): a circuit's
 labelled switches and LEDs become the ports of a component definition, with a
-duplicate pin-name check. Known limits still open: every change re-routes
-all automatic wires (fine at Phase 2 sizes), a wire
-cannot start from a junction (drag from a port onto it instead), no part
-rotation, no autosave, the inspector does not collapse on narrow screens yet.
+duplicate pin-name check. Known limits still open: a wire cannot start from a
+junction (drag from a port onto it instead), no autosave, the inspector does
+not collapse on narrow screens yet, and wires kept after an edit can stay
+longer than needed until the file is opened again.

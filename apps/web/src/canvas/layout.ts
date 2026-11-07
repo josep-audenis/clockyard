@@ -1,8 +1,8 @@
 // Where each port sits on a part's body, in grid units from its top-left
 // corner (ADR 0004: the engine owns port names, the canvas owns their layout).
 // Sizes follow the design system's CanvasKit spec; ports sit on grid points.
-// shortcut: rotation is ignored (always 0); apply it here when parts can rotate.
-import type { ComponentKind } from "../editor/document";
+// `LAYOUTS` is each kind unrotated; `layoutOf` applies a part's rotation.
+import type { CircuitComponent, ComponentKind } from "../editor/document";
 
 export type Point = { x: number; y: number };
 
@@ -26,3 +26,24 @@ export const LAYOUTS: Record<ComponentKind, Layout> = {
   xor: gate,
   xnor: gate,
 };
+
+/** A layout turned 90° clockwise about its box: (x, y) in w×h goes to (h - y, x) in h×w. */
+function turned({ width, height, inputs, outputs }: Layout): Layout {
+  const turn = (ports: Record<string, Point>) =>
+    Object.fromEntries(Object.entries(ports).map(([name, p]) => [name, { x: height - p.y, y: p.x }]));
+  return { width: height, height: width, inputs: turn(inputs), outputs: turn(outputs) };
+}
+
+const rotated = new Map<string, Layout>();
+
+/** A part's layout as placed: its kind's layout turned clockwise by its rotation. */
+export function layoutOf({ kind, rotation }: Pick<CircuitComponent, "kind" | "rotation">): Layout {
+  const key = `${kind}:${rotation}`;
+  let layout = rotated.get(key);
+  if (!layout) {
+    layout = LAYOUTS[kind];
+    for (let r = 0; r < rotation; r += 90) layout = turned(layout);
+    rotated.set(key, layout);
+  }
+  return layout;
+}

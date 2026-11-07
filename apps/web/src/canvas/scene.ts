@@ -2,7 +2,7 @@
 // spec. Reads the editor and engine stores outside React and redraws on change.
 // shortcut: the whole scene is redrawn per change; move to per-object updates when profiling says so.
 import { Application, Container, Graphics, Text } from "pixi.js";
-import { endOwner, type Circuit, type CircuitComponent } from "../editor/document";
+import { endOwner, type Circuit, type CircuitComponent, type ComponentKind } from "../editor/document";
 import { useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
 import { useSim } from "../simulation/sync";
@@ -15,12 +15,13 @@ import {
   nearestOnRoute,
   occupied,
   places,
+  placementStacks,
   stacksJunction,
   type Hit,
   type Point,
 } from "./geometry";
-import { LAYOUTS } from "./layout";
-import { routes } from "./routing";
+import { LAYOUTS, layoutOf } from "./layout";
+import { routes, routesKeeping } from "./routing";
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
@@ -69,6 +70,8 @@ type Gesture =
       moved: boolean;
       recorded: boolean;
       blocked: Point | null;
+      /** Routes of wires the drag does not touch, kept as they were while it lasts. */
+      frozen: Map<string, Point[]>;
     }
   | { type: "wire"; from: Endpoint; at: Point }
   // Drags one segment of a wire's route sideways (ADR 0011); `route` is the route when pressed.
@@ -81,9 +84,19 @@ type Gesture =
       start: Point;
       moved: boolean;
       recorded: boolean;
+      frozen: Map<string, Point[]>;
     }
   // Marquee selection; `base` is the selection kept from before (Shift).
   | { type: "box"; from: Point; to: Point; base: string[] };
+
+/** Shape ID of the placement preview; never a document ID (those are UUIDs). */
+const GHOST = "placement-preview";
+
+/** Where a part placed at `p` goes: centred on the pointer, turned by `rotation`. */
+function placement(kind: ComponentKind, rotation: CircuitComponent["rotation"], p: Point): Point {
+  const { width, height } = layoutOf({ kind, rotation });
+  return { x: Math.round(p.x - width / 2), y: Math.round(p.y - height / 2) };
+}
 
 const positionOf = (circuit: Circuit, id: string) =>
   (circuit.components.find((c) => c.id === id) ?? circuit.junctions.find((j) => j.id === id))?.position;
@@ -108,7 +121,13 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
 
   const world = new Container();
   const wires = new Graphics();
-  const bodies = new Graphics();
+  /** Parts, each its own Graphics drawn unrotated about its centre and turned by its rotation. */
+  const bodies = new Container();
+  const shapes = new Map<string, Graphics>();
+  /** What each part's shape was last drawn showing; see drawBody. */
+  const looks = new Map<string, string>();
+  /** Bumped on theme change, so every shape is drawn again in the new colours. */
+  let themeVersion = 0;
   const overlay = new Graphics();
   const labels = new Container();
   world.addChild(wires, bodies, labels, overlay);
@@ -123,6 +142,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   let hover: Point | null = null;
   /** Space held: a left drag pans. */
   let spaceHeld = false;
+  /** Pointer position on screen while it is over the canvas: where an armed part would be placed (after pan or zoom too). */
+  let pointer: { clientX: number; clientY: number } | null = null;
 
   let frame = 0;
   const schedule = () => {
@@ -158,10 +179,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const signal = (net: number | undefined): 0 | 1 | null =>
       stale || !nets || net === undefined ? null : nets[net] === 1 ? 1 : 0;
     const at = places(circuit);
-    const paths = routes(circuit);
+    const paths = currentRoutes(circuit);
 
     wires.clear();
-    bodies.clear();
     overlay.clear();
 
     for (const wire of circuit.wires) {
@@ -198,7 +218,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       drawBody(component, culprits.has(component.id), (port) => signal(ports?.[port]));
       if (selected.has(component.id)) {
         const { x, y } = px(component.position);
-        const { width, height } = LAYOUTS[component.kind];
+        const { width, height } = layoutOf(component);
         const pad = 4;
         overlay
           .roundRect(x - pad, y - pad, width * c + 2 * pad, height * c + 2 * pad, size["radius-sm"])
@@ -207,6 +227,21 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     }
 
     drawLabels(circuit.components);
+    const present = new Set(circuit.components.map((component) => component.id));
+    // The armed part, half see-through, where a click would place it, turned as it would be.
+    if (armed && pointer && !gesture) {
+      const rotation = useEditor.getState().armedRotation;
+      const ghost = { id: GHOST, kind: armed, rotation, position: placement(armed, rotation, toWorld(pointer)), props: {} };
+      // Outlined in the danger colour where a click would be refused.
+      drawBody(ghost, placementStacks(circuit, ghost), () => null);
+      present.add(GHOST);
+    }
+    for (const [id, shape] of shapes) {
+      if (present.has(id)) continue;
+      shapes.delete(id);
+      looks.delete(id);
+      shape.destroy();
+    }
 
     if (gesture?.type === "wire") {
       const start = endAt(at, gesture.from);
@@ -223,7 +258,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const part = circuit.components.find((c) => c.id === id);
       const danger = { width: size["select-width"], color: color.danger };
       if (part) {
-        const { width, height } = LAYOUTS[part.kind];
+        const { width, height } = layoutOf(part);
         overlay.roundRect(x - 4, y - 4, width * c + 8, height * c + 8, size["radius-sm"]).stroke(danger);
       } else {
         overlay.circle(x, y, 8).stroke(danger);
@@ -260,7 +295,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         labels.addChild(text);
       }
       if (text.text !== label) text.text = label;
-      const { width, height } = LAYOUTS[component.kind];
+      const { width, height } = layoutOf(component);
       text.position.set((component.position.x + width / 2) * c, (component.position.y + height) * c + 6);
     }
     for (const [id, text] of texts) {
@@ -280,10 +315,29 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   function drawBody(component: CircuitComponent, culprit: boolean, value: (port: string) => 0 | 1 | null) {
     const { color, size } = theme;
     const c = cell();
-    const { x, y } = px(component.position);
+    let g = shapes.get(component.id);
+    if (!g) {
+      g = new Graphics();
+      shapes.set(component.id, g);
+      bodies.addChild(g);
+    }
+    // Drawn in the part's own unrotated frame, then turned about its centre into the placed box.
+    const local = LAYOUTS[component.kind];
+    const placed = layoutOf(component);
+    const at = px(component.position);
+    g.pivot.set((local.width * c) / 2, (local.height * c) / 2);
+    g.position.set(at.x + (placed.width * c) / 2, at.y + (placed.height * c) / 2);
+    g.angle = component.rotation;
+    g.alpha = component.id === GHOST ? 0.5 : 1;
+    // Moving or turning a part is only a transform; its shape is rebuilt only when what it shows changes.
+    const ports = [...Object.keys(local.inputs), ...Object.keys(local.outputs)];
+    const look = `${component.kind}|${culprit}|${ports.map(value).join()}|${themeVersion}`;
+    if (looks.get(component.id) === look) return;
+    looks.set(component.id, look);
+    g.clear();
+    const [x, y] = [0, 0];
     const body = { color: color["panel-raised"] };
     const outline = { width: 1.5, color: culprit ? color.danger : color["line-strong"] };
-    const g = bodies;
     const bubble = (bx: number, by: number) => g.circle(bx, by, 4).fill(body).stroke(outline);
     const lead = (x1: number, x2: number, ly: number) => g.moveTo(x1, ly).lineTo(x2, ly).stroke(outline);
 
@@ -374,6 +428,33 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   // Pick radius is set in screen pixels so ports stay clickable when zoomed out.
   const pick = () => (theme.size["port-size"] / 2 + theme.size["hit-slop"]) / (view.zoom * cell());
 
+  /** Routes for drawing and picking: during a drag, wires it does not touch keep their routes (ADR 0011). */
+  function currentRoutes(circuit: Circuit) {
+    const g = gesture;
+    return (g?.type === "move" || g?.type === "segment") && g.moved ? routesKeeping(circuit, g.frozen) : routes(circuit);
+  }
+
+  /** Routes as they are now, without the wires that touch `ids` or are `wire`: what a starting drag freezes. */
+  function frozenFor(circuit: Circuit, ids: Set<string>, wire?: string) {
+    const all = routes(circuit);
+    return new Map(
+      circuit.wires
+        .filter((w) => w.id !== wire && !ids.has(endOwner(w.from)) && !ids.has(endOwner(w.to)))
+        .flatMap((w) => {
+          const points = all.get(w.id);
+          return points ? [[w.id, points] as const] : [];
+        }),
+    );
+  }
+
+  /** Ends a drag; a cancelled one is taken back entirely, with nothing left to redo. */
+  function endGesture(cancel: boolean) {
+    const g = gesture;
+    gesture = null;
+    if (cancel && (g?.type === "move" || g?.type === "segment") && g.recorded) useEditor.getState().revert();
+    schedule();
+  }
+
   /**
    * What a wire dropped at `p` attaches to: a port, a junction, or (while wiring)
    * a grid point on a wire, which the drop splits. A point at a wire's own end
@@ -387,7 +468,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       return point ? { at: point, end } : null;
     }
     const wire = wiring && hit?.type === "wire" ? circuit.wires.find((w) => w.id === hit.id) : undefined;
-    const points = wire && routes(circuit).get(wire.id);
+    const points = wire && currentRoutes(circuit).get(wire.id);
     const point = points && nearestOnRoute(points, p);
     if (!wire || !point) return null;
     const end = [wire.from, wire.to].find((e) => samePoint(endAt(at, e), point));
@@ -407,10 +488,12 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     if (e.button === 1 || (e.button === 0 && spaceHeld)) {
       gesture = { type: "pan", last: { x: e.clientX, y: e.clientY } };
     } else if (e.button === 0 && editor.armed) {
-      const { width, height } = LAYOUTS[editor.armed];
-      editor.add(editor.armed, { x: Math.round(p.x - width / 2), y: Math.round(p.y - height / 2) });
+      const part = { id: GHOST, kind: editor.armed, rotation: editor.armedRotation, props: {} };
+      const position = placement(part.kind, part.rotation, p);
+      // A port on a junction would look joined: refused, and the part stays armed (the preview shows why).
+      if (!placementStacks(editor.circuit, { ...part, position })) editor.add(part.kind, position);
     } else if (e.button === 0) {
-      const hit = hitTest(editor.circuit, p, pick(), routes(editor.circuit));
+      const hit = hitTest(editor.circuit, p, pick(), currentRoutes(editor.circuit));
       // Parts and junctions are selected and dragged alike.
       const item = hit?.type === "component" || hit?.type === "junction" ? hit.id : undefined;
       const position = item && positionOf(editor.circuit, item);
@@ -425,18 +508,20 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         const starts = Object.fromEntries(movable.map((m) => [m.id, m.position]));
         const grab = { x: p.x - position.x, y: p.y - position.y };
         const start = { x: e.clientX, y: e.clientY };
-        gesture = { type: "move", id: item, grab, starts, start, moved: false, recorded: false, blocked: null };
+        const frozen = frozenFor(editor.circuit, selected);
+        gesture = { type: "move", id: item, grab, starts, start, moved: false, recorded: false, blocked: null, frozen };
       } else if (hit?.type === "wire" && e.shiftKey) {
         editor.select(toggled(editor.selection, hit.id));
       } else if (hit?.type === "wire") {
         editor.select([hit.id]);
         const wire = editor.circuit.wires.find((w) => w.id === hit.id);
-        const route = routes(editor.circuit).get(hit.id);
+        const route = currentRoutes(editor.circuit).get(hit.id);
         if (wire && route) {
           const at = places(editor.circuit);
           const exits: [number, number] = [exitOf(at, wire.from), exitOf(at, wire.to)];
           const start = { x: e.clientX, y: e.clientY };
-          gesture = { type: "segment", wire: wire.id, index: hit.segment, route, exits, start, moved: false, recorded: false };
+          const frozen = frozenFor(editor.circuit, new Set(), wire.id);
+          gesture = { type: "segment", wire: wire.id, index: hit.segment, route, exits, start, moved: false, recorded: false, frozen };
         }
       } else {
         const base = e.shiftKey ? editor.selection : [];
@@ -448,6 +533,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   };
 
   const onPointerMove = (e: PointerEvent) => {
+    pointer = { clientX: e.clientX, clientY: e.clientY };
     const p = toWorld(e);
     const editor = useEditor.getState();
     if (gesture?.type === "pan") {
@@ -483,7 +569,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         const next = dragSegment(g.route, g.index, { x: Math.round(p.x), y: Math.round(p.y) }, g.exits);
         const bends = next.slice(1, -1);
         const wire = editor.circuit.wires.find((w) => w.id === g.wire);
-        if (wire && JSON.stringify(bends) !== JSON.stringify(routes(editor.circuit).get(wire.id)?.slice(1, -1))) {
+        if (wire && JSON.stringify(bends) !== JSON.stringify(currentRoutes(editor.circuit).get(wire.id)?.slice(1, -1))) {
           // The whole drag is one undo step.
           if (!g.recorded) editor.record();
           g.recorded = true;
@@ -499,7 +585,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const wires = editor.circuit.wires.filter((w) => boxed.has(endOwner(w.from)) && boxed.has(endOwner(w.to)));
       editor.select([...new Set([...boxed, ...wires.map((w) => w.id)])]);
     }
-    const hit = gesture?.type === "wire" || !gesture ? hitTest(editor.circuit, p, pick(), routes(editor.circuit)) : null;
+    const hit = gesture?.type === "wire" || !gesture ? hitTest(editor.circuit, p, pick(), currentRoutes(editor.circuit)) : null;
     hover = target(editor.circuit, hit, p, gesture?.type === "wire")?.at ?? null;
     schedule();
   };
@@ -513,7 +599,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       if (editor.circuit.components.find((c) => c.id === id)?.kind === "switch") editor.toggle(id);
     } else if (gesture?.type === "wire") {
       const p = toWorld(e);
-      const end = target(editor.circuit, hitTest(editor.circuit, p, pick(), routes(editor.circuit)), p, true);
+      const end = target(editor.circuit, hitTest(editor.circuit, p, pick(), currentRoutes(editor.circuit)), p, true);
       if (end?.wire) editor.connectToWire(gesture.from, end.wire, end.at);
       else if (end?.end) editor.connect(gesture.from, end.end);
     }
@@ -572,7 +658,22 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       e.preventDefault();
       gesture = null;
       editor.remove(editor.selection);
+    } else if (
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      key === "r" &&
+      // Armed from a part tile, focus is still on that button: R must still turn the part being placed.
+      (editor.armed || (onCanvas && editor.selection.length > 0))
+    ) {
+      e.preventDefault();
+      gesture = null;
+      // While placing, R turns the part about to be placed; otherwise the selection.
+      if (editor.armed) editor.turnArmed(e.shiftKey ? -1 : 1);
+      else editor.rotate(editor.selection, e.shiftKey ? -1 : 1);
     } else if (e.key === "Escape") {
+      // During a drag, Escape puts things back where the drag started; otherwise it clears.
+      if (gesture?.type === "move" || gesture?.type === "segment") return endGesture(true);
       gesture = null;
       editor.arm(null);
       editor.select([]);
@@ -583,9 +684,10 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   canvas.addEventListener("pointerdown", onPointerDown);
   canvas.addEventListener("pointermove", onPointerMove);
   canvas.addEventListener("pointerup", onPointerUp);
-  // A cancelled press (OS interruption, lost touch) is not a release: change nothing.
-  canvas.addEventListener("pointercancel", () => {
-    gesture = null;
+  // A cancelled press (OS interruption, lost touch) is not a release: take back what it did.
+  canvas.addEventListener("pointercancel", () => endGesture(true));
+  canvas.addEventListener("pointerleave", () => {
+    pointer = null;
     schedule();
   });
   canvas.addEventListener("wheel", onWheel, { passive: false });
@@ -607,6 +709,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   const scheme = window.matchMedia("(prefers-color-scheme: dark)");
   const onScheme = () => {
     theme = readTheme();
+    themeVersion++;
     // Labels are recreated in the new theme's ink.
     for (const text of texts.values()) text.destroy();
     texts.clear();

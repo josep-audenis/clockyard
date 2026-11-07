@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import type { CircuitDocument } from "../src/editor/document";
 
 // Must match the canvas defaults in src/canvas/scene.ts: view offset and grid cell, in CSS px.
 const ORIGIN = 48;
@@ -345,4 +347,92 @@ test("drag a wire segment to reshape it; reset its route from the inspector; bot
   await page.keyboard.press("Control+z");
   await click(page, at(7, 1)); // the drag undone: the wire is back on row 1
   await expect(inspector).toContainText("Routed automatically.");
+});
+
+test("R and Shift R rotate the selection; the circuit still works and both undo", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0), out (2,1)
+  await page.keyboard.press("n");
+  await click(page, at(7.5, 6)); // NOT at (6,5): in (6,6), out (9,6)
+  await page.keyboard.press("l");
+  await click(page, at(15, 6)); // LED at (14,5), in (14,6)
+  await drag(page, at(2, 1), at(6, 6));
+  await drag(page, at(9, 6), at(14, 6));
+  await expectStates(page, { "Switch 1": 0, "LED 1": 1 });
+
+  await click(page, at(7, 6)); // select the NOT
+  await page.keyboard.press("r"); // now 2 wide, 3 tall: input on top, output below
+  await expectStates(page, { "LED 1": 1 });
+  await click(page, at(1, 1));
+  await expectStates(page, { "Switch 1": 1, "LED 1": 0 });
+  await click(page, at(7, 6)); // still the NOT's body
+  await page.keyboard.press("Shift+R");
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z");
+  // Back to the start: the NOT's body is at (6..9, 5..7) again.
+  await click(page, at(8.5, 6));
+  await page.keyboard.press("Delete");
+  await expectStates(page, { "LED 1": 0 });
+  await expect(status(page)).toContainText("unconnected");
+});
+
+test("Escape during a drag puts the part back where the drag started", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  await page.keyboard.press("l");
+  await click(page, at(3, 3)); // LED at (2,2)
+  const [from, to] = [at(3, 3), at(10, 10)];
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 5 });
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  // Nothing to redo, and the LED is still at (2,2): a click there selects it, so Delete removes it.
+  await page.keyboard.press("Control+Shift+z");
+  await click(page, at(3, 3));
+  await page.keyboard.press("Delete");
+  await expect(readout(page, "LED 1")).toHaveCount(0);
+});
+
+test("a part cannot be placed with a port on a junction; it stays armed for a better spot", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0), out (2,1)
+  await page.keyboard.press("l");
+  await click(page, at(11, 1)); // LED at (10,0), in (10,1)
+  await page.keyboard.press("l");
+  await click(page, at(11, 7)); // LED at (10,6), in (10,7)
+  await drag(page, at(2, 1), at(10, 1));
+  await drag(page, at(10, 7), at(6, 1.2)); // junction at (6,1)
+  const count = async () => {
+    await page.keyboard.press("Control+a");
+    return inspector.textContent();
+  };
+  const before = await count();
+  expect(before).toContain("7 items selected"); // 3 parts, 1 junction, 3 wires
+
+  // A NOT centred here would sit at (6,0) with its input on the junction: refused.
+  await page.keyboard.press("n");
+  await click(page, at(7.6, 1));
+  expect(await count()).toContain("7 items selected");
+  // Still armed: a click on free ground places it.
+  await click(page, at(7.6, 12));
+  expect(await count()).toContain("8 items selected");
+});
+
+test("R turns a part armed from the parts panel, before it is placed", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  await page.getByRole("button", { name: /^NOT/ }).click(); // focus stays on the tile
+  await page.keyboard.press("r");
+  await click(page, at(6, 6));
+  // Read back from the saved file: the NOT was placed turned.
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export" }).click();
+  const saved = JSON.parse(readFileSync((await (await download).path()) as string, "utf8")) as CircuitDocument;
+  expect(saved.circuit.components[0]?.rotation).toBe(90);
 });

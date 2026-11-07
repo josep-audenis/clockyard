@@ -2,9 +2,17 @@
 // Connectivity is never derived from here; only what the pointer is over.
 import { isJunction, type Circuit, type CircuitComponent, type Junction, type Wire } from "../editor/document";
 import type { Endpoint, PortRef } from "../simulation/protocol";
-import { LAYOUTS, type Point } from "./layout";
+import { layoutOf, type Point } from "./layout";
 
 export type { Point };
+
+/** The four grid directions; a wire's exit from an end is an index into this (or -1: any way). */
+export const DIRS: readonly Point[] = [
+  { x: 1, y: 0 },
+  { x: -1, y: 0 },
+  { x: 0, y: 1 },
+  { x: 0, y: -1 },
+];
 
 /** Parts and junctions by ID, for resolving wire ends. */
 export type Places = { components: Map<string, CircuitComponent>; junctions: Map<string, Junction> };
@@ -15,14 +23,14 @@ export const places = (circuit: Circuit): Places => ({
 });
 
 export function portAt(component: CircuitComponent, port: string): Point | undefined {
-  const layout = LAYOUTS[component.kind];
+  const layout = layoutOf(component);
   const offset = layout.inputs[port] ?? layout.outputs[port];
   return offset && { x: component.position.x + offset.x, y: component.position.y + offset.y };
 }
 
 /** Every port position of a part. */
 export function portsOf(component: CircuitComponent): Point[] {
-  const { inputs, outputs } = LAYOUTS[component.kind];
+  const { inputs, outputs } = layoutOf(component);
   return [...Object.values(inputs), ...Object.values(outputs)].map((o) => ({
     x: component.position.x + o.x,
     y: component.position.y + o.y,
@@ -61,6 +69,10 @@ export function stacksJunction(circuit: Circuit, positions: Record<string, Point
   );
 }
 
+/** True when placing `part` would put one of its ports on a junction (ADR 0010: dots on one spot look joined). */
+export const placementStacks = (circuit: Circuit, part: CircuitComponent) =>
+  stacksJunction({ ...circuit, components: [...circuit.components, part] }, { [part.id]: part.position });
+
 export function endAt(at: Places, end: Endpoint): Point | undefined {
   if (isJunction(end)) return at.junctions.get(end.junction)?.position;
   const component = at.components.get(end.component);
@@ -84,26 +96,37 @@ export function simplify(points: Point[]): Point[] {
   return out;
 }
 
-/** Which way a wire leaves this end: a port heads away from its part (+1 right, -1 left); a junction any way (0). */
+/**
+ * Which way a wire leaves this end, as an index into `DIRS`: a port heads away
+ * from the side of its part it sits on; a junction any way (-1).
+ */
 export function exitOf(at: Places, end: Endpoint): number {
-  if (isJunction(end)) return 0;
+  if (isJunction(end)) return -1;
   const component = at.components.get(end.component);
-  if (!component) return 0;
-  const layout = LAYOUTS[component.kind];
-  const offset = layout.inputs[end.port] ?? layout.outputs[end.port];
-  return offset?.x === 0 ? -1 : offset?.x === layout.width ? 1 : 0;
+  if (!component) return -1;
+  const layout = layoutOf(component);
+  const o = layout.inputs[end.port] ?? layout.outputs[end.port];
+  if (!o) return -1;
+  return o.x === layout.width ? 0 : o.x === 0 ? 1 : o.y === layout.height ? 2 : o.y === 0 ? 3 : -1;
 }
+
+const vertical = (exit: number) => exit >= 2;
 
 /**
  * A shaped wire's route: its ends and bends, with corners added where two
- * neighbours are not in line (an end has moved). Ends are left horizontally.
+ * neighbours are not in line (an end has moved). Each end is left along its
+ * exit (horizontally when it has none).
  */
-export function orthogonal(a: Point, bends: Point[], b: Point): Point[] {
+export function orthogonal(a: Point, bends: Point[], b: Point, exits: [number, number] = [-1, -1]): Point[] {
   const points = [a, ...bends, b];
   const out: Point[] = [a];
   for (let i = 1; i < points.length; i++) {
     const [p, q] = [points[i - 1] as Point, points[i] as Point];
-    if (p.x !== q.x && p.y !== q.y) out.push(i === points.length - 1 ? { x: p.x, y: q.y } : { x: q.x, y: p.y });
+    if (p.x !== q.x && p.y !== q.y) {
+      // Out of `a` along its exit; otherwise into `b` along its exit; in between, across first.
+      const upright = i === 1 ? vertical(exits[0]) : i === points.length - 1 ? !vertical(exits[1]) : false;
+      out.push(upright ? { x: p.x, y: q.y } : { x: q.x, y: p.y });
+    }
     out.push(q);
   }
   return simplify(out);
@@ -119,30 +142,32 @@ export function dragSegment(points: Point[], i: number, to: Point, exits: [numbe
   const [s, e] = [p[i] as Point, p[i + 1] as Point];
   const horizontal = s.y === e.y;
   const last = points.length - 1;
-  let x = to.x;
-  if (!horizontal) {
-    // The vertical next to a port's first run stays outside that port, or the wire would cut back through its part.
-    const [a, b] = [points[0] as Point, points[last] as Point];
-    if (i === 1 && exits[0]) x = exits[0] > 0 ? Math.max(x, a.x + 1) : Math.min(x, a.x - 1);
-    if (i + 2 === last && exits[1]) x = exits[1] > 0 ? Math.max(x, b.x + 1) : Math.min(x, b.x - 1);
-    const outside = (end: Point, exit: number) => !exit || (x - end.x) * exit >= 1;
-    if ((i === 1 && !outside(a, exits[0])) || (i + 2 === last && !outside(b, exits[1]))) return points;
+  // A horizontal segment moves up or down (its y), a vertical one sideways (its x).
+  const axis = horizontal ? "y" : "x";
+  let v = to[axis];
+  // The segment next to a port's first run stays outside that port, or the wire would cut back through its part.
+  const [a, b] = [points[0] as Point, points[last] as Point];
+  const guards: [Point, number][] = [];
+  if (i === 1) guards.push([a, exits[0]]);
+  if (i + 2 === last) guards.push([b, exits[1]]);
+  for (const [end, exit] of guards) {
+    const dir = DIRS[exit];
+    if (!dir || dir[axis] === 0) continue;
+    v = dir[axis] > 0 ? Math.max(v, end[axis] + 1) : Math.min(v, end[axis] - 1);
   }
-  for (const q of [s, e]) {
-    if (horizontal) q.y = to.y;
-    else q.x = x;
-  }
+  const outside = ([end, exit]: [Point, number]) => !DIRS[exit]?.[axis] || (v - end[axis]) * (DIRS[exit]?.[axis] ?? 0) >= 1;
+  if (!guards.every(outside)) return points;
+  for (const q of [s, e]) q[axis] = v;
   const route = p.slice(1, -1);
-  const a = points[0] as Point;
-  const b = points[last] as Point;
   const head = i === 0 ? stub(a, exits[0], s, horizontal) : [a, p[0] as Point];
   const tail = i + 1 === last ? stub(b, exits[1], e, horizontal).reverse() : [p[last] as Point, b];
   return simplify([...head, ...route, ...tail]);
 }
 
-/** From fixed end `end` to the moved segment end `moved`: out along the exit, then across. */
+/** From fixed end `end` to the moved segment end `moved`: one cell out along the exit, then across. */
 function stub(end: Point, exit: number, moved: Point, horizontal: boolean): Point[] {
-  const out = { x: end.x + exit, y: end.y };
+  const d = DIRS[exit] ?? { x: 0, y: 0 };
+  const out = { x: end.x + d.x, y: end.y + d.y };
   return [end, out, horizontal ? { x: out.x, y: moved.y } : { x: moved.x, y: out.y }];
 }
 
@@ -208,7 +233,7 @@ export function hitTest(circuit: Circuit, p: Point, pick: number, routes: Map<st
   let port: Hit = null;
   let best = pick;
   for (const component of circuit.components) {
-    const layout = LAYOUTS[component.kind];
+    const layout = layoutOf(component);
     for (const name of [...Object.keys(layout.inputs), ...Object.keys(layout.outputs)]) {
       const at = portAt(component, name);
       const d = at ? distance(p, at) : Infinity;
@@ -226,7 +251,7 @@ export function hitTest(circuit: Circuit, p: Point, pick: number, routes: Map<st
 
   for (const component of [...circuit.components].reverse()) {
     const { x, y } = component.position;
-    const { width, height } = LAYOUTS[component.kind];
+    const { width, height } = layoutOf(component);
     if (p.x >= x && p.x <= x + width && p.y >= y && p.y <= y + height) return { type: "component", id: component.id };
   }
 
@@ -245,8 +270,9 @@ export function itemsInBox(circuit: Circuit, a: Point, b: Point): string[] {
   const [left, right] = [Math.min(a.x, b.x), Math.max(a.x, b.x)];
   const [top, bottom] = [Math.min(a.y, b.y), Math.max(a.y, b.y)];
   const inside = ({ x, y }: Point) => x >= left && y >= top && x <= right && y <= bottom;
-  const parts = circuit.components.filter(({ kind, position }) => {
-    const { width, height } = LAYOUTS[kind];
+  const parts = circuit.components.filter((component) => {
+    const { position } = component;
+    const { width, height } = layoutOf(component);
     return inside(position) && inside({ x: position.x + width, y: position.y + height });
   });
   return [...parts, ...circuit.junctions.filter((j) => inside(j.position))].map((item) => item.id);
