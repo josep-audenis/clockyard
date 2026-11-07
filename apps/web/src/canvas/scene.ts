@@ -185,8 +185,11 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const selected = new Set(selection);
     // A value is shown only once the engine has reported on the current document.
     const signal = (net: number | undefined): number | null => (stale || !nets || net === undefined ? null : (nets[net] ?? 0));
-    // The engine reports each wire's width (ADR 0014); before it has, every wire is drawn as 1 bit.
-    const bitsOf = (wire: string | undefined) => (stale || wire === undefined ? 1 : (loaded?.wireWidths[wire] ?? 1));
+    // The engine reports each wire's width (ADR 0014). While an edit waits for it, the last report stands (wire IDs are
+    // stable), so buses do not thin for a frame; with no netlist (validation errors) every wire is 1 bit.
+    const bitsOf = (wire: string | undefined) => (wire === undefined ? 1 : (loaded?.wireWidths[wire] ?? 1));
+    /** Hex tags of hovered buses, drawn once every wire is, so no other wire crosses them. */
+    const tags: (() => void)[] = [];
     const at = places(circuit);
     const paths = currentRoutes(circuit);
     const hovered = useCanvasHints.getState().wire;
@@ -222,14 +225,17 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         wires.moveTo(m.x - across.x, m.y - across.y).lineTo(m.x + across.x, m.y + across.y).stroke(bus);
         put(`${wire.id}:bits`, String(bits), m.x + 6, m.y - 6, { x: 0, y: 1 }, color["signal-bus"]);
         if (hovered === wire.id && value !== null) {
-          const tag = put(`${wire.id}:value`, hex(value, bits), m.x + 10, m.y + 10, { x: 0, y: 0 }, color["signal-bus"]);
-          wires
-            .roundRect(m.x + 6, m.y + 7, tag.width + 8, tag.height + 6, size["radius-sm"])
-            .fill({ color: color.bench })
-            .stroke({ width: 1.5, color: color["signal-bus"] });
+          tags.push(() => {
+            const tag = put(`${wire.id}:value`, hex(value, bits), m.x + 10, m.y + 10, { x: 0, y: 0 }, color["signal-bus"]);
+            wires
+              .roundRect(m.x + 6, m.y + 7, tag.width + 8, tag.height + 6, size["radius-sm"])
+              .fill({ color: color.bench })
+              .stroke({ width: 1.5, color: color["signal-bus"] });
+          });
         }
       }
     }
+    for (const tag of tags) tag();
 
     // CanvasKit: a junction is a 4px dot in its net's state colour, read from any wire on it.
     const wireAt = new Map(circuit.wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)].map((owner) => [owner, w.id])));
@@ -254,7 +260,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         const { width, height } = layoutOf(component);
         const centre = px({ x: component.position.x + width / 2, y: component.position.y + height / 2 });
         const text = shown === null ? "--" : hex(shown, bits);
-        put(`${component.id}:value`, text, centre.x, centre.y, { x: 0.5, y: 0.5 }, color["signal-bus"]);
+        // Along the body: a wide part turned upright is too narrow for 8 hex digits across it.
+        const along = component.rotation % 180 === 0 ? 0 : -90;
+        put(`${component.id}:value`, text, centre.x, centre.y, { x: 0.5, y: 0.5 }, color["signal-bus"]).angle = along;
       }
       if (selected.has(component.id)) {
         const { x, y } = px(component.position);

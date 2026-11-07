@@ -197,7 +197,8 @@ Progress:
        Value field (decimal, `0x…`, `0b…`, ↑ and ↓), which a click on it
        focuses; buses in `signal-bus` at `bus-width` with a "/8" slash, a
        hex tag on hover and "8 bits: 44, 0x2C" in the status bar; layouts
-       depend on props, and a width edit re-routes the part's wires.
+       depend on props, and a width edit that resizes a part re-routes its
+       wires (a gate keeps its shape, so its wires keep their routes).
      - Splitters and mergers: Fields in the inspector, Splitter and Merger
        in the parts panel, their layouts with bit ranges, import with their
        `fields` checks, an 8-way fan-out routing test, and the 8-bit adder

@@ -426,7 +426,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           saved={String(part.props.width ?? 1)}
           hint={`Bits on every port, 1 to ${MAX_WIDTH}.`}
           // One undoable edit; anything but a whole number in range leaves the width as it was.
-          onCommit={(value) => useEditor.getState().setWidth(part.id, Number(value.trim()))}
+          onCommit={(value) => /^\s*\d+\s*$/.test(value) && useEditor.getState().setWidth(part.id, Number(value))}
         />
       )}
       {part.kind === "switch" && (part.props.width ?? 1) > 1 && <ValueField part={part} />}
@@ -498,8 +498,11 @@ function ValueField({ part }: { part: CircuitComponent }) {
         autoComplete="off"
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => {
-          commit();
+          // Leaving keeps a valid value and drops anything else, as other fields do.
+          const parsed = draft === null ? null : parseValue(draft, width);
+          if (parsed !== null) useEditor.getState().setInput(part.id, parsed);
           setDraft(null);
+          setWrong(false);
         }}
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing || e.keyCode === 229) return;

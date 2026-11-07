@@ -858,3 +858,19 @@ test("setWidth is one undo step, 1 removes the prop, bad widths and chips are re
   setWidth(chip, 8);
   expect(useEditor.getState().circuit.components.find((c) => c.id === chip)?.props).toEqual({});
 });
+
+test("undo and redo keep a switch's value within the width it gets back", () => {
+  const { add, setWidth, setInput, undo, redo } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  setWidth(s, 8);
+  setInput(s, 200);
+  undo();
+  expect(useEditor.getState().inputs[s]).toBe(0);
+  redo();
+  setInput(s, 200);
+  setWidth(s, 4);
+  undo();
+  setInput(s, 200);
+  redo();
+  expect(useEditor.getState().inputs[s]).toBe(200 % 16);
+});

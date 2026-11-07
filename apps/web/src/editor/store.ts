@@ -129,13 +129,22 @@ export type EditorState = {
 const now = new Date().toISOString();
 const HISTORY_LIMIT = 200;
 
-/** Sets the circuit and drops selection and switch positions that point at items no longer in it. */
+/**
+ * Sets the circuit and drops selection and switch positions that point at items no longer in it.
+ * A switch keeps the bits of its value that fit its width now, whether an edit, undo or redo changed it.
+ */
 function withCircuit(state: EditorState, circuit: Circuit) {
   const kept = new Set(items(circuit).map((item) => item.id));
+  const width = new Map(circuit.components.map((c) => [c.id, c.props.width ?? 1]));
   return {
     circuit,
     selection: state.selection.filter((id) => kept.has(id)),
-    inputs: Object.fromEntries(Object.entries(state.inputs).filter(([id]) => kept.has(id))),
+    inputs: Object.fromEntries(
+      Object.entries(state.inputs).flatMap(([id, value]) => {
+        const bits = width.get(id);
+        return bits === undefined ? [] : [[id, value % 2 ** bits]];
+      }),
+    ),
   };
 }
 
@@ -514,9 +523,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
       const props = { ...part.props };
       if (width > 1) props.width = width;
       else delete props.width;
-      const next = edit(state, { ...state.circuit, components: state.circuit.components.map((c) => (c === part ? { ...c, props } : c)) });
-      const value = state.inputs[id];
-      return value === undefined ? next : { ...next, inputs: { ...next.inputs, [id]: value % 2 ** width } };
+      return edit(state, { ...state.circuit, components: state.circuit.components.map((c) => (c === part ? { ...c, props } : c)) });
     }),
   rotate: (ids, turn) =>
     set((state) => {

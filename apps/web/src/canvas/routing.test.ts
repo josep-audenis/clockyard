@@ -219,3 +219,19 @@ test("a cached circuit is routed again once its instances' pins move", () => {
   expect(routes(main).get("w")?.[0]).toEqual({ x: 4, y: 3 });
   setDefinitionLayouts([]);
 });
+
+test("a width edit that resizes a part routes its wires again; one that does not keeps them", () => {
+  const before: Circuit = {
+    components: [part("s", "switch", 0, 0), part("g", "not", 8, 0)],
+    junctions: [],
+    wires: [wire("w", "s.out", "g.in")],
+  };
+  expect(routes(before).get("w")?.[0]).toEqual({ x: 2, y: 1 });
+  const widen = (c: CircuitComponent) => ({ ...c, props: { width: 8 } });
+  const wide = { ...before, components: before.components.map((c) => (c.id === "s" ? widen(c) : c)) };
+  const route = routes(wide).get("w");
+  expect(route?.[0]).toEqual({ x: 5, y: 1 });
+  // A gate keeps its shape at any width, so its wire keeps its route.
+  const gate = { ...wide, components: wide.components.map((c) => (c.id === "g" ? widen(c) : c)) };
+  expect(routes(gate).get("w")).toBe(route);
+});
