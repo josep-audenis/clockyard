@@ -21,6 +21,8 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+.ruff_cache
 
 .claude
 CLAUDE.md
+AGENTS.md
