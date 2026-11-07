@@ -1,6 +1,6 @@
 # 0014. Multi-bit signals, buses and splitters
 
-- Status: Proposed
+- Status: Accepted (amended below)
 - Date: 2026-11-07
 
 ## Context

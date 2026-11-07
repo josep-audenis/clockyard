@@ -19,7 +19,7 @@ Editing comfort, labels, junctions and nets, routing and rotation merged (PRs
 #8–#14). Custom components and the 4-bit adder target demo merged (PR #16);
 pins renamed safely by part ID (ADR 0013, file format v4); definitions can be
 renamed and deleted (ADR 0012 amendment). Multi-bit signals, buses and
-splitters (ADR 0014, still marked proposed) are built: engine, boundary,
+splitters (ADR 0014) are built: engine, boundary,
 format v5, editor and Playwright (PRs #26–#31). Named connections (net
 labels, ADR 0015) are next.
 
