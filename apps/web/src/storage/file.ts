@@ -8,14 +8,16 @@ import {
   ROTATIONS,
   sameEnd,
   type CircuitComponent,
+  type Circuit,
   type CircuitDocument,
-  type ComponentKind,
+  type Definition,
+  type PartKind,
   type Junction,
   type Props,
   type Wire,
 } from "../editor/document";
 
-export const FORMAT_VERSION = 2;
+export const FORMAT_VERSION = 3;
 
 export type ParseResult = { ok: true; document: CircuitDocument } | { ok: false; error: string };
 
@@ -85,12 +87,53 @@ function readDocument(data: unknown): CircuitDocument {
   if (version > FORMAT_VERSION) {
     throw new Error(`This file uses format version ${version}, from a newer Clockyard. This version reads up to ${FORMAT_VERSION}.`);
   }
-  if (version !== 1 && version !== FORMAT_VERSION) throw new Error(`Format version ${version} is not supported.`);
+  if (version !== 1 && version !== 2 && version !== FORMAT_VERSION) throw new Error(`Format version ${version} is not supported.`);
 
   const metadata = object(data.metadata, "metadata");
   const circuit = object(data.circuit, "circuit");
   // Version 1 → 2 (ADR 0010): junctions arrive; v1 wires already join two ports.
   if (version === 1) circuit.junctions = [];
+  // Version 2 → 3 (ADR 0012): custom component definitions arrive.
+  const rawDefinitions = version < 3 ? [] : array(data.definitions, "definitions");
+
+  // Every definition's ID first: instances anywhere may refer to any of them.
+  const definitionIds = new Set<string>();
+  const shells = rawDefinitions.map((raw, i) => {
+    const where = `Definition ${i + 1}`;
+    const d = object(raw, where);
+    const definitionId = elementId(d.id, `${where} id`);
+    if (definitionIds.has(definitionId)) throw new Error(`${where}: ID ${definitionId} is used more than once.`);
+    definitionIds.add(definitionId);
+    return { d, where, id: definitionId };
+  });
+  const definitions = shells.map(({ d, where, id: definitionId }): Definition => ({
+    id: definitionId,
+    name: text(d.name, `${where} name`),
+    circuit: readCircuit(object(d.circuit, `${where} circuit`), `${where}: `, definitionIds),
+  }));
+
+  return {
+    format: "clockyard",
+    version: FORMAT_VERSION,
+    metadata: {
+      name: text(metadata.name, "metadata.name"),
+      createdAt: text(metadata.createdAt, "metadata.createdAt"),
+      modifiedAt: text(metadata.modifiedAt, "metadata.modifiedAt"),
+    },
+    circuit: readCircuit(circuit, "", definitionIds),
+    definitions,
+  };
+}
+
+/** An element's ID: also never containing `/`, which separates instance paths once components are expanded. */
+function elementId(value: unknown, where: string): string {
+  const result = id(value, where);
+  if (result.includes("/")) throw new Error(`${where} must not contain "/".`);
+  return result;
+}
+
+/** One circuit (the main one or a definition's); `where` prefixes its messages. */
+function readCircuit(circuit: Record<string, unknown>, where0: string, definitionIds: Set<string>): Circuit {
   const seen = new Set<string>();
   const unique = (value: string, where: string) => {
     if (seen.has(value)) throw new Error(`${where}: ID ${value} is used more than once.`);
@@ -98,29 +141,37 @@ function readDocument(data: unknown): CircuitDocument {
     return value;
   };
 
-  const components = array(circuit.components, "circuit.components").map((raw, i): CircuitComponent => {
-    const where = `Component ${i + 1}`;
+  const components = array(circuit.components, `${where0}circuit.components`).map((raw, i): CircuitComponent => {
+    const where = `${where0}Component ${i + 1}`;
     const c = object(raw, where);
     const kind = text(c.kind, `${where} kind`);
-    if (!(COMPONENT_KINDS as readonly string[]).includes(kind)) throw new Error(`${where} has unknown kind "${kind}".`);
+    if (kind !== "custom" && !(COMPONENT_KINDS as readonly string[]).includes(kind)) {
+      throw new Error(`${where} has unknown kind "${kind}".`);
+    }
     const position = object(c.position, `${where} position`);
     const rotation = c.rotation;
     if (!(ROTATIONS as readonly unknown[]).includes(rotation)) throw new Error(`${where} rotation must be 0, 90, 180 or 270.`);
-    return {
-      id: unique(id(c.id, `${where} id`), where),
-      kind: kind as ComponentKind,
+    const part: CircuitComponent = {
+      id: unique(elementId(c.id, `${where} id`), where),
+      kind: kind as PartKind,
       position: { x: integer(position.x, `${where} x`), y: integer(position.y, `${where} y`) },
       rotation: rotation as CircuitComponent["rotation"],
       props: readProps(object(c.props, `${where} props`), where),
     };
+    if (kind === "custom") {
+      const definition = id(c.definition, `${where} definition`);
+      if (!definitionIds.has(definition)) throw new Error(`${where} refers to missing definition ${definition}.`);
+      part.definition = definition;
+    }
+    return part;
   });
 
-  const junctions = array(circuit.junctions, "circuit.junctions").map((raw, i): Junction => {
-    const where = `Junction ${i + 1}`;
+  const junctions = array(circuit.junctions, `${where0}circuit.junctions`).map((raw, i): Junction => {
+    const where = `${where0}Junction ${i + 1}`;
     const j = object(raw, where);
     const position = object(j.position, `${where} position`);
     return {
-      id: unique(id(j.id, `${where} id`), where),
+      id: unique(elementId(j.id, `${where} id`), where),
       position: { x: integer(position.x, `${where} x`), y: integer(position.y, `${where} y`) },
     };
   });
@@ -138,14 +189,14 @@ function readDocument(data: unknown): CircuitDocument {
     if (!componentIds.has(component)) throw new Error(`${where} refers to missing component ${component}.`);
     return { component, port: id(ref.port, `${where} port`) };
   };
-  const wires = array(circuit.wires, "circuit.wires").map((raw, i): Wire => {
-    const where = `Wire ${i + 1}`;
+  const wires = array(circuit.wires, `${where0}circuit.wires`).map((raw, i): Wire => {
+    const where = `${where0}Wire ${i + 1}`;
     const w = object(raw, where);
     const from = end(w.from, `${where} start`);
     const to = end(w.to, `${where} end`);
     // The editor never draws one; on screen it would be an invisible, unclickable wire.
     if (sameEnd(from, to)) throw new Error(`${where} starts and ends at the same place.`);
-    const wire: Wire = { id: unique(id(w.id, `${where} id`), where), from, to };
+    const wire: Wire = { id: unique(elementId(w.id, `${where} id`), where), from, to };
     if (w.bends !== undefined) {
       const bends = array(w.bends, `${where} bends`);
       if (bends.length > MAX_BENDS) throw new Error(`${where} has more than ${MAX_BENDS} bends.`);
@@ -157,14 +208,5 @@ function readDocument(data: unknown): CircuitDocument {
     return wire;
   });
 
-  return {
-    format: "clockyard",
-    version: FORMAT_VERSION,
-    metadata: {
-      name: text(metadata.name, "metadata.name"),
-      createdAt: text(metadata.createdAt, "metadata.createdAt"),
-      modifiedAt: text(metadata.modifiedAt, "metadata.modifiedAt"),
-    },
-    circuit: { components, junctions, wires },
-  };
+  return { components, junctions, wires };
 }

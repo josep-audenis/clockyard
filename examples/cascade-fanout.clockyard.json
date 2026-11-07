@@ -1,6 +1,6 @@
 {
   "format": "clockyard",
-  "version": 2,
+  "version": 3,
   "metadata": {
     "name": "Cascade with fan-out",
     "createdAt": "2026-11-06T12:00:00.000Z",
@@ -24,5 +24,6 @@
       { "id": "w-a-led", "from": { "component": "a", "port": "out" }, "to": { "component": "led-a", "port": "in" } },
       { "id": "w-y-led", "from": { "component": "y", "port": "out" }, "to": { "component": "led-y", "port": "in" } }
     ]
-  }
+  },
+  "definitions": []
 }

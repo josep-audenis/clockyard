@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { definitionName } from "../canvas/layout";
 import { mountCanvas } from "../canvas/scene";
-import { MAX_LABEL, normalizeLabel, type CircuitComponent, type ComponentKind } from "../editor/document";
-import { useEditor } from "../editor/store";
+import { contains, MAX_LABEL, normalizeLabel, type CircuitComponent, type ComponentKind, type PartKind } from "../editor/document";
+import { liveDefinitions, mainCircuit, useEditor } from "../editor/store";
 import { connectEngine, useSim } from "../simulation/sync";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
 
@@ -24,6 +25,9 @@ const LIBRARY: { title: string; parts: Part[] }[] = [
   },
 ];
 const NAMES = new Map(LIBRARY.flatMap(({ parts }) => parts.map(({ kind, name }) => [kind, name] as const)));
+/** What a part is called: its kind, or for a custom component its definition's name. */
+const kindName = (part: Pick<CircuitComponent, "kind" | "definition">) =>
+  part.kind === "custom" ? (definitionName(part.definition) ?? "Component") : NAMES.get(part.kind);
 const SHORTCUTS = new Map(LIBRARY.flatMap(({ parts }) => parts.flatMap(({ kind, key }) => (key ? [[key, kind] as const] : []))));
 /** The platform's name for the shortcut modifier (design system Kbd rule). */
 const MOD = navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl";
@@ -47,6 +51,7 @@ export function App() {
           </svg>
           Clockyard
         </span>
+        <Breadcrumb />
         <FileActions />
       </header>
       <div className="workspace">
@@ -66,9 +71,17 @@ function FileActions() {
   const picker = useRef<HTMLInputElement>(null);
 
   const exportFile = () => {
-    const { metadata, circuit } = useEditor.getState();
+    const state = useEditor.getState();
     const modifiedAt = new Date().toISOString();
-    const text = serializeDocument({ format: "clockyard", version: FORMAT_VERSION, metadata: { ...metadata, modifiedAt }, circuit });
+    // The whole document, whichever sheet is open: the main circuit and every definition as it is now.
+    const text = serializeDocument({
+      format: "clockyard",
+      version: FORMAT_VERSION,
+      metadata: { ...state.metadata, modifiedAt },
+      circuit: mainCircuit(state),
+      definitions: liveDefinitions(state),
+    });
+    const { metadata } = state;
     const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
     const link = Object.assign(document.createElement("a"), { href: url, download: `${slug(metadata.name)}.clockyard.json` });
     link.click();
@@ -80,7 +93,8 @@ function FileActions() {
     if (file.size > MAX_FILE_BYTES) return setError(`Could not open ${file.name}: it is too large to be a Clockyard circuit.`);
     const result = parseDocument(await file.text());
     if (!result.ok) return setError(`Could not open ${file.name}: ${result.error}`);
-    const replacing = useEditor.getState().circuit.components.length > 0;
+    const state = useEditor.getState();
+    const replacing = mainCircuit(state).components.length > 0 || state.definitions.length > 0;
     if (replacing && !window.confirm("Replace the current circuit? Changes since your last export will be lost.")) return;
     useEditor.getState().load(result.document);
     setError(null);
@@ -126,6 +140,13 @@ const slug = (name: string) =>
 function PartsLibrary() {
   const armed = useEditor((s) => s.armed);
   const arm = useEditor((s) => s.arm);
+  const armedDefinition = useEditor((s) => s.armedDefinition);
+  const armChip = useEditor((s) => s.armChip);
+  const sheet = useEditor((s) => s.sheet);
+  // Names and nesting only: the open sheet's own contents never change which chips may go on it.
+  const definitions = useEditor((s) => s.definitions);
+  // On a definition's sheet, neither it nor anything containing it may be placed: that would contain itself.
+  const chips = definitions.filter((d) => !sheet || !contains(definitions, d.id, sheet));
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -159,6 +180,31 @@ function PartsLibrary() {
           </div>
         </section>
       ))}
+      <section className="panel">
+        <h2 className="type-heading panel-title">CHIPS</h2>
+        {chips.length === 0 ? (
+          <p className="type-caption parts-empty">
+            Select a circuit with labelled switches and LEDs, then use Make component in the inspector.
+          </p>
+        ) : (
+          <div className="part-grid">
+            {chips.map((d) => {
+              const on = armed === "custom" && armedDefinition === d.id;
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  className="part-tile type-label"
+                  aria-pressed={on}
+                  onClick={() => (on ? arm(null) : armChip(d.id))}
+                >
+                  {d.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
       <p className="type-caption parts-hint">
         Pick a part or press its key, then click the canvas to place it. Esc cancels. Drag from a port to wire it;
         drop on a wire to branch it; drag a wire to reshape it. <kbd className="kbd">R</kbd> rotates, <kbd className="kbd">Shift</kbd>{" "}
@@ -217,13 +263,11 @@ function Inspector() {
               </button>
             )}
           </div>
+        ) : selection.length > 1 ? (
+          <MakeComponent count={selection.length} />
         ) : (
           <p className="type-body inspector-empty">
-            {selection.length === 0
-              ? "Select a component to edit its properties."
-              : selection.length === 1
-                ? "Junctions have no properties."
-                : `${selection.length} items selected. Select one component to edit its properties.`}
+            {selection.length === 0 ? "Select a component to edit its properties." : "Junctions have no properties."}
           </p>
         )}
       </section>
@@ -231,7 +275,57 @@ function Inspector() {
   );
 }
 
-const PIN_HINT: Partial<Record<ComponentKind, string>> = {
+/** For a selection: turn it into a reusable component (ADR 0012). */
+function MakeComponent({ count }: { count: number }) {
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const id = useId();
+  return (
+    <div className="inspector-body">
+      <p className="type-body inspector-empty">{`${count} items selected.`}</p>
+      <div className="field">
+        <label className="field-label" htmlFor={`${id}-name`}>
+          Component name
+        </label>
+        <input
+          id={`${id}-name`}
+          aria-describedby={`${id}-hint`}
+          className="input"
+          value={name}
+          maxLength={MAX_LABEL}
+          spellCheck={false}
+          placeholder="Full adder"
+          onChange={(e) => setName(e.target.value)}
+        />
+        <p id={`${id}-hint`} className={`field-hint${error ? " field-error" : ""}`} role={error ? "alert" : undefined}>
+          {error ?? "Its labelled switches become inputs and its labelled LEDs outputs."}
+        </p>
+      </div>
+      <button type="button" className="button type-label" onClick={() => setError(useEditor.getState().makeComponent(name))}>
+        Make component
+      </button>
+    </div>
+  );
+}
+
+/** Where the editor is: the main circuit, or a definition open on its own sheet, with the way back. */
+function Breadcrumb() {
+  const sheet = useEditor((s) => s.sheet);
+  const closeSheet = useEditor((s) => s.closeSheet);
+  const name = useEditor((s) => s.definitions.find((d) => d.id === s.sheet)?.name);
+  if (!sheet) return null;
+  return (
+    <nav className="breadcrumb type-label" aria-label="Sheet">
+      <button type="button" className="button type-label" onClick={closeSheet}>
+        Main circuit
+      </button>
+      <span aria-hidden="true">›</span>
+      <span aria-current="page">{name}</span>
+    </nav>
+  );
+}
+
+const PIN_HINT: Partial<Record<PartKind, string>> = {
   switch: "Names this input pin of the circuit.",
   led: "Names this output pin of the circuit.",
 };
@@ -244,7 +338,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
   const id = useId();
   return (
     <div className="inspector-body">
-      <p className="type-label inspector-kind">{NAMES.get(part.kind)}</p>
+      <p className="type-label inspector-kind">{kindName(part)}</p>
       <div className="field">
         <label className="field-label" htmlFor={`${id}-label`}>
           Label
@@ -279,15 +373,24 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           {PIN_HINT[part.kind] ?? "Shown under the part on the canvas."}
         </p>
       </div>
+      {part.kind === "custom" && part.definition && (
+        <button
+          type="button"
+          className="button type-label"
+          onClick={() => part.definition && useEditor.getState().openSheet(part.definition)}
+        >
+          Edit component
+        </button>
+      )}
     </div>
   );
 }
 
 /** A part's label, or its kind and position among parts of that kind ("Switch 2"). */
 function partName(components: CircuitComponent[], part: CircuitComponent) {
-  if (part.props.label) return `${NAMES.get(part.kind)} ${part.props.label}`;
-  const same = components.filter((c) => c.kind === part.kind);
-  return `${NAMES.get(part.kind)} ${same.indexOf(part) + 1}`;
+  if (part.props.label) return `${kindName(part)} ${part.props.label}`;
+  const same = components.filter((c) => c.kind === part.kind && c.definition === part.definition);
+  return `${kindName(part)} ${same.indexOf(part) + 1}`;
 }
 
 /** The canvas is pixels only; this lists switch and LED states for screen readers (and browser tests). */
@@ -321,6 +424,10 @@ const PLAIN: Record<string, string> = {
   multipleDrivers: "An input has more than one driver.",
   unconnectedInput: "An input is unconnected and reads 0.",
   unstable: "The circuit did not settle: a loop keeps oscillating.",
+  unknownDefinition: "A component's definition is missing.",
+  recursiveDefinition: "A component contains itself, so it cannot be built.",
+  invalidPin: "A component has an unnamed or repeated pin: label each of its switches and LEDs once.",
+  tooLarge: "The circuit is too large once its components are expanded.",
 };
 
 function StatusBar() {

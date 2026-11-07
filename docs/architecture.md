@@ -50,12 +50,12 @@ The UI never computes a signal value. It renders values received from the worker
 
 The editable design. Owned by the frontend, serialized as JSON, versioned.
 
-Format version 2 (ADR 0010; exact schema fixed in code with validation):
+Format version 3 (ADRs 0010, 0012; exact schema fixed in code with validation):
 
 ```json
 {
   "format": "clockyard",
-  "version": 2,
+  "version": 3,
   "metadata": { "name": "AND demo", "createdAt": "2026-11-06T12:00:00Z", "modifiedAt": "2026-11-06T12:00:00Z" },
   "circuit": {
     "components": [
@@ -72,7 +72,10 @@ Format version 2 (ADR 0010; exact schema fixed in code with validation):
       { "id": "w7a13", "from": { "junction": "j4c01" }, "to": { "component": "p81c2", "port": "b" } },
       { "id": "w7a11", "from": { "component": "p81c2", "port": "out" }, "to": { "component": "m02de", "port": "in" } }
     ]
-  }
+  },
+  "definitions": [
+    { "id": "d1", "name": "Full adder", "circuit": { "components": [], "junctions": [], "wires": [] } }
+  ]
 }
 ```
 
@@ -91,12 +94,16 @@ Rules:
 - A wire's route is geometry only. It is routed on the grid automatically
   (`canvas/routing.ts`), unless the user shaped it: then its optional `bends`
   lists the route's interior grid points (at most 64; ADR 0011).
-- Custom component definitions live in a `definitions` section; instances refer
-  to them by definition ID (Phase 2).
+- **Custom components** (ADR 0012): `definitions` lists `{ id, name, circuit }`;
+  an instance is a part with `kind: "custom"` and `definition: id`. Inside a
+  definition, labelled switches are its input pins and labelled LEDs its
+  output pins; an instance's ports are those labels, in top-to-bottom order.
+  IDs never contain `/`, which separates instance paths once expanded.
 - Transient simulation data (signal values, clock count) is never part of the
   document.
 - Loading an older `version` runs explicit migrations in `storage/`
-  (v1 → v2 adds an empty `junctions` list). Unknown future versions are
+  (v1 → v2 adds an empty `junctions` list, v2 → v3 an empty `definitions`
+  list). Unknown future versions are
   rejected with a clear message. Export always writes the current version.
 - Import (`storage/file.ts`) treats the file as untrusted: every field is
   type-checked, unknown fields are dropped, IDs must be unique across parts,
@@ -121,10 +128,14 @@ file format evolve (migrations, layout fields) without touching Rust.
 
 ```ts
 // apps/web/src/simulation/protocol.ts ↔ sim-core `description`
-type CircuitDescription = {
-  components: { id: string; kind: string }[];
+type CircuitBody = {
+  components: { id: string; kind: string; definition?: string }[];
   junctions: { id: string }[];
   connections: { id: string; from: Endpoint; to: Endpoint }[]; // id = document wire ID
+};
+type CircuitDescription = CircuitBody & {
+  // Pins listed explicitly: { name, component } for each switch (inputs) and LED (outputs).
+  definitions: (CircuitBody & { id: string; inputs: PinDesc[]; outputs: PinDesc[] })[];
 };
 type Endpoint = { component: string; port: string } | { junction: string };
 ```
@@ -144,7 +155,7 @@ Produced inside `sim-core` from a circuit description:
 ```
 circuit description
    → validate (known kinds, existing ports, directions, widths, single driver)
-   → resolve definitions (Phase 2: missing / recursive definitions are errors)
+   → resolve definitions (missing / recursive definitions and bad pins are errors; ADR 0012)
    → elaborate hierarchy into flat primitives (each instance gets its own state)
    → build nets (one driver, N readers)
    → compiled netlist: dense arrays indexed by u32

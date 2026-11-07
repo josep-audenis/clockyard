@@ -1,6 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 import type { Circuit, CircuitComponent, Wire } from "../editor/document";
 import type { Point } from "./geometry";
+import { setDefinitionLayouts } from "./layout";
 import { forgetRoutes, routes, routesKeeping } from "./routing";
 
 // Each test starts as if a file had just been opened: no earlier circuit to compare with.
@@ -197,4 +198,24 @@ test("after forgetRoutes (opening a file) everything is routed afresh", () => {
     { x: 2, y: 1 },
     { x: 20, y: 1 },
   ]);
+});
+
+test("a cached circuit is routed again once its instances' pins move", () => {
+  const led = (id: string, y: number, label: string): CircuitComponent => ({ ...part(id, "led", 9, y), props: { label } });
+  const definition = (extra: CircuitComponent[]) => ({
+    id: "d",
+    name: "D",
+    circuit: { components: [...extra, led("o", 4, "Out")], junctions: [], wires: [] },
+  });
+  setDefinitionLayouts([definition([])]);
+  const main: Circuit = {
+    components: [{ ...part("x", "custom", 0, 0), definition: "d" }, part("l", "led", 12, 0)],
+    junctions: [],
+    wires: [wire("w", "x.Out", "l.in")],
+  };
+  expect(routes(main).get("w")?.[0]).toEqual({ x: 4, y: 1 });
+  // An LED above Out moves it down a pin; the same circuit object must not keep its old route.
+  setDefinitionLayouts([definition([led("aux", 0, "Aux")])]);
+  expect(routes(main).get("w")?.[0]).toEqual({ x: 4, y: 3 });
+  setDefinitionLayouts([]);
 });

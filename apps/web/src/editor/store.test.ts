@@ -1,6 +1,8 @@
 import { beforeEach, expect, test } from "vitest";
 import { endOwner } from "./document";
-import { useEditor } from "./store";
+import { contains } from "./document";
+import { liveDefinitions, mainCircuit, useEditor } from "./store";
+import { layoutOf } from "../canvas/layout";
 
 const initial = useEditor.getState();
 beforeEach(() => useEditor.setState(initial, true));
@@ -68,7 +70,7 @@ test("load replaces the document and clears transient state", () => {
   toggle(add("switch", { x: 0, y: 0 }));
   const metadata = { name: "Loaded", createdAt: "2026-01-01T00:00:00Z", modifiedAt: "2026-01-02T00:00:00Z" };
   const circuit = { components: [], junctions: [], wires: [] };
-  load({ format: "clockyard", version: 2, metadata, circuit });
+  load({ format: "clockyard", version: 3, metadata, circuit, definitions: [] });
   const state = useEditor.getState();
   expect([state.metadata, state.circuit, state.selection, state.inputs]).toEqual([metadata, circuit, [], {}]);
 });
@@ -127,7 +129,7 @@ test("loading a document clears history", () => {
   const { add, load, undo } = useEditor.getState();
   add("switch", { x: 0, y: 0 });
   const metadata = { name: "x", createdAt: "", modifiedAt: "" };
-  load({ format: "clockyard", version: 2, metadata, circuit: { components: [], junctions: [], wires: [] } });
+  load({ format: "clockyard", version: 3, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
   undo();
   expect(ids()).toEqual([]);
 });
@@ -584,4 +586,128 @@ test("turning a part on its own drops the shape of a wire that leaves the turned
     from: { component: "g", port: "out" },
     to: { component: "l", port: "in" },
   });
+});
+
+/** A labelled inverter on the current sheet: switch In → NOT → LED Out. Returns their IDs. */
+function inverter() {
+  const { add, connect, setLabel } = useEditor.getState();
+  const i = add("switch", { x: 2, y: 3 });
+  const n = add("not", { x: 6, y: 3 });
+  const o = add("led", { x: 11, y: 3 });
+  setLabel(i, "In");
+  setLabel(o, "Out");
+  connect(port(i, "out"), port(n, "in"));
+  connect(port(n, "out"), port(o, "in"));
+  return { i, n, o };
+}
+
+test("make component turns the selection into a definition and puts one instance in its place", () => {
+  const { i, n, o } = inverter();
+  const outside = useEditor.getState().add("led", { x: 20, y: 3 });
+  useEditor.getState().connect(port(n, "out"), port(outside, "in")); // crosses the selection's edge: dropped
+  const { select, makeComponent, undo } = useEditor.getState();
+  select([i, n, o]);
+  expect(makeComponent("  Inverter ")).toBeNull();
+  const state = useEditor.getState();
+  const [definition] = state.definitions;
+  expect(definition?.name).toBe("Inverter");
+  // Moved to its own origin, wires inside kept.
+  expect(definition?.circuit.components.map((c) => c.position)).toEqual([
+    { x: 0, y: 0 },
+    { x: 4, y: 0 },
+    { x: 9, y: 0 },
+  ]);
+  expect(definition?.circuit.wires).toHaveLength(2);
+  const instance = state.circuit.components.find((c) => c.kind === "custom");
+  expect(instance).toMatchObject({ definition: definition?.id, position: { x: 2, y: 3 } });
+  expect(state.circuit.components.map((c) => c.id)).toEqual([outside, instance?.id]);
+  expect(state.circuit.wires).toEqual([]);
+  expect(state.selection).toEqual([instance?.id]);
+  // Its layout comes from the pins: input In on the left, output Out on the right.
+  expect(layoutOf(instance as never)).toEqual({ width: 4, height: 2, inputs: { In: { x: 0, y: 1 } }, outputs: { Out: { x: 4, y: 1 } } });
+  // One undo step for the main circuit; the definition stays available.
+  undo();
+  expect(useEditor.getState().circuit.components.map((c) => c.id)).toEqual([i, n, o, outside]);
+  expect(useEditor.getState().definitions).toHaveLength(1);
+});
+
+test("make component refuses a selection without pins, with an unnamed pin or a repeated name", () => {
+  const { add, select, makeComponent, setLabel } = useEditor.getState();
+  const g = add("and", { x: 0, y: 0 });
+  const s = add("switch", { x: 0, y: 6 });
+  const t = add("switch", { x: 0, y: 9 });
+  select([g]);
+  expect(makeComponent("x")).toMatch(/needs pins/);
+  select([g, s]);
+  expect(makeComponent("x")).toMatch(/Label every switch and LED/);
+  setLabel(s, "A");
+  setLabel(t, "A");
+  select([g, s, t]);
+  expect(makeComponent("x")).toMatch(/share a name/);
+  expect(useEditor.getState().definitions).toEqual([]);
+});
+
+test("a definition opens on its own sheet; edits apply to it, each sheet keeps its undo, and back restores the main", () => {
+  const { i, n, o } = inverter();
+  useEditor.getState().select([i, n, o]);
+  useEditor.getState().makeComponent("Inverter");
+  const id = useEditor.getState().definitions[0]?.id ?? "";
+  const mainBefore = useEditor.getState().circuit;
+  useEditor.getState().openSheet(id);
+  expect(useEditor.getState().sheet).toBe(id);
+  expect(useEditor.getState().circuit.components).toHaveLength(3);
+  expect(mainCircuit(useEditor.getState())).toBe(mainBefore);
+  // An edit on the sheet is the live definition (what simulation and layout see), and undoable there.
+  useEditor.getState().add("led", { x: 9, y: 4 });
+  expect(liveDefinitions(useEditor.getState())[0]?.circuit.components).toHaveLength(4);
+  useEditor.getState().undo();
+  expect(useEditor.getState().circuit.components).toHaveLength(3);
+  useEditor.getState().redo();
+  useEditor.getState().closeSheet();
+  const state = useEditor.getState();
+  expect([state.sheet, state.circuit]).toEqual([null, mainBefore]);
+  expect(state.definitions[0]?.circuit.components).toHaveLength(4);
+  // The main circuit's own history is back: undo takes back the make component.
+  useEditor.getState().undo();
+  expect(useEditor.getState().circuit.components.map((c) => c.id)).toEqual([i, n, o]);
+});
+
+test("an armed chip places an instance of its definition; nesting is checked through definitions", () => {
+  const { i, n, o } = inverter();
+  useEditor.getState().select([i, n, o]);
+  useEditor.getState().makeComponent("Inverter");
+  const inner = useEditor.getState().definitions[0]?.id ?? "";
+  const { armChip, add } = useEditor.getState();
+  armChip(inner);
+  const placed = add("custom", { x: 0, y: 10 });
+  expect(useEditor.getState().circuit.components.find((c) => c.id === placed)?.definition).toBe(inner);
+  const definitions = [
+    ...useEditor.getState().definitions,
+    { id: "outer", name: "Outer", circuit: { components: useEditor.getState().circuit.components.slice(-1), junctions: [], wires: [] } },
+  ];
+  expect(contains(definitions, "outer", inner)).toBe(true);
+  expect(contains(definitions, inner, "outer")).toBe(false);
+});
+
+test("paste refuses an instance that would make a definition contain itself; opening a file clears the clipboard", () => {
+  const { i, n, o } = inverter();
+  useEditor.getState().select([i, n, o]);
+  useEditor.getState().makeComponent("Inverter");
+  const state = useEditor.getState();
+  const id = state.definitions[0]?.id ?? "";
+  // Copy the instance, then try to paste it into its own definition.
+  state.copy();
+  state.openSheet(id);
+  const before = useEditor.getState().circuit;
+  useEditor.getState().paste();
+  expect(useEditor.getState().circuit).toBe(before);
+  useEditor.getState().closeSheet();
+  useEditor.getState().paste();
+  expect(useEditor.getState().circuit.components.filter((c) => c.kind === "custom")).toHaveLength(2);
+  // Another file has none of these definitions: nothing is left to paste.
+  const metadata = { name: "Other", createdAt: "2026-11-07T00:00:00Z", modifiedAt: "2026-11-07T00:00:00Z" };
+  useEditor.getState().load({ format: "clockyard", version: 3, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  useEditor.getState().paste();
+  expect(useEditor.getState().clipboard).toBeNull();
+  expect(useEditor.getState().circuit.components).toEqual([]);
 });

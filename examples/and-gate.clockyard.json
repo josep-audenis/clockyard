@@ -1,6 +1,6 @@
 {
   "format": "clockyard",
-  "version": 2,
+  "version": 3,
   "metadata": {
     "name": "AND gate",
     "createdAt": "2026-11-06T12:00:00.000Z",
@@ -19,5 +19,6 @@
       { "id": "w-b", "from": { "component": "b", "port": "out" }, "to": { "component": "and", "port": "b" } },
       { "id": "w-out", "from": { "component": "and", "port": "out" }, "to": { "component": "led", "port": "in" } }
     ]
-  }
+  },
+  "definitions": []
 }

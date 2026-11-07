@@ -3,7 +3,7 @@
 import { endOwner, isJunction, type Circuit } from "../editor/document";
 import type { Endpoint } from "../simulation/protocol";
 import { DIRS, endAt, exitOf, orthogonal, places, simplify, wirePoints, type Point } from "./geometry";
-import { layoutOf } from "./layout";
+import { layoutOf, layoutsVersion } from "./layout";
 
 /** Extra cost of a bend. */
 const BEND = 3;
@@ -282,11 +282,18 @@ export function search(
   }
 }
 
-const cache = new WeakMap<Circuit, Map<string, Point[]>>();
-const kept = new WeakMap<Circuit, Map<string, Point[]>>();
+// Keyed by circuit, but stale once instances' layouts change (a definition was edited).
+type Cached = { layouts: number; routes: Map<string, Point[]> };
+const cache = new WeakMap<Circuit, Cached>();
+const kept = new WeakMap<Circuit, Cached>();
+/** The routes cached for `circuit`, unless layouts have changed since. */
+const fresh = (map: WeakMap<Circuit, Cached>, circuit: Circuit) => {
+  const hit = map.get(circuit);
+  return hit?.layouts === layoutsVersion() ? hit.routes : undefined;
+};
 
 /** The circuit `routes` last worked out, so the next one only routes what changed. */
-let last: { circuit: Circuit; routes: Map<string, Point[]> } | null = null;
+let last: { circuit: Circuit; routes: Map<string, Point[]>; layouts: number } | null = null;
 
 /** Forgets the last routed circuit, so the next one is routed afresh (opening a file). */
 export function forgetRoutes() {
@@ -300,13 +307,15 @@ export function forgetRoutes() {
  * object on every change.
  */
 export function routes(circuit: Circuit): Map<string, Point[]> {
-  let result = cache.get(circuit);
+  let result = fresh(cache, circuit);
   if (!result) {
-    result = route(circuit, last ? unaffected(last.circuit, last.routes, circuit) : new Map());
-    cache.set(circuit, result);
+    // Instances' ports move when their definitions' pins change: nothing on an instance is kept then.
+    const sameLayouts = last?.layouts === layoutsVersion();
+    result = route(circuit, last ? unaffected(last.circuit, last.routes, circuit, sameLayouts) : new Map());
+    cache.set(circuit, { layouts: layoutsVersion(), routes: result });
   }
   // Even a cached circuit becomes the one the next edit is compared with (undo returns to one).
-  last = { circuit, routes: result };
+  last = { circuit, routes: result, layouts: layoutsVersion() };
   return result;
 }
 
@@ -317,14 +326,27 @@ export function routes(circuit: Circuit): Map<string, Point[]> {
  * routes may be longer than a fresh route would be (something that was in the
  * way may be gone); opening a file routes everything afresh.
  */
-function unaffected(prev: Circuit, before: Map<string, Point[]>, next: Circuit): Map<string, Point[]> {
+function unaffected(
+  prev: Circuit,
+  before: Map<string, Point[]>,
+  next: Circuit,
+  sameLayouts: boolean,
+): Map<string, Point[]> {
   const parts = new Map(prev.components.map((c) => [c.id, c]));
   const dots = new Map(prev.junctions.map((j) => [j.id, j.position]));
   const wires = new Map(prev.wires.map((w) => [w.id, w]));
   const stays = (id: string) => {
     const [old, now] = [parts.get(id), next.components.find((c) => c.id === id)];
     if (old || now) {
-      return !!old && !!now && old.kind === now.kind && old.rotation === now.rotation && samePoint(old.position, now.position);
+      return (
+        !!old &&
+        !!now &&
+        old.kind === now.kind &&
+        old.definition === now.definition &&
+        (old.kind !== "custom" || sameLayouts) &&
+        old.rotation === now.rotation &&
+        samePoint(old.position, now.position)
+      );
     }
     const [was, is] = [dots.get(id), next.junctions.find((j) => j.id === id)?.position];
     return !!was && !!is && samePoint(was, is);
@@ -395,8 +417,8 @@ function crosses(points: Point[], box: { x: number; y: number; width: number; he
  * again. The full `routes` runs once the drag ends.
  */
 export function routesKeeping(circuit: Circuit, frozen: Map<string, Point[]>): Map<string, Point[]> {
-  let result = kept.get(circuit);
-  if (!result) kept.set(circuit, (result = route(circuit, frozen)));
+  let result = fresh(kept, circuit);
+  if (!result) kept.set(circuit, { layouts: layoutsVersion(), routes: (result = route(circuit, frozen)) });
   return result;
 }
 

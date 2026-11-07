@@ -7,11 +7,20 @@ export type JunctionRef = { junction: string };
 /** A wire end: a component port or a junction (ADR 0010). */
 export type Endpoint = PortRef | JunctionRef;
 
-/** Geometry-free engine input, projected from the circuit document. */
-export type CircuitDescription = {
-  components: { id: string; kind: string }[];
+/** A circuit's parts and wires without geometry, as the engine reads them. */
+export type CircuitBody = {
+  /** `definition`: for `custom` parts, the definition it is an instance of (ADR 0012). */
+  components: { id: string; kind: string; definition?: string }[];
   junctions: { id: string }[];
   connections: { id: string; from: Endpoint; to: Endpoint }[];
+};
+
+/** A pin of a custom component: the port name instances show, and the switch or LED inside. */
+export type PinDesc = { name: string; component: string };
+
+/** Geometry-free engine input, projected from the circuit document. */
+export type CircuitDescription = CircuitBody & {
+  definitions: (CircuitBody & { id: string; inputs: PinDesc[]; outputs: PinDesc[] })[];
 };
 
 export type Diagnostic = {

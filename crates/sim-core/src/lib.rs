@@ -6,6 +6,7 @@
 
 pub mod catalog;
 pub mod description;
+pub mod elaborate;
 pub mod sim;
 
 pub use catalog::Kind;

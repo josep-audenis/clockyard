@@ -11,17 +11,46 @@ pub struct CircuitDescription {
     #[serde(default)]
     pub junctions: Vec<JunctionDesc>,
     pub connections: Vec<Connection>,
+    /// Custom component definitions that `custom` parts refer to (ADR 0012).
+    #[serde(default)]
+    pub definitions: Vec<DefinitionDesc>,
+}
+
+/// A reusable circuit. Its pins are switches (inputs) and LEDs (outputs) inside it.
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct DefinitionDesc {
+    pub id: String,
+    pub components: Vec<ComponentDesc>,
+    #[serde(default)]
+    pub junctions: Vec<JunctionDesc>,
+    pub connections: Vec<Connection>,
+    pub inputs: Vec<PinDesc>,
+    pub outputs: Vec<PinDesc>,
+}
+
+/// A pin: the port name instances show, and the switch or LED inside that it is.
+#[derive(Clone, Debug, Deserialize)]
+pub struct PinDesc {
+    pub name: String,
+    pub component: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct JunctionDesc {
     pub id: String,
+    /// Set by elaboration for a custom component's pin: a net reaching one but
+    /// no output is an unconnected input (reads 0), not an error (ADR 0012).
+    #[serde(skip)]
+    pub pin: bool,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct ComponentDesc {
     pub id: String,
     pub kind: String,
+    /// For `custom` parts: the definition it is an instance of.
+    #[serde(default)]
+    pub definition: Option<String>,
 }
 
 /// A wire between two ends. Either end may be the output; the engine
@@ -99,6 +128,10 @@ pub enum Code {
     InputToInput,
     MultipleDrivers,
     UnconnectedInput,
+    UnknownDefinition,
+    RecursiveDefinition,
+    InvalidPin,
+    TooLarge,
     // Runtime
     Unstable,
 }
