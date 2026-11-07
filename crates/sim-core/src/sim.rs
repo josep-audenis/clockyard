@@ -365,9 +365,12 @@ impl Simulator {
     /// then on every net matches the plain all-zero settle delta by delta.
     /// This needs `eval` to be pure while settling: a component whose state
     /// changes during a settle (a future flip-flop) must count as a loop here.
+    /// Any settle from all-zero nets (a future reset too) should call it first.
     fn presettle(&mut self) {
-        // Every net but ground is an output's; ground is skipped below.
-        let mut driver = vec![0; self.nets.len()];
+        // Every net but ground is an output's; ground is skipped below. A net
+        // with no driver (say, a future bus) makes `readers[d]` below panic
+        // rather than silently corrupt another component's reader count.
+        let mut driver = vec![usize::MAX; self.nets.len()];
         for (c, net) in self.outputs.iter().enumerate() {
             if let Some(net) = net {
                 driver[*net as usize] = c;
@@ -777,7 +780,10 @@ mod tests {
         let elapsed = start.elapsed();
         assert_eq!(value(&sim, &name(0), "out"), 1);
         assert_eq!(value(&sim, &name(n - 1), "out"), 0);
-        assert!(elapsed.as_secs() < 5, "load took {elapsed:?}");
+        // Quadratic loading took ~48 s in release, far longer in debug; linear
+        // takes ~1 s in debug, so slow machines keep plenty of room.
+        let bound = if cfg!(debug_assertions) { 20 } else { 2 };
+        assert!(elapsed.as_secs() < bound, "load took {elapsed:?}");
     }
 
     #[test]
