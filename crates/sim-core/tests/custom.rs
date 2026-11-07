@@ -186,6 +186,17 @@ fn missing_recursive_and_badly_pinned_definitions_are_errors() {
         codes(looping),
         vec![(Code::RecursiveDefinition, ids(&["x"]))]
     );
+    // Two pins on one part would join two outside wires through one switch.
+    let mut shared = full_adder();
+    shared["inputs"][1]["component"] = json!("a");
+    assert_eq!(
+        codes(json!({
+            "components": [{ "id": "x", "kind": "custom", "definition": "fa" }],
+            "connections": [],
+            "definitions": [shared]
+        })),
+        vec![(Code::InvalidPin, ids(&["x"]))]
+    );
     let mut bad = full_adder();
     bad["inputs"][1]["name"] = json!("A"); // two pins named A
     bad["outputs"][0]["component"] = json!("x1"); // an XOR is not an LED

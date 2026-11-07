@@ -37,8 +37,8 @@ four full adders. ADR 0004 already says `sim-core` elaborates hierarchy.
    pins driving one wire and inputs joined with nothing driving them are
    reported where the user wired them.
 4. **Errors.** An unknown definition, a definition that contains itself
-   (directly or through others), an invalid pin (missing or repeated name, or
-   a pin that is not a switch or LED; since ADR 0013 the editor names pins by
+   (directly or through others), an invalid pin (missing or repeated name, two
+   pins on one part, or a pin that is not a switch or LED; since ADR 0013 the editor names pins by
    part ID, so only a hand-made file can have one) and a flattened circuit of more than
    200,000 items are validation errors. Parts, junctions, wires and instance
    expansions all count, so a small file of nested definitions cannot expand

@@ -52,7 +52,7 @@ pub(crate) fn find(parent: &mut [usize], mut node: usize) -> usize {
 }
 
 /// "wire w0 connects" or "wires w0, w1 connect".
-fn wires_verb(wires: &[String], verb: &str) -> String {
+pub(crate) fn wires_verb(wires: &[String], verb: &str) -> String {
     let (s, verb_s) = if wires.len() == 1 {
         ("", "s")
     } else {

@@ -13,7 +13,7 @@ use crate::description::{
     CircuitDescription, Code, ComponentDesc, Connection, DefinitionDesc, Diagnostic, Endpoint,
     JunctionDesc, PinDesc, PortRef,
 };
-use crate::sim::find;
+use crate::sim::{find, wires_verb};
 
 /// Kind of a part that is an instance of a definition.
 pub const CUSTOM: &str = "custom";
@@ -147,6 +147,7 @@ fn check_pins(definition: &DefinitionDesc, instance: &str, errors: &mut Vec<Diag
         .map(|c| (c.id.as_str(), c.kind.as_str()))
         .collect();
     let mut names = BTreeSet::new();
+    let mut parts = BTreeSet::new();
     let pins = definition
         .inputs
         .iter()
@@ -157,6 +158,8 @@ fn check_pins(definition: &DefinitionDesc, instance: &str, errors: &mut Vec<Diag
             Some("has a pin without a name".to_string())
         } else if !names.insert(pin.name.as_str()) {
             Some(format!("has more than one pin named '{}'", pin.name))
+        } else if !parts.insert(pin.component.as_str()) {
+            Some(format!("has more than one pin on part {}", pin.component))
         } else if kinds.get(pin.component.as_str()) != Some(&kind) {
             Some(format!("pin '{}' is not a {kind} of it", pin.name))
         } else {
@@ -251,62 +254,52 @@ fn check_wiring<'a>(
         let (ra, rb) = (find(&mut parent, a), find(&mut parent, b));
         parent[ra] = rb;
     }
-    // Per net, in order of its first wire.
-    #[derive(Default)]
-    struct Net {
-        root: usize,
-        drivers: usize,
-        readers: usize,
-        pin: bool,
-        wires: Vec<String>,
+    // Per net (by root): drivers, readers and whether it touches a pin.
+    let mut tally = vec![(0usize, 0usize, false); ends.len()];
+    for (node, end) in ends.iter().enumerate() {
+        if let Some((role, pin)) = *end {
+            let net = &mut tally[find(&mut parent, node)];
+            match role {
+                Role::Drives => net.0 += 1,
+                Role::Reads => net.1 += 1,
+            }
+            net.2 |= pin;
+        }
     }
-    let mut nets: Vec<Net> = Vec::new();
+    // The wires of each net that breaks a rule, nets in order of their first wire.
+    let mut broken: BTreeMap<usize, usize> = BTreeMap::new();
+    let mut found: Vec<(Code, Vec<String>)> = Vec::new();
     for &(wire, a, _) in &joined {
         let root = find(&mut parent, a);
-        let at = nets.iter().position(|n| n.root == root).unwrap_or_else(|| {
-            nets.push(Net {
-                root,
-                ..Net::default()
-            });
-            nets.len() - 1
-        });
-        nets[at].wires.push(format!("{prefix}{wire}"));
-    }
-    for (node, end) in ends.iter().enumerate() {
-        let root = find(&mut parent, node);
-        let (Some(net), Some((role, pin))) = (nets.iter_mut().find(|n| n.root == root), *end)
-        else {
-            continue;
-        };
-        match role {
-            Role::Drives => net.drivers += 1,
-            Role::Reads => net.readers += 1,
-        }
-        net.pin |= pin;
-    }
-    let mut found = Vec::new();
-    for Net {
-        drivers,
-        readers,
-        pin,
-        wires,
-        ..
-    } in nets
-    {
-        let (code, what) = match (drivers, readers) {
-            _ if !pin => continue,
-            (2.., 0) => (Code::OutputToOutput, "join outputs"),
-            (2.., _) => (Code::MultipleDrivers, "give an input more than one driver"),
-            (0, 2..) => (Code::InputToInput, "connect inputs and nothing drives them"),
+        let code = match tally[root] {
+            (_, _, false) => continue,
+            (2.., 0, _) => Code::OutputToOutput,
+            (2.., _, _) => Code::MultipleDrivers,
+            (0, 2.., _) => Code::InputToInput,
             _ => continue,
         };
-        let mut ids: Vec<String> = wires.iter().map(|w| top(w).to_string()).collect();
-        ids.sort();
-        ids.dedup();
-        let message = format!("wires {} {what}", wires.join(", "));
-        found.push(Diagnostic::error(code, message, ids));
+        let at = *broken.entry(root).or_insert_with(|| {
+            found.push((code, Vec::new()));
+            found.len() - 1
+        });
+        found[at].1.push(format!("{prefix}{wire}"));
     }
     found
+        .into_iter()
+        .map(|(code, mut wires)| {
+            wires.sort();
+            let what = match code {
+                Code::OutputToOutput => "outputs",
+                Code::MultipleDrivers => "an input to more than one driver",
+                _ => "inputs and nothing drives them",
+            };
+            let message = format!("{} {what}", wires_verb(&wires, "connect"));
+            let mut ids: Vec<String> = wires.iter().map(|w| top(w).to_string()).collect();
+            ids.sort();
+            ids.dedup();
+            Diagnostic::error(code, message, ids)
+        })
+        .collect()
 }
 
 struct Flat<'a> {
