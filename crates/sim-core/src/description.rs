@@ -3,6 +3,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::catalog::{Kind, MAX_WIDTH};
+use crate::elaborate::CUSTOM;
+
 /// Geometry-free circuit projected from the editable document.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct CircuitDescription {
@@ -45,13 +48,60 @@ pub struct JunctionDesc {
     pub pin: bool,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
 pub struct ComponentDesc {
     pub id: String,
     pub kind: String,
     /// For `custom` parts: the definition it is an instance of.
     #[serde(default)]
     pub definition: Option<String>,
+    /// Port width of a switch, LED or gate (ADR 0014); absent means 1. A plain
+    /// number, so a bad one (2.5, -1) is reported as `invalidWidth` by
+    /// [`ComponentDesc::widths`] rather than failing the whole description.
+    #[serde(default)]
+    pub width: Option<f64>,
+    /// Field widths of a split or merge, least significant first.
+    #[serde(default)]
+    pub fields: Option<Vec<f64>>,
+}
+
+impl ComponentDesc {
+    /// The part's width and fields as whole numbers, or what is wrong with
+    /// them (ADR 0014). Unknown kinds pass: they are reported as such later.
+    pub fn widths(&self) -> Result<(u32, Vec<u32>), String> {
+        let kind = Kind::from_name(&self.kind);
+        if kind.is_none() && self.kind != CUSTOM {
+            return Ok((1, Vec::new()));
+        }
+        let (sized, fielded) = kind.map_or((false, false), |k| (k.sized(), k.fielded()));
+        let whole = |n: f64| {
+            (n.fract() == 0.0 && (1.0..=MAX_WIDTH as f64).contains(&n)).then_some(n as u32)
+        };
+        let width = match self.width {
+            None => 1,
+            Some(_) if !sized => return Err(format!("a {} takes no width", self.kind)),
+            Some(w) => whole(w)
+                .ok_or_else(|| format!("width {w} is not a whole number from 1 to {MAX_WIDTH}"))?,
+        };
+        let fields = match &self.fields {
+            None if fielded => return Err(format!("a {} needs fields", self.kind)),
+            None => Vec::new(),
+            Some(_) if !fielded => return Err(format!("a {} takes no fields", self.kind)),
+            Some(list) if list.is_empty() => return Err("fields must not be empty".into()),
+            Some(list) => list
+                .iter()
+                .map(|&f| whole(f))
+                .collect::<Option<Vec<u32>>>()
+                .ok_or_else(|| format!("fields must be whole numbers from 1 to {MAX_WIDTH}"))?,
+        };
+        let total: u32 = fields.iter().sum();
+        if total > MAX_WIDTH {
+            return Err(format!(
+                "fields add up to {total} bits, more than {MAX_WIDTH}"
+            ));
+        }
+        Ok((width, fields))
+    }
 }
 
 /// A wire between two ends. Either end may be the output; the engine
@@ -134,6 +184,8 @@ pub enum Code {
     InvalidPin,
     TooLarge,
     InvalidId,
+    WidthMismatch,
+    InvalidWidth,
     // Runtime
     Unstable,
 }
