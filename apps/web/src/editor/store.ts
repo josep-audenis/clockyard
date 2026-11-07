@@ -1,6 +1,7 @@
 // The editor's document store (ADR 0007). The canvas reads it outside React
 // through `useEditor.getState()` / `subscribe`.
 import { create } from "zustand";
+import { stacksJunction } from "../canvas/geometry";
 import type { Endpoint } from "../simulation/protocol";
 import {
   endOwner,
@@ -40,7 +41,7 @@ export type EditorState = {
   selectAll: () => void;
   /** Parts copied by `copy`/`cut`, with the wires between them. */
   clipboard: Circuit | null;
-  /** Pastes since the last copy (-1 after a cut); each lands a little further down-right. */
+  /** Steps of 2 cells the last paste went down-right (0 after a copy, -1 after a cut); the next goes one step further. */
   pastes: number;
   copy: () => void;
   cut: () => void;
@@ -105,6 +106,24 @@ function cloned(part: Circuit, offset: number): Circuit {
     junctions: part.junctions.map((j) => ({ id: id(j.id), position: { x: j.position.x + offset, y: j.position.y + offset } })),
     wires: part.wires.map((w) => ({ id: crypto.randomUUID(), from: end(w.from), to: end(w.to) })),
   };
+}
+
+/**
+ * `part` cloned `offset` cells down-right, stepped 2 cells further while it
+ * would stack a junction on a port or junction. Ends: past every item nothing
+ * is stacked. Returns the copy and the offset used.
+ */
+function placed(circuit: Circuit, part: Circuit, offset: number): [Circuit, number] {
+  for (;; offset += 2) {
+    const copy = cloned(part, offset);
+    const positions = Object.fromEntries([...copy.components, ...copy.junctions].map((item) => [item.id, item.position]));
+    const together = {
+      components: [...circuit.components, ...copy.components],
+      junctions: [...circuit.junctions, ...copy.junctions],
+      wires: [],
+    };
+    if (!stacksJunction(together, positions)) return [copy, offset];
+  }
 }
 
 /** Adds `part` to the circuit as one edit and selects it. */
@@ -232,13 +251,14 @@ export const useEditor = create<EditorState>()((set, get) => ({
   paste: () =>
     set((state) => {
       if (!state.clipboard?.components.length) return state;
-      const pastes = state.pastes + 1;
-      return { ...insert(state, cloned(state.clipboard, 2 * pastes)), pastes };
+      const [copy, offset] = placed(state.circuit, state.clipboard, 2 * (state.pastes + 1));
+      // A skipped step counts as a paste, so the next one lands beyond this one.
+      return { ...insert(state, copy), pastes: offset / 2 };
     }),
   duplicate: () =>
     set((state) => {
       const part = fragment(state.circuit, state.selection);
-      return part.components.length > 0 ? insert(state, cloned(part, 2)) : state;
+      return part.components.length > 0 ? insert(state, placed(state.circuit, part, 2)[0]) : state;
     }),
   setLabel: (id, label) =>
     set((state) => {

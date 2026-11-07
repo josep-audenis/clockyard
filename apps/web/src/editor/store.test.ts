@@ -376,3 +376,53 @@ test("copying a junction without any of its wires does not paste a lone junction
   duplicate();
   expect(useEditor.getState().circuit.junctions.map((j) => j.id)).toEqual([id]);
 });
+
+test("paste and duplicate step past any spot that would stack a port on a junction", () => {
+  // Switch at (0,0) with its output (2,1) wired through a junction at (4,3) to an LED.
+  useEditor.setState({
+    circuit: {
+      components: [
+        { id: "s", kind: "switch", position: { x: 0, y: 0 }, rotation: 0, props: {} },
+        { id: "l", kind: "led", position: { x: 8, y: 2 }, rotation: 0, props: {} },
+      ],
+      junctions: [{ id: "j", position: { x: 4, y: 3 } }],
+      wires: [
+        { id: "w1", from: port("s", "out"), to: junction("j") },
+        { id: "w2", from: junction("j"), to: port("l", "in") },
+      ],
+    },
+  });
+  const { select, copy, paste, duplicate, undo } = useEditor.getState();
+  select(["s"]);
+  copy();
+  // Two cells on, the copy's output would sit on the junction at (4,3): it goes two further.
+  paste();
+  expect(useEditor.getState().circuit.components.at(-1)?.position).toEqual({ x: 4, y: 4 });
+  paste(); // and the next paste continues from there
+  expect(useEditor.getState().circuit.components.at(-1)?.position).toEqual({ x: 6, y: 6 });
+  undo();
+  undo();
+  select(["s"]);
+  duplicate();
+  expect(useEditor.getState().circuit.components.at(-1)?.position).toEqual({ x: 4, y: 4 });
+});
+
+test("a pasted junction steps past a port it would land on", () => {
+  // LED at (8,0) fed from a junction at (4,1); a NOT at (6,2) has its input at (6,3).
+  useEditor.setState({
+    circuit: {
+      components: [
+        { id: "l", kind: "led", position: { x: 8, y: 0 }, rotation: 0, props: {} },
+        { id: "n", kind: "not", position: { x: 6, y: 2 }, rotation: 0, props: {} },
+      ],
+      junctions: [{ id: "j", position: { x: 4, y: 1 } }],
+      wires: [{ id: "w", from: junction("j"), to: port("l", "in") }],
+    },
+  });
+  const { select, copy, paste } = useEditor.getState();
+  select(["l", "j", "w"]);
+  copy();
+  paste(); // two cells on, the junction would sit on the NOT's input at (6,3)
+  expect(useEditor.getState().circuit.junctions.at(-1)?.position).toEqual({ x: 8, y: 5 });
+  expect(useEditor.getState().pastes).toBe(2);
+});

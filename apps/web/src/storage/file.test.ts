@@ -59,6 +59,7 @@ test.each([
   ["missing junctions", () => broken((doc) => Reflect.deleteProperty(doc.circuit, "junctions")), "circuit.junctions must be a list"],
   ["an unknown kind", () => broken((_, c) => (c.kind = "flux" as ComponentKind)), 'unknown kind "flux"'],
   ["a fractional position", () => broken((_, c) => (c.position.x = 0.5)), "x must be a whole number"],
+  ["a position too far out", () => broken((_, c) => (c.position.y = 1e300)), "y must be a whole number from -1000000"],
   ["a bad rotation", () => broken((_, c) => Object.assign(c, { rotation: 45 })), "rotation"],
   ["a duplicate ID", () => broken((_, _c, w) => (w.id = "a")), "ID a is used more than once"],
   ["a dangling wire", () => broken((_, _c, w) => (w.to = { component: "gone", port: "a" })), "missing component gone"],

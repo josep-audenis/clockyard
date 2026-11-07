@@ -57,7 +57,17 @@ function readTheme(): Theme {
 type Gesture =
   | { type: "pan"; last: Point }
   // Drags every selected part and junction; `id` is the one under the pointer, `starts` where each began.
-  | { type: "move"; id: string; grab: Point; starts: Record<string, Point>; start: Point; moved: boolean; recorded: boolean }
+  // `blocked`: where the item under the pointer would go if that cell did not stack a junction.
+  | {
+      type: "move";
+      id: string;
+      grab: Point;
+      starts: Record<string, Point>;
+      start: Point;
+      moved: boolean;
+      recorded: boolean;
+      blocked: Point | null;
+    }
   | { type: "wire"; from: Endpoint; at: Point }
   // Marquee selection; `base` is the selection kept from before (Shift).
   | { type: "box"; from: Point; to: Point; base: string[] };
@@ -190,6 +200,19 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         const a = px(start);
         const b = px(gesture.at);
         overlay.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 1.5, color: color.accent, cap: "round" });
+      }
+    }
+    if (gesture?.type === "move" && gesture.blocked) {
+      // Where the dragged item cannot go: releasing here leaves everything at the last free cell.
+      const { x, y } = px(gesture.blocked);
+      const { id } = gesture;
+      const part = circuit.components.find((c) => c.id === id);
+      const danger = { width: size["select-width"], color: color.danger };
+      if (part) {
+        const { width, height } = LAYOUTS[part.kind];
+        overlay.roundRect(x - 4, y - 4, width * c + 8, height * c + 8, size["radius-sm"]).stroke(danger);
+      } else {
+        overlay.circle(x, y, 8).stroke(danger);
       }
     }
     if (gesture?.type === "box") {
@@ -387,7 +410,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         const movable = [...editor.circuit.components, ...editor.circuit.junctions].filter((m) => selected.has(m.id));
         const starts = Object.fromEntries(movable.map((m) => [m.id, m.position]));
         const grab = { x: p.x - position.x, y: p.y - position.y };
-        gesture = { type: "move", id: item, grab, starts, start: { x: e.clientX, y: e.clientY }, moved: false, recorded: false };
+        const start = { x: e.clientX, y: e.clientY };
+        gesture = { type: "move", id: item, grab, starts, start, moved: false, recorded: false, blocked: null };
       } else if (hit?.type === "wire") {
         editor.select(e.shiftKey ? toggled(editor.selection, hit.id) : [hit.id]);
       } else {
@@ -416,8 +440,12 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         const dx = Math.round(p.x - g.grab.x) - anchor.x;
         const dy = Math.round(p.y - g.grab.y) - anchor.y;
         const positions = Object.fromEntries(Object.entries(g.starts).map(([id, s]) => [id, { x: s.x + dx, y: s.y + dy }]));
-        // A cell that would stack a junction on a port or junction is skipped; the drag waits for the next one.
-        if ((current.x !== anchor.x + dx || current.y !== anchor.y + dy) && !stacksJunction(editor.circuit, positions)) {
+        // A cell that would stack a junction on a port or junction is skipped (and outlined in danger);
+        // the items wait at the last free cell.
+        const wanted = { x: anchor.x + dx, y: anchor.y + dy };
+        const stacks = stacksJunction(editor.circuit, positions);
+        g.blocked = stacks ? wanted : null;
+        if ((current.x !== wanted.x || current.y !== wanted.y) && !stacks) {
           // The whole drag is one undo step.
           if (!g.recorded) editor.record();
           g.recorded = true;
