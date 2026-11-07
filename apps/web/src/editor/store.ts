@@ -6,6 +6,7 @@ import { layoutOf, setDefinitionLayouts } from "../canvas/layout";
 import { forgetRoutes } from "../canvas/routing";
 import type { Endpoint } from "../simulation/protocol";
 import {
+  contains,
   endOwner,
   isJunction,
   MAX_BENDS,
@@ -419,6 +420,12 @@ export const useEditor = create<EditorState>()((set, get) => ({
   paste: () =>
     set((state) => {
       if (!state.clipboard?.components.length) return state;
+      // Instances must have their definition here, and a definition's sheet may not come to contain itself.
+      const definitions = liveDefinitions(state);
+      const placeable = (c: CircuitComponent) =>
+        c.kind !== "custom" ||
+        (definitions.some((d) => d.id === c.definition) && !(state.sheet && c.definition && contains(definitions, c.definition, state.sheet)));
+      if (!state.clipboard.components.every(placeable)) return state;
       const [copy, offset] = placed(state.circuit, state.clipboard, 2 * (state.pastes + 1));
       // A skipped step counts as a paste, so the next one lands beyond this one.
       return { ...insert(state, copy), pastes: offset / 2 };
@@ -498,7 +505,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
   load: ({ metadata, circuit, definitions }) => {
     // An opened file is routed afresh, never shaped by whatever was on screen before.
     forgetRoutes();
-    set({ metadata, circuit, definitions, sheet: null, main: null, histories: {}, past: [], future: [], ...fresh });
+    // The clipboard may hold instances of the old document's definitions.
+    set({ metadata, circuit, definitions, sheet: null, main: null, histories: {}, past: [], future: [], clipboard: null, pastes: 0, ...fresh });
   },
 
   record: () => set(remember),

@@ -189,11 +189,20 @@ fn missing_recursive_and_badly_pinned_definitions_are_errors() {
     let mut bad = full_adder();
     bad["inputs"][1]["name"] = json!("A"); // two pins named A
     bad["outputs"][0]["component"] = json!("x1"); // an XOR is not an LED
+    // Pins are checked only where the definition is used, and reported against the instance.
     assert_eq!(
-        codes(json!({ "components": [], "connections": [], "definitions": [bad] })),
+        codes(json!({ "components": [], "connections": [], "definitions": [bad.clone()] })),
+        vec![]
+    );
+    assert_eq!(
+        codes(json!({
+            "components": [{ "id": "x", "kind": "custom", "definition": "fa" }, { "id": "y", "kind": "custom", "definition": "fa" }],
+            "connections": [],
+            "definitions": [bad]
+        })),
         vec![
-            (Code::InvalidPin, ids(&["fa"])),
-            (Code::InvalidPin, ids(&["fa"]))
+            (Code::InvalidPin, ids(&["x"])),
+            (Code::InvalidPin, ids(&["x"]))
         ]
     );
     let wrong_port = json!({
@@ -218,4 +227,29 @@ fn errors_inside_an_instance_name_the_instance() {
         "components": [{ "id": "x", "kind": "custom", "definition": "bad" }], "connections": [], "definitions": [bad]
     }));
     assert_eq!(found, vec![(Code::OutputToOutput, vec!["x".to_string()])]);
+}
+
+#[test]
+fn a_small_file_cannot_expand_without_bound() {
+    // d0 holds one junction; each d(k) holds two instances of d(k-1): 2^40 junctions from 41 definitions.
+    let mut definitions = vec![json!({
+        "id": "d0", "components": [], "junctions": [{ "id": "j" }], "connections": [], "inputs": [], "outputs": []
+    })];
+    for k in 1..=40 {
+        let inner = format!("d{}", k - 1);
+        definitions.push(json!({
+            "id": format!("d{k}"),
+            "components": [
+                { "id": "a", "kind": "custom", "definition": inner },
+                { "id": "b", "kind": "custom", "definition": inner }
+            ],
+            "connections": [], "inputs": [], "outputs": []
+        }));
+    }
+    let found = codes(json!({
+        "components": [{ "id": "top", "kind": "custom", "definition": "d40" }],
+        "connections": [],
+        "definitions": definitions
+    }));
+    assert_eq!(found, vec![(Code::TooLarge, vec!["top".to_string()])]);
 }

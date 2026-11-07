@@ -16,7 +16,8 @@ use crate::description::{
 /// Kind of a part that is an instance of a definition.
 pub const CUSTOM: &str = "custom";
 
-/// Most primitive parts a flattened circuit may hold ("excessive complexity").
+/// Most items a flattened circuit may hold ("excessive complexity"): parts, junctions,
+/// wires and instance expansions all count, so no small file can expand into a huge one.
 pub const MAX_PARTS: usize = 200_000;
 
 /// The top-level ID an elaborated ID belongs to: an ID inside an instance is reported as that instance.
@@ -64,7 +65,6 @@ pub fn elaborate(
                 vec![definition.id.clone()],
             ));
         }
-        check_pins(definition, &mut errors);
     }
     if !errors.is_empty() {
         return Err(errors);
@@ -74,6 +74,8 @@ pub fn elaborate(
         out: CircuitDescription::default(),
         errors: Vec::new(),
         stack: Vec::new(),
+        pins_ok: BTreeMap::new(),
+        size: 0,
     };
     flat.level(
         &description.components,
@@ -90,7 +92,8 @@ pub fn elaborate(
 }
 
 /// Pin names must be present and unique, and name a switch (input) or LED (output) of the definition.
-fn check_pins(definition: &DefinitionDesc, errors: &mut Vec<Diagnostic>) {
+/// Problems are reported against `instance`, the part the user can see.
+fn check_pins(definition: &DefinitionDesc, instance: &str, errors: &mut Vec<Diagnostic>) {
     let kinds: BTreeMap<&str, &str> = definition
         .components
         .iter()
@@ -113,11 +116,11 @@ fn check_pins(definition: &DefinitionDesc, errors: &mut Vec<Diagnostic>) {
             None
         };
         if let Some(problem) = problem {
-            let message = format!("definition {} {problem}", definition.id);
+            let message = format!("{instance}: definition {} {problem}", definition.id);
             errors.push(Diagnostic::error(
                 Code::InvalidPin,
                 message,
-                vec![definition.id.clone()],
+                vec![top(instance).to_string()],
             ));
         }
     }
@@ -129,6 +132,11 @@ struct Flat<'a> {
     errors: Vec<Diagnostic>,
     /// Definitions being expanded, outermost first: one appearing again is recursion.
     stack: Vec<&'a str>,
+    /// Whether each definition expanded so far has valid pins. Unused definitions are not checked,
+    /// so an unlabelled switch in one does not break circuits that do not use it.
+    pins_ok: BTreeMap<&'a str, bool>,
+    /// Items emitted or expanded so far, against `MAX_PARTS`.
+    size: usize,
 }
 
 impl<'a> Flat<'a> {
@@ -154,6 +162,9 @@ impl<'a> Flat<'a> {
         let mut instances = BTreeMap::new();
         for c in components {
             let id = format!("{prefix}{}", c.id);
+            if !self.grow(&id) {
+                return;
+            }
             if c.kind == CUSTOM {
                 let name = c.definition.as_deref().unwrap_or("");
                 match self.definitions.get(name).copied() {
@@ -167,6 +178,7 @@ impl<'a> Flat<'a> {
                         );
                         self.error(Code::RecursiveDefinition, message, &id);
                     }
+                    Some(inner) if !self.pins_valid(inner, &id) => {}
                     Some(inner) => {
                         instances.insert(c.id.as_str(), inner);
                         self.stack.push(name);
@@ -188,25 +200,23 @@ impl<'a> Flat<'a> {
                     kind: c.kind.clone(),
                     definition: None,
                 });
-                if self.out.components.len() == MAX_PARTS + 1 {
-                    let message = format!(
-                        "the circuit has more than {MAX_PARTS} parts once components are expanded"
-                    );
-                    self.error(Code::TooLarge, message, &format!("{prefix}{}", c.id));
-                }
             }
-            if self.out.components.len() > MAX_PARTS {
+            if self.size > MAX_PARTS {
                 return;
             }
         }
         for j in junctions {
-            self.out.junctions.push(JunctionDesc {
-                id: format!("{prefix}{}", j.id),
-                pin: false,
-            });
+            let id = format!("{prefix}{}", j.id);
+            if !self.grow(&id) {
+                return;
+            }
+            self.out.junctions.push(JunctionDesc { id, pin: false });
         }
         for w in connections {
             let id = format!("{prefix}{}", w.id);
+            if !self.grow(&id) {
+                return;
+            }
             let (from, to) = (
                 self.end(&w.from, prefix, &pins, &instances, &id),
                 self.end(&w.to, prefix, &pins, &instances, &id),
@@ -263,6 +273,29 @@ impl<'a> Flat<'a> {
             component: format!("{prefix}{}", port.component),
             port: port.port.clone(),
         }))
+    }
+
+    /// Counts one more item at `id`; false (with one `TooLarge` error) once over the limit.
+    fn grow(&mut self, id: &str) -> bool {
+        self.size += 1;
+        if self.size == MAX_PARTS + 1 {
+            let message =
+                format!("the circuit has more than {MAX_PARTS} items once components are expanded");
+            self.error(Code::TooLarge, message, id);
+        }
+        self.size <= MAX_PARTS
+    }
+
+    /// Checks a definition's pins the first time it is expanded, reporting against that instance.
+    fn pins_valid(&mut self, definition: &'a DefinitionDesc, instance: &str) -> bool {
+        if let Some(&ok) = self.pins_ok.get(definition.id.as_str()) {
+            return ok;
+        }
+        let before = self.errors.len();
+        check_pins(definition, instance, &mut self.errors);
+        let ok = self.errors.len() == before;
+        self.pins_ok.insert(definition.id.as_str(), ok);
+        ok
     }
 
     fn error(&mut self, code: Code, message: String, id: &str) {

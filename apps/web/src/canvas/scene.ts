@@ -20,7 +20,7 @@ import {
   type Hit,
   type Point,
 } from "./geometry";
-import { definitionName, layoutOf } from "./layout";
+import { definitionName, layoutOf, layoutsVersion } from "./layout";
 import { routes, routesKeeping } from "./routing";
 
 const MIN_ZOOM = 0.25;
@@ -352,8 +352,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     g.alpha = component.id === GHOST ? 0.5 : 1;
     // Moving or turning a part is only a transform; its shape is rebuilt only when what it shows changes.
     const ports = [...Object.keys(local.inputs), ...Object.keys(local.outputs)];
-    // A chip's size follows its definition's pins, so it is part of what is shown.
-    const look = `${component.kind}|${local.width}x${local.height}|${culprit}|${ports.map(value).join()}|${themeVersion}`;
+    // A chip's size and port places follow its definition's pins, so they are part of what is shown.
+    const chip = component.kind === "custom" ? layoutsVersion() : "";
+    const look = `${component.kind}|${local.width}x${local.height}|${chip}|${culprit}|${ports.map(value).join()}|${themeVersion}`;
     if (looks.get(component.id) === look) return;
     looks.set(component.id, look);
     g.clear();

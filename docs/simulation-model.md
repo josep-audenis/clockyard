@@ -41,7 +41,8 @@ becomes a junction that the instance's port is joined to. Each instance thus
 has its own state. A net that reaches a pin but has no output is an input left
 unconnected outside the instance: its readers read 0 and warn. Diagnostics
 name the top-level part an inner ID belongs to. Unknown or recursive
-definitions, bad pins and more than 200,000 expanded parts are errors.
+definitions, bad pins (checked where a definition is used) and more than
+200,000 expanded items (parts, junctions, wires and instances) are errors.
 
 ## Nets
 

@@ -33,9 +33,13 @@ four full adders. ADR 0004 already says `sim-core` elaborates hierarchy.
    outside reads 0 inside, and each instance has its own state.
 4. **Errors.** An unknown definition, a definition that contains itself
    (directly or through others), an invalid pin (missing or repeated name, or
-   a pin that is not a switch or LED) and a flattened circuit larger than
-   200,000 parts are validation errors. Diagnostics name the top-level part or
-   wire involved: an ID inside an instance is reported as that instance.
+   a pin that is not a switch or LED) and a flattened circuit of more than
+   200,000 items are validation errors. Parts, junctions, wires and instance
+   expansions all count, so a small file of nested definitions cannot expand
+   without bound. Pins are checked only for definitions actually used, so an
+   unlabelled switch in one does not break circuits that do not use it.
+   Diagnostics name the top-level part or wire involved: an ID inside an
+   instance is reported as that instance.
 5. **Editing.**
    - *Make component* (inspector, for a selection) turns the selection into a
      new definition and puts one instance in its place; wires that crossed the

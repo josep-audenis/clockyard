@@ -688,3 +688,26 @@ test("an armed chip places an instance of its definition; nesting is checked thr
   expect(contains(definitions, "outer", inner)).toBe(true);
   expect(contains(definitions, inner, "outer")).toBe(false);
 });
+
+test("paste refuses an instance that would make a definition contain itself; opening a file clears the clipboard", () => {
+  const { i, n, o } = inverter();
+  useEditor.getState().select([i, n, o]);
+  useEditor.getState().makeComponent("Inverter");
+  const state = useEditor.getState();
+  const id = state.definitions[0]?.id ?? "";
+  // Copy the instance, then try to paste it into its own definition.
+  state.copy();
+  state.openSheet(id);
+  const before = useEditor.getState().circuit;
+  useEditor.getState().paste();
+  expect(useEditor.getState().circuit).toBe(before);
+  useEditor.getState().closeSheet();
+  useEditor.getState().paste();
+  expect(useEditor.getState().circuit.components.filter((c) => c.kind === "custom")).toHaveLength(2);
+  // Another file has none of these definitions: nothing is left to paste.
+  const metadata = { name: "Other", createdAt: "2026-11-07T00:00:00Z", modifiedAt: "2026-11-07T00:00:00Z" };
+  useEditor.getState().load({ format: "clockyard", version: 3, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  useEditor.getState().paste();
+  expect(useEditor.getState().clipboard).toBeNull();
+  expect(useEditor.getState().circuit.components).toEqual([]);
+});

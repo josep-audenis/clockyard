@@ -46,9 +46,8 @@ const MISSING: Layout = { width: 4, height: 2, inputs: {}, outputs: {} };
  * the left and outputs down the right, one every 2 cells, in pin order.
  */
 export function setDefinitionLayouts(definitions: Definition[]) {
-  layouts++;
+  const before = new Map([...custom].map(([id, { layout }]) => [id, JSON.stringify(layout)]));
   custom.clear();
-  rotated.clear();
   for (const d of definitions) {
     const { inputs, outputs } = pinsOf(d.circuit);
     const column = (pins: { name: string }[], x: number) => Object.fromEntries(pins.map((p, i) => [p.name, { x, y: 1 + 2 * i }]));
@@ -59,6 +58,12 @@ export function setDefinitionLayouts(definitions: Definition[]) {
       outputs: column(outputs, 4),
     };
     custom.set(d.id, { name: d.name, layout });
+  }
+  // Only a real change of pins invalidates layouts (and routes kept for instances), not every edit of a sheet.
+  const changed = custom.size !== before.size || [...custom].some(([id, { layout }]) => before.get(id) !== JSON.stringify(layout));
+  if (changed) {
+    layouts++;
+    rotated.clear();
   }
 }
 
