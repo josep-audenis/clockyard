@@ -20,6 +20,47 @@ export function portAt(component: CircuitComponent, port: string): Point | undef
   return offset && { x: component.position.x + offset.x, y: component.position.y + offset.y };
 }
 
+/** Every port position of a part. */
+export function portsOf(component: CircuitComponent): Point[] {
+  const { inputs, outputs } = LAYOUTS[component.kind];
+  return [...Object.values(inputs), ...Object.values(outputs)].map((o) => ({
+    x: component.position.x + o.x,
+    y: component.position.y + o.y,
+  }));
+}
+
+const key = (p: Point) => `${p.x},${p.y}`;
+
+/** True when a port or junction sits at `p`. */
+export const occupied = (circuit: Circuit, p: Point) =>
+  circuit.junctions.some((j) => key(j.position) === key(p)) ||
+  circuit.components.some((c) => portsOf(c).some((q) => key(q) === key(p)));
+
+/**
+ * True when moving items to `positions` would put a junction on a port or
+ * another junction, or a port on a junction: dots on one spot look joined
+ * when they are not.
+ */
+export function stacksJunction(circuit: Circuit, positions: Record<string, Point>): boolean {
+  const ports = new Set<string>();
+  const junctions = new Set<string>();
+  const movedPorts: Point[] = [];
+  const movedJunctions: Point[] = [];
+  for (const c of circuit.components) {
+    const to = positions[c.id];
+    if (to) movedPorts.push(...portsOf({ ...c, position: to }));
+    else portsOf(c).forEach((p) => ports.add(key(p)));
+  }
+  for (const j of circuit.junctions) {
+    const to = positions[j.id];
+    if (to) movedJunctions.push(to);
+    else junctions.add(key(j.position));
+  }
+  return (
+    movedJunctions.some((p) => ports.has(key(p)) || junctions.has(key(p))) || movedPorts.some((p) => junctions.has(key(p)))
+  );
+}
+
 export function endAt(at: Places, end: Endpoint): Point | undefined {
   if (isJunction(end)) return at.junctions.get(end.junction)?.position;
   const component = at.components.get(end.component);

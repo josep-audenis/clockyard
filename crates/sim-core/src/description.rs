@@ -35,10 +35,42 @@ pub struct Connection {
 
 /// A wire end: a component port, or a junction (`{ "junction": id }`).
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(untagged)]
+#[serde(try_from = "RawEnd")]
 pub enum Endpoint {
     Port(PortRef),
     Junction { junction: String },
+}
+
+/// The fields a wire end may carry, so a malformed one gets a message that
+/// says what is missing (serde's untagged enums only say "no variant matched").
+#[derive(Deserialize)]
+#[serde(expecting = "a wire end: {component, port} or {junction}")]
+struct RawEnd {
+    component: Option<String>,
+    port: Option<String>,
+    junction: Option<String>,
+}
+
+impl TryFrom<RawEnd> for Endpoint {
+    type Error = String;
+
+    fn try_from(end: RawEnd) -> Result<Self, String> {
+        match end {
+            RawEnd {
+                component: Some(component),
+                port: Some(port),
+                junction: None,
+            } => Ok(Endpoint::Port(PortRef { component, port })),
+            RawEnd {
+                component: None,
+                port: None,
+                junction: Some(junction),
+            } => Ok(Endpoint::Junction { junction }),
+            _ => Err(
+                "a wire end needs either `component` and `port`, or `junction` alone".to_string(),
+            ),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -61,6 +93,7 @@ pub enum Code {
     DuplicateId,
     UnknownKind,
     UnknownComponent,
+    UnknownJunction,
     UnknownPort,
     OutputToOutput,
     InputToInput,
@@ -96,5 +129,45 @@ impl Diagnostic {
             message,
             ids,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn end(json: &str) -> Result<Endpoint, String> {
+        serde_json::from_str(json).map_err(|e| e.to_string())
+    }
+
+    #[test]
+    fn wire_ends_are_a_port_or_a_junction_and_say_what_is_wrong() {
+        assert_eq!(
+            end(r#"{"component":"g","port":"a"}"#),
+            Ok(Endpoint::Port(PortRef {
+                component: "g".into(),
+                port: "a".into()
+            }))
+        );
+        assert_eq!(
+            end(r#"{"junction":"j"}"#),
+            Ok(Endpoint::Junction {
+                junction: "j".into()
+            })
+        );
+        for bad in [
+            r#"{"component":"g"}"#,
+            r#"{"junction":"j","component":"g","port":"a"}"#,
+            r#"{"junktion":"j"}"#,
+        ] {
+            let error = end(bad).unwrap_err();
+            assert!(
+                error.contains("needs either `component` and `port`"),
+                "{bad}: {error}"
+            );
+        }
+        // Not an object at all: the message names a wire end, not an internal type.
+        let error = end(r#""s.out""#).unwrap_err();
+        assert!(error.contains("expected a wire end"), "{error}");
     }
 }

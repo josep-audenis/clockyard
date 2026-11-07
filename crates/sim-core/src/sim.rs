@@ -136,7 +136,7 @@ impl Simulator {
                 Endpoint::Junction { junction } => {
                     return junctions.get(junction.as_str()).copied().ok_or_else(|| {
                         let message = format!("wire {wire} references unknown junction {junction}");
-                        Diagnostic::error(Code::UnknownComponent, message, vec![wire.into()])
+                        Diagnostic::error(Code::UnknownJunction, message, vec![wire.into()])
                     });
                 }
             };
@@ -797,7 +797,7 @@ mod tests {
                 Code::MultipleDrivers,
                 vec!["g", "w0", "w1", "w2", "w3"],
             ),
-            (vec![("a.out", "gone")], Code::UnknownComponent, vec!["w0"]),
+            (vec![("a.out", "gone")], Code::UnknownJunction, vec!["w0"]),
         ];
         for (wires, code, ids) in cases {
             let description = with_junctions(circuit(&parts, &wires), &["j", "k"]);
