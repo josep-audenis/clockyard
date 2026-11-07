@@ -124,7 +124,9 @@ Progress:
   dropping a wire on a wire splits it with a junction (one undo step);
   junctions are selected, dragged, copied and deleted like parts, and one left
   without wires is removed; a junction never lands on a port or another
-  junction, by drop or drag; half-adder example uses junctions
+  junction: a drop there is refused, a drag shows the blocked cell in danger
+  and waits at the last free one, and paste or duplicate steps further on;
+  half-adder example uses junctions
 - ✅ Routing: wires leave ports horizontally and bend on a junction's column,
   so junctions act as waypoints. Automatic avoidance of shared bend columns is
   still to do
