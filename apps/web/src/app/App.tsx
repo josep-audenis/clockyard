@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { mountCanvas } from "../canvas/scene";
-import { MAX_LABEL, type CircuitComponent, type ComponentKind } from "../editor/document";
+import { MAX_LABEL, normalizeLabel, type CircuitComponent, type ComponentKind } from "../editor/document";
 import { useEditor } from "../editor/store";
 import { connectEngine, useSim } from "../simulation/sync";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
@@ -245,8 +245,12 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           onBlur={() => {
             if (!cancelled.current) useEditor.getState().setLabel(part.id, draft);
             cancelled.current = false;
+            // Show what was stored: when trimming leaves the label unchanged, nothing remounts the field.
+            setDraft((value) => (normalizeLabel(value) === saved ? saved : value));
           }}
           onKeyDown={(e) => {
+            // Enter and Escape during IME composition pick or dismiss a candidate; they are not ours.
+            if (e.nativeEvent.isComposing || e.keyCode === 229) return;
             if (e.key !== "Enter" && e.key !== "Escape") return;
             if (e.key === "Escape") {
               cancelled.current = true;

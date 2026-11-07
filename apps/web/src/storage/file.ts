@@ -3,6 +3,7 @@
 import {
   COMPONENT_KINDS,
   MAX_LABEL,
+  normalizeLabel,
   ROTATIONS,
   type CircuitComponent,
   type CircuitDocument,
@@ -64,8 +65,8 @@ function integer(value: unknown, where: string): number {
 /** Known properties only; unknown ones are dropped like any other unknown field. */
 function readProps(props: Record<string, unknown>, where: string): Props {
   if (props.label === undefined) return {};
-  const label = text(props.label, `${where} label`).trim();
-  if (label.length > MAX_LABEL) throw new Error(`${where} label is longer than ${MAX_LABEL} characters.`);
+  const label = normalizeLabel(text(props.label, `${where} label`));
+  if ([...label].length > MAX_LABEL) throw new Error(`${where} label is longer than ${MAX_LABEL} characters.`);
   return label ? { label } : {};
 }
 

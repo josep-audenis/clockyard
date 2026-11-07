@@ -260,3 +260,18 @@ test("setLabel trims, caps, clears when blank and is one undo step; no change is
   undo();
   expect(label()).toBe("carry in");
 });
+
+test("setLabel turns control characters into spaces, drops invisible ones and never splits an emoji", () => {
+  const { add, setLabel } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const label = () => useEditor.getState().circuit.components[0]?.props.label;
+  const zeroWidth = String.fromCodePoint(0x200b);
+  const rtlOverride = String.fromCodePoint(0x202e);
+  setLabel(s, "carry" + String.fromCodePoint(10) + "in" + rtlOverride);
+  expect(label()).toBe("carry in");
+  setLabel(s, zeroWidth);
+  expect(label()).toBeUndefined();
+  const smile = String.fromCodePoint(0x1f600);
+  setLabel(s, "x".repeat(31) + smile + "y");
+  expect(label()).toBe("x".repeat(31) + smile);
+});

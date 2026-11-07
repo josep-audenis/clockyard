@@ -16,6 +16,14 @@ export const MAX_LABEL = 32;
  */
 export type Props = { label?: string };
 
+/**
+ * A label as stored: control characters (a newline, say) become spaces; bidi and
+ * zero-width characters go, since they hide or reorder the text; then trimmed.
+ * Length is checked by callers.
+ */
+export const normalizeLabel = (text: string) =>
+  text.replace(/\p{Cc}/gu, " ").replace(/[\p{Bidi_Control}\u200B\uFEFF]/gu, "").trim();
+
 export type CircuitComponent = {
   id: string;
   kind: ComponentKind;

@@ -230,6 +230,10 @@ test("label parts in the inspector; labels name pins in the readout and status b
   await label.fill("A");
   await label.press("Enter");
   await expectStates(page, { "Switch A": 1, "LED 1": 1 });
+  // The field shows what was stored, even when trimming leaves the label as it was.
+  await label.fill("A  ");
+  await label.press("Enter");
+  await expect(label).toHaveValue("A");
 
   // Pressing the canvas commits to the part being edited, not the next selection.
   await click(page, at(6.5, 1));

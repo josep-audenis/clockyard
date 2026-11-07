@@ -36,9 +36,9 @@ test("unknown fields are dropped", () => {
   expect(result).toEqual({ ok: true, document });
 });
 
-test("labels are trimmed and a blank one is dropped", () => {
+test("labels are normalized like the editor does, and a blank one is dropped", () => {
   const result = broken((doc, component) => {
-    component.props.label = "  A ";
+    component.props.label = "  A" + String.fromCodePoint(0x200b) + " ";
     Object.assign(doc.circuit.components[1] as CircuitComponent, { props: { label: "   " } });
   });
   expect(result).toEqual({ ok: true, document });
