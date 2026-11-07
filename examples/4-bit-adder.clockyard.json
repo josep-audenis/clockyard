@@ -1,6 +1,6 @@
 {
   "format": "clockyard",
-  "version": 3,
+  "version": 4,
   "metadata": {"name": "4-bit adder", "createdAt": "2026-11-07T12:00:00.000Z", "modifiedAt": "2026-11-07T12:00:00.000Z"},
   "circuit": {
     "components": [
@@ -25,23 +25,23 @@
     ],
     "junctions": [],
     "wires": [
-      {"id": "w-cin", "from": {"component": "cin", "port": "out"}, "to": {"component": "fa0", "port": "Cin"}},
-      {"id": "w-a0", "from": {"component": "a0", "port": "out"}, "to": {"component": "fa0", "port": "A"}},
-      {"id": "w-b0", "from": {"component": "b0", "port": "out"}, "to": {"component": "fa0", "port": "B"}},
-      {"id": "w-s0", "from": {"component": "fa0", "port": "S"}, "to": {"component": "s0", "port": "in"}},
-      {"id": "w-c0", "from": {"component": "fa0", "port": "Cout"}, "to": {"component": "fa1", "port": "Cin"}},
-      {"id": "w-a1", "from": {"component": "a1", "port": "out"}, "to": {"component": "fa1", "port": "A"}},
-      {"id": "w-b1", "from": {"component": "b1", "port": "out"}, "to": {"component": "fa1", "port": "B"}},
-      {"id": "w-s1", "from": {"component": "fa1", "port": "S"}, "to": {"component": "s1", "port": "in"}},
-      {"id": "w-c1", "from": {"component": "fa1", "port": "Cout"}, "to": {"component": "fa2", "port": "Cin"}},
-      {"id": "w-a2", "from": {"component": "a2", "port": "out"}, "to": {"component": "fa2", "port": "A"}},
-      {"id": "w-b2", "from": {"component": "b2", "port": "out"}, "to": {"component": "fa2", "port": "B"}},
-      {"id": "w-s2", "from": {"component": "fa2", "port": "S"}, "to": {"component": "s2", "port": "in"}},
-      {"id": "w-c2", "from": {"component": "fa2", "port": "Cout"}, "to": {"component": "fa3", "port": "Cin"}},
-      {"id": "w-a3", "from": {"component": "a3", "port": "out"}, "to": {"component": "fa3", "port": "A"}},
-      {"id": "w-b3", "from": {"component": "b3", "port": "out"}, "to": {"component": "fa3", "port": "B"}},
-      {"id": "w-s3", "from": {"component": "fa3", "port": "S"}, "to": {"component": "s3", "port": "in"}},
-      {"id": "w-c3", "from": {"component": "fa3", "port": "Cout"}, "to": {"component": "cout", "port": "in"}}
+      {"id": "w-cin", "from": {"component": "cin", "port": "out"}, "to": {"component": "fa0", "port": "cin"}},
+      {"id": "w-a0", "from": {"component": "a0", "port": "out"}, "to": {"component": "fa0", "port": "a"}},
+      {"id": "w-b0", "from": {"component": "b0", "port": "out"}, "to": {"component": "fa0", "port": "b"}},
+      {"id": "w-s0", "from": {"component": "fa0", "port": "s"}, "to": {"component": "s0", "port": "in"}},
+      {"id": "w-c0", "from": {"component": "fa0", "port": "cout"}, "to": {"component": "fa1", "port": "cin"}},
+      {"id": "w-a1", "from": {"component": "a1", "port": "out"}, "to": {"component": "fa1", "port": "a"}},
+      {"id": "w-b1", "from": {"component": "b1", "port": "out"}, "to": {"component": "fa1", "port": "b"}},
+      {"id": "w-s1", "from": {"component": "fa1", "port": "s"}, "to": {"component": "s1", "port": "in"}},
+      {"id": "w-c1", "from": {"component": "fa1", "port": "cout"}, "to": {"component": "fa2", "port": "cin"}},
+      {"id": "w-a2", "from": {"component": "a2", "port": "out"}, "to": {"component": "fa2", "port": "a"}},
+      {"id": "w-b2", "from": {"component": "b2", "port": "out"}, "to": {"component": "fa2", "port": "b"}},
+      {"id": "w-s2", "from": {"component": "fa2", "port": "s"}, "to": {"component": "s2", "port": "in"}},
+      {"id": "w-c2", "from": {"component": "fa2", "port": "cout"}, "to": {"component": "fa3", "port": "cin"}},
+      {"id": "w-a3", "from": {"component": "a3", "port": "out"}, "to": {"component": "fa3", "port": "a"}},
+      {"id": "w-b3", "from": {"component": "b3", "port": "out"}, "to": {"component": "fa3", "port": "b"}},
+      {"id": "w-s3", "from": {"component": "fa3", "port": "s"}, "to": {"component": "s3", "port": "in"}},
+      {"id": "w-c3", "from": {"component": "fa3", "port": "cout"}, "to": {"component": "cout", "port": "in"}}
     ]
   },
   "definitions": [

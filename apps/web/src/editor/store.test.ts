@@ -2,7 +2,7 @@ import { beforeEach, expect, test } from "vitest";
 import { endOwner } from "./document";
 import { contains } from "./document";
 import { liveDefinitions, mainCircuit, useEditor } from "./store";
-import { layoutOf } from "../canvas/layout";
+import { layoutOf, pinLabel } from "../canvas/layout";
 
 const initial = useEditor.getState();
 beforeEach(() => useEditor.setState(initial, true));
@@ -70,7 +70,7 @@ test("load replaces the document and clears transient state", () => {
   toggle(add("switch", { x: 0, y: 0 }));
   const metadata = { name: "Loaded", createdAt: "2026-01-01T00:00:00Z", modifiedAt: "2026-01-02T00:00:00Z" };
   const circuit = { components: [], junctions: [], wires: [] };
-  load({ format: "clockyard", version: 3, metadata, circuit, definitions: [] });
+  load({ format: "clockyard", version: 4, metadata, circuit, definitions: [] });
   const state = useEditor.getState();
   expect([state.metadata, state.circuit, state.selection, state.inputs]).toEqual([metadata, circuit, [], {}]);
 });
@@ -129,7 +129,7 @@ test("loading a document clears history", () => {
   const { add, load, undo } = useEditor.getState();
   add("switch", { x: 0, y: 0 });
   const metadata = { name: "x", createdAt: "", modifiedAt: "" };
-  load({ format: "clockyard", version: 3, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  load({ format: "clockyard", version: 4, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
   undo();
   expect(ids()).toEqual([]);
 });
@@ -623,8 +623,9 @@ test("make component turns the selection into a definition and puts one instance
   expect(state.circuit.components.map((c) => c.id)).toEqual([outside, instance?.id]);
   expect(state.circuit.wires).toEqual([]);
   expect(state.selection).toEqual([instance?.id]);
-  // Its layout comes from the pins: input In on the left, output Out on the right.
-  expect(layoutOf(instance as never)).toEqual({ width: 4, height: 2, inputs: { In: { x: 0, y: 1 } }, outputs: { Out: { x: 4, y: 1 } } });
+  // Its layout comes from the pins, ports named by pin part ID: input In on the left, output Out on the right.
+  expect(layoutOf(instance as never)).toEqual({ width: 4, height: 2, inputs: { [i]: { x: 0, y: 1 } }, outputs: { [o]: { x: 4, y: 1 } } });
+  expect([pinLabel(definition?.id, i), pinLabel(definition?.id, o)]).toEqual(["In", "Out"]);
   // One undo step for the main circuit; the definition stays available.
   undo();
   expect(useEditor.getState().circuit.components.map((c) => c.id)).toEqual([i, n, o, outside]);
@@ -706,8 +707,25 @@ test("paste refuses an instance that would make a definition contain itself; ope
   expect(useEditor.getState().circuit.components.filter((c) => c.kind === "custom")).toHaveLength(2);
   // Another file has none of these definitions: nothing is left to paste.
   const metadata = { name: "Other", createdAt: "2026-11-07T00:00:00Z", modifiedAt: "2026-11-07T00:00:00Z" };
-  useEditor.getState().load({ format: "clockyard", version: 3, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  useEditor.getState().load({ format: "clockyard", version: 4, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
   useEditor.getState().paste();
   expect(useEditor.getState().clipboard).toBeNull();
   expect(useEditor.getState().circuit.components).toEqual([]);
+});
+
+test("relabelling a pin inside a definition keeps the wires to it on every instance", () => {
+  const { i, n, o } = inverter();
+  useEditor.getState().select([i, n, o]);
+  useEditor.getState().makeComponent("Inverter");
+  const id = useEditor.getState().definitions[0]?.id ?? "";
+  const x = useEditor.getState().circuit.components.find((c) => c.kind === "custom")?.id ?? "";
+  const s = useEditor.getState().add("switch", { x: -6, y: 3 });
+  useEditor.getState().connect(port(s, "out"), port(x, i));
+  useEditor.getState().openSheet(id);
+  useEditor.getState().setLabel(i, "Data");
+  useEditor.getState().closeSheet();
+  const instance = useEditor.getState().circuit.components.find((c) => c.id === x);
+  expect(useEditor.getState().circuit.wires.map((w) => w.to)).toEqual([port(x, i)]);
+  expect(Object.keys(layoutOf(instance as never).inputs)).toEqual([i]);
+  expect(pinLabel(id, i)).toBe("Data");
 });

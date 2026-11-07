@@ -14,10 +14,11 @@ the browser through WASM in a Web Worker, linting, tests and a pre-push check ho
 PixiJS canvas, simulated by the Rust engine in a worker, exported and imported
 as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
 
-**Phase 2 — 🔨 in progress** (branch `feat/custom-components`). Editing
-comfort, labels, junctions and nets, routing and rotation merged (PRs #8–#14).
-Custom components (ADR 0012, file format v3) and the 4-bit adder target demo
-done. Next: multi-bit signals, buses and splitters (ADR).
+**Phase 2 — 🔨 in progress** (branch `feat/custom-component-hardening`).
+Editing comfort, labels, junctions and nets, routing and rotation merged (PRs
+#8–#14). Custom components and the 4-bit adder target demo merged (PR #16);
+pins renamed safely by part ID (ADR 0013, file format v4). Next: multi-bit
+signals, buses and splitters (ADR).
 
 ## Phase 0 — Foundation ✅
 
@@ -200,7 +201,9 @@ analysis, plugin system, full game campaign during the MVP.
 
 Phase 2 multi-bit signals, buses and splitters (ADR), which also widens custom
 component pins. Custom components cannot yet be renamed or deleted, and Make
-component drops wires that crossed the selection's edge. Known limits still
+component drops wires that crossed the selection's edge. Pins can be relabelled
+freely (ADR 0013, format v4); deleting one leaves its wires reported as
+unknown ports. Known limits still
 open: a wire cannot start from a
 junction (drag from a port onto it instead), no autosave, the inspector does
 not collapse on narrow screens yet, and wires kept after an edit can stay

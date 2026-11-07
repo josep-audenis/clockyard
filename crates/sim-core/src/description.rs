@@ -38,8 +38,8 @@ pub struct PinDesc {
 #[derive(Clone, Debug, Deserialize)]
 pub struct JunctionDesc {
     pub id: String,
-    /// Set by elaboration for a custom component's pin: a net reaching one but
-    /// no output is an unconnected input (reads 0), not an error (ADR 0012).
+    /// Set by elaboration for a custom component's input pin: a net reaching one
+    /// but no output may be an unconnected input (reads 0), not an error (ADR 0012).
     #[serde(skip)]
     pub pin: bool,
 }
@@ -132,6 +132,7 @@ pub enum Code {
     RecursiveDefinition,
     InvalidPin,
     TooLarge,
+    InvalidId,
     // Runtime
     Unstable,
 }

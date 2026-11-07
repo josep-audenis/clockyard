@@ -5,7 +5,7 @@ test fixture: the Rust and frontend test suites load them and check their
 behavior through the real engine. Expected outputs live in tests, never baked
 into the example files.
 
-Examples use the current file format (version 3, ADRs 0010 and 0012). Load one with
+Examples use the current file format (version 4, ADRs 0010, 0012 and 0013). Load one with
 **Import** in the editor. `crates/sim-core/tests/examples.rs` checks their
 outputs natively, `apps/web/src/storage/file.test.ts` checks every file parses,
 and the Playwright tests in `apps/web/e2e/` drive them in the browser.

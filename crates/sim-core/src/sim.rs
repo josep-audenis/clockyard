@@ -38,8 +38,8 @@ pub struct Simulator {
 enum End {
     Out(usize),
     In(usize, usize),
-    /// `true` for a custom component's pin.
-    Junction(bool),
+    /// For a custom component's input pin, its index in the description's junctions.
+    Junction(Option<usize>),
 }
 
 /// Union-find root of `node`, halving paths on the way.
@@ -67,8 +67,23 @@ struct Group<'a> {
     outputs: Vec<usize>,
     inputs: Vec<(usize, usize)>,
     wires: Vec<&'a str>,
-    /// Reaches a custom component's pin: with no output, an input left unconnected outside.
-    pin: bool,
+    /// Custom components' input pins it reaches (junction indexes).
+    pins: Vec<usize>,
+}
+
+/// Whether an undriven net is an instance input left unconnected outside, so its readers read 0:
+/// it reaches exactly one outermost input pin, and every input on it is inside that instance.
+/// Anything else joins inputs that nothing drives.
+fn unconnected_pin<'a>(pins: &[&str], mut inputs: impl Iterator<Item = &'a str>) -> bool {
+    let depth = |id: &str| id.matches('/').count();
+    let Some(outer) = pins.iter().copied().min_by_key(|p| depth(p)) else {
+        return false;
+    };
+    if pins.iter().filter(|p| depth(p) == depth(outer)).count() > 1 {
+        return false;
+    }
+    let scope = &outer[..outer.rfind('/').map_or(0, |i| i + 1)];
+    inputs.all(|id| id.starts_with(scope))
 }
 
 impl Simulator {
@@ -126,7 +141,7 @@ impl Simulator {
             }
         }
         let mut junctions = BTreeMap::new();
-        for junction in &description.junctions {
+        for (j, junction) in description.junctions.iter().enumerate() {
             let id = junction.id.as_str();
             if junctions.contains_key(id) || ids.binary_search(&junction.id).is_ok() {
                 let message = format!("junction ID {id} is used more than once");
@@ -137,7 +152,7 @@ impl Simulator {
                 ));
             } else {
                 junctions.insert(id, ends.len());
-                ends.push(End::Junction(junction.pin));
+                ends.push(End::Junction(junction.pin.then_some(j)));
             }
         }
         // Wire errors against unknown components would only repeat these.
@@ -234,7 +249,7 @@ impl Simulator {
             match *end {
                 End::Out(c) => group.outputs.push(c),
                 End::In(c, slot) => group.inputs.push((c, slot)),
-                End::Junction(pin) => group.pin |= pin,
+                End::Junction(pin) => group.pins.extend(pin),
             }
         }
 
@@ -262,7 +277,18 @@ impl Simulator {
                 // A dangling branch: its input (if any) stays unconnected and reads 0.
                 ([], []) | ([], [_]) => GROUND,
                 // An instance input wired to nothing outside: its readers inside read 0.
-                ([], _) if group.pin => GROUND,
+                ([], inputs)
+                    if unconnected_pin(
+                        &group
+                            .pins
+                            .iter()
+                            .map(|&j| description.junctions[j].id.as_str())
+                            .collect::<Vec<_>>(),
+                        inputs.iter().map(|&(c, _)| ids[c].as_str()),
+                    ) =>
+                {
+                    GROUND
+                }
                 ([], _) => {
                     let message = format!(
                         "{} inputs and nothing drives them",

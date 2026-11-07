@@ -47,11 +47,24 @@ pub fn lift(diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
 pub fn elaborate(
     description: &CircuitDescription,
 ) -> Result<Cow<'_, CircuitDescription>, Vec<Diagnostic>> {
+    let mut errors = Vec::new();
+    let top_level = (
+        &description.components[..],
+        &description.junctions[..],
+        &description.connections[..],
+    );
+    check_ids(top_level, None, &mut errors);
+    for d in &description.definitions {
+        check_ids(
+            (&d.components, &d.junctions, &d.connections),
+            Some(&d.id),
+            &mut errors,
+        );
+    }
     let has_instances = description.components.iter().any(|c| c.kind == CUSTOM);
-    if description.definitions.is_empty() && !has_instances {
+    if errors.is_empty() && description.definitions.is_empty() && !has_instances {
         return Ok(Cow::Borrowed(description));
     }
-    let mut errors = Vec::new();
     let mut definitions = BTreeMap::new();
     for definition in &description.definitions {
         if definitions
@@ -88,6 +101,36 @@ pub fn elaborate(
         Ok(Cow::Owned(flat.out))
     } else {
         Err(flat.errors)
+    }
+}
+
+/// IDs never contain `/`, which separates instance paths, and no other part on a level shares an
+/// instance's ID (expanded, the two could not be told apart). Problems inside a definition name it.
+fn check_ids(
+    (components, junctions, connections): (&[ComponentDesc], &[JunctionDesc], &[Connection]),
+    definition: Option<&str>,
+    errors: &mut Vec<Diagnostic>,
+) {
+    let at = |id: &str| vec![definition.unwrap_or(id).to_string()];
+    let ids = components
+        .iter()
+        .map(|c| &c.id)
+        .chain(junctions.iter().map(|j| &j.id))
+        .chain(connections.iter().map(|w| &w.id));
+    for id in ids.filter(|id| id.contains('/')) {
+        let message = format!("ID {id} contains '/', which separates the parts inside components");
+        errors.push(Diagnostic::error(Code::InvalidId, message, at(id)));
+    }
+    let mut count = BTreeMap::new();
+    for c in components {
+        *count.entry(c.id.as_str()).or_insert(0) += 1;
+    }
+    let mut reported = BTreeSet::new();
+    for c in components {
+        if c.kind == CUSTOM && count[c.id.as_str()] > 1 && reported.insert(c.id.as_str()) {
+            let message = format!("component ID {} is used more than once", c.id);
+            errors.push(Diagnostic::error(Code::DuplicateId, message, at(&c.id)));
+        }
     }
 }
 
@@ -150,12 +193,14 @@ impl<'a> Flat<'a> {
         definition: Option<&'a DefinitionDesc>,
     ) {
         // Inside a definition its pin parts become junctions joined to the instance's ports.
-        let pins: BTreeSet<&str> = definition
+        let inputs: BTreeSet<&str> = definition
+            .map(|d| d.inputs.iter().map(|p| p.component.as_str()).collect())
+            .unwrap_or_default();
+        // Each pin part's own port: a switch's `out`, an LED's `in`.
+        let pins: BTreeMap<&str, &str> = definition
             .map(|d| {
-                d.inputs
-                    .iter()
-                    .chain(&d.outputs)
-                    .map(|p| p.component.as_str())
+                let ins = d.inputs.iter().map(|p| (p.component.as_str(), "out"));
+                ins.chain(d.outputs.iter().map(|p| (p.component.as_str(), "in")))
                     .collect()
             })
             .unwrap_or_default();
@@ -192,8 +237,9 @@ impl<'a> Flat<'a> {
                         self.stack.pop();
                     }
                 }
-            } else if pins.contains(c.id.as_str()) {
-                self.out.junctions.push(JunctionDesc { id, pin: true });
+            } else if pins.contains_key(c.id.as_str()) {
+                let pin = inputs.contains(c.id.as_str());
+                self.out.junctions.push(JunctionDesc { id, pin });
             } else {
                 self.out.components.push(ComponentDesc {
                     id,
@@ -232,7 +278,7 @@ impl<'a> Flat<'a> {
         &mut self,
         end: &Endpoint,
         prefix: &str,
-        pins: &BTreeSet<&str>,
+        pins: &BTreeMap<&str, &str>,
         instances: &BTreeMap<&str, &DefinitionDesc>,
         wire: &str,
     ) -> Option<Endpoint> {
@@ -264,7 +310,15 @@ impl<'a> Flat<'a> {
                 }
             };
         }
-        if pins.contains(port.component.as_str()) {
+        if let Some(&own) = pins.get(port.component.as_str()) {
+            if port.port != own {
+                let message = format!(
+                    "wire {wire}: pin {prefix}{} has no port '{}'",
+                    port.component, port.port
+                );
+                self.error(Code::UnknownPort, message, wire);
+                return None;
+            }
             return Some(Endpoint::Junction {
                 junction: format!("{prefix}{}", port.component),
             });

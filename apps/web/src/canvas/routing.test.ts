@@ -211,7 +211,7 @@ test("a cached circuit is routed again once its instances' pins move", () => {
   const main: Circuit = {
     components: [{ ...part("x", "custom", 0, 0), definition: "d" }, part("l", "led", 12, 0)],
     junctions: [],
-    wires: [wire("w", "x.Out", "l.in")],
+    wires: [wire("w", "x.o", "l.in")], // an instance's port is its pin part's ID
   };
   expect(routes(main).get("w")?.[0]).toEqual({ x: 4, y: 1 });
   // An LED above Out moves it down a pin; the same circuit object must not keep its old route.

@@ -50,12 +50,12 @@ The UI never computes a signal value. It renders values received from the worker
 
 The editable design. Owned by the frontend, serialized as JSON, versioned.
 
-Format version 3 (ADRs 0010, 0012; exact schema fixed in code with validation):
+Format version 4 (ADRs 0010, 0012, 0013; exact schema fixed in code with validation):
 
 ```json
 {
   "format": "clockyard",
-  "version": 3,
+  "version": 4,
   "metadata": { "name": "AND demo", "createdAt": "2026-11-06T12:00:00Z", "modifiedAt": "2026-11-06T12:00:00Z" },
   "circuit": {
     "components": [
@@ -97,13 +97,14 @@ Rules:
 - **Custom components** (ADR 0012): `definitions` lists `{ id, name, circuit }`;
   an instance is a part with `kind: "custom"` and `definition: id`. Inside a
   definition, labelled switches are its input pins and labelled LEDs its
-  output pins; an instance's ports are those labels, in top-to-bottom order.
+  output pins, in top-to-bottom order. An instance's ports are named by those
+  pin parts' IDs, so relabelling a pin keeps its wires (ADR 0013).
   IDs never contain `/`, which separates instance paths once expanded.
 - Transient simulation data (signal values, clock count) is never part of the
   document.
 - Loading an older `version` runs explicit migrations in `storage/`
   (v1 → v2 adds an empty `junctions` list, v2 → v3 an empty `definitions`
-  list). Unknown future versions are
+  list, v3 → v4 renames instance ports from pin labels to pin part IDs). Unknown future versions are
   rejected with a clear message. Export always writes the current version.
 - Import (`storage/file.ts`) treats the file as untrusted: every field is
   type-checked, unknown fields are dropped, IDs must be unique across parts,

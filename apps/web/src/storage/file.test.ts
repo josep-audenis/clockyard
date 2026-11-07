@@ -5,7 +5,7 @@ import { parseDocument, serializeDocument } from "./file";
 
 const document: CircuitDocument = {
   format: "clockyard",
-  version: 3,
+  version: 4,
   metadata: { name: "AND demo", createdAt: "2026-11-06T12:00:00Z", modifiedAt: "2026-11-06T12:30:00Z" },
   circuit: {
     components: [
@@ -70,7 +70,7 @@ test("labels are normalized like the editor does, and a blank one is dropped", (
 test.each([
   ["not JSON", () => parseDocument("{"), "not valid JSON"],
   ["another format", () => broken((doc) => Object.assign(doc, { format: "other" })), "not a Clockyard file"],
-  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 4 })), "newer Clockyard"],
+  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 5 })), "newer Clockyard"],
   ["an instance of a missing definition", () => broken((doc) => Object.assign(doc.circuit.components[2] ?? {}, { definition: "gone" })), "missing definition gone"],
   ["an ID with a slash", () => broken((_, c) => (c.id = "a/b")), 'must not contain "/"'],
   ["a definition ID used twice", () => broken((doc) => doc.definitions.push({ ...(doc.definitions[0] as Definition) })), "ID inv is used more than once"],
@@ -125,4 +125,11 @@ test("a version 2 file is migrated: the same circuit, no definitions", () => {
   const circuit = { ...document.circuit, components: document.circuit.components.slice(0, 2) };
   const v2 = { format: "clockyard", version: 2, metadata: document.metadata, circuit };
   expect(parseDocument(JSON.stringify(v2))).toEqual({ ok: true, document: { ...document, circuit, definitions: [] } });
+});
+
+test("a version 3 file is migrated: wires name an instance's pins by part ID, not label", () => {
+  const byLabel = { id: "x-in", from: { component: "a", port: "out" }, to: { component: "x", port: "In" } };
+  const v3 = { ...document, version: 3, circuit: { ...document.circuit, wires: [...document.circuit.wires, byLabel] } };
+  const result = parseDocument(JSON.stringify(v3));
+  expect(result.ok && result.document.circuit.wires.at(-1)).toEqual({ ...byLabel, to: { component: "x", port: "i" } });
 });

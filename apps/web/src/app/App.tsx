@@ -426,8 +426,9 @@ const PLAIN: Record<string, string> = {
   unstable: "The circuit did not settle: a loop keeps oscillating.",
   unknownDefinition: "A component's definition is missing.",
   recursiveDefinition: "A component contains itself, so it cannot be built.",
-  invalidPin: "A component has an unnamed or repeated pin: label each of its switches and LEDs once.",
+  invalidPin: "A component has an invalid pin.",
   tooLarge: "The circuit is too large once its components are expanded.",
+  invalidId: "An ID contains a slash, which is kept for parts inside components.",
 };
 
 function StatusBar() {

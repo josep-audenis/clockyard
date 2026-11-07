@@ -1,6 +1,6 @@
 {
   "format": "clockyard",
-  "version": 3,
+  "version": 4,
   "metadata": {
     "name": "Cascade with fan-out",
     "createdAt": "2026-11-06T12:00:00.000Z",

@@ -253,3 +253,73 @@ fn a_small_file_cannot_expand_without_bound() {
     }));
     assert_eq!(found, vec![(Code::TooLarge, vec!["top".to_string()])]);
 }
+
+#[test]
+fn an_undriven_instance_input_joined_to_other_inputs_is_still_an_error() {
+    let ids = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let found = |connections: Value| {
+        codes(json!({
+            "components": [
+                { "id": "x", "kind": "custom", "definition": "fa" },
+                { "id": "y", "kind": "custom", "definition": "fa" },
+                { "id": "g", "kind": "and" }
+            ],
+            "connections": connections,
+            "definitions": [full_adder()]
+        }))
+    };
+    // Left alone outside, each input reads 0 inside (fan-out inside is fine).
+    assert_eq!(found(json!([])), vec![]);
+    // Joined to a gate's input, or to another instance's input, nothing drives either: an error.
+    assert_eq!(
+        found(wires(&[("w", "x.A", "g.a")])),
+        vec![(Code::InputToInput, ids(&["w", "x"]))]
+    );
+    assert_eq!(
+        found(wires(&[("w", "x.A", "y.B")])),
+        vec![(Code::InputToInput, ids(&["w", "x", "y"]))]
+    );
+    // Two inputs of one instance joined with nothing driving them, likewise.
+    assert_eq!(
+        found(wires(&[("w", "x.A", "x.B")])),
+        vec![(Code::InputToInput, ids(&["w", "x"]))]
+    );
+}
+
+#[test]
+fn the_engine_enforces_id_rules_and_pin_ports() {
+    let ids = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    // "/" separates instance paths, at the top level and inside definitions alike.
+    assert_eq!(
+        codes(json!({ "components": [{ "id": "a/b", "kind": "not" }], "connections": [] })),
+        vec![(Code::InvalidId, ids(&["a/b"]))]
+    );
+    let mut slashed = full_adder();
+    slashed["connections"][0]["id"] = json!("w/1");
+    assert_eq!(
+        codes(json!({ "components": [], "connections": [], "definitions": [slashed] })),
+        vec![(Code::InvalidId, ids(&["fa"]))]
+    );
+    // Two instances with one ID, even of a definition with nothing in it.
+    let empty =
+        json!({ "id": "e", "components": [], "connections": [], "inputs": [], "outputs": [] });
+    assert_eq!(
+        codes(json!({
+            "components": [{ "id": "x", "kind": "custom", "definition": "e" }, { "id": "x", "kind": "custom", "definition": "e" }],
+            "connections": [],
+            "definitions": [empty]
+        })),
+        vec![(Code::DuplicateId, ids(&["x"]))]
+    );
+    // Inside a definition, a wire to a pin must use the pin part's own port.
+    let mut wrong = full_adder();
+    wrong["connections"][0]["from"] = json!({ "component": "a", "port": "in" });
+    assert_eq!(
+        codes(json!({
+            "components": [{ "id": "x", "kind": "custom", "definition": "fa" }],
+            "connections": [],
+            "definitions": [wrong]
+        })),
+        vec![(Code::UnknownPort, ids(&["x"]))]
+    );
+}

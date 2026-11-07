@@ -1,6 +1,6 @@
 # 0012. Custom components: definitions, pins and flat elaboration
 
-- Status: Accepted
+- Status: Accepted; port naming amended by ADR 0013
 - Date: 2026-11-07
 
 ## Context
@@ -21,7 +21,8 @@ four full adders. ADR 0004 already says `sim-core` elaborates hierarchy.
    `/` (it separates instance paths after elaboration).
 2. **Pins.** Inside a definition, each switch is an input pin and each LED an
    output pin, named by its label; names must be present and unique within the
-   definition. An instance's ports are those names. On the canvas an instance
+   definition. An instance's ports are those names (since ADR 0013, the pin
+   parts' IDs, with labels only shown). On the canvas an instance
    is a box with its inputs down the left and its outputs down the right, in
    the top-to-bottom order of the pins inside (then left to right).
 3. **Elaboration in `sim-core`.** The circuit description carries the
@@ -30,14 +31,18 @@ four full adders. ADR 0004 already says `sim-core` elaborates hierarchy.
    wires are copied with IDs prefixed `instance/`, and each pin switch or LED
    becomes a junction that the instance's port is joined to. Net resolution
    (ADR 0010) then sees one flat circuit, so an input pin left unconnected
-   outside reads 0 inside, and each instance has its own state.
+   outside reads 0 inside, and each instance has its own state. Joining an
+   undriven input pin to any input outside that instance (or to another of
+   its pins) is still `inputToInput`.
 4. **Errors.** An unknown definition, a definition that contains itself
    (directly or through others), an invalid pin (missing or repeated name, or
    a pin that is not a switch or LED) and a flattened circuit of more than
    200,000 items are validation errors. Parts, junctions, wires and instance
    expansions all count, so a small file of nested definitions cannot expand
    without bound. Pins are checked only for definitions actually used, so an
-   unlabelled switch in one does not break circuits that do not use it.
+   unlabelled switch in one does not break circuits that do not use it. The
+   engine also refuses IDs containing `/`, two instances sharing an ID, and a
+   wire to a pin part through any port but its own.
    Diagnostics name the top-level part or wire involved: an ID inside an
    instance is reported as that instance.
 5. **Editing.**
