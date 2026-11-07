@@ -123,7 +123,8 @@ Progress:
   engine resolves nets through junctions and checks each net as a whole;
   dropping a wire on a wire splits it with a junction (one undo step);
   junctions are selected, dragged, copied and deleted like parts, and one left
-  without wires is removed; half-adder example uses junctions
+  without wires is removed; a junction never lands on a port or another
+  junction, by drop or drag; half-adder example uses junctions
 - ✅ Routing: wires leave ports horizontally and bend on a junction's column,
   so junctions act as waypoints. Automatic avoidance of shared bend columns is
   still to do

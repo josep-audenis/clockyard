@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { Circuit, CircuitComponent } from "../editor/document";
-import { hitTest, itemsInBox, nearestOnRoute, places, portAt, wirePoints } from "./geometry";
+import { hitTest, itemsInBox, nearestOnRoute, occupied, places, portAt, stacksJunction, wirePoints } from "./geometry";
 
 const part = (id: string, kind: CircuitComponent["kind"], x: number, y: number): CircuitComponent => ({
   id,
@@ -77,4 +77,16 @@ test("a box selects parts wholly inside it and the junctions inside it, dragged 
   expect(itemsInBox(circuit, { x: 11, y: 11 }, { x: -1, y: -1 })).toEqual(["s", "g", "l", "j"]);
   expect(itemsInBox(circuit, { x: -1, y: -1 }, { x: 9, y: 9 })).toEqual(["s", "j"]); // AND and LED only partly inside
   expect(itemsInBox(circuit, { x: 2, y: 8 }, { x: 4, y: 10 })).toEqual(["j"]);
+});
+
+test("a junction may not land on a port or another junction, nor a port on a junction", () => {
+  // Ports: switch out (2,1); AND a (6,1), b (6,3), out (10,2); LED in (6,9). Junction at (3,9).
+  expect(occupied(circuit, { x: 6, y: 3 })).toBe(true);
+  expect(occupied(circuit, { x: 3, y: 9 })).toBe(true);
+  expect(occupied(circuit, { x: 4, y: 4 })).toBe(false);
+  expect(stacksJunction(circuit, { j: { x: 6, y: 3 } })).toBe(true); // onto the AND's input
+  expect(stacksJunction(circuit, { j: { x: 4, y: 9 } })).toBe(false);
+  expect(stacksJunction(circuit, { l: { x: 3, y: 8 } })).toBe(true); // the LED's input onto the junction
+  // Moving the junction with the LED keeps them apart as they were.
+  expect(stacksJunction(circuit, { j: { x: 3, y: 10 }, l: { x: 6, y: 9 } })).toBe(false);
 });

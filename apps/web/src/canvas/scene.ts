@@ -6,7 +6,18 @@ import { endOwner, type Circuit, type CircuitComponent } from "../editor/documen
 import { useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
 import { useSim } from "../simulation/sync";
-import { endAt, hitTest, itemsInBox, nearestOnRoute, places, portAt, wirePoints, type Hit, type Point } from "./geometry";
+import {
+  endAt,
+  hitTest,
+  itemsInBox,
+  nearestOnRoute,
+  occupied,
+  places,
+  stacksJunction,
+  wirePoints,
+  type Hit,
+  type Point,
+} from "./geometry";
 import { LAYOUTS } from "./layout";
 
 const MIN_ZOOM = 0.25;
@@ -146,10 +157,11 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       });
     }
 
-    // CanvasKit: a junction is a 4px dot in its net's state colour.
+    // CanvasKit: a junction is a 4px dot in its net's state colour, read from any wire on it.
+    const wireAt = new Map(circuit.wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)].map((owner) => [owner, w.id])));
     for (const junction of circuit.junctions) {
-      const attached = circuit.wires.find((w) => endOwner(w.from) === junction.id || endOwner(w.to) === junction.id);
-      const value = signal(attached && loaded?.wireNets[attached.id]);
+      const attached = wireAt.get(junction.id);
+      const value = signal(attached === undefined ? undefined : loaded?.wireNets[attached]);
       const { x, y } = px(junction.position);
       if (selected.has(junction.id)) wires.circle(x, y, 8).stroke({ width: size["select-width"], color: color.select });
       wires
@@ -344,11 +356,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const end = [wire.from, wire.to].find((e) => samePoint(endAt(at, e), point));
     if (end) return { at: point, end };
     // Never drop a junction onto another port or junction: two dots on one spot would look joined.
-    const ports = circuit.components.flatMap((c) =>
-      [...Object.keys(LAYOUTS[c.kind].inputs), ...Object.keys(LAYOUTS[c.kind].outputs)].map((name) => portAt(c, name)),
-    );
-    const taken = [...ports, ...circuit.junctions.map((j) => j.position)].some((q) => q && samePoint(q, point));
-    return taken ? null : { at: point, wire: wire.id };
+    return occupied(circuit, point) ? null : { at: point, wire: wire.id };
   }
 
   const onPointerDown = (e: PointerEvent) => {
@@ -407,11 +415,13 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         // Snap the item under the pointer; everything else selected moves by the same cells.
         const dx = Math.round(p.x - g.grab.x) - anchor.x;
         const dy = Math.round(p.y - g.grab.y) - anchor.y;
-        if (current.x !== anchor.x + dx || current.y !== anchor.y + dy) {
+        const positions = Object.fromEntries(Object.entries(g.starts).map(([id, s]) => [id, { x: s.x + dx, y: s.y + dy }]));
+        // A cell that would stack a junction on a port or junction is skipped; the drag waits for the next one.
+        if ((current.x !== anchor.x + dx || current.y !== anchor.y + dy) && !stacksJunction(editor.circuit, positions)) {
           // The whole drag is one undo step.
           if (!g.recorded) editor.record();
           g.recorded = true;
-          editor.move(Object.fromEntries(Object.entries(g.starts).map(([id, s]) => [id, { x: s.x + dx, y: s.y + dy }])));
+          editor.move(positions);
         }
       }
     } else if (gesture?.type === "wire") {
