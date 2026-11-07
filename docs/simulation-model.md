@@ -22,9 +22,10 @@ Phase 1: binary, 1 bit. `0` low, `1` high. One `u8` per net.
 
 Designed to extend to:
 
-- **Multi-bit** (Phase 2): a net carries `width` bits (1–64), stored as a `u64`
-  word plus width. Width is checked at compile time; a mismatch is a
-  validation error, never a silent truncation.
+- **Multi-bit** (Phase 2, planned in ADR 0014): a net carries `width` bits
+  (1–32), stored as a `u32` word plus width. Width is checked at compile
+  time; a mismatch is a validation error (`widthMismatch`), never a silent
+  truncation.
 - **Four-state** (later): `0`, `1`, `X` (unknown/conflict), `Z` (high
   impedance), stored as value + unknown masks. Introduced together with
   tri-state outputs and multi-driver nets.
