@@ -514,6 +514,8 @@ test("rename a component from an instance's inspector; delete it from Chips only
   await expect(name).toHaveValue("Adder bit");
   await expect(parts.getByRole("button", { name: "Adder bit", exact: true })).toBeVisible();
   await expect(inspector).toContainText("Adder bit");
+  // The refusal follows the component: renamed with it, gone once nothing uses it (below).
+  await expect(parts.getByRole("alert")).toHaveText("Adder bit is still used in the main circuit. Delete those instances first.");
 
   // Once nothing uses it, deleting asks first; cancelling keeps it.
   await page.keyboard.press("Control+a");
@@ -522,12 +524,14 @@ test("rename a component from an instance's inspector; delete it from Chips only
   await parts.getByRole("button", { name: "Delete Adder bit" }).click();
   await expect(parts.getByRole("alert")).toHaveCount(0);
   await expect(parts.getByRole("button", { name: "Adder bit", exact: true })).toBeVisible();
+  let asked = "";
   page.once("dialog", (dialog) => {
-    expect(dialog.message()).toBe("Delete the component Adder bit? This cannot be undone.");
+    asked = dialog.message();
     void dialog.accept();
   });
   await parts.getByRole("button", { name: "Delete Adder bit" }).click();
   await expect(parts.getByRole("button", { name: "Adder bit", exact: true })).toHaveCount(0);
+  expect(asked).toBe("Delete the component Adder bit? This cannot be undone.");
   await expect(parts).toContainText("Make component in the inspector");
   // The only undo step held its instances, so it went with it: undo cannot bring back a missing component.
   await page.keyboard.press("Control+z");

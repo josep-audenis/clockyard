@@ -81,8 +81,10 @@ four full adders. ADR 0004 already says `sim-core` elaborates hierarchy.
   characters is refused, like a label).
 - *Delete*: each chip has a delete button. It is refused, with the reason,
   while an instance of the definition is on the main circuit or in another
-  definition, or while the definition is open on its sheet; otherwise it asks
-  for confirmation.
+  definition; otherwise it asks for confirmation. The reason stays shown,
+  kept current, until it no longer holds. (On a definition's own sheet its
+  chip is hidden; the store refuses deleting the open definition as well.)
+  Two definitions may share a name; nothing requires names to be unique.
 - *Undo*. Undo history stays per sheet and holds circuits only, so a
   definition change is not an undo step: a rename is reversed by renaming
   again, and a delete cannot be undone (the confirmation says so). For a

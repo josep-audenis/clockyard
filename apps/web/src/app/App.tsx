@@ -147,12 +147,13 @@ function PartsLibrary() {
   const definitions = useEditor((s) => s.definitions);
   // On a definition's sheet, neither it nor anything containing it may be placed: that would contain itself.
   const chips = definitions.filter((d) => !sheet || !contains(definitions, d.id, sheet));
-  const [error, setError] = useState<string | null>(null);
+  // The chip whose delete was refused; the reason is kept current, and goes once it no longer holds.
+  const [refused, setRefused] = useState<string | null>(null);
+  const error = useEditor((s) => (refused ? deleteRefusal(s, refused) : null));
   const deleteChip = (id: string, name: string) => {
-    const refusal = deleteRefusal(useEditor.getState(), id);
-    setError(refusal);
-    if (refusal || !window.confirm(`Delete the component ${name}? This cannot be undone.`)) return;
-    setError(useEditor.getState().deleteDefinition(id));
+    setRefused(id);
+    if (deleteRefusal(useEditor.getState(), id) || !window.confirm(`Delete the component ${name}? This cannot be undone.`)) return;
+    useEditor.getState().deleteDefinition(id);
   };
 
   useEffect(() => {
