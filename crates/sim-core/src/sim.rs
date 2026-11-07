@@ -368,7 +368,7 @@ impl Simulator {
     /// Any settle from all-zero nets (a future reset too) should call it first.
     fn presettle(&mut self) {
         // Every net but ground is an output's; ground is skipped below. A net
-        // with no driver (say, a future bus) would index out of bounds here
+        // with no driver (say, a future bus) makes `readers[d]` below panic
         // rather than silently corrupt another component's reader count.
         let mut driver = vec![usize::MAX; self.nets.len()];
         for (c, net) in self.outputs.iter().enumerate() {
