@@ -6,7 +6,7 @@ import { endOwner, type Circuit, type CircuitComponent } from "../editor/documen
 import { useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
 import { useSim } from "../simulation/sync";
-import { endAt, hitTest, itemsInBox, nearestOnRoute, places, wirePoints, type Hit, type Point } from "./geometry";
+import { endAt, hitTest, itemsInBox, nearestOnRoute, places, portAt, wirePoints, type Hit, type Point } from "./geometry";
 import { LAYOUTS } from "./layout";
 
 const MIN_ZOOM = 0.25;
@@ -342,7 +342,13 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const point = points && nearestOnRoute(points, p);
     if (!wire || !point) return null;
     const end = [wire.from, wire.to].find((e) => samePoint(endAt(at, e), point));
-    return end ? { at: point, end } : { at: point, wire: wire.id };
+    if (end) return { at: point, end };
+    // Never drop a junction onto another port or junction: two dots on one spot would look joined.
+    const ports = circuit.components.flatMap((c) =>
+      [...Object.keys(LAYOUTS[c.kind].inputs), ...Object.keys(LAYOUTS[c.kind].outputs)].map((name) => portAt(c, name)),
+    );
+    const taken = [...ports, ...circuit.junctions.map((j) => j.position)].some((q) => q && samePoint(q, point));
+    return taken ? null : { at: point, wire: wire.id };
   }
 
   const onPointerDown = (e: PointerEvent) => {

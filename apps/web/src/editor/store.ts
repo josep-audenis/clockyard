@@ -85,7 +85,9 @@ function fragment(circuit: Circuit, ids: string[]): Circuit {
   const junctions = circuit.junctions.filter((j) => chosen.has(j.id));
   const inside = new Set([...components, ...junctions].map((item) => item.id));
   const wires = circuit.wires.filter((w) => inside.has(endOwner(w.from)) && inside.has(endOwner(w.to)));
-  return { components, junctions, wires };
+  // A junction only joins wires; one with none among them would arrive as a lone dot.
+  const used = new Set(wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
+  return { components, junctions: junctions.filter((j) => used.has(j.id)), wires };
 }
 
 /** A copy of `part` with fresh IDs, shifted down-right by `offset` cells. */

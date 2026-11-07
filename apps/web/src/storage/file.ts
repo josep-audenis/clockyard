@@ -5,6 +5,7 @@ import {
   MAX_LABEL,
   normalizeLabel,
   ROTATIONS,
+  sameEnd,
   type CircuitComponent,
   type CircuitDocument,
   type ComponentKind,
@@ -134,7 +135,11 @@ function readDocument(data: unknown): CircuitDocument {
   const wires = array(circuit.wires, "circuit.wires").map((raw, i): Wire => {
     const where = `Wire ${i + 1}`;
     const w = object(raw, where);
-    return { id: unique(id(w.id, `${where} id`), where), from: end(w.from, `${where} start`), to: end(w.to, `${where} end`) };
+    const from = end(w.from, `${where} start`);
+    const to = end(w.to, `${where} end`);
+    // The editor never draws one; on screen it would be an invisible, unclickable wire.
+    if (sameEnd(from, to)) throw new Error(`${where} starts and ends at the same place.`);
+    return { id: unique(id(w.id, `${where} id`), where), from, to };
   });
 
   return {

@@ -301,8 +301,8 @@ function Readout() {
 
 // Plain sentences for the status bar; the engine's messages name opaque IDs, which the canvas highlights instead.
 const PLAIN: Record<string, string> = {
-  outputToOutput: "A wire connects two outputs.",
-  inputToInput: "A wire connects two inputs, so nothing drives it.",
+  outputToOutput: "Outputs are wired together.",
+  inputToInput: "Inputs are wired together with no output driving them.",
   multipleDrivers: "An input has more than one driver.",
   unconnectedInput: "An input is unconnected and reads 0.",
   unstable: "The circuit did not settle: a loop keeps oscillating.",

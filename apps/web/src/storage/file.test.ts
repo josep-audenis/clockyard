@@ -55,6 +55,7 @@ test.each([
   ["a fractional junction", () => broken((doc) => Object.assign(doc.circuit.junctions[0] ?? {}, { position: { x: 1.5, y: 0 } })), "x must be a whole number"],
   ["a junction sharing an ID", () => broken((doc) => Object.assign(doc.circuit.junctions[0] ?? {}, { id: "g" })), "ID g is used more than once"],
   ["a wire to a missing junction", () => broken((_, _c, w) => (w.to = { junction: "gone" })), "missing junction gone"],
+  ["a wire from a port to itself", () => broken((_, _c, w) => (w.to = { ...w.from })), "starts and ends at the same place"],
   ["missing junctions", () => broken((doc) => Reflect.deleteProperty(doc.circuit, "junctions")), "circuit.junctions must be a list"],
   ["an unknown kind", () => broken((_, c) => (c.kind = "flux" as ComponentKind)), 'unknown kind "flux"'],
   ["a fractional position", () => broken((_, c) => (c.position.x = 0.5)), "x must be a whole number"],

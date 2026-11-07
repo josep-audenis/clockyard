@@ -360,3 +360,19 @@ test("junctions move, copy and paste with the parts around them", () => {
   copy(); // a junction alone is not something to copy
   expect(useEditor.getState().clipboard?.components).toHaveLength(3);
 });
+
+test("copying a junction without any of its wires does not paste a lone junction", () => {
+  const { add, connect, connectToWire, select, copy, paste, duplicate } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const l = add("led", { x: 8, y: 0 });
+  const m = add("led", { x: 8, y: 6 });
+  const other = add("not", { x: 0, y: 10 });
+  const w = connect(port(s, "out"), port(l, "in")) ?? "";
+  connectToWire(port(m, "in"), w, { x: 4, y: 1 });
+  const id = useEditor.getState().circuit.junctions[0]?.id ?? "";
+  select([other, id]);
+  copy();
+  paste();
+  duplicate();
+  expect(useEditor.getState().circuit.junctions.map((j) => j.id)).toEqual([id]);
+});

@@ -126,7 +126,7 @@ test("invalid and unstable circuits are reported and recover", async ({ page }) 
   // Two outputs wired together: invalid until the (selected) new wire is deleted.
   await drag(page, at(2, 1), at(2, 6));
   await expect(status(page)).toContainText("Invalid");
-  await expect(status(page)).toContainText("A wire connects two outputs.");
+  await expect(status(page)).toContainText("Outputs are wired together.");
   await page.keyboard.press("Delete");
   await expect(status(page)).toContainText("Settled");
 

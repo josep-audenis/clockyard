@@ -55,7 +55,12 @@ they come with multi-bit signals.
 - One rule for nets, used by every caller of `sim-core`, including the native
   example tests.
 - Duplicate wires and fan-out no longer need per-connection driver tracking.
-- `inputToInput` now also covers a net that joins inputs through junctions
-  with no output.
+- Errors are per net, not per wire. `inputToInput` now also covers inputs
+  joined through junctions with no output, while a wire between two inputs
+  that some output already drives is plain fan-out and valid. A wire from an
+  end to itself is harmless to the engine; the editor never draws one and
+  import refuses it.
+- Diagnostics come out in a stable order (by each net's first port or
+  junction), whichever way its wires were drawn.
 - A v2 file cannot be opened by a Phase 2-editing build; it reports a newer
   format, as designed.

@@ -203,12 +203,19 @@ impl Simulator {
             let root = find(&mut parent, *node);
             groups.entry(root).or_default().wires.push(wire);
         }
+        // Nets are checked in order of their first port or junction, never of
+        // which way a wire was drawn, so diagnostics come out in a stable order.
+        let mut order = Vec::new();
+        let mut seen = std::collections::BTreeSet::new();
         for (node, end) in ends.iter().enumerate() {
             let root = find(&mut parent, node);
             // Ports no wire touches stay alone: an output drives nothing, an input reads 0.
             let Some(group) = groups.get_mut(&root) else {
                 continue;
             };
+            if seen.insert(root) {
+                order.push(root);
+            }
             match *end {
                 End::Out(c) => group.outputs.push(c),
                 End::In(c, slot) => group.inputs.push((c, slot)),
@@ -231,8 +238,10 @@ impl Simulator {
         let mut drivers: Vec<Vec<Option<u32>>> =
             kinds.iter().map(|k| vec![None; k.inputs().len()]).collect();
         let mut wire_nets = BTreeMap::new();
-        for group in groups.values() {
-            let wires: Vec<String> = group.wires.iter().map(|w| (*w).to_string()).collect();
+        for root in order {
+            let group = &groups[&root];
+            let mut wires: Vec<String> = group.wires.iter().map(|w| (*w).to_string()).collect();
+            wires.sort();
             let net = match (group.outputs.as_slice(), group.inputs.as_slice()) {
                 ([driver], _) => outputs[*driver].expect("an output port has a net"),
                 // A dangling branch: its input (if any) stays unconnected and reads 0.
@@ -246,7 +255,11 @@ impl Simulator {
                     continue;
                 }
                 (_, []) => {
-                    let message = format!("{} two outputs", wires_verb(&wires, "connect"));
+                    let count = match group.outputs.len() {
+                        2 => "two".to_string(),
+                        n => n.to_string(),
+                    };
+                    let message = format!("{} {count} outputs", wires_verb(&wires, "connect"));
                     errors.push(Diagnostic::error(Code::OutputToOutput, message, wires));
                     continue;
                 }
@@ -798,6 +811,18 @@ mod tests {
                 "{wires:?}"
             );
         }
+        // Errors come out in the same order whichever way each wire was drawn.
+        let forward = circuit(&parts, &[("b.out", "g.out"), ("g.a", "l.in")]);
+        let backward = circuit(&parts, &[("g.out", "b.out"), ("l.in", "g.a")]);
+        assert_eq!(
+            codes(Simulator::load(&forward)),
+            codes(Simulator::load(&backward))
+        );
+        assert_eq!(
+            codes(Simulator::load(&forward)),
+            vec![Code::OutputToOutput, Code::InputToInput] // b.out is an earlier port than g.a
+        );
+
         let clash = with_junctions(circuit(&parts, &[]), &["j", "j", "g"]);
         assert_eq!(
             codes(Simulator::load(&clash)),
