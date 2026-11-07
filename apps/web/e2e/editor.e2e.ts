@@ -545,3 +545,57 @@ test("rename a component from an instance's inspector; delete it from Chips only
   await expect(readout(page, "Switch A0")).toHaveCount(0);
   await expect(status(page)).toContainText("No circuit");
 });
+
+test("the 8-bit adder example adds two 8-bit values typed in the inspector", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("8-bit-adder"));
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+  const value = page.getByLabel("Value");
+  // A at (0,0) and B at (0,12) are 5x2 wide switches: a click selects one and focuses its Value field (ADR 0014).
+  await click(page, at(2.5, 1));
+  await expect(value).toBeFocused();
+  await value.fill("200");
+  await value.press("Enter");
+  await click(page, at(2.5, 13));
+  await expect(value).toBeFocused();
+  await value.fill("0x64");
+  await value.press("Enter");
+  await expect(readout(page, "Switch A")).toHaveText("Switch A: 200 (0xC8)");
+  await expect(readout(page, "LED Sum")).toHaveText("LED Sum: 44 (0x2C)");
+  await expect(readout(page, "LED Cout")).toHaveText("LED Cout: on");
+  // Up steps B to 101; Cin adds one more: 302 wraps to 46 and still carries out.
+  await value.press("ArrowUp");
+  await expect(readout(page, "Switch B")).toHaveText("Switch B: 101 (0x65)");
+  await click(page, at(1, 25));
+  await expect(readout(page, "LED Sum")).toHaveText("LED Sum: 46 (0x2E)");
+  await expect(readout(page, "LED Cout")).toHaveText("LED Cout: on");
+  await expect(status(page)).toContainText("Settled");
+});
+
+test("an 8-bit switch wired to a 1-bit LED is a width mismatch until the LED is 8 bits too", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  const width = page.getByLabel("Width");
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0); at 8 bits it is 5x2 with out at (5,1)
+  await width.fill("8");
+  await width.press("Enter");
+  await page.keyboard.press("l");
+  await click(page, at(11, 1)); // LED at (10,0), in at (10,1)
+  await drag(page, at(5, 1), at(10, 1));
+  await expect(status(page)).toContainText("Invalid");
+  await expect(status(page)).toContainText("Ports of different widths are wired together.");
+  await expect(readout(page, "LED 1")).toHaveText("LED 1: unknown");
+
+  await click(page, at(11, 1));
+  await width.fill("8");
+  await width.press("Enter");
+  await expect(status(page)).toContainText("Settled");
+  const value = page.getByLabel("Value");
+  await click(page, at(2.5, 1));
+  await expect(value).toBeFocused();
+  await value.fill("0b1010_0101");
+  await value.press("Enter");
+  await expect(readout(page, "LED 1")).toHaveText("LED 1: 165 (0xA5)");
+});
