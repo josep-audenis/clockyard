@@ -44,6 +44,7 @@ pub enum Endpoint {
 /// The fields a wire end may carry, so a malformed one gets a message that
 /// says what is missing (serde's untagged enums only say "no variant matched").
 #[derive(Deserialize)]
+#[serde(expecting = "a wire end: {component, port} or {junction}")]
 struct RawEnd {
     component: Option<String>,
     port: Option<String>,
@@ -165,5 +166,8 @@ mod tests {
                 "{bad}: {error}"
             );
         }
+        // Not an object at all: the message names a wire end, not an internal type.
+        let error = end(r#""s.out""#).unwrap_err();
+        assert!(error.contains("expected a wire end"), "{error}");
     }
 }
