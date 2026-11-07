@@ -37,7 +37,7 @@ function turned({ width, height, inputs, outputs }: Layout): Layout {
 
 const rotated = new Map<string, Layout>();
 /** Unrotated layouts and names of the definitions in use, by definition ID. */
-const custom = new Map<string, { name: string; layout: Layout }>();
+const custom = new Map<string, { name: string; layout: Layout; labels: Map<string, string> }>();
 /** Layout of an instance whose definition is missing: a plain box with no ports. */
 const MISSING: Layout = { width: 4, height: 2, inputs: {}, outputs: {} };
 
@@ -51,13 +51,14 @@ export function setDefinitionLayouts(definitions: Definition[]) {
   for (const d of definitions) {
     const { inputs, outputs } = pinsOf(d.circuit);
     const column = (pins: { name: string }[], x: number) => Object.fromEntries(pins.map((p, i) => [p.name, { x, y: 1 + 2 * i }]));
+    const labels = new Map(d.circuit.components.map((c) => [c.id, c.props.label ?? ""]));
     const layout = {
       width: 4,
       height: 2 * Math.max(inputs.length, outputs.length, 1),
       inputs: column(inputs, 0),
       outputs: column(outputs, 4),
     };
-    custom.set(d.id, { name: d.name, layout });
+    custom.set(d.id, { name: d.name, layout, labels });
   }
   // Only a real change of pins invalidates layouts (and routes kept for instances), not every edit of a sheet.
   const changed = custom.size !== before.size || [...custom].some(([id, { layout }]) => before.get(id) !== JSON.stringify(layout));
@@ -70,6 +71,10 @@ export function setDefinitionLayouts(definitions: Definition[]) {
 let layouts = 0;
 /** Changes whenever instances' layouts may have: routes kept from before must not trust their ports. */
 export const layoutsVersion = () => layouts;
+
+/** What an instance's port is called on screen: its pin's label (the port itself is the pin part's ID). */
+export const pinLabel = (definition: string | undefined, port: string) =>
+  (definition === undefined ? undefined : custom.get(definition)?.labels.get(port)) ?? "";
 
 /** Name of a definition, for instances' captions and the inspector. */
 export const definitionName = (id: string | undefined) => (id === undefined ? undefined : custom.get(id)?.name);

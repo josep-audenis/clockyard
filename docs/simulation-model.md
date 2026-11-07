@@ -38,11 +38,19 @@ Before nets are resolved, `sim-core` flattens every instance of a custom
 component (ADR 0012), depth first: the definition's parts, junctions and wires
 are copied with IDs prefixed `instance/`, and each of its pin switches and LEDs
 becomes a junction that the instance's port is joined to. Each instance thus
-has its own state. A net that reaches a pin but has no output is an input left
-unconnected outside the instance: its readers read 0 and warn. Diagnostics
+has its own state. A net with no output that reaches a pin (an instance input
+left unconnected outside, or an output pin driven by nothing inside) is judged
+level by level, as it was wired: inside an instance its input pin drives and
+its output pin reads; one level up, the instance's input port reads and its
+output port drives. If no level joins two or more inputs without something
+there that drives them, its readers read 0 and warn; otherwise it is
+`inputToInput`, as for joined inputs anywhere. So a pin passed straight
+through an instance and left unconnected reads 0 on the far side, while an
+instance input wired to another input with no driver is an error. Diagnostics
 name the top-level part an inner ID belongs to. Unknown or recursive
 definitions, bad pins (checked where a definition is used) and more than
-200,000 expanded items (parts, junctions, wires and instances) are errors.
+200,000 expanded items (parts, junctions, wires and instances) are errors, as
+are IDs containing `/` (`invalidId`) and instances sharing an ID.
 
 ## Nets
 

@@ -31,8 +31,6 @@ struct Part {
     #[serde(flatten)]
     desc: ComponentDesc,
     position: Position,
-    #[serde(default)]
-    props: Props,
 }
 
 #[derive(Deserialize)]
@@ -41,19 +39,14 @@ struct Position {
     y: i64,
 }
 
-#[derive(Default, Deserialize)]
-struct Props {
-    label: Option<String>,
-}
-
-/// Pins as the editor projects them (ADR 0012): switches in, LEDs out, named by label, top to bottom.
+/// Pins as the editor projects them (ADRs 0012, 0013): switches in, LEDs out, named by part ID, top to bottom.
 fn pins(parts: &[Part], kind: &str) -> Vec<PinDesc> {
     let mut chosen: Vec<&Part> = parts.iter().filter(|p| p.desc.kind == kind).collect();
     chosen.sort_by_key(|p| (p.position.y, p.position.x));
     chosen
         .into_iter()
         .map(|p| PinDesc {
-            name: p.props.label.clone().unwrap_or_default(),
+            name: p.desc.id.clone(),
             component: p.desc.id.clone(),
         })
         .collect()

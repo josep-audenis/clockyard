@@ -57,27 +57,29 @@ export const sameEnd = (a: Endpoint, b: Endpoint) =>
     ? isJunction(a) && isJunction(b) && a.junction === b.junction
     : a.component === b.component && a.port === b.port;
 
-/** A reusable component: a circuit whose labelled switches and LEDs are its pins (ADR 0012). */
+/** A reusable component: a circuit whose switches and LEDs are its pins, shown by their labels (ADRs 0012, 0013). */
 export type Definition = { id: string; name: string; circuit: Circuit };
 
 export type CircuitDocument = {
   format: "clockyard";
-  version: 3;
+  version: 4;
   metadata: { name: string; createdAt: string; modifiedAt: string };
   circuit: Circuit;
   definitions: Definition[];
 };
 
 /**
- * A definition's pins: switches are inputs and LEDs outputs, named by their
- * labels, each in top-to-bottom (then left-to-right) order.
+ * A definition's pins: switches are inputs and LEDs outputs, each in
+ * top-to-bottom (then left-to-right) order. A pin is named by its part's ID,
+ * which never changes, so relabelling a pin keeps every wire to it (ADR 0013);
+ * the label is only shown.
  */
 export function pinsOf(circuit: Circuit): { inputs: PinDesc[]; outputs: PinDesc[] } {
   const pins = (kind: ComponentKind) =>
     circuit.components
       .filter((c) => c.kind === kind)
       .sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x)
-      .map((c) => ({ name: c.props.label ?? "", component: c.id }));
+      .map((c) => ({ name: c.id, component: c.id }));
   return { inputs: pins("switch"), outputs: pins("led") };
 }
 

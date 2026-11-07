@@ -17,7 +17,7 @@ import {
   type Wire,
 } from "../editor/document";
 
-export const FORMAT_VERSION = 3;
+export const FORMAT_VERSION = 4;
 
 export type ParseResult = { ok: true; document: CircuitDocument } | { ok: false; error: string };
 
@@ -87,7 +87,7 @@ function readDocument(data: unknown): CircuitDocument {
   if (version > FORMAT_VERSION) {
     throw new Error(`This file uses format version ${version}, from a newer Clockyard. This version reads up to ${FORMAT_VERSION}.`);
   }
-  if (version !== 1 && version !== 2 && version !== FORMAT_VERSION) throw new Error(`Format version ${version} is not supported.`);
+  if (![1, 2, 3, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
 
   const metadata = object(data.metadata, "metadata");
   const circuit = object(data.circuit, "circuit");
@@ -112,6 +112,9 @@ function readDocument(data: unknown): CircuitDocument {
     circuit: readCircuit(object(d.circuit, `${where} circuit`), `${where}: `, definitionIds),
   }));
 
+  const main = readCircuit(circuit, "", definitionIds);
+  if (version < 4) pinPortsById([main, ...definitions.map((d) => d.circuit)], definitions);
+
   return {
     format: "clockyard",
     version: FORMAT_VERSION,
@@ -120,9 +123,28 @@ function readDocument(data: unknown): CircuitDocument {
       createdAt: text(metadata.createdAt, "metadata.createdAt"),
       modifiedAt: text(metadata.modifiedAt, "metadata.modifiedAt"),
     },
-    circuit: readCircuit(circuit, "", definitionIds),
+    circuit: main,
     definitions,
   };
+}
+
+/** Version 3 → 4 (ADR 0013): wires named an instance's port by its pin's label, now by the pin part's ID. */
+function pinPortsById(circuits: Circuit[], definitions: Definition[]) {
+  const byLabel = new Map(
+    definitions.map((d) => [
+      d.id,
+      new Map(d.circuit.components.filter((c) => c.kind === "switch" || c.kind === "led").map((c) => [c.props.label ?? "", c.id])),
+    ]),
+  );
+  for (const circuit of circuits) {
+    const parts = new Map(circuit.components.map((c) => [c.id, c]));
+    for (const end of circuit.wires.flatMap((w) => [w.from, w.to])) {
+      if ("junction" in end) continue;
+      const part = parts.get(end.component);
+      const id = part?.kind === "custom" && part.definition ? byLabel.get(part.definition)?.get(end.port) : undefined;
+      if (id) end.port = id;
+    }
+  }
 }
 
 /** An element's ID: also never containing `/`, which separates instance paths once components are expanded. */

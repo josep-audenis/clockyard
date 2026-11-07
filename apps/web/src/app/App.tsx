@@ -298,7 +298,7 @@ function MakeComponent({ count }: { count: number }) {
           onChange={(e) => setName(e.target.value)}
         />
         <p id={`${id}-hint`} className={`field-hint${error ? " field-error" : ""}`} role={error ? "alert" : undefined}>
-          {error ?? "Its labelled switches become inputs and its labelled LEDs outputs."}
+          {error ?? "Its switches become inputs and its LEDs outputs, named by their labels."}
         </p>
       </div>
       <button type="button" className="button type-label" onClick={() => setError(useEditor.getState().makeComponent(name))}>
@@ -426,8 +426,10 @@ const PLAIN: Record<string, string> = {
   unstable: "The circuit did not settle: a loop keeps oscillating.",
   unknownDefinition: "A component's definition is missing.",
   recursiveDefinition: "A component contains itself, so it cannot be built.",
-  invalidPin: "A component has an unnamed or repeated pin: label each of its switches and LEDs once.",
+  invalidPin: "A component has an invalid pin.",
+  unknownPort: "A wire ends at a port that no longer exists, such as a deleted pin.",
   tooLarge: "The circuit is too large once its components are expanded.",
+  invalidId: "An ID contains a slash, which is kept for parts inside components.",
 };
 
 function StatusBar() {

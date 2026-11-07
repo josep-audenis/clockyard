@@ -20,7 +20,7 @@ import {
   type Hit,
   type Point,
 } from "./geometry";
-import { definitionName, layoutOf, layoutsVersion } from "./layout";
+import { definitionName, layoutOf, layoutsVersion, pinLabel } from "./layout";
 import { routes, routesKeeping } from "./routing";
 
 const MIN_ZOOM = 0.25;
@@ -306,7 +306,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       if (caption) put(component.id, caption, x + layout.width / 2, y + layout.height + 6 / c, { x: 0.5, y: 0 });
       if (component.kind !== "custom") continue;
       // Pin names just inside the body, facing in from the side the port is on.
-      for (const [name, p] of Object.entries({ ...layout.inputs, ...layout.outputs })) {
+      for (const [port, p] of Object.entries({ ...layout.inputs, ...layout.outputs })) {
+        const name = pinLabel(component.definition, port);
+        if (!name) continue;
         const inset = 0.3;
         const [dx, dy, anchor] =
           p.x === 0
@@ -316,7 +318,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
               : p.y === 0
                 ? [0, inset, { x: 0.5, y: 0 }]
                 : [0, -inset, { x: 0.5, y: 1 }];
-        put(`${component.id}:${name}`, name, x + p.x + dx, y + p.y + dy, anchor);
+        put(`${component.id}:${port}`, name, x + p.x + dx, y + p.y + dy, anchor);
       }
     }
     for (const [key, text] of texts) {

@@ -39,9 +39,16 @@ pub struct PinDesc {
 pub struct JunctionDesc {
     pub id: String,
     /// Set by elaboration for a custom component's pin: a net reaching one but
-    /// no output is an unconnected input (reads 0), not an error (ADR 0012).
+    /// no output may be an unconnected pin (reads 0), not an error (ADR 0012).
     #[serde(skip)]
-    pub pin: bool,
+    pub pin: Option<PinSide>,
+}
+
+/// Which side of its instance a pin is: inside, an input pin is a switch and an output pin an LED.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PinSide {
+    Input,
+    Output,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -132,6 +139,7 @@ pub enum Code {
     RecursiveDefinition,
     InvalidPin,
     TooLarge,
+    InvalidId,
     // Runtime
     Unstable,
 }
