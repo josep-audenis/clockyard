@@ -348,8 +348,59 @@ impl Simulator {
             port_nets,
             unsettled: Vec::new(),
         };
+        sim.presettle();
         warnings.extend(sim.settle((0..count as u32).collect()));
         Ok((sim, warnings))
+    }
+
+    /// Before the first settle, gives every component that cannot reach a
+    /// feedback loop its settled value, in topological order. Otherwise the
+    /// all-zero start sends a wave down each chain, one delta per gate: on a
+    /// chain of n gates that is n²/2 evaluations.
+    ///
+    /// Results are unchanged, whatever values these components start with:
+    /// no loop (nor anything feeding one) reads them, so loops see exactly
+    /// the same deltas; and loop-free logic forgets its starting values after
+    /// at most one delta per component, well inside the delta limit, so from
+    /// then on every net matches the plain all-zero settle delta by delta.
+    /// This needs `eval` to be pure while settling: a component whose state
+    /// changes during a settle (a future flip-flop) must count as a loop here.
+    fn presettle(&mut self) {
+        // Every net but ground is an output's; ground is skipped below.
+        let mut driver = vec![0; self.nets.len()];
+        for (c, net) in self.outputs.iter().enumerate() {
+            if let Some(net) = net {
+                driver[*net as usize] = c;
+            }
+        }
+        // Peel components whose readers are all peeled, from the sinks back:
+        // what remains can reach a loop.
+        let mut readers: Vec<usize> = self
+            .outputs
+            .iter()
+            .map(|net| net.map_or(0, |net| self.fanout[net as usize].len()))
+            .collect();
+        let mut peeled: Vec<usize> = (0..readers.len()).filter(|&c| readers[c] == 0).collect();
+        let mut next = 0;
+        while let Some(&c) = peeled.get(next) {
+            next += 1;
+            for (slot, &net) in self.inputs[c].iter().enumerate() {
+                // `fanout` lists a component once per net, however many slots read it.
+                if net == GROUND || self.inputs[c][..slot].contains(&net) {
+                    continue;
+                }
+                let d = driver[net as usize];
+                readers[d] -= 1;
+                if readers[d] == 0 {
+                    peeled.push(d);
+                }
+            }
+        }
+        for &c in peeled.iter().rev() {
+            if let Some(net) = self.outputs[c] {
+                self.nets[net as usize] = self.eval(c);
+            }
+        }
     }
 
     /// Sets a switch and settles. Returns an `Unstable` diagnostic if the
@@ -665,6 +716,68 @@ mod tests {
         assert_eq!(value(&sim, "o", "out"), 1);
         assert_eq!(sim.set_input("s", false), Ok(None));
         assert_eq!(value(&sim, "o", "out"), 1);
+    }
+
+    #[test]
+    fn a_glitch_into_a_loop_on_load_is_still_latched() {
+        // From all-zero, g = n1 AND NOT n1 pulses high for one delta and the OR
+        // latch o keeps it. Settled values alone would leave o at 0.
+        let (sim, _) = Simulator::load(&circuit(
+            &[
+                ("n1", "not"),
+                ("n2", "not"),
+                ("g", "and"),
+                ("o", "or"),
+                ("l", "led"),
+            ],
+            &[
+                ("n1.out", "n2.in"),
+                ("n1.out", "g.a"),
+                ("n2.out", "g.b"),
+                ("g.out", "o.a"),
+                ("o.out", "o.b"),
+                ("o.out", "l.in"),
+            ],
+        ))
+        .unwrap();
+        assert_eq!(value(&sim, "g", "out"), 0);
+        assert_eq!(value(&sim, "l", "in"), 1);
+    }
+
+    #[test]
+    fn a_long_chain_loads_in_linear_time() {
+        // Settling it delta by delta from all-zero took ~48 s (release) at this length.
+        let n = 95_000;
+        let name = |i: usize| format!("n{i}");
+        let port = |i: usize, port: &str| {
+            Endpoint::Port(PortRef {
+                component: name(i),
+                port: port.into(),
+            })
+        };
+        let description = CircuitDescription {
+            components: (0..n)
+                .map(|i| ComponentDesc {
+                    id: name(i),
+                    kind: "not".into(),
+                    definition: None,
+                })
+                .collect(),
+            connections: (1..n)
+                .map(|i| Connection {
+                    id: format!("w{i}"),
+                    from: port(i - 1, "out"),
+                    to: port(i, "in"),
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let start = std::time::Instant::now();
+        let (sim, _) = Simulator::load(&description).unwrap();
+        let elapsed = start.elapsed();
+        assert_eq!(value(&sim, &name(0), "out"), 1);
+        assert_eq!(value(&sim, &name(n - 1), "out"), 0);
+        assert!(elapsed.as_secs() < 5, "load took {elapsed:?}");
     }
 
     #[test]
