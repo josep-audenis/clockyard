@@ -99,6 +99,8 @@ Rules:
   definition, every switch is an input pin and every LED an output pin, in
   top-to-bottom order; their labels are what the chip shows. An instance's ports are named by those
   pin parts' IDs, so relabelling a pin keeps its wires (ADR 0013).
+  A definition's `name` follows the label rules below, and a blank one
+  becomes "Component", in the editor and on import.
   IDs never contain `/`, which separates instance paths once expanded.
 - Transient simulation data (signal values, clock count) is never part of the
   document.

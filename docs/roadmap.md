@@ -17,7 +17,8 @@ as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
 **Phase 2 — 🔨 in progress** (branch `feat/custom-component-hardening`).
 Editing comfort, labels, junctions and nets, routing and rotation merged (PRs
 #8–#14). Custom components and the 4-bit adder target demo merged (PR #16);
-pins renamed safely by part ID (ADR 0013, file format v4). Next: multi-bit
+pins renamed safely by part ID (ADR 0013, file format v4); definitions can be
+renamed and deleted (ADR 0012 amendment). Next: multi-bit
 signals, buses and splitters (ADR).
 
 ## Phase 0 — Foundation ✅
@@ -149,6 +150,9 @@ Progress:
   on its own sheet (simulated on its own, own undo history); the engine
   flattens instances (own state each), refusing unknown or recursive
   definitions, bad pins and oversized expansions
+- ✅ Rename a definition from an instance's inspector; delete one from Chips
+  once nothing uses it (ADR 0012 amendment: not undoable, and undo steps
+  holding its instances are dropped)
 - ⬜ Multi-bit signals, buses, splitters
 - ✅ 4-bit adder example: one full-adder definition instanced four times,
   checked natively for all 512 inputs and in the browser
@@ -200,8 +204,7 @@ analysis, plugin system, full game campaign during the MVP.
 ## Next increment
 
 Phase 2 multi-bit signals, buses and splitters (ADR), which also widens custom
-component pins. Custom components cannot yet be renamed or deleted, and Make
-component drops wires that crossed the selection's edge. Pins can be relabelled
+component pins. Make component drops wires that crossed the selection's edge. Pins can be relabelled
 freely (ADR 0013, format v4); deleting one leaves its wires reported as
 unknown ports. Known limits still
 open: a wire cannot start from a

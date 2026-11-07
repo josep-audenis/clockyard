@@ -67,6 +67,13 @@ test("labels are normalized like the editor does, and a blank one is dropped", (
   expect(result).toEqual({ ok: true, document });
 });
 
+test("definition names are normalized like the editor does, and a blank one becomes Component", () => {
+  const named = (name: string) => broken((doc) => Object.assign(doc.definitions[0] ?? {}, { name }));
+  const name = (result: ReturnType<typeof parseDocument>) => (result.ok ? result.document.definitions[0]?.name : result.error);
+  expect(name(named(" Inverter\n" + String.fromCodePoint(0x202e)))).toBe("Inverter");
+  expect(name(named("  "))).toBe("Component");
+});
+
 test.each([
   ["not JSON", () => parseDocument("{"), "not valid JSON"],
   ["another format", () => broken((doc) => Object.assign(doc, { format: "other" })), "not a Clockyard file"],
@@ -91,6 +98,7 @@ test.each([
   ["a dangling wire", () => broken((_, _c, w) => (w.to = { component: "gone", port: "a" })), "missing component gone"],
   ["a label that is not text", () => broken((_, c) => Object.assign(c.props, { label: 7 })), "label must be text"],
   ["an over-long label", () => broken((_, c) => (c.props.label = "x".repeat(33))), "longer than 32"],
+  ["an over-long definition name", () => broken((doc) => Object.assign(doc.definitions[0] ?? {}, { name: "x".repeat(33) })), "Definition 1 name is longer than 32"],
   ["missing wires", () => broken((doc) => Reflect.deleteProperty(doc.circuit, "wires")), "circuit.wires must be a list"],
 ])("rejects %s", (_name, parse, message) => {
   const result = parse();

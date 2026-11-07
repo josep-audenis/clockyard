@@ -481,7 +481,7 @@ test("make a component from a selection, place another from Chips, open it on it
   await expect(readout(page, "Switch In")).toHaveCount(0); // the switch now lives inside the component
 
   // Place a second instance from the Chips section.
-  await page.getByRole("complementary", { name: "Parts" }).getByRole("button", { name: "Inverter" }).click();
+  await page.getByRole("complementary", { name: "Parts" }).getByRole("button", { name: "Inverter", exact: true }).click();
   await click(page, at(3, 10));
   await expect(inspector.getByRole("button", { name: "Edit component" })).toBeVisible();
 
@@ -492,4 +492,45 @@ test("make a component from a selection, place another from Chips, open it on it
   await page.getByRole("button", { name: "Main circuit" }).click();
   await expect(page.getByRole("navigation", { name: "Sheet" })).toHaveCount(0);
   await expect(readout(page, "Switch In")).toHaveCount(0);
+});
+
+test("rename a component from an instance's inspector; delete it from Chips only once nothing uses it", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("4-bit-adder"));
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+  const parts = page.getByRole("complementary", { name: "Parts" });
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+
+  // In use on the main circuit: refused, with the reason.
+  await parts.getByRole("button", { name: "Delete Full adder" }).click();
+  await expect(parts.getByRole("alert")).toHaveText("Full adder is still used in the main circuit. Delete those instances first.");
+
+  // Rename through an instance (the first full adder, at (12, 0)): every instance and the chip follow.
+  await click(page, at(14, 3));
+  const name = inspector.getByRole("textbox", { name: "Component name" });
+  await name.fill("  Adder bit ");
+  await name.press("Enter");
+  await expect(name).toHaveValue("Adder bit");
+  await expect(parts.getByRole("button", { name: "Adder bit", exact: true })).toBeVisible();
+  await expect(inspector).toContainText("Adder bit");
+
+  // Once nothing uses it, deleting asks first; cancelling keeps it.
+  await page.keyboard.press("Control+a");
+  await page.keyboard.press("Delete");
+  page.once("dialog", (dialog) => void dialog.dismiss());
+  await parts.getByRole("button", { name: "Delete Adder bit" }).click();
+  await expect(parts.getByRole("alert")).toHaveCount(0);
+  await expect(parts.getByRole("button", { name: "Adder bit", exact: true })).toBeVisible();
+  page.once("dialog", (dialog) => {
+    expect(dialog.message()).toBe("Delete the component Adder bit? This cannot be undone.");
+    void dialog.accept();
+  });
+  await parts.getByRole("button", { name: "Delete Adder bit" }).click();
+  await expect(parts.getByRole("button", { name: "Adder bit", exact: true })).toHaveCount(0);
+  await expect(parts).toContainText("Make component in the inspector");
+  // The only undo step held its instances, so it went with it: undo cannot bring back a missing component.
+  await page.keyboard.press("Control+z");
+  await expect(readout(page, "Switch A0")).toHaveCount(0);
+  await expect(status(page)).toContainText("No circuit");
 });

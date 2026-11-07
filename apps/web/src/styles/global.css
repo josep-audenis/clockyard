@@ -134,6 +134,40 @@ button:focus-visible {
   border-color: var(--line-strong);
 }
 
+/* Chips (ADR 0012): one per row, each with its delete button. */
+.chip-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.chip-row {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.chip-row .part-tile {
+  flex: 1;
+  min-width: 0;
+}
+
+.chip-delete {
+  width: var(--control-height);
+  height: var(--control-height);
+  background: transparent;
+  color: var(--ink-muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.chip-delete:hover {
+  color: var(--danger);
+  border-color: var(--line-strong);
+}
+
 .part-tile[aria-pressed="true"] {
   background: var(--accent-soft);
   border-color: var(--accent);

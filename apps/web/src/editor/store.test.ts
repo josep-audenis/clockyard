@@ -729,3 +729,68 @@ test("relabelling a pin inside a definition keeps the wires to it on every insta
   expect(Object.keys(layoutOf(instance as never).inputs)).toEqual([i]);
   expect(pinLabel(id, i)).toBe("Data");
 });
+
+test("renaming a definition normalizes and caps the name like a label, also while its sheet is open", () => {
+  const { i, n, o } = inverter();
+  useEditor.getState().select([i, n, o]);
+  useEditor.getState().makeComponent("Inverter");
+  const id = useEditor.getState().definitions[0]?.id ?? "";
+  const name = () => useEditor.getState().definitions[0]?.name;
+  useEditor.getState().renameDefinition(id, "  Not\ngate ");
+  expect(name()).toBe("Not gate");
+  useEditor.getState().renameDefinition(id, "x".repeat(40));
+  expect(name()).toBe("x".repeat(32));
+  useEditor.getState().renameDefinition(id, "   ");
+  expect(name()).toBe("Component");
+  // Not an undo step: undo still takes back the make component.
+  const before = useEditor.getState().past.length;
+  useEditor.getState().renameDefinition(id, "Inverter");
+  expect(useEditor.getState().past).toHaveLength(before);
+  // On its own sheet, a rename keeps the edits made there.
+  useEditor.getState().openSheet(id);
+  useEditor.getState().add("led", { x: 9, y: 4 });
+  useEditor.getState().renameDefinition(id, "Buffer");
+  expect(liveDefinitions(useEditor.getState())[0]).toMatchObject({ name: "Buffer", circuit: { components: { length: 4 } } });
+});
+
+test("a definition is deleted only when nothing uses it; undo steps holding its instances go with it", () => {
+  const { i, n, o } = inverter();
+  useEditor.getState().select([i, n, o]);
+  useEditor.getState().makeComponent("Inverter");
+  const inner = useEditor.getState().definitions[0]?.id ?? "";
+  const instance = useEditor.getState().selection[0] ?? "";
+  // Placed on the main circuit: refused, and the reason names where.
+  expect(useEditor.getState().deleteDefinition(inner)).toBe("Inverter is still used in the main circuit. Delete those instances first.");
+  // Also placed inside another definition (with a pin of its own, which a component needs).
+  const pin = useEditor.getState().add("switch", { x: 0, y: 20 });
+  useEditor.getState().setLabel(pin, "P");
+  useEditor.getState().select([instance, pin]);
+  useEditor.getState().makeComponent("Outer");
+  const outer = useEditor.getState().definitions[1]?.id ?? "";
+  expect(useEditor.getState().deleteDefinition(inner)).toBe("Inverter is still used in Outer. Delete those instances first.");
+  // Open on its sheet: refused too.
+  useEditor.getState().openSheet(outer);
+  expect(useEditor.getState().deleteDefinition(outer)).toMatch(/is open/);
+  useEditor.getState().closeSheet();
+
+  // Outer's instance is the only use of it; once removed, Outer can go.
+  const outerInstance = useEditor.getState().circuit.components.find((c) => c.definition === outer)?.id ?? "";
+  useEditor.getState().select([outerInstance]);
+  useEditor.getState().copy();
+  useEditor.getState().armChip(outer);
+  useEditor.getState().remove([outerInstance]);
+  expect(useEditor.getState().deleteDefinition(outer)).toBeNull();
+  const state = useEditor.getState();
+  expect(state.definitions.map((d) => d.id)).toEqual([inner]);
+  expect([state.clipboard, state.armed, state.armedDefinition]).toEqual([null, null, null]);
+  expect(state.histories[outer]).toBeUndefined();
+  // No undo step can bring an instance of it back.
+  const all = [...state.past, ...state.future];
+  expect(all.some((c) => c.components.some((p) => p.definition === outer))).toBe(false);
+  while (useEditor.getState().past.length > 0) useEditor.getState().undo();
+  while (useEditor.getState().future.length > 0) useEditor.getState().redo();
+  expect(useEditor.getState().circuit.components.some((p) => p.definition === outer)).toBe(false);
+  // Inverter is free now too.
+  expect(useEditor.getState().deleteDefinition(inner)).toBeNull();
+  expect(useEditor.getState().definitions).toEqual([]);
+});

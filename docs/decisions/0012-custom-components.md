@@ -1,6 +1,7 @@
 # 0012. Custom components: definitions, pins and flat elaboration
 
-- Status: Accepted; port naming amended by ADR 0013
+- Status: Accepted; port naming amended by ADR 0013; renaming and deleting
+  definitions added by the amendment below
 - Date: 2026-11-07
 
 ## Context
@@ -69,6 +70,27 @@ four full adders. ADR 0004 already says `sim-core` elaborates hierarchy.
   sizes, with a hard limit so a hostile file cannot exhaust memory.
 - Signals inside an instance are not shown on the main sheet; open the
   definition to see its own simulation.
-- Not yet: renaming or deleting definitions, reconnecting wires that crossed
-  a *Make component* selection, and pins wider than one bit (multi-bit
-  signals come next).
+- Not yet: reconnecting wires that crossed a *Make component* selection, and
+  pins wider than one bit (multi-bit signals come next).
+
+## Amendment (2026-11-07): renaming and deleting definitions
+
+- *Rename*: an instance's inspector has a *Component name* field. Names are
+  stored like labels: normalized, cut at 32 characters, and blank becomes
+  "Component". Files are held to the same rule on load (a name over 32
+  characters is refused, like a label).
+- *Delete*: each chip has a delete button. It is refused, with the reason,
+  while an instance of the definition is on the main circuit or in another
+  definition, or while the definition is open on its sheet; otherwise it asks
+  for confirmation.
+- *Undo*. Undo history stays per sheet and holds circuits only, so a
+  definition change is not an undo step: a rename is reversed by renaming
+  again, and a delete cannot be undone (the confirmation says so). For a
+  delete to be sound, no undo or redo step may bring back an instance of
+  the definition. Deleting therefore drops every such step from every
+  sheet's history (each step is a whole circuit, so dropping one only merges
+  it into its neighbour), drops the definition's own history, and empties the
+  clipboard if it holds an instance. Recording definitions in the history
+  was rejected: steps would have to carry the definitions list, and sheets'
+  separate histories would then disagree about which definitions exist.
+

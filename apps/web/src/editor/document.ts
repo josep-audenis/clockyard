@@ -27,6 +27,9 @@ export type Props = { label?: string };
 export const normalizeLabel = (text: string) =>
   text.replace(/\p{Cc}/gu, " ").replace(/[\p{Bidi_Control}\u200B\uFEFF]/gu, "").trim();
 
+/** A definition's name as stored: normalized like a label, cut (by code point) at `MAX_LABEL`; blank becomes "Component". */
+export const normalizeName = (text: string) => [...(normalizeLabel(text) || "Component")].slice(0, MAX_LABEL).join("");
+
 export type CircuitComponent = {
   id: string;
   kind: PartKind;
