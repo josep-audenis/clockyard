@@ -1,4 +1,4 @@
-// The editable circuit document, format version 3 (docs/architecture.md#circuit-document, ADRs 0010, 0012).
+// The editable circuit document, format version 5 (docs/architecture.md#circuit-document, ADRs 0010, 0012, 0014).
 // Connectivity is explicit: wires reference ports and junctions by ID, never by geometry.
 import type { CircuitBody, CircuitDescription, Endpoint, JunctionRef, PinDesc } from "../simulation/protocol";
 
@@ -13,11 +13,19 @@ export const ROTATIONS = [0, 90, 180, 270] as const;
 /** Longest label a part can carry; longer ones crowd the canvas. */
 export const MAX_LABEL = 32;
 
+/** Widest signal, as sim-core's `MAX_WIDTH`; a test checks the two agree (ADR 0014). */
+export const MAX_WIDTH = 32;
+
 /**
- * Editor-only properties; the engine never sees them. A switch's or LED's label
- * names the circuit's input or output pin.
+ * `label` is editor-only: a switch's or LED's label names the circuit's input or
+ * output pin. `width` (switches, LEDs and gates; absent means 1) is projected to
+ * the engine, which owns what it means (ADR 0014).
  */
-export type Props = { label?: string };
+export type Props = { label?: string; width?: number };
+
+/** How the readout shows a value: on or off for 1 bit, else decimal and hex ("44 (0x2C)"). */
+export const showValue = (value: number, width: number) =>
+  width > 1 ? `${value} (0x${value.toString(16).toUpperCase()})` : value === 1 ? "on" : "off";
 
 /**
  * A label as stored: control characters (a newline, say) become spaces; bidi and
@@ -65,7 +73,7 @@ export type Definition = { id: string; name: string; circuit: Circuit };
 
 export type CircuitDocument = {
   format: "clockyard";
-  version: 4;
+  version: 5;
   metadata: { name: string; createdAt: string; modifiedAt: string };
   circuit: Circuit;
   definitions: Definition[];
@@ -101,12 +109,17 @@ export function contains(definitions: Definition[], outer: string, inner: string
 }
 
 const body = (circuit: Circuit): CircuitBody => ({
-  components: circuit.components.map(({ id, kind, definition }) => (definition ? { id, kind, definition } : { id, kind })),
+  components: circuit.components.map(({ id, kind, definition, props }) => ({
+    id,
+    kind,
+    ...(definition && { definition }),
+    ...(props.width !== undefined && { width: props.width }),
+  })),
   junctions: circuit.junctions.map(({ id }) => ({ id })),
   connections: circuit.wires.map(({ id, from, to }) => ({ id, from, to })),
 });
 
-/** Drops geometry and editor-only data; the engine sees only connectivity and each definition's pins. */
+/** Drops geometry and editor-only data (labels); the engine sees connectivity, widths and each definition's pins. */
 export function project(circuit: Circuit, definitions: Definition[] = []): CircuitDescription {
   return {
     ...body(circuit),

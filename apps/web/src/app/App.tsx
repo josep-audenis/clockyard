@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { definitionName } from "../canvas/layout";
 import { mountCanvas } from "../canvas/scene";
-import { contains, MAX_LABEL, type CircuitComponent, type ComponentKind, type PartKind } from "../editor/document";
+import { contains, MAX_LABEL, showValue, type CircuitComponent, type ComponentKind, type PartKind } from "../editor/document";
 import { deleteRefusal, liveDefinitions, mainCircuit, useEditor } from "../editor/store";
 import { connectEngine, useSim } from "../simulation/sync";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
@@ -443,19 +443,20 @@ function Readout() {
   const loaded = useSim((s) => s.loaded);
   const nets = useSim((s) => s.nets);
   const stale = useSim((s) => s.stale);
-  const value = (id: string, port: string) => {
-    const net = loaded?.portNets[id]?.[port];
-    return stale || !nets || net === undefined ? "unknown" : nets[net] === 1 ? "on" : "off";
+  const value = (part: CircuitComponent, port: string) => {
+    const net = loaded?.portNets[part.id]?.[port];
+    const bits = net === undefined ? undefined : nets?.[net];
+    return stale || bits === undefined ? "unknown" : showValue(bits, part.props.width ?? 1);
   };
   const switches = components.filter((c) => c.kind === "switch");
   const leds = components.filter((c) => c.kind === "led");
   return (
     <ul className="visually-hidden" aria-label="Inputs and outputs">
       {switches.map((c) => (
-        <li key={c.id}>{`${partName(components, c)}: ${value(c.id, "out")}`}</li>
+        <li key={c.id}>{`${partName(components, c)}: ${value(c, "out")}`}</li>
       ))}
       {leds.map((c) => (
-        <li key={c.id}>{`${partName(components, c)}: ${value(c.id, "in")}`}</li>
+        <li key={c.id}>{`${partName(components, c)}: ${value(c, "in")}`}</li>
       ))}
     </ul>
   );

@@ -4,6 +4,7 @@ import {
   COMPONENT_KINDS,
   MAX_BENDS,
   MAX_LABEL,
+  MAX_WIDTH,
   normalizeLabel,
   normalizeName,
   ROTATIONS,
@@ -18,7 +19,7 @@ import {
   type Wire,
 } from "../editor/document";
 
-export const FORMAT_VERSION = 4;
+export const FORMAT_VERSION = 5;
 
 export type ParseResult = { ok: true; document: CircuitDocument } | { ok: false; error: string };
 
@@ -74,11 +75,26 @@ function integer(value: unknown, where: string): number {
 }
 
 /** Known properties only; unknown ones are dropped like any other unknown field. */
-function readProps(props: Record<string, unknown>, where: string): Props {
-  if (props.label === undefined) return {};
-  const label = normalizeLabel(text(props.label, `${where} label`));
-  if ([...label].length > MAX_LABEL) throw new Error(`${where} label is longer than ${MAX_LABEL} characters.`);
-  return label ? { label } : {};
+function readProps(props: Record<string, unknown>, kind: PartKind, where: string): Props {
+  const read: Props = {};
+  if (props.label !== undefined) {
+    const label = normalizeLabel(text(props.label, `${where} label`));
+    if ([...label].length > MAX_LABEL) throw new Error(`${where} label is longer than ${MAX_LABEL} characters.`);
+    if (label) read.label = label;
+  }
+  // ADR 0014: a width only where it sets port widths; a custom component's pins set its own.
+  if (props.width !== undefined) {
+    if (kind === "custom") throw new Error(`${where} is a custom component, which takes no width.`);
+    const width = props.width;
+    if (!Number.isInteger(width) || (width as number) < 1 || (width as number) > MAX_WIDTH) {
+      throw new Error(`${where} width must be a whole number from 1 to ${MAX_WIDTH}.`);
+    }
+    // 1 is the default, so it is not stored and exports exactly as before.
+    if (width !== 1) read.width = width as number;
+  }
+  // shortcut: no kind that takes fields can be imported until splitters and mergers have layouts (ADR 0014 step 4).
+  if (props.fields !== undefined) throw new Error(`${where} has fields, which only splitters and mergers take.`);
+  return read;
 }
 
 /** A definition's name, held to what the editor stores (`normalizeName`); too long is refused, like a label. */
@@ -95,7 +111,8 @@ function readDocument(data: unknown): CircuitDocument {
   if (version > FORMAT_VERSION) {
     throw new Error(`This file uses format version ${version}, from a newer Clockyard. This version reads up to ${FORMAT_VERSION}.`);
   }
-  if (![1, 2, 3, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
+  if (![1, 2, 3, 4, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
+  // Version 4 → 5 (ADR 0014): widths arrive as props; nothing to change.
 
   const metadata = object(data.metadata, "metadata");
   const circuit = object(data.circuit, "circuit");
@@ -186,7 +203,7 @@ function readCircuit(circuit: Record<string, unknown>, where0: string, definitio
       kind: kind as PartKind,
       position: { x: integer(position.x, `${where} x`), y: integer(position.y, `${where} y`) },
       rotation: rotation as CircuitComponent["rotation"],
-      props: readProps(object(c.props, `${where} props`), where),
+      props: readProps(object(c.props, `${where} props`), kind as PartKind, where),
     };
     if (kind === "custom") {
       const definition = id(c.definition, `${where} definition`);

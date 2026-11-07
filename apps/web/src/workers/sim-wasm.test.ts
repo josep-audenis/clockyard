@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import { Engine, catalog, initSync, max_width } from "../generated/sim-wasm/sim_wasm.js";
+import { MAX_WIDTH } from "../editor/document";
 import type { CircuitDescription, Diagnostic, Result } from "../simulation/protocol";
 
 type Loaded = Omit<Extract<Result, { type: "loaded" }>, "type">;
@@ -116,7 +117,7 @@ test("every wire reports its net's width, an undriven bus included", () => {
 test("the catalog marks sized kinds and gives split and merge their field-port rule", () => {
   type Part = { kind: string; sized?: true; fieldPorts?: { side: string; prefix: string } };
   const parts = JSON.parse(catalog()) as Part[];
-  expect(max_width()).toBe(32);
+  expect(max_width()).toBe(MAX_WIDTH);
   expect(parts.filter((p) => p.sized).map((p) => p.kind)).toEqual(["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor"]);
   expect(parts.filter((p) => p.fieldPorts).map((p) => [p.kind, p.fieldPorts])).toEqual([
     ["split", { side: "outputs", prefix: "f" }],
