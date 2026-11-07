@@ -54,7 +54,7 @@ connection.
    possible in a hand-edited file) are left as they are.
 
 Net names (connection labels) and bus widths are not part of this decision;
-they come with multi-bit signals.
+bus widths come with multi-bit signals (ADR 0014), net names with ADR 0015.
 
 ## Consequences
 

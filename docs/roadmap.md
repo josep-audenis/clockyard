@@ -184,6 +184,12 @@ Progress:
      a hex value tag (design system first); values in the readout.
   5. Playwright: the 8-bit adder in the browser, and a mismatch shown then
      fixed.
+- 🔨 Named connections (net labels): designed in ADR 0015 (proposed), not
+  built yet. A label is a junction with a `name`; same-named junctions on one
+  sheet are one net, resolved by the engine in the level check and the flat
+  circuit, never across sheets. New warning `unmatchedLabel`. Format v6
+  (migration only bumps the version). Label tool in the parts panel, Name
+  in the inspector, tags drawn instead of dots.
 - ✅ 4-bit adder example: one full-adder definition instanced four times,
   checked natively for all 512 inputs and in the browser
 
@@ -235,7 +241,8 @@ analysis, plugin system, full game campaign during the MVP.
 
 Phase 2 multi-bit signals, buses and splitters, built in the steps above
 from ADR 0014, which also widens custom component pins. Named connections
-(net labels) still need their own decision. Make component drops wires that
+(net labels) are designed in ADR 0015 (proposed) and built after multi-bit
+signals. Make component drops wires that
 crossed the selection's edge. Pins can be relabelled
 freely (ADR 0013, format v4); deleting one leaves its wires reported as
 unknown ports. Known limits still
