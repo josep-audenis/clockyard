@@ -292,8 +292,9 @@ impl Simulator {
             wires.sort();
             let net = match (group.outputs.as_slice(), group.inputs.as_slice()) {
                 ([driver], _) => outputs[*driver].expect("an output port has a net"),
-                // A dangling branch: its input (if any) stays unconnected and reads 0.
-                ([], []) | ([], [_]) => GROUND,
+                // A dangling branch: its input (if any) stays unconnected and reads 0. One reaching
+                // pins is judged level by level below, even when no input inside reads them.
+                ([], []) | ([], [_]) if group.pins.is_empty() => GROUND,
                 // A pin left unconnected (an instance input outside, an output inside): its readers read 0.
                 ([], inputs)
                     if !group.pins.is_empty()
