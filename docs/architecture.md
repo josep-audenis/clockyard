@@ -178,7 +178,7 @@ Typed discriminated unions over `postMessage`. No RPC library at first.
 // main → worker
 type Command =
   | { type: "load"; circuit: CircuitDescription }
-  | { type: "setInput"; component: string; value: 0 | 1 }
+  | { type: "setInput"; component: string; value: number } // 0 to 2^width − 1
   | { type: "reset" }                  // planned
   | { type: "stepClock" }              // Phase 3
   | { type: "run"; cyclesPerSecond: number } // Phase 3
@@ -188,8 +188,9 @@ type Command =
 type Result =
   | { type: "ready" }
   | { type: "loaded"; netCount: number; wireNets: Record<string, number>;
+      wireWidths: Record<string, number>; // per wire: undriven nets all share net 0
       portNets: Record<string, Record<string, number>>; diagnostics: Diagnostic[] }
-  | { type: "state"; nets: Uint8Array; diagnostics: Diagnostic[] }
+  | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[] } // each cut to its width
   | { type: "error"; message: string };
 ```
 
@@ -202,6 +203,10 @@ type Result =
 - `loaded.diagnostics` holds validation results only. The initial settle's
   runtime result (an unstable loop) arrives with the first `state`, so the
   settles that follow, such as restored switch positions, replace it.
+- A `setInput` value is a JS number. `sim-wasm` refuses a non-integer, a
+  negative number or one above 2^32 − 1 instead of wrapping it, and the engine
+  refuses a value wider than the switch; the worker reports either as `error`
+  (ADR 0014).
 - Phase 1 sends the full net value array (small circuits). Changed-net deltas
   or transferable buffers come when measurements justify them.
 - During continuous runs (Phase 3) the worker advances virtual time in batches

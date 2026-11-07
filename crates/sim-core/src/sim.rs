@@ -27,6 +27,7 @@ pub struct Simulator {
     fanout: Vec<Vec<u32>>,
     nets: Vec<u32>,
     wire_nets: BTreeMap<String, u32>,
+    wire_widths: BTreeMap<String, u32>,
     port_nets: PortNets,
     /// Primitives still dirty when the last settle hit its delta limit; the
     /// next settle resumes them, so a live loop is reported until it resolves.
@@ -310,6 +311,7 @@ impl Simulator {
         }
 
         let mut wire_nets = BTreeMap::new();
+        let mut wire_widths = BTreeMap::new();
         for root in order {
             let group = &groups[&root];
             let mut wires: Vec<String> = group.wires.iter().map(|w| (*w).to_string()).collect();
@@ -366,6 +368,9 @@ impl Simulator {
             for &(reader, slot) in &group.inputs {
                 port_net[reader][slot] = net;
             }
+            // A net of junctions only has no port to take a width from: it is 1 bit.
+            let width = group.widths.first().map_or(1, |w| w.0);
+            wire_widths.extend(wires.iter().map(|w| (w.clone(), width)));
             wire_nets.extend(wires.into_iter().map(|w| (w, net)));
         }
         if !errors.is_empty() {
@@ -450,6 +455,7 @@ impl Simulator {
             fanout,
             nets: vec![0; net_count as usize],
             wire_nets,
+            wire_widths,
             port_nets,
             unsettled: Vec::new(),
         };
@@ -533,6 +539,12 @@ impl Simulator {
     /// Wire ID → net index, for coloring wires.
     pub fn wire_nets(&self) -> &BTreeMap<String, u32> {
         &self.wire_nets
+    }
+
+    /// Wire ID → width of its net. Undriven wires share ground (net 0), so a
+    /// wire's width cannot be read from its net index.
+    pub fn wire_widths(&self) -> &BTreeMap<String, u32> {
+        &self.wire_widths
     }
 
     pub fn port_nets(&self) -> &PortNets {

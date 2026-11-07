@@ -302,6 +302,28 @@ fn an_unconnected_bus_input_reads_zero_and_warns_once() {
 }
 
 #[test]
+fn every_wire_reports_its_net_width() {
+    // s ─ n (8 bits, driven); n.out ─ j (undriven ground, still a bus); k ─ m (junctions only: 1 bit).
+    let sim = Simulator::load(&description(json!({
+        "components": [
+            { "id": "s", "kind": "switch", "width": 8 },
+            { "id": "n", "kind": "not", "width": 8 },
+            { "id": "g", "kind": "and", "width": 8 },
+        ],
+        "junctions": [{ "id": "j" }, { "id": "k" }, { "id": "m" }],
+        "connections": wires(&[("s.out", "n.in"), ("g.a", "j"), ("k", "m")]),
+    })))
+    .unwrap()
+    .0;
+    let widths: Vec<u32> = ["w0", "w1", "w2"]
+        .iter()
+        .map(|w| sim.wire_widths()[*w])
+        .collect();
+    assert_eq!(widths, [8, 8, 1]);
+    assert_eq!(sim.wire_nets()["w1"], 0, "the undriven bus shares ground");
+}
+
+#[test]
 fn a_bus_loop_is_reported_unstable_naming_the_part_once() {
     let parts = json!([{ "id": "n", "kind": "not", "width": 8 }]);
     let (_, warnings) = Simulator::load(&circuit(parts, &[("n.out", "n.in")])).unwrap();

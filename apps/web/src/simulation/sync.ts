@@ -12,7 +12,7 @@ export type SimState = {
   status: "loading" | "ready" | "error";
   error: string | null;
   loaded: Loaded | null;
-  nets: Uint8Array | null;
+  nets: Uint32Array | null;
   /** Diagnostics from the latest settle (e.g. an unstable loop). */
   runtime: Diagnostic[];
   /** The document changed and the engine has not reported on it yet. */

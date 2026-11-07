@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
-import { Engine, initSync } from "../generated/sim-wasm/sim_wasm.js";
+import { Engine, catalog, initSync, max_width } from "../generated/sim-wasm/sim_wasm.js";
 import type { CircuitDescription, Diagnostic, Result } from "../simulation/protocol";
 
 type Loaded = Omit<Extract<Result, { type: "loaded" }>, "type">;
@@ -33,11 +33,11 @@ test("engine settles switches → AND → LED through the boundary", () => {
   expect(loaded.diagnostics).toEqual([]);
   const led = loaded.portNets.l?.in ?? -1;
   const outputs = [
-    [false, false],
-    [false, true],
-    [true, false],
-    [true, true],
-  ].map(([a = false, b = false]) => {
+    [0, 0],
+    [0, 1],
+    [1, 0],
+    [1, 1],
+  ].map(([a = 0, b = 0]) => {
     engine.set_input("a", a);
     engine.set_input("b", b);
     return engine.nets()[led];
@@ -59,7 +59,7 @@ test("an unstable initial settle is reported apart from validation, so a later s
   const loaded = JSON.parse(engine.load(JSON.stringify(loop))) as Loaded & { runtime: Diagnostic[] };
   expect(loaded.diagnostics).toEqual([]);
   expect(loaded.runtime.map((d) => d.code)).toEqual(["unstable"]);
-  expect(JSON.parse(engine.set_input("s", true))).toEqual([]);
+  expect(JSON.parse(engine.set_input("s", 1))).toEqual([]);
 });
 
 test("validation errors come back as diagnostics, not exceptions", () => {
@@ -68,5 +68,54 @@ test("validation errors come back as diagnostics, not exceptions", () => {
   const loaded = JSON.parse(engine.load(JSON.stringify(bad))) as Loaded;
   expect(loaded.netCount).toBe(0);
   expect(loaded.diagnostics.map((d: Diagnostic) => [d.severity, d.code, d.ids])).toEqual([["error", "unknownKind", ["x"]]]);
-  expect(() => engine.set_input("x", true)).toThrow("no circuit loaded");
+  expect(() => engine.set_input("x", 1)).toThrow("no circuit loaded");
+});
+
+test("bus values cross as a Uint32Array; switch values are checked, never wrapped (ADR 0014)", () => {
+  const engine = new Engine();
+  const bus = {
+    components: [
+      { id: "s", kind: "switch", width: 32 },
+      { id: "n", kind: "not", width: 32 },
+      { id: "b", kind: "switch", width: 8 },
+    ],
+    connections: [wire("w1", "s.out", "n.in")],
+  };
+  const loaded = JSON.parse(engine.load(JSON.stringify(bus))) as Loaded;
+  expect(loaded.diagnostics).toEqual([]);
+  engine.set_input("s", 0);
+  const nets = engine.nets();
+  expect(nets).toBeInstanceOf(Uint32Array);
+  expect(nets[loaded.portNets.n?.out ?? -1]).toBe(0xffffffff);
+  for (const bad of [2 ** 32, -1, 2.5, Number.NaN]) {
+    expect(() => engine.set_input("s", bad), String(bad)).toThrow("not a whole number");
+  }
+  expect(() => engine.set_input("b", 256)).toThrow("8 bits wide");
+  expect(engine.nets()[loaded.portNets.n?.out ?? -1]).toBe(0xffffffff);
+});
+
+test("every wire reports its net's width, an undriven bus included", () => {
+  const engine = new Engine();
+  const circuit = {
+    components: [{ id: "g", kind: "and", width: 8 }],
+    junctions: [{ id: "j" }, { id: "k" }, { id: "m" }],
+    connections: [
+      { id: "w1", from: { component: "g", port: "a" }, to: { junction: "j" } },
+      { id: "w2", from: { junction: "k" }, to: { junction: "m" } },
+    ],
+  };
+  const loaded = JSON.parse(engine.load(JSON.stringify(circuit))) as Loaded;
+  expect(loaded.wireNets.w1).toBe(0);
+  expect(loaded.wireWidths).toEqual({ w1: 8, w2: 1 });
+});
+
+test("the catalog marks sized kinds and gives split and merge their field-port rule", () => {
+  type Part = { kind: string; sized?: true; fieldPorts?: { side: string; prefix: string } };
+  const parts = JSON.parse(catalog()) as Part[];
+  expect(max_width()).toBe(32);
+  expect(parts.filter((p) => p.sized).map((p) => p.kind)).toEqual(["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor"]);
+  expect(parts.filter((p) => p.fieldPorts).map((p) => [p.kind, p.fieldPorts])).toEqual([
+    ["split", { side: "outputs", prefix: "f" }],
+    ["merge", { side: "inputs", prefix: "f" }],
+  ]);
 });

@@ -9,8 +9,11 @@ export type Endpoint = PortRef | JunctionRef;
 
 /** A circuit's parts and wires without geometry, as the engine reads them. */
 export type CircuitBody = {
-  /** `definition`: for `custom` parts, the definition it is an instance of (ADR 0012). */
-  components: { id: string; kind: string; definition?: string }[];
+  /**
+   * `definition`: for `custom` parts, the definition it is an instance of (ADR 0012).
+   * `width` (switches, LEDs, gates) and `fields` (split, merge): ADR 0014; the engine validates them.
+   */
+  components: { id: string; kind: string; definition?: string; width?: number; fields?: number[] }[];
   junctions: { id: string }[];
   connections: { id: string; from: Endpoint; to: Endpoint }[];
 };
@@ -33,7 +36,8 @@ export type Diagnostic = {
 
 export type Command =
   | { type: "load"; circuit: CircuitDescription }
-  | { type: "setInput"; component: string; value: 0 | 1 };
+  /** `value`: a whole number from 0 to 2^width − 1; the engine refuses anything else. */
+  | { type: "setInput"; component: string; value: number };
 
 export type Result =
   | { type: "ready" }
@@ -42,9 +46,12 @@ export type Result =
       netCount: number;
       /** Wire ID → net index. */
       wireNets: Record<string, number>;
+      /** Wire ID → width of its net in bits (1 for a net of junctions only). */
+      wireWidths: Record<string, number>;
       /** Component ID → port name → net index. */
       portNets: Record<string, Record<string, number>>;
       diagnostics: Diagnostic[];
     }
-  | { type: "state"; nets: Uint8Array; diagnostics: Diagnostic[] }
+  /** `nets`: each net's value, cut to its width. */
+  | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[] }
   | { type: "error"; message: string };
