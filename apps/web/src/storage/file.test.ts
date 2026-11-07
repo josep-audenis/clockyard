@@ -133,3 +133,21 @@ test("a version 3 file is migrated: wires name an instance's pins by part ID, no
   const result = parseDocument(JSON.stringify(v3));
   expect(result.ok && result.document.circuit.wires.at(-1)).toEqual({ ...byLabel, to: { component: "x", port: "i" } });
 });
+
+test("a version 3 file is migrated inside definitions too: a wire to a nested instance by label", () => {
+  const outer = {
+    id: "outer",
+    name: "Outer",
+    circuit: {
+      components: [
+        { id: "s", kind: "switch", position: { x: 0, y: 0 }, rotation: 0, props: { label: "A" } },
+        { id: "y", kind: "custom", definition: "inv", position: { x: 4, y: 0 }, rotation: 0, props: {} },
+      ],
+      junctions: [],
+      wires: [{ id: "w", from: { component: "s", port: "out" }, to: { component: "y", port: "In" } }],
+    },
+  };
+  const v3 = { ...document, version: 3, definitions: [...document.definitions, outer] };
+  const result = parseDocument(JSON.stringify(v3));
+  expect(result.ok && result.document.definitions[1]?.circuit.wires[0]?.to).toEqual({ component: "y", port: "i" });
+});

@@ -57,7 +57,7 @@ export const sameEnd = (a: Endpoint, b: Endpoint) =>
     ? isJunction(a) && isJunction(b) && a.junction === b.junction
     : a.component === b.component && a.port === b.port;
 
-/** A reusable component: a circuit whose labelled switches and LEDs are its pins (ADR 0012). */
+/** A reusable component: a circuit whose switches and LEDs are its pins, shown by their labels (ADRs 0012, 0013). */
 export type Definition = { id: string; name: string; circuit: Circuit };
 
 export type CircuitDocument = {

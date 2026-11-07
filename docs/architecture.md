@@ -96,8 +96,8 @@ Rules:
   lists the route's interior grid points (at most 64; ADR 0011).
 - **Custom components** (ADR 0012): `definitions` lists `{ id, name, circuit }`;
   an instance is a part with `kind: "custom"` and `definition: id`. Inside a
-  definition, labelled switches are its input pins and labelled LEDs its
-  output pins, in top-to-bottom order. An instance's ports are named by those
+  definition, every switch is an input pin and every LED an output pin, in
+  top-to-bottom order; their labels are what the chip shows. An instance's ports are named by those
   pin parts' IDs, so relabelling a pin keeps its wires (ADR 0013).
   IDs never contain `/`, which separates instance paths once expanded.
 - Transient simulation data (signal values, clock count) is never part of the
@@ -117,8 +117,8 @@ Rules:
   zero-width characters are removed and the ends are trimmed, both in the
   editor and on import. The editor stops at 32 characters; an imported file
   with a longer label is refused. A switch's or LED's label names the
-  circuit's input or output pin, for the readout, the status bar and, later, the ports of a custom
-  component built from the circuit. Unknown props are dropped on import.
+  circuit's input or output pin, for the readout, the status bar and the pin names drawn on a custom
+  component built from the circuit (ADR 0013). Unknown props are dropped on import.
 
 ## Circuit description (engine input)
 

@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::description::{
     CircuitDescription, Code, ComponentDesc, Connection, DefinitionDesc, Diagnostic, Endpoint,
-    JunctionDesc, PortRef,
+    JunctionDesc, PinSide, PortRef,
 };
 
 /// Kind of a part that is an instance of a definition.
@@ -104,8 +104,9 @@ pub fn elaborate(
     }
 }
 
-/// IDs never contain `/`, which separates instance paths, and no other part on a level shares an
-/// instance's ID (expanded, the two could not be told apart). Problems inside a definition name it.
+/// IDs never contain `/`, which separates instance paths, and no other component on a level shares
+/// an instance's ID (expanded, the two could not be told apart). Problems inside a definition name it.
+/// Unlike pins, this checks every definition, used or not.
 fn check_ids(
     (components, junctions, connections): (&[ComponentDesc], &[JunctionDesc], &[Connection]),
     definition: Option<&str>,
@@ -193,9 +194,6 @@ impl<'a> Flat<'a> {
         definition: Option<&'a DefinitionDesc>,
     ) {
         // Inside a definition its pin parts become junctions joined to the instance's ports.
-        let inputs: BTreeSet<&str> = definition
-            .map(|d| d.inputs.iter().map(|p| p.component.as_str()).collect())
-            .unwrap_or_default();
         // Each pin part's own port: a switch's `out`, an LED's `in`.
         let pins: BTreeMap<&str, &str> = definition
             .map(|d| {
@@ -238,8 +236,14 @@ impl<'a> Flat<'a> {
                     }
                 }
             } else if pins.contains_key(c.id.as_str()) {
-                let pin = inputs.contains(c.id.as_str());
-                self.out.junctions.push(JunctionDesc { id, pin });
+                let side = match pins[c.id.as_str()] {
+                    "out" => PinSide::Input, // a switch
+                    _ => PinSide::Output,
+                };
+                self.out.junctions.push(JunctionDesc {
+                    id,
+                    pin: Some(side),
+                });
             } else {
                 self.out.components.push(ComponentDesc {
                     id,
@@ -256,7 +260,7 @@ impl<'a> Flat<'a> {
             if !self.grow(&id) {
                 return;
             }
-            self.out.junctions.push(JunctionDesc { id, pin: false });
+            self.out.junctions.push(JunctionDesc { id, pin: None });
         }
         for w in connections {
             let id = format!("{prefix}{}", w.id);

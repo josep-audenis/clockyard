@@ -21,8 +21,12 @@ definition's sheet is open would mix old and new.
 - File format version 4. A version 3 file is migrated on load: each wire end
   on an instance has its port rewritten from the pin's label to that pin
   part's ID.
-- The engine is unchanged: the editor already lists each pin as
+- Port naming needs no engine change: the editor already lists each pin as
   `{ name, component }`, and now sends the part ID as the name.
+- Every switch and LED of a definition is a pin; labels are only shown. A
+  blank label shows an unnamed port and a repeated one shows twice, with no
+  error, since neither affects wiring. Make component still asks for
+  labelled, distinct pins so a new chip is readable.
 - Deleting a pin leaves wires to it pointing at a port that no longer exists;
   the engine reports `unknownPort` on each such wire. Undoing the deletion on
   the definition's sheet restores the part, with the same ID, so those wires

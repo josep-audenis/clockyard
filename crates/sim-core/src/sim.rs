@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use crate::catalog::Kind;
-use crate::description::{CircuitDescription, Code, Diagnostic, Endpoint};
+use crate::description::{CircuitDescription, Code, Diagnostic, Endpoint, PinSide};
 use crate::elaborate::{elaborate, lift};
 
 /// Net 0 is never driven: unconnected inputs read it as 0.
@@ -38,8 +38,8 @@ pub struct Simulator {
 enum End {
     Out(usize),
     In(usize, usize),
-    /// For a custom component's input pin, its index in the description's junctions.
-    Junction(Option<usize>),
+    /// For a custom component's pin, its index in the description's junctions and its side.
+    Junction(Option<(usize, PinSide)>),
 }
 
 /// Union-find root of `node`, halving paths on the way.
@@ -67,23 +67,41 @@ struct Group<'a> {
     outputs: Vec<usize>,
     inputs: Vec<(usize, usize)>,
     wires: Vec<&'a str>,
-    /// Custom components' input pins it reaches (junction indexes).
-    pins: Vec<usize>,
+    /// Custom components' pins it reaches (junction indexes and sides).
+    pins: Vec<(usize, PinSide)>,
 }
 
-/// Whether an undriven net is an instance input left unconnected outside, so its readers read 0:
-/// it reaches exactly one outermost input pin, and every input on it is inside that instance.
-/// Anything else joins inputs that nothing drives.
-fn unconnected_pin<'a>(pins: &[&str], mut inputs: impl Iterator<Item = &'a str>) -> bool {
-    let depth = |id: &str| id.matches('/').count();
-    let Some(outer) = pins.iter().copied().min_by_key(|p| depth(p)) else {
-        return false;
-    };
-    if pins.iter().filter(|p| depth(p) == depth(outer)).count() > 1 {
-        return false;
+/// The level an elaborated ID was wired at: `x/y/g` → `x/y/`, a top-level ID → "".
+fn level(id: &str) -> &str {
+    &id[..id.rfind('/').map_or(0, |i| i + 1)]
+}
+
+/// Whether an undriven net that reaches custom components' pins is legal, its readers reading 0.
+/// It is judged level by level, as the user wired it: no level may join two or more inputs without
+/// something there that drives them. Inside its instance an input pin is a switch (it drives) and an
+/// output pin an LED (it reads); one level up they are the instance's input (reads) and output (drives).
+fn undriven_ok<'a>(
+    pins: impl Iterator<Item = (&'a str, PinSide)>,
+    inputs: impl Iterator<Item = &'a str>,
+) -> bool {
+    // Per level: (inputs, drivers).
+    let mut levels: BTreeMap<&str, (usize, usize)> = BTreeMap::new();
+    for id in inputs {
+        levels.entry(level(id)).or_default().0 += 1;
     }
-    let scope = &outer[..outer.rfind('/').map_or(0, |i| i + 1)];
-    inputs.all(|id| id.starts_with(scope))
+    for (id, side) in pins {
+        let inside = level(id);
+        let outside = level(&inside[..inside.len().saturating_sub(1)]);
+        let (reads, drives) = match side {
+            PinSide::Input => (outside, inside),
+            PinSide::Output => (inside, outside),
+        };
+        levels.entry(reads).or_default().0 += 1;
+        levels.entry(drives).or_default().1 += 1;
+    }
+    levels
+        .values()
+        .all(|&(inputs, drivers)| inputs < 2 || drivers > 0)
 }
 
 impl Simulator {
@@ -152,7 +170,7 @@ impl Simulator {
                 ));
             } else {
                 junctions.insert(id, ends.len());
-                ends.push(End::Junction(junction.pin.then_some(j)));
+                ends.push(End::Junction(junction.pin.map(|side| (j, side))));
             }
         }
         // Wire errors against unknown components would only repeat these.
@@ -276,16 +294,16 @@ impl Simulator {
                 ([driver], _) => outputs[*driver].expect("an output port has a net"),
                 // A dangling branch: its input (if any) stays unconnected and reads 0.
                 ([], []) | ([], [_]) => GROUND,
-                // An instance input wired to nothing outside: its readers inside read 0.
+                // A pin left unconnected (an instance input outside, an output inside): its readers read 0.
                 ([], inputs)
-                    if unconnected_pin(
-                        &group
-                            .pins
-                            .iter()
-                            .map(|&j| description.junctions[j].id.as_str())
-                            .collect::<Vec<_>>(),
-                        inputs.iter().map(|&(c, _)| ids[c].as_str()),
-                    ) =>
+                    if !group.pins.is_empty()
+                        && undriven_ok(
+                            group
+                                .pins
+                                .iter()
+                                .map(|&(j, side)| (description.junctions[j].id.as_str(), side)),
+                            inputs.iter().map(|&(c, _)| ids[c].as_str()),
+                        ) =>
                 {
                     GROUND
                 }
@@ -758,7 +776,7 @@ mod tests {
             .iter()
             .map(|id| JunctionDesc {
                 id: (*id).into(),
-                pin: false,
+                pin: None,
             })
             .collect();
         description
