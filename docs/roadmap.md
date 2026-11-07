@@ -149,6 +149,9 @@ Progress:
   on its own sheet (simulated on its own, own undo history); the engine
   flattens instances (own state each), refusing unknown or recursive
   definitions, bad pins and oversized expansions
+- ✅ Load time linear in chain length: logic that cannot reach a loop is
+  settled in topological order before the first settle (same results), so a
+  95,000-gate NOT chain loads in about 0.25 s instead of 48 s (release)
 - ⬜ Multi-bit signals, buses, splitters
 - ✅ 4-bit adder example: one full-adder definition instanced four times,
   checked natively for all 512 inputs and in the browser
