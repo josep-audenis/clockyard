@@ -529,6 +529,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const position = item && positionOf(editor.circuit, item);
       if (hit?.type === "port") {
         gesture = { type: "wire", from: hit.ref, at: p };
+      } else if (hit?.type === "junction" && !e.shiftKey && !editor.selection.includes(hit.id)) {
+        // An unselected junction draws a wire, as a port does; once selected it drags like a part.
+        gesture = { type: "wire", from: { junction: hit.id }, at: p };
       } else if (item && e.shiftKey) {
         editor.select(toggled(editor.selection, item));
       } else if (item && position) {
@@ -630,8 +633,11 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     } else if (gesture?.type === "wire") {
       const p = toWorld(e);
       const end = target(editor.circuit, hitTest(editor.circuit, p, pick(), currentRoutes(editor.circuit)), p, true);
-      if (end?.wire) editor.connectToWire(gesture.from, end.wire, end.at);
-      else if (end?.end) editor.connect(gesture.from, end.end);
+      const from = gesture.from;
+      if (end?.wire) editor.connectToWire(from, end.wire, end.at);
+      // Released on the junction it started from: a click, which selects it.
+      else if (end?.end && "junction" in from && "junction" in end.end && end.end.junction === from.junction) editor.select([from.junction]);
+      else if (end?.end) editor.connect(from, end.end);
     }
     gesture = null;
     schedule();

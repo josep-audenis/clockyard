@@ -126,7 +126,8 @@ Progress:
   engine resolves nets through junctions and checks each net as a whole;
   dropping a wire on a wire splits it with a junction (one undo step);
   junctions are selected, dragged, copied and deleted like parts, and one left
-  without wires is removed; a junction never lands on a port or another
+  without wires is removed; dragging from an unselected junction draws a wire
+  from it (a selected one drags); a junction never lands on a port or another
   junction: a drop there is refused, a drag shows the blocked cell in danger
   and waits at the last free one, paste or duplicate steps further on, and
   placing a part there is refused (its preview turns to the danger colour);
@@ -238,7 +239,6 @@ from ADR 0014, which also widens custom component pins. Named connections
 crossed the selection's edge. Pins can be relabelled
 freely (ADR 0013, format v4); deleting one leaves its wires reported as
 unknown ports. Known limits still
-open: a wire cannot start from a
-junction (drag from a port onto it instead), no autosave, the inspector does
+open: no autosave, the inspector does
 not collapse on narrow screens yet, and wires kept after an edit can stay
 longer than needed until the file is opened again.
