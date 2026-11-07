@@ -45,7 +45,9 @@ connection.
    dropping it on a wire splits that wire with a new junction at the nearest
    grid point and connects there, as one undo step. Junctions are selected,
    moved, copied and deleted like parts; deleting one deletes its wires, and a
-   junction left with no wires is removed. A drop, drag, paste, duplicate,
+   junction left with no wires is removed. Dragging from an unselected
+   junction draws a new wire from it, as from a port; a click selects it, and
+   a selected junction drags like a part. A drop, drag, paste, duplicate,
    rotation or placement never puts a junction on a port or another junction (or a port on a
    junction) of the rest of the circuit, since dots on one spot would look
    joined. Items stacked within the moved or pasted group itself (only

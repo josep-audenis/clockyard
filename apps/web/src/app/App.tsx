@@ -229,7 +229,7 @@ function PartsLibrary() {
         )}
       </section>
       <p className="type-caption parts-hint">
-        Pick a part or press its key, then click the canvas to place it. Esc cancels. Drag from a port to wire it;
+        Pick a part or press its key, then click the canvas to place it. Esc cancels. Drag from a port or junction to wire it (click a junction, then drag, to move it);
         drop on a wire to branch it; drag a wire to reshape it. <kbd className="kbd">R</kbd> rotates, <kbd className="kbd">Shift</kbd>{" "}
         <kbd className="kbd">R</kbd> back. Drag empty space to select, Shift
         to add; hold Space and drag to pan. <kbd className="kbd">{MOD}</kbd> <kbd className="kbd">C</kbd>{" "}

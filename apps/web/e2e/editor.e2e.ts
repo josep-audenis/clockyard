@@ -311,7 +311,8 @@ test("drop a wire on a wire to branch it at a junction; move and delete the junc
   await page.keyboard.press("Control+Shift+z");
   await expectStates(page, { "LED 2": 1 });
 
-  // Drag the junction down: connections hold. Then delete it: its three wires go.
+  // Select the junction and drag it down: connections hold. Then delete it: its three wires go.
+  await click(page, at(6, 1));
   await drag(page, at(6, 1), at(6, 4));
   await expectStates(page, { "LED 1": 1, "LED 2": 1 });
   await click(page, at(6, 4));
@@ -319,6 +320,12 @@ test("drop a wire on a wire to branch it at a junction; move and delete the junc
   await expectStates(page, { "Switch 1": 1, "LED 1": 0, "LED 2": 0 });
   await page.keyboard.press("Control+z");
   await expectStates(page, { "LED 1": 1, "LED 2": 1 });
+
+  // Dragging from an unselected junction draws a wire from it.
+  await page.keyboard.press("l");
+  await click(page, at(11, 11)); // LED 3 at (10,10), in (10,11); now the selection
+  await drag(page, at(6, 4), at(10, 11));
+  await expectStates(page, { "LED 1": 1, "LED 2": 1, "LED 3": 1 });
 });
 
 test("drag a wire segment to reshape it; reset its route from the inspector; both undo", async ({ page }) => {
