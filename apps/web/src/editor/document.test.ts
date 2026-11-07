@@ -34,3 +34,19 @@ test("the readout shows 1 bit as on or off and wider values in decimal and hex",
   expect(showValue(44, 8)).toBe("44 (0x2C)");
   expect(showValue(0xffffffff, 32)).toBe("4294967295 (0xFFFFFFFF)");
 });
+
+test("a definition's parts, its pins included, project their widths too", () => {
+  const inner: Circuit = {
+    components: [
+      { id: "i", kind: "switch", position: { x: 0, y: 0 }, rotation: 0, props: { label: "In", width: 8 } },
+      { id: "o", kind: "led", position: { x: 4, y: 0 }, rotation: 0, props: { width: 8 } },
+    ],
+    junctions: [],
+    wires: [{ id: "w", from: { component: "i", port: "out" }, to: { component: "o", port: "in" } }],
+  };
+  const projected = project({ components: [], junctions: [], wires: [] }, [{ id: "d", name: "Bus", circuit: inner }]);
+  expect(projected.definitions[0]?.components).toEqual([
+    { id: "i", kind: "switch", width: 8 },
+    { id: "o", kind: "led", width: 8 },
+  ]);
+});

@@ -104,6 +104,7 @@ test.each([
   ["width 33", () => broken((_, c) => Object.assign(c.props, { width: 33 })), "from 1 to 32"],
   ["width 2.5", () => broken((_, c) => Object.assign(c.props, { width: 2.5 })), "from 1 to 32"],
   ["a width that is not a number", () => broken((_, c) => Object.assign(c.props, { width: "8" })), "from 1 to 32"],
+  ["a bad width inside a definition", () => broken((doc) => Object.assign(doc.definitions[0]?.circuit.components[0]?.props ?? {}, { width: 0 })), "Definition 1: Component 1 width must be a whole number from 1 to 32"],
   ["a width on a custom component", () => broken((doc) => Object.assign(doc.circuit.components[2]?.props ?? {}, { width: 8 })), "Component 3 is a custom component, which takes no width"],
   ["fields on a gate", () => broken((doc) => Object.assign(doc.circuit.components[1]?.props ?? {}, { fields: [4, 4] })), "Component 2 has fields"],
   ["a splitter, until it has a layout", () => broken((_, c) => Object.assign(c, { kind: "split", props: { fields: [4, 4] } })), 'unknown kind "split"'],

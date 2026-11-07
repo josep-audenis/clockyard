@@ -59,9 +59,9 @@ Format version 5 (ADRs 0010, 0012, 0013, 0014; exact schema fixed in code with v
   "metadata": { "name": "AND demo", "createdAt": "2026-11-06T12:00:00Z", "modifiedAt": "2026-11-06T12:00:00Z" },
   "circuit": {
     "components": [
-      { "id": "k3f9a", "kind": "switch", "position": { "x": 0, "y": 0 }, "rotation": 0, "props": { "label": "A" } },
+      { "id": "k3f9a", "kind": "switch", "position": { "x": 0, "y": 0 }, "rotation": 0, "props": { "label": "A", "width": 8 } },
       { "id": "p81c2", "kind": "and",    "position": { "x": 6, "y": 1 }, "rotation": 0, "props": { "width": 8 } },
-      { "id": "m02de", "kind": "led",    "position": { "x": 12, "y": 1 }, "rotation": 0, "props": {} }
+      { "id": "m02de", "kind": "led",    "position": { "x": 12, "y": 1 }, "rotation": 0, "props": { "width": 8 } }
     ],
     "junctions": [
       { "id": "j4c01", "position": { "x": 4, "y": 1 } }

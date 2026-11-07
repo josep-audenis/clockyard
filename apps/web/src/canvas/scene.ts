@@ -176,8 +176,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     );
     const selected = new Set(selection);
     // A value is shown only once the engine has reported on the current document.
+    // shortcut: a bus reads as lit whenever it is non-zero, until buses get their own drawing (ADR 0014 step 4).
     const signal = (net: number | undefined): 0 | 1 | null =>
-      stale || !nets || net === undefined ? null : nets[net] === 1 ? 1 : 0;
+      stale || !nets || net === undefined ? null : nets[net] === 0 ? 0 : 1;
     const at = places(circuit);
     const paths = currentRoutes(circuit);
 
