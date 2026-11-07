@@ -17,8 +17,9 @@ as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
 **Phase 2 — 🔨 in progress** (branch `feat/custom-component-hardening`).
 Editing comfort, labels, junctions and nets, routing and rotation merged (PRs
 #8–#14). Custom components and the 4-bit adder target demo merged (PR #16);
-pins renamed safely by part ID (ADR 0013, file format v4). Next: multi-bit
-signals, buses and splitters (ADR).
+pins renamed safely by part ID (ADR 0013, file format v4). Multi-bit signals,
+buses and splitters are designed in ADR 0014 (proposed); building them is
+next.
 
 ## Phase 0 — Foundation ✅
 
@@ -149,7 +150,30 @@ Progress:
   on its own sheet (simulated on its own, own undo history); the engine
   flattens instances (own state each), refusing unknown or recursive
   definitions, bad pins and oversized expansions
-- ⬜ Multi-bit signals, buses, splitters
+- 🔨 Multi-bit signals, buses, splitters: designed in ADR 0014 (proposed),
+  not built yet. Widths are 1 to 32 bits and are declared per part
+  (`props.width` on switches, LEDs and gates). A net takes the width of its
+  ports, and wires store none. Each net holds a `u32`, and the delta
+  scheduler is unchanged. Gates are bitwise. A wide switch or LED is a
+  multi-bit input or a hex display, so chip pins widen with no new pin
+  kind. `split` and `merge` parts take a `fields` list. New errors are
+  `widthMismatch` and `invalidWidth`. File format v5 (the v4 migration only
+  bumps the version). Steps, in order:
+  1. Engine (after the `sim.rs` speed work lands): `u32` net values with
+     per-net widths and masks, bitwise gates, `split`/`merge` primitives,
+     the two new errors (per flat net and per level at pins), and a ranged
+     `set_input`. Native tests, including the 8-bit adder example checked
+     for all inputs.
+  2. Boundary: `Uint32Array` net values, `netWidths` in `loaded`, a
+     numeric `setInput`, and `MAX_WIDTH`, `sized` and field ports in the
+     catalog.
+  3. Format v5 with import range checks; projection of `width` and `fields`.
+  4. Editor: Width, Fields and Value in the inspector; Splitter and Merger
+     in the parts panel with their layouts; wide switches and LEDs as hex
+     bodies; buses drawn thick with a width tag and the value on hover;
+     values in the readout.
+  5. Playwright: the 8-bit adder in the browser, and a mismatch shown then
+     fixed.
 - ✅ 4-bit adder example: one full-adder definition instanced four times,
   checked natively for all 512 inputs and in the browser
 
@@ -199,8 +223,9 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 2 multi-bit signals, buses and splitters (ADR), which also widens custom
-component pins. Custom components cannot yet be renamed or deleted, and Make
+Phase 2 multi-bit signals, buses and splitters, built in the steps above
+from ADR 0014, which also widens custom component pins. Named connections
+(net labels) still need their own decision. Custom components cannot yet be renamed or deleted, and Make
 component drops wires that crossed the selection's edge. Pins can be relabelled
 freely (ADR 0013, format v4); deleting one leaves its wires reported as
 unknown ports. Known limits still
