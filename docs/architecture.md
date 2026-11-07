@@ -50,13 +50,12 @@ The UI never computes a signal value. It renders values received from the worker
 
 The editable design. Owned by the frontend, serialized as JSON, versioned.
 
-Sketch of format version 1 (Phase 1 scope; exact schema fixed in code with
-validation):
+Format version 2 (ADR 0010; exact schema fixed in code with validation):
 
 ```json
 {
   "format": "clockyard",
-  "version": 1,
+  "version": 2,
   "metadata": { "name": "AND demo", "createdAt": "2026-11-06T12:00:00Z", "modifiedAt": "2026-11-06T12:00:00Z" },
   "circuit": {
     "components": [
@@ -64,8 +63,13 @@ validation):
       { "id": "p81c2", "kind": "and",    "position": { "x": 6, "y": 1 }, "rotation": 0, "props": {} },
       { "id": "m02de", "kind": "led",    "position": { "x": 12, "y": 1 }, "rotation": 0, "props": {} }
     ],
+    "junctions": [
+      { "id": "j4c01", "position": { "x": 4, "y": 1 } }
+    ],
     "wires": [
-      { "id": "w7a10", "from": { "component": "k3f9a", "port": "out" }, "to": { "component": "p81c2", "port": "a" } },
+      { "id": "w7a10", "from": { "component": "k3f9a", "port": "out" }, "to": { "junction": "j4c01" } },
+      { "id": "w7a12", "from": { "junction": "j4c01" }, "to": { "component": "p81c2", "port": "a" } },
+      { "id": "w7a13", "from": { "junction": "j4c01" }, "to": { "component": "p81c2", "port": "b" } },
       { "id": "w7a11", "from": { "component": "p81c2", "port": "out" }, "to": { "component": "m02de", "port": "in" } }
     ]
   }
@@ -76,27 +80,30 @@ Rules:
 
 - IDs are stable, opaque strings generated in the browser. Never array indices.
 - Positions are in grid units; rendering scales them.
-- **Wires reference ports explicitly.** Connectivity comes from references,
-  never from geometry. Two wires crossing on screen are not connected.
-- Phase 2 replaces point-to-point wires with *nets*: explicit junction nodes and
-  segments, plus a width. A junction is a document object, not an overlap.
+- **Wires reference their ends explicitly**: a port `{ component, port }` or a
+  junction `{ junction }`. Connectivity comes from references, never from
+  geometry. Two wires crossing on screen are not connected.
+- A **junction** is a document object, not an overlap. Wires that share a port
+  or junction form one net; the engine resolves nets (ADR 0010). Bus widths
+  join the format with multi-bit signals.
 - Custom component definitions live in a `definitions` section; instances refer
   to them by definition ID (Phase 2).
 - Transient simulation data (signal values, clock count) is never part of the
   document.
-- Loading an older `version` runs explicit migrations in `storage/`. Unknown
-  future versions are rejected with a clear message.
+- Loading an older `version` runs explicit migrations in `storage/`
+  (v1 → v2 adds an empty `junctions` list). Unknown future versions are
+  rejected with a clear message. Export always writes the current version.
 - Import (`storage/file.ts`) treats the file as untrusted: every field is
-  type-checked, unknown fields are dropped, IDs must be unique and wires must
-  reference existing components. Port names are checked by the engine on load.
+  type-checked, unknown fields are dropped, IDs must be unique across parts,
+  junctions and wires, and wires must reference existing parts and junctions. Port names are checked by the engine on load.
   Switch positions are transient and never saved.
 - `props` holds editor-only properties; the engine never sees them. Today that
   is `label`: one line of text, at most 32 characters, edited in the inspector
   and drawn under the part. Control characters become spaces, bidi and
   zero-width characters are removed and the ends are trimmed, both in the
   editor and on import. The editor stops at 32 characters; an imported file
-  with a longer label is refused. A switch's or LED's label names the circuit's input or
-  output pin, for the readout, the status bar and, later, the ports of a custom
+  with a longer label is refused. A switch's or LED's label names the
+  circuit's input or output pin, for the readout, the status bar and, later, the ports of a custom
   component built from the circuit. Unknown props are dropped on import.
 
 ## Circuit description (engine input)
@@ -107,16 +114,19 @@ definitions and connections. This keeps the engine contract small and lets the
 file format evolve (migrations, layout fields) without touching Rust.
 
 ```ts
-// Phase 1 (apps/web/src/simulation/protocol.ts ↔ sim-core `description`)
+// apps/web/src/simulation/protocol.ts ↔ sim-core `description`
 type CircuitDescription = {
   components: { id: string; kind: string }[];
-  connections: { id: string; from: PortRef; to: PortRef }[]; // id = document wire ID
+  junctions: { id: string }[];
+  connections: { id: string; from: Endpoint; to: Endpoint }[]; // id = document wire ID
 };
-type PortRef = { component: string; port: string };
+type Endpoint = { component: string; port: string } | { junction: string };
 ```
 
-A connection may list its output end in either `from` or `to`; the engine
-normalizes direction. Component `props` join the description when a kind needs
+A connection may list its output end in either `from` or `to`. The engine
+joins every port and junction that connections share into nets and checks each
+net as a whole (`docs/simulation-model.md#nets`); `wireNets` reports the net of
+every wire, so the frontend never remaps IDs. Component `props` join the description when a kind needs
 one.
 
 The projection is a pure function with unit tests.

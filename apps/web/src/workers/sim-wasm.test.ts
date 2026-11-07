@@ -22,6 +22,7 @@ const andDemo: CircuitDescription = {
     { id: "g", kind: "and" },
     { id: "l", kind: "led" },
   ],
+  junctions: [],
   connections: [wire("w1", "a.out", "g.a"), wire("w2", "b.out", "g.b"), wire("w3", "g.out", "l.in")],
 };
 

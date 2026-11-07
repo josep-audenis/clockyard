@@ -5,14 +5,18 @@ import { parseDocument, serializeDocument } from "./file";
 
 const document: CircuitDocument = {
   format: "clockyard",
-  version: 1,
+  version: 2,
   metadata: { name: "AND demo", createdAt: "2026-11-06T12:00:00Z", modifiedAt: "2026-11-06T12:30:00Z" },
   circuit: {
     components: [
       { id: "a", kind: "switch", position: { x: 0, y: 0 }, rotation: 0, props: { label: "A" } },
       { id: "g", kind: "and", position: { x: 6, y: -2 }, rotation: 0, props: {} },
     ],
-    wires: [{ id: "w", from: { component: "a", port: "out" }, to: { component: "g", port: "a" } }],
+    junctions: [{ id: "j", position: { x: 3, y: 1 } }],
+    wires: [
+      { id: "w", from: { component: "a", port: "out" }, to: { component: "g", port: "a" } },
+      { id: "v", from: { junction: "j" }, to: { component: "g", port: "b" } },
+    ],
   },
 };
 
@@ -47,12 +51,17 @@ test("labels are normalized like the editor does, and a blank one is dropped", (
 test.each([
   ["not JSON", () => parseDocument("{"), "not valid JSON"],
   ["another format", () => broken((doc) => Object.assign(doc, { format: "other" })), "not a Clockyard file"],
-  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 2 })), "newer Clockyard"],
+  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 3 })), "newer Clockyard"],
+  ["a fractional junction", () => broken((doc) => Object.assign(doc.circuit.junctions[0] ?? {}, { position: { x: 1.5, y: 0 } })), "x must be a whole number"],
+  ["a junction sharing an ID", () => broken((doc) => Object.assign(doc.circuit.junctions[0] ?? {}, { id: "g" })), "ID g is used more than once"],
+  ["a wire to a missing junction", () => broken((_, _c, w) => (w.to = { junction: "gone" })), "missing junction gone"],
+  ["a wire from a port to itself", () => broken((_, _c, w) => (w.to = { ...w.from })), "starts and ends at the same place"],
+  ["missing junctions", () => broken((doc) => Reflect.deleteProperty(doc.circuit, "junctions")), "circuit.junctions must be a list"],
   ["an unknown kind", () => broken((_, c) => (c.kind = "flux" as ComponentKind)), 'unknown kind "flux"'],
   ["a fractional position", () => broken((_, c) => (c.position.x = 0.5)), "x must be a whole number"],
   ["a bad rotation", () => broken((_, c) => Object.assign(c, { rotation: 45 })), "rotation"],
   ["a duplicate ID", () => broken((_, _c, w) => (w.id = "a")), "ID a is used more than once"],
-  ["a dangling wire", () => broken((_, _c, w) => (w.to.component = "gone")), "missing component gone"],
+  ["a dangling wire", () => broken((_, _c, w) => (w.to = { component: "gone", port: "a" })), "missing component gone"],
   ["a label that is not text", () => broken((_, c) => Object.assign(c.props, { label: 7 })), "label must be text"],
   ["an over-long label", () => broken((_, c) => (c.props.label = "x".repeat(33))), "longer than 32"],
   ["missing wires", () => broken((doc) => Reflect.deleteProperty(doc.circuit, "wires")), "circuit.wires must be a list"],
@@ -66,4 +75,17 @@ const examples = new URL("../../../../examples/", import.meta.url);
 test.each(readdirSync(examples).filter((name) => name.endsWith(".clockyard.json")))("example %s is a valid project file", (name) => {
   const result = parseDocument(readFileSync(new URL(name, examples), "utf8"));
   expect(result.ok ? "ok" : result.error).toBe("ok");
+});
+
+test("a version 1 file is migrated: same parts and wires, no junctions", () => {
+  const v1 = {
+    format: "clockyard",
+    version: 1,
+    metadata: document.metadata,
+    circuit: { components: document.circuit.components, wires: document.circuit.wires.slice(0, 1) },
+  };
+  expect(parseDocument(JSON.stringify(v1))).toEqual({
+    ok: true,
+    document: { ...document, circuit: { ...document.circuit, junctions: [], wires: document.circuit.wires.slice(0, 1) } },
+  });
 });

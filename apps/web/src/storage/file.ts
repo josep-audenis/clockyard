@@ -5,14 +5,16 @@ import {
   MAX_LABEL,
   normalizeLabel,
   ROTATIONS,
+  sameEnd,
   type CircuitComponent,
   type CircuitDocument,
   type ComponentKind,
+  type Junction,
   type Props,
   type Wire,
 } from "../editor/document";
 
-export const FORMAT_VERSION = 1;
+export const FORMAT_VERSION = 2;
 
 export type ParseResult = { ok: true; document: CircuitDocument } | { ok: false; error: string };
 
@@ -77,11 +79,12 @@ function readDocument(data: unknown): CircuitDocument {
   if (version > FORMAT_VERSION) {
     throw new Error(`This file uses format version ${version}, from a newer Clockyard. This version reads up to ${FORMAT_VERSION}.`);
   }
-  // Migrations from older versions go here once a version 2 exists.
-  if (version !== FORMAT_VERSION) throw new Error(`Format version ${version} is not supported.`);
+  if (version !== 1 && version !== FORMAT_VERSION) throw new Error(`Format version ${version} is not supported.`);
 
   const metadata = object(data.metadata, "metadata");
   const circuit = object(data.circuit, "circuit");
+  // Version 1 → 2 (ADR 0010): junctions arrive; v1 wires already join two ports.
+  if (version === 1) circuit.junctions = [];
   const seen = new Set<string>();
   const unique = (value: string, where: string) => {
     if (seen.has(value)) throw new Error(`${where}: ID ${value} is used more than once.`);
@@ -106,9 +109,25 @@ function readDocument(data: unknown): CircuitDocument {
     };
   });
 
+  const junctions = array(circuit.junctions, "circuit.junctions").map((raw, i): Junction => {
+    const where = `Junction ${i + 1}`;
+    const j = object(raw, where);
+    const position = object(j.position, `${where} position`);
+    return {
+      id: unique(id(j.id, `${where} id`), where),
+      position: { x: integer(position.x, `${where} x`), y: integer(position.y, `${where} y`) },
+    };
+  });
+
   const componentIds = new Set(components.map((c) => c.id));
-  const port = (raw: unknown, where: string) => {
+  const junctionIds = new Set(junctions.map((j) => j.id));
+  const end = (raw: unknown, where: string): Wire["from"] => {
     const ref = object(raw, where);
+    if ("junction" in ref) {
+      const junction = id(ref.junction, `${where} junction`);
+      if (!junctionIds.has(junction)) throw new Error(`${where} refers to missing junction ${junction}.`);
+      return { junction };
+    }
     const component = id(ref.component, `${where} component`);
     if (!componentIds.has(component)) throw new Error(`${where} refers to missing component ${component}.`);
     return { component, port: id(ref.port, `${where} port`) };
@@ -116,7 +135,11 @@ function readDocument(data: unknown): CircuitDocument {
   const wires = array(circuit.wires, "circuit.wires").map((raw, i): Wire => {
     const where = `Wire ${i + 1}`;
     const w = object(raw, where);
-    return { id: unique(id(w.id, `${where} id`), where), from: port(w.from, `${where} start`), to: port(w.to, `${where} end`) };
+    const from = end(w.from, `${where} start`);
+    const to = end(w.to, `${where} end`);
+    // The editor never draws one; on screen it would be an invisible, unclickable wire.
+    if (sameEnd(from, to)) throw new Error(`${where} starts and ends at the same place.`);
+    return { id: unique(id(w.id, `${where} id`), where), from, to };
   });
 
   return {
@@ -127,6 +150,6 @@ function readDocument(data: unknown): CircuitDocument {
       createdAt: text(metadata.createdAt, "metadata.createdAt"),
       modifiedAt: text(metadata.modifiedAt, "metadata.modifiedAt"),
     },
-    circuit: { components, wires },
+    circuit: { components, junctions, wires },
   };
 }

@@ -10,7 +10,7 @@ implementation.
 |------|---------|
 | Component | A primitive in the compiled netlist (gate, switch, LED, flip-flop, …) |
 | Port | A named input or output of a component, with a width |
-| Net | A set of connected ports: exactly one driver output, any number of reader inputs |
+| Net | Ports joined by wires, directly or through junctions: exactly one driver output, any number of reader inputs |
 | Value | The signal on a net |
 | Delta | One evaluation round inside a settle, at a single instant of virtual time |
 | Settle | Repeating deltas until no net changes |
@@ -31,6 +31,22 @@ Designed to extend to:
 
 Code that reads values goes through the `logic` module's value type so the
 representation can change without touching every evaluator.
+
+## Nets
+
+Wires join two ends: ports or junctions. On load the engine joins every port
+and junction that wires connect (union-find over the connection graph,
+ADR 0010) and checks each resulting net as a whole:
+
+| Outputs | Inputs | Result |
+|---------|--------|--------|
+| 1 | any | Valid: the output drives every input; every wire in the net reports it |
+| 0 | 0 or 1 | Valid dangling branch: its input reads 0 and warns as unconnected; its wires read 0 |
+| 0 | 2 or more | `inputToInput` error: nothing drives the net |
+| 2 or more | 0 | `outputToOutput` error |
+| 2 or more | 1 or more | `multipleDrivers` error |
+
+Duplicate wires between the same ends are harmless: they join nothing new.
 
 ## Compiled netlist
 

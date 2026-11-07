@@ -1,6 +1,6 @@
 {
   "format": "clockyard",
-  "version": 1,
+  "version": 2,
   "metadata": {
     "name": "AND gate",
     "createdAt": "2026-11-06T12:00:00.000Z",
@@ -13,6 +13,7 @@
       { "id": "and", "kind": "and", "position": { "x": 6, "y": 2 }, "rotation": 0, "props": {} },
       { "id": "led", "kind": "led", "position": { "x": 13, "y": 3 }, "rotation": 0, "props": {} }
     ],
+    "junctions": [],
     "wires": [
       { "id": "w-a", "from": { "component": "a", "port": "out" }, "to": { "component": "and", "port": "a" } },
       { "id": "w-b", "from": { "component": "b", "port": "out" }, "to": { "component": "and", "port": "b" } },

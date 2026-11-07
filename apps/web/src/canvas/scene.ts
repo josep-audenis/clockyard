@@ -2,11 +2,11 @@
 // spec. Reads the editor and engine stores outside React and redraws on change.
 // shortcut: the whole scene is redrawn per change; move to per-object updates when profiling says so.
 import { Application, Container, Graphics, Text } from "pixi.js";
-import type { CircuitComponent } from "../editor/document";
+import { endOwner, type Circuit, type CircuitComponent } from "../editor/document";
 import { useEditor } from "../editor/store";
-import type { PortRef } from "../simulation/protocol";
+import type { Endpoint } from "../simulation/protocol";
 import { useSim } from "../simulation/sync";
-import { componentsInBox, hitTest, portAt, wirePoints, type Point } from "./geometry";
+import { endAt, hitTest, itemsInBox, nearestOnRoute, places, portAt, wirePoints, type Hit, type Point } from "./geometry";
 import { LAYOUTS } from "./layout";
 
 const MIN_ZOOM = 0.25;
@@ -45,11 +45,16 @@ function readTheme(): Theme {
 
 type Gesture =
   | { type: "pan"; last: Point }
-  // Drags every selected part; `id` is the one under the pointer, `starts` where each part began.
+  // Drags every selected part and junction; `id` is the one under the pointer, `starts` where each began.
   | { type: "move"; id: string; grab: Point; starts: Record<string, Point>; start: Point; moved: boolean; recorded: boolean }
-  | { type: "wire"; from: PortRef; at: Point }
+  | { type: "wire"; from: Endpoint; at: Point }
   // Marquee selection; `base` is the selection kept from before (Shift).
   | { type: "box"; from: Point; to: Point; base: string[] };
+
+const positionOf = (circuit: Circuit, id: string) =>
+  (circuit.components.find((c) => c.id === id) ?? circuit.junctions.find((j) => j.id === id))?.position;
+
+const samePoint = (a: Point | undefined, b: Point) => a !== undefined && a.x === b.x && a.y === b.y;
 
 const toggled = (ids: string[], id: string) => (ids.includes(id) ? ids.filter((other) => other !== id) : [...ids, id]);
 
@@ -80,7 +85,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   let theme = readTheme();
   const view = { x: 48, y: 48, zoom: 1 };
   let gesture: Gesture | null = null;
-  let hover: PortRef | null = null;
+  /** Where a wire being drawn would attach (a port, junction or point on a wire). */
+  let hover: Point | null = null;
   /** Space held: a left drag pans. */
   let spaceHeld = false;
 
@@ -117,14 +123,14 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     // A value is shown only once the engine has reported on the current document.
     const signal = (net: number | undefined): 0 | 1 | null =>
       stale || !nets || net === undefined ? null : nets[net] === 1 ? 1 : 0;
-    const byId = new Map(circuit.components.map((component) => [component.id, component]));
+    const at = places(circuit);
 
     wires.clear();
     bodies.clear();
     overlay.clear();
 
     for (const wire of circuit.wires) {
-      const points = wirePoints(byId, wire)?.map(px);
+      const points = wirePoints(at, wire)?.map(px);
       if (!points) continue;
       const value = signal(loaded?.wireNets[wire.id]);
       const width = value === 1 ? size["wire-width-high"] : size["wire-width"];
@@ -138,6 +144,17 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         cap: "round",
         join: "round",
       });
+    }
+
+    // CanvasKit: a junction is a 4px dot in its net's state colour.
+    for (const junction of circuit.junctions) {
+      const attached = circuit.wires.find((w) => endOwner(w.from) === junction.id || endOwner(w.to) === junction.id);
+      const value = signal(attached && loaded?.wireNets[attached.id]);
+      const { x, y } = px(junction.position);
+      if (selected.has(junction.id)) wires.circle(x, y, 8).stroke({ width: size["select-width"], color: color.select });
+      wires
+        .circle(x, y, 4)
+        .fill({ color: value === 1 ? color["signal-high"] : color["signal-low"], alpha: value === null ? 0.5 : 1 });
     }
 
     for (const component of circuit.components) {
@@ -156,8 +173,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     drawLabels(circuit.components);
 
     if (gesture?.type === "wire") {
-      const fromPart = byId.get(gesture.from.component);
-      const start = fromPart && portAt(fromPart, gesture.from.port);
+      const start = endAt(at, gesture.from);
       if (start) {
         const a = px(start);
         const b = px(gesture.at);
@@ -172,10 +188,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         .fill({ color: color["accent-soft"], alpha: 0.4 })
         .stroke({ width: 1 / view.zoom, color: color.select });
     }
-    const hoverPart = hover && byId.get(hover.component);
-    const hoverAt = hover && hoverPart && portAt(hoverPart, hover.port);
-    if (hoverAt) {
-      const { x, y } = px(hoverAt);
+    if (hover) {
+      const { x, y } = px(hover);
       overlay.circle(x, y, size["port-size"]).stroke({ width: 2, color: color.accent });
     }
   }
@@ -311,6 +325,32 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   // Pick radius is set in screen pixels so ports stay clickable when zoomed out.
   const pick = () => (theme.size["port-size"] / 2 + theme.size["hit-slop"]) / (view.zoom * cell());
 
+  /**
+   * What a wire dropped at `p` attaches to: a port, a junction, or (while wiring)
+   * a grid point on a wire, which the drop splits. A point at a wire's own end
+   * attaches to that end instead.
+   */
+  function target(circuit: Circuit, hit: Hit, p: Point, wiring: boolean): { at: Point; end?: Endpoint; wire?: string } | null {
+    const at = places(circuit);
+    if (hit?.type === "port" || hit?.type === "junction") {
+      const end: Endpoint = hit.type === "port" ? hit.ref : { junction: hit.id };
+      const point = endAt(at, end);
+      return point ? { at: point, end } : null;
+    }
+    const wire = wiring && hit?.type === "wire" ? circuit.wires.find((w) => w.id === hit.id) : undefined;
+    const points = wire && wirePoints(at, wire);
+    const point = points && nearestOnRoute(points, p);
+    if (!wire || !point) return null;
+    const end = [wire.from, wire.to].find((e) => samePoint(endAt(at, e), point));
+    if (end) return { at: point, end };
+    // Never drop a junction onto another port or junction: two dots on one spot would look joined.
+    const ports = circuit.components.flatMap((c) =>
+      [...Object.keys(LAYOUTS[c.kind].inputs), ...Object.keys(LAYOUTS[c.kind].outputs)].map((name) => portAt(c, name)),
+    );
+    const taken = [...ports, ...circuit.junctions.map((j) => j.position)].some((q) => q && samePoint(q, point));
+    return taken ? null : { at: point, wire: wire.id };
+  }
+
   const onPointerDown = (e: PointerEvent) => {
     const p = toWorld(e);
     // Leaving a field commits it (the inspector's label) before this press changes the selection.
@@ -326,17 +366,20 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       editor.add(editor.armed, { x: Math.round(p.x - width / 2), y: Math.round(p.y - height / 2) });
     } else if (e.button === 0) {
       const hit = hitTest(editor.circuit, p, pick());
-      const part = hit?.type === "component" ? editor.circuit.components.find((c) => c.id === hit.id) : undefined;
+      // Parts and junctions are selected and dragged alike.
+      const item = hit?.type === "component" || hit?.type === "junction" ? hit.id : undefined;
+      const position = item && positionOf(editor.circuit, item);
       if (hit?.type === "port") {
         gesture = { type: "wire", from: hit.ref, at: p };
-      } else if (part && e.shiftKey) {
-        editor.select(toggled(editor.selection, part.id));
-      } else if (part) {
-        if (!editor.selection.includes(part.id)) editor.select([part.id]);
+      } else if (item && e.shiftKey) {
+        editor.select(toggled(editor.selection, item));
+      } else if (item && position) {
+        if (!editor.selection.includes(item)) editor.select([item]);
         const selected = new Set(useEditor.getState().selection);
-        const starts = Object.fromEntries(editor.circuit.components.filter((c) => selected.has(c.id)).map((c) => [c.id, c.position]));
-        const grab = { x: p.x - part.position.x, y: p.y - part.position.y };
-        gesture = { type: "move", id: part.id, grab, starts, start: { x: e.clientX, y: e.clientY }, moved: false, recorded: false };
+        const movable = [...editor.circuit.components, ...editor.circuit.junctions].filter((m) => selected.has(m.id));
+        const starts = Object.fromEntries(movable.map((m) => [m.id, m.position]));
+        const grab = { x: p.x - position.x, y: p.y - position.y };
+        gesture = { type: "move", id: item, grab, starts, start: { x: e.clientX, y: e.clientY }, moved: false, recorded: false };
       } else if (hit?.type === "wire") {
         editor.select(e.shiftKey ? toggled(editor.selection, hit.id) : [hit.id]);
       } else {
@@ -359,12 +402,12 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const g = gesture;
       g.moved ||= Math.hypot(e.clientX - g.start.x, e.clientY - g.start.y) > DRAG_THRESHOLD;
       const anchor = g.starts[g.id];
-      const part = editor.circuit.components.find((c) => c.id === g.id);
-      if (g.moved && anchor && part) {
-        // Snap the part under the pointer; every other selected part moves by the same cells.
+      const current = positionOf(editor.circuit, g.id);
+      if (g.moved && anchor && current) {
+        // Snap the item under the pointer; everything else selected moves by the same cells.
         const dx = Math.round(p.x - g.grab.x) - anchor.x;
         const dy = Math.round(p.y - g.grab.y) - anchor.y;
-        if (part.position.x !== anchor.x + dx || part.position.y !== anchor.y + dy) {
+        if (current.x !== anchor.x + dx || current.y !== anchor.y + dy) {
           // The whole drag is one undo step.
           if (!g.recorded) editor.record();
           g.recorded = true;
@@ -375,13 +418,13 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       gesture.at = p;
     } else if (gesture?.type === "box") {
       gesture.to = p;
-      const boxed = new Set([...gesture.base, ...componentsInBox(editor.circuit, gesture.from, p)]);
-      // Wires between selected parts are selected too, so the highlight matches what copy and delete take.
-      const wires = editor.circuit.wires.filter((w) => boxed.has(w.from.component) && boxed.has(w.to.component));
+      const boxed = new Set([...gesture.base, ...itemsInBox(editor.circuit, gesture.from, p)]);
+      // Wires between selected items are selected too, so the highlight matches what copy and delete take.
+      const wires = editor.circuit.wires.filter((w) => boxed.has(endOwner(w.from)) && boxed.has(endOwner(w.to)));
       editor.select([...new Set([...boxed, ...wires.map((w) => w.id)])]);
     }
     const hit = gesture?.type === "wire" || !gesture ? hitTest(editor.circuit, p, pick()) : null;
-    hover = hit?.type === "port" ? hit.ref : null;
+    hover = target(editor.circuit, hit, p, gesture?.type === "wire")?.at ?? null;
     schedule();
   };
 
@@ -393,8 +436,10 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       if (editor.selection.length > 1) editor.select([id]);
       if (editor.circuit.components.find((c) => c.id === id)?.kind === "switch") editor.toggle(id);
     } else if (gesture?.type === "wire") {
-      const hit = hitTest(editor.circuit, toWorld(e), pick());
-      if (hit?.type === "port") editor.connect(gesture.from, hit.ref);
+      const p = toWorld(e);
+      const end = target(editor.circuit, hitTest(editor.circuit, p, pick()), p, true);
+      if (end?.wire) editor.connectToWire(gesture.from, end.wire, end.at);
+      else if (end?.end) editor.connect(gesture.from, end.end);
     }
     gesture = null;
     schedule();

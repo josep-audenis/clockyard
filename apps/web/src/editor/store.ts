@@ -1,24 +1,40 @@
 // The editor's document store (ADR 0007). The canvas reads it outside React
 // through `useEditor.getState()` / `subscribe`.
 import { create } from "zustand";
-import type { PortRef } from "../simulation/protocol";
-import { MAX_LABEL, normalizeLabel, type Circuit, type CircuitDocument, type ComponentKind } from "./document";
+import type { Endpoint } from "../simulation/protocol";
+import {
+  endOwner,
+  isJunction,
+  MAX_LABEL,
+  normalizeLabel,
+  sameEnd,
+  type Circuit,
+  type CircuitDocument,
+  type ComponentKind,
+} from "./document";
+
+type Point = { x: number; y: number };
 
 export type EditorState = {
   metadata: CircuitDocument["metadata"];
   circuit: Circuit;
-  /** Selected component and wire IDs. */
+  /** Selected component, junction and wire IDs. */
   selection: string[];
   /** Switch positions set by the user. Transient: never saved with the document. */
   inputs: Record<string, 0 | 1>;
   /** Part waiting to be placed by the next canvas click. */
   armed: ComponentKind | null;
   add: (kind: ComponentKind, position: { x: number; y: number }) => string;
-  /** Sets positions by component ID in one update; not recorded (see `record`). */
-  move: (positions: Record<string, { x: number; y: number }>) => void;
-  /** Adds a wire unless it joins a port to itself, duplicates a wire or names a missing part. */
-  connect: (from: PortRef, to: PortRef) => string | null;
-  /** Removes components (with their wires) and wires. */
+  /** Sets positions by component or junction ID in one update; not recorded (see `record`). */
+  move: (positions: Record<string, Point>) => void;
+  /** Adds a wire unless it joins an end to itself, duplicates a wire or names a missing part or junction. */
+  connect: (from: Endpoint, to: Endpoint) => string | null;
+  /**
+   * Splits `wire` with a new junction at `at` and wires `from` to it, as one edit.
+   * Refused (null) when `from` is already an end of that wire.
+   */
+  connectToWire: (from: Endpoint, wire: string, at: Point) => string | null;
+  /** Removes components and junctions (with their wires) and wires; junctions left without wires go too. */
   remove: (ids: string[]) => void;
   select: (ids: string[]) => void;
   selectAll: () => void;
@@ -47,14 +63,12 @@ export type EditorState = {
   redo: () => void;
 };
 
-const samePort = (a: PortRef, b: PortRef) => a.component === b.component && a.port === b.port;
-
 const now = new Date().toISOString();
 const HISTORY_LIMIT = 200;
 
 /** Sets the circuit and drops selection and switch positions that point at items no longer in it. */
 function withCircuit(state: EditorState, circuit: Circuit) {
-  const kept = new Set([...circuit.components, ...circuit.wires].map((item) => item.id));
+  const kept = new Set(items(circuit).map((item) => item.id));
   return {
     circuit,
     selection: state.selection.filter((id) => kept.has(id)),
@@ -62,19 +76,25 @@ function withCircuit(state: EditorState, circuit: Circuit) {
   };
 }
 
-/** The chosen parts and the wires running between them; wires to other parts are left out. */
+const items = (circuit: Circuit) => [...circuit.components, ...circuit.junctions, ...circuit.wires];
+
+/** The chosen parts and junctions and the wires running between them; wires to anything else are left out. */
 function fragment(circuit: Circuit, ids: string[]): Circuit {
   const chosen = new Set(ids);
   const components = circuit.components.filter((c) => chosen.has(c.id));
-  const inside = new Set(components.map((c) => c.id));
-  const wires = circuit.wires.filter((w) => inside.has(w.from.component) && inside.has(w.to.component));
-  return { components, wires };
+  const junctions = circuit.junctions.filter((j) => chosen.has(j.id));
+  const inside = new Set([...components, ...junctions].map((item) => item.id));
+  const wires = circuit.wires.filter((w) => inside.has(endOwner(w.from)) && inside.has(endOwner(w.to)));
+  // A junction only joins wires; one with none among them would arrive as a lone dot.
+  const used = new Set(wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
+  return { components, junctions: junctions.filter((j) => used.has(j.id)), wires };
 }
 
 /** A copy of `part` with fresh IDs, shifted down-right by `offset` cells. */
 function cloned(part: Circuit, offset: number): Circuit {
-  const ids = new Map(part.components.map((c) => [c.id, crypto.randomUUID()]));
+  const ids = new Map([...part.components, ...part.junctions].map((item) => [item.id, crypto.randomUUID()]));
   const id = (old: string) => ids.get(old) ?? old;
+  const end = (e: Endpoint): Endpoint => (isJunction(e) ? { junction: id(e.junction) } : { ...e, component: id(e.component) });
   return {
     components: part.components.map((c) => ({
       ...c,
@@ -82,11 +102,8 @@ function cloned(part: Circuit, offset: number): Circuit {
       position: { x: c.position.x + offset, y: c.position.y + offset },
       props: structuredClone(c.props),
     })),
-    wires: part.wires.map((w) => ({
-      id: crypto.randomUUID(),
-      from: { ...w.from, component: id(w.from.component) },
-      to: { ...w.to, component: id(w.to.component) },
-    })),
+    junctions: part.junctions.map((j) => ({ id: id(j.id), position: { x: j.position.x + offset, y: j.position.y + offset } })),
+    wires: part.wires.map((w) => ({ id: crypto.randomUUID(), from: end(w.from), to: end(w.to) })),
   };
 }
 
@@ -94,10 +111,24 @@ function cloned(part: Circuit, offset: number): Circuit {
 const insert = (state: EditorState, part: Circuit) => ({
   ...edit(state, {
     components: [...state.circuit.components, ...part.components],
+    junctions: [...state.circuit.junctions, ...part.junctions],
     wires: [...state.circuit.wires, ...part.wires],
   }),
-  selection: [...part.components, ...part.wires].map((item) => item.id),
+  selection: items(part).map((item) => item.id),
 });
+
+const present = (circuit: Circuit, end: Endpoint) =>
+  isJunction(end)
+    ? circuit.junctions.some((j) => j.id === end.junction)
+    : circuit.components.some((c) => c.id === end.component);
+
+/** False for a wire from an end to itself, a duplicate in either direction, or an end that is gone. */
+function canConnect(circuit: Circuit, from: Endpoint, to: Endpoint) {
+  const exists = circuit.wires.some(
+    (w) => (sameEnd(w.from, from) && sameEnd(w.to, to)) || (sameEnd(w.from, to) && sameEnd(w.to, from)),
+  );
+  return !sameEnd(from, to) && !exists && present(circuit, from) && present(circuit, to);
+}
 
 const remember = (state: EditorState) => ({ past: [...state.past, state.circuit].slice(-HISTORY_LIMIT), future: [] });
 
@@ -106,7 +137,7 @@ const edit = (state: EditorState, circuit: Circuit) => ({ ...withCircuit(state, 
 
 export const useEditor = create<EditorState>()((set, get) => ({
   metadata: { name: "Untitled", createdAt: now, modifiedAt: now },
-  circuit: { components: [], wires: [] },
+  circuit: { components: [], junctions: [], wires: [] },
   selection: [],
   inputs: {},
   armed: null,
@@ -127,19 +158,41 @@ export const useEditor = create<EditorState>()((set, get) => ({
 
   move: (positions) =>
     set(({ circuit }) => ({
-      circuit: { ...circuit, components: circuit.components.map((c) => ({ ...c, position: positions[c.id] ?? c.position })) },
+      circuit: {
+        ...circuit,
+        components: circuit.components.map((c) => ({ ...c, position: positions[c.id] ?? c.position })),
+        junctions: circuit.junctions.map((j) => ({ ...j, position: positions[j.id] ?? j.position })),
+      },
     })),
 
   connect: (from, to) => {
-    const { components, wires } = get().circuit;
-    const exists = wires.some(
-      (w) => (samePort(w.from, from) && samePort(w.to, to)) || (samePort(w.from, to) && samePort(w.to, from)),
-    );
+    const { circuit } = get();
     // A part can be deleted mid-drag; never leave a wire to nothing.
-    const present = [from, to].every((end) => components.some((c) => c.id === end.component));
-    if (samePort(from, to) || exists || !present) return null;
+    if (!canConnect(circuit, from, to)) return null;
     const id = crypto.randomUUID();
     set((state) => ({ ...edit(state, { ...state.circuit, wires: [...state.circuit.wires, { id, from, to }] }), selection: [id] }));
+    return id;
+  },
+
+  connectToWire: (from, wireId, at) => {
+    const { circuit } = get();
+    const wire = circuit.wires.find((w) => w.id === wireId);
+    if (!wire || sameEnd(wire.from, from) || sameEnd(wire.to, from) || !present(circuit, from)) return null;
+    const junction = { junction: crypto.randomUUID() };
+    const id = crypto.randomUUID();
+    set((state) => ({
+      ...edit(state, {
+        ...state.circuit,
+        junctions: [...state.circuit.junctions, { id: junction.junction, position: at }],
+        // The split wire keeps its ID on its first half.
+        wires: [
+          ...state.circuit.wires.map((w) => (w === wire ? { ...w, to: junction } : w)),
+          { id: crypto.randomUUID(), from: junction, to: wire.to },
+          { id, from, to: junction },
+        ],
+      }),
+      selection: [id],
+    }));
     return id;
   },
 
@@ -148,16 +201,19 @@ export const useEditor = create<EditorState>()((set, get) => ({
     set((state) => {
       const { circuit } = state;
       const components = circuit.components.filter((c) => !gone.has(c.id));
-      // Wires attached to removed parts go too.
-      const wires = circuit.wires.filter((w) => !gone.has(w.id) && !gone.has(w.from.component) && !gone.has(w.to.component));
+      // Wires attached to removed parts and junctions go too.
+      const wires = circuit.wires.filter((w) => !gone.has(w.id) && !gone.has(endOwner(w.from)) && !gone.has(endOwner(w.to)));
+      // A junction joins wires; with none left it is gone as well.
+      const used = new Set(wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
+      const junctions = circuit.junctions.filter((j) => !gone.has(j.id) && used.has(j.id));
       // Nothing removed: not an edit, so history (and redo) stays as it is.
-      if (components.length === circuit.components.length && wires.length === circuit.wires.length) return state;
-      return edit(state, { components, wires });
+      if (items({ components, junctions, wires }).length === items(circuit).length) return state;
+      return edit(state, { components, junctions, wires });
     });
   },
 
   select: (ids) => set({ selection: ids }),
-  selectAll: () => set(({ circuit }) => ({ selection: [...circuit.components, ...circuit.wires].map((item) => item.id) })),
+  selectAll: () => set(({ circuit }) => ({ selection: items(circuit).map((item) => item.id) })),
 
   copy: () =>
     set((state) => {
