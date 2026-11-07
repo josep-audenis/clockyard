@@ -19,7 +19,10 @@ Constraints from earlier records: the engine owns all signal semantics, with
 no evaluator in TypeScript (CLAUDE.md). The catalog's kinds, ports and widths
 live in `sim-core` (ADR 0004). Settling stays deterministic and bounded
 (ADR 0006). Custom component pins are switch and LED parts, named by part ID
-(ADRs 0012 and 0013).
+(ADRs 0012 and 0013). Buses have their own colour token, `--signal-bus`, and
+show a hex value tag (ADR 0008). On load, logic that cannot reach a loop is
+evaluated once in topological order before the first settle (PR #20,
+`docs/simulation-model.md`).
 
 ## Decision
 
@@ -30,8 +33,8 @@ live in `sim-core` (ADR 0004). Settling stays deterministic and bounded
    would put `BigInt` or a pair of words in every place the frontend reads a
    value, and nothing planned before Phase 5 needs them. `sim-core` exports
    `MAX_WIDTH = 32` through the catalog, so the editor never hard-codes the
-   limit. A later, wider limit changes only that constant and the value
-   storage. The file format stays the same.
+   limit. A wider limit later keeps the file format. The engine's value
+   storage, the protocol and the frontend's value handling would change.
 2. **Widths are declared on parts and never inferred.** A part prop `width`
    (absent means 1) sets the width of every port on a switch, an LED and each
    gate (`not`, `and`, `nand`, `or`, `nor`, `xor`, `xnor`). Splitters and
@@ -46,19 +49,32 @@ live in `sim-core` (ADR 0004). Settling stays deterministic and bounded
 ### Values and the engine
 
 3. **A net stores a `u32` value, and the compiled netlist keeps each net's
-   width.** Every evaluator masks its result to its output's width, so a
-   4-bit NOT of `0000` is `1111`, never `0xFFFFFFFF`. Change detection still
-   compares whole values. Net 0 (ground) reads 0 at every width. An
-   unconnected input of any width reads 0 and warns, as it does today.
-4. **The delta-cycle engine is unchanged.** A bus is one net, and evaluating
-   a component writes it in one step. One delta therefore carries all the
-   bits of a value, and an 8-bit gate costs what a 1-bit one does. Splitters
-   and mergers are components (item 9), so each adds one delta of delay, like
-   a gate. Acyclic circuits still settle within *depth + 1* deltas, where
-   splitters and mergers count as levels, and the existing limit (component
-   count plus a floor) still bounds every settle. Whatever optimization of
-   `sim.rs` lands first, widths change only the value type, the mask and the
-   new primitives, not the scheduling.
+   width.** Every evaluator masks its result to its output's width with
+   `u32::MAX >> (32 - w)`. (`1 << 32` overflows in Rust and is `1` in JS, so
+   neither side builds the mask by shifting 1.) A 4-bit NOT of `0000` is
+   therefore `1111`, never `0xFFFFFFFF`. Change detection still compares
+   whole values. Net 0 (ground) reads 0 at every width. An unconnected input
+   of any width reads 0 and warns, as it does today.
+4. **The scheduler is unchanged, but `compile` changes.** A bus is one net,
+   and evaluating a component writes it in one step. One delta therefore
+   carries all the bits of a value, and an 8-bit gate costs what a 1-bit one
+   does. The delta loop, the topological presettle and the delta limit
+   (primitive count plus a floor) stay as they are. Splitters and mergers
+   compile to primitives (item 9), so each adds one delta of delay, like a
+   gate. They are ordinary nodes in the presettle's topological order.
+   Acyclic circuits still settle within *depth + 1* deltas, where splitters
+   and mergers count as levels. `compile` stops assuming one compiled
+   component per document part:
+   - Compiled **primitives** are separate from parts. Each primitive carries
+     its parameters (width, or shift and mask, or the list of field widths)
+     and the ID of the part it came from. Diagnostics name parts, and
+     `Unstable` culprits are de-duplicated by part.
+   - `Kind::eval` becomes an evaluation over a primitive and its input values
+     (`u32`). A data-free `eval(a, b, state)` cannot express a field's shift
+     and mask, or a merge with up to 32 inputs.
+   - Port resolution, `port_nets` and `set_input` go through a table from
+     each part's ports to primitive slots. `split.in` feeds the input slot of
+     every field primitive of that split.
 5. **Four-state logic stays possible later.** It will add a per-net `u32`
    unknown mask beside the value, one bit of `X`/`Z` per signal bit. With 32
    bits as the limit, the value and the mask together fit a `u64`.
@@ -69,21 +85,37 @@ live in `sim-core` (ADR 0004). Settling stays deterministic and bounded
    the same width. The message names one port for each width it found, and
    the IDs are the net's wires and those ports' parts, for example: "wires
    w1, w2 connect ports of different widths: `a.out` is 8 bits, `l.in` is 1
-   bit". The check runs where the driver rules already run. Net resolution
-   checks every flat net. Each level's wiring as drawn (ADR 0012) is checked
-   too, because flattening turns a pin into a width-less junction: there an
-   instance's port has its pin part's width. A mismatch is reported once, at
-   the level where it was drawn, and inner IDs are lifted to their instance
-   as today. Wires are never refused when dropped, since editing does not
-   judge semantics. The engine reports a mismatch, and the canvas highlights
-   the IDs the way it highlights every diagnostic.
-7. **New validation error `invalidWidth`.** It covers a `width` outside 1–32
-   or not a whole number, a `width` on a kind that does not take one
-   (`custom`, `split`, `merge`), and `fields` that are empty, contain a field
-   under 1 bit, add up to more than 32 bits, or sit on any kind other than a
-   splitter or merger. The editor never produces these, and import refuses
-   out-of-range values (item 12). The engine checks anyway, because native
-   tests and hand-written descriptions reach it directly.
+   bit". It is checked in two places:
+   - **Per level, before flattening.** Flattening turns a pin into a
+     junction with no width, so `check_wiring` checks every net at each
+     level (not only nets that touch pins). There, an instance's port has
+     its pin part's width. Each definition is checked once, at its first
+     instance in elaboration order, as pin wiring is today (`wired`), and
+     inner IDs are lifted to that instance. A definition used four times
+     with a mismatch inside reports it once.
+   - **Per flat net, in `compile`.** This covers circuits with no
+     definitions, which skip elaboration.
+
+   Level errors stop the load before `compile` runs, so nothing is reported
+   twice. Wires are never refused when dropped, since editing does not judge
+   semantics. The engine reports a mismatch, and the canvas highlights the
+   IDs the way it highlights every diagnostic.
+7. **New validation error `invalidWidth`.** It covers:
+   - a `width` outside 1–32 or not a whole number;
+   - a `width` on a kind that does not take one (`custom`, `split`, `merge`);
+   - on `split` or `merge`, `fields` that are missing or empty, contain a
+     field under 1 bit or not a whole number, or add up to more than
+     32 bits;
+   - `fields` on any other kind.
+
+   The check runs per level before flattening and before `check_wiring`, for
+   the main circuit and for every definition, used or not (as `check_ids`
+   does), because pin widths type instance ports. The description carries
+   `width` and `fields` as plain JSON numbers, which the engine validates. A
+   bad value (2.5, −1) therefore becomes `invalidWidth` rather than failing
+   to deserialize the whole description. The editor never produces these
+   values, and import refuses them (item 14). The engine checks anyway,
+   because native tests and hand-written descriptions reach it directly.
 
 ### Splitters and mergers
 
@@ -96,19 +128,25 @@ live in `sim-core` (ADR 0004). Settling stays deterministic and bounded
    significant field first, for example `[4, 4]` or eight `1`s. The total is
    the bus width. `split` has the input `in` (the total width) and the
    outputs `f0` to `f{n-1}`. `merge` has the inputs `f0` to `f{n-1}` and the
-   output `out`. Field `f0` holds the lowest bits. Port names depend on
-   `fields`, so the catalog lists the fixed port (`in` or `out`) and says
-   that field ports are `f0…` on the output or input side. The layout
-   consistency test (ADR 0004) checks the generated names for sample field
-   lists. Inside the engine, each field of a `split` compiles to its own
-   primitive (one input, one output, shift and mask), and a `merge` is one
-   primitive with one input per field. Every component keeps a single
-   output.
-10. **Layout.** A splitter or merger is a bar 2 cells wide and `n + 1` cells
+   output `out`. Field `f0` holds the lowest bits. A new splitter or merger
+   is placed with `fields: [1, 1, 1, 1]`. Port names depend on `fields`, so
+   the catalog entry gives the fixed port (`in` or `out`) and the naming
+   rule, `fieldPorts: { side: "outputs" | "inputs", prefix: "f" }`. The
+   layout consistency test (ADR 0004) builds the expected names from that
+   rule for sample field lists, and its comparison is updated for the new
+   catalog fields. Inside the engine, each field of a `split` compiles to
+   its own primitive (one input, one output, shift and mask), and a `merge`
+   is one primitive with one input per field. Every primitive keeps a
+   single output.
+10. **Layout.** A splitter or merger is a bar 3 cells wide and `n + 1` cells
     tall. Unrotated, a `split` has `in` at (0, 1) and field `fi` at
-    (2, 1 + i). A `merge` mirrors that, with `fi` at (0, 1 + i) and `out` at
-    (2, 1). Field ports sit one cell apart, so an 8-way split is 9 cells
-    tall. Each field port is labelled with its bit range (`3`, `7:4`).
+    (3, 1 + i). A `merge` mirrors that, with `fi` at (0, 1 + i) and `out` at
+    (3, 1). Each field's bit range (`3`, `7:4`, up to `31:24`) is drawn
+    inside the bar beside its port, in the canvas label style. Field ports
+    sit one cell apart, so an 8-way split is 9 cells tall. That is denser
+    than any part today, so the acceptance tests include routing an 8-way
+    fan-out. If the router (ADR 0011) cannot keep those wires apart at one
+    cell, the spacing becomes 2 cells, recorded as an amendment here.
     Rotation works through `layoutOf` as it does for every kind.
 
 ### Gates and I/O
@@ -121,18 +159,24 @@ live in `sim-core` (ADR 0004). Settling stays deterministic and bounded
     Phase 3 register primitives and Phase 4's ALU.
 12. **A switch or LED with a width above 1 is a multi-bit input or display.**
     There are no new kinds, so custom component pins stay switches and LEDs
-    (ADRs 0012 and 0013), and a wide pin is just a wide switch or LED. On
-    the canvas, a wide switch or LED is a 4 × 2 body that shows its value in
-    hex (up to 8 digits), with its port at the middle of the side where a
-    1-bit one has it. A width-1 part looks as it does today. Clicking a wide
-    switch selects it and focuses the inspector's Value field. That field
-    accepts decimal, `0x…` and `0b…`, and ↑ and ↓ step the value by 1. Wide
-    switch values are transient and never saved, like switch positions. The
-    accessible readout lists each wide switch and LED in decimal and in hex.
-    The protocol's `setInput` carries a number from 0 to 2^width − 1. The
-    engine refuses anything outside that range, and the editor masks a
-    switch's value when its width changes. Signed display is not part of
-    this decision.
+    (ADRs 0012 and 0013), and a wide pin is just a wide switch or LED.
+    - On the canvas, a wide switch or LED is a 5 × 2 body that shows its
+      value in hex (up to 8 digits), with its port at the middle of the side
+      where a 1-bit one has it. A width-1 part looks as it does today.
+    - Clicking a wide switch selects it and focuses the inspector's Value
+      field. That field accepts decimal, `0x…` and `0b…`, and ↑ and ↓ step
+      the value by 1.
+    - Wide switch values are transient and never saved, like switch
+      positions.
+    - The accessible readout lists each wide switch and LED in decimal and
+      in hex.
+    - The protocol's `setInput` carries a number from 0 to 2^width − 1.
+      `sim-wasm` takes it as an `f64` and refuses a non-integer, a negative
+      number and anything above `u32::MAX`, since a `u32` parameter would
+      silently wrap or truncate it. `sim-core`'s `set_input(u32)` then
+      refuses values of 2^width or more for widths below 32.
+    - The editor masks a switch's value when its width changes.
+    - Signed display is not part of this decision.
 
 ### Custom components
 
@@ -147,46 +191,69 @@ live in `sim-core` (ADR 0004). Settling stays deterministic and bounded
 
 ### File format and engine contract
 
-14. **Format version 5.** `props.width` is a whole number from 1 to 32 on
-    the kinds in item 2. `props.fields` is a list of whole numbers of at
-    least 1, adding up to at most 32, on `split` and `merge`. Export omits
-    `width` when it is 1, so 1-bit circuits read exactly as before apart
-    from `version`. Migration from v4 to v5 changes nothing but the version
-    number. The bump still matters: a v4 build drops unknown props on import
-    and would silently turn an 8-bit circuit into a 1-bit one. With the bump
-    it reports a newer format instead. Bundled examples move to v5. Import
-    checks the types and ranges above and refuses a file that breaks them.
-    `label` stays editor-only.
-15. **Description and protocol.** A component in the description gains the
-    optional `width` and `fields`, which the projection copies from `props`
-    (as planned in `architecture.md`, "props join the description when a kind
-    needs one"). `loaded` gains `netWidths` (one per net). `state.nets`
-    becomes a `Uint32Array`. `setInput.value` becomes a number. Catalog
-    entries gain `sized: true` for kinds that take `width`, and the field-port
-    side for `split` and `merge`.
+14. **Format version 5.**
+    - `props.width` is a whole number from 1 to 32, allowed only on the
+      kinds in item 2.
+    - `props.fields` is a non-empty list of whole numbers of at least 1,
+      adding up to at most 32. It is required on `split` and `merge`, and
+      allowed nowhere else.
+    - Import refuses a file that breaks either rule, including a prop on the
+      wrong kind, consistent with item 7. Export omits `width` when it is 1,
+      so 1-bit circuits read exactly as before apart from `version`.
+      `label` stays editor-only.
+    - Migration from v4 to v5 changes nothing but the version number. The
+      bump still matters: a v4 build drops unknown props on import and would
+      silently turn an 8-bit circuit into a 1-bit one. With the bump it
+      reports a newer format instead. Bundled examples move to v5.
+15. **Description and protocol.**
+    - A component in the description gains the optional `width` and
+      `fields`, which the projection copies from `props` (as planned in
+      `architecture.md`: "props join the description when a kind needs
+      one").
+    - `loaded` gains `wireWidths`, the width of each wire's net, keyed by
+      wire ID like `wireNets`. A net with no ports (junctions only) is
+      1 bit. Widths are per wire rather than per net index because every
+      undriven net shares ground (net 0), and an undriven bus is still
+      drawn as a bus.
+    - `state.nets` becomes a `Uint32Array`, and `setInput.value` becomes a
+      number.
+    - Catalog entries gain `sized: true` for kinds that take `width`, and
+      `fieldPorts` for `split` and `merge`.
+    - When this is built, `architecture.md` (the props rule, the description
+      and protocol shapes, format v5) and `simulation-model.md` (values,
+      diagnostics) are updated to match.
 
 ### Editor
 
-16. **Drawing.** A net wider than 1 bit is a bus. It is drawn at a new
-    `--wire-width-bus` (4px, beside `--wire-width` 2px and `--wire-width-high`
-    3px), in a neutral bus tone rather than the high/low colours, with a
-    short slash and its width ("8") near its driver. Junctions on a bus are
-    drawn larger. Hovering a bus shows its value in the status bar ("8 bits:
-    44, 0x2C"). The engine supplies widths (`netWidths`) and values, so the
-    canvas computes neither. While the circuit has validation errors, no
-    netlist is loaded, so wires draw as they do today and the diagnostic
-    highlights the mismatch. New tokens follow ADR 0008.
-17. **Setting a width.** For a single selected part, the inspector shows
-    **Width** (1–32) on kinds the catalog marks `sized`, and **Fields** (a
-    comma list, least significant field first, with the total shown) on
-    `split` and `merge`. Both commit on blur or Enter, Escape cancels, and
-    each change is one undo step, as labels are today. Changing `fields` also
-    deletes wires to field ports that no longer exist, in the same undo
-    step: unlike a pin on another sheet, those ports belong to the part
-    being edited. A width change on a switch or LED changes its layout
-    (2 × 2 body to 4 × 2), so the wires on it are routed again. The parts
-    panel gains **Splitter** and **Merger**. Setting the width of several
-    parts at once is left for later.
+16. **Drawing.**
+    - A net wider than 1 bit is a bus. It is drawn in `--signal-bus` at a
+      new `--wire-width-bus` (4px, beside `--wire-width` 2px and
+      `--wire-width-high` 3px). As ADR 0008 asks, the bus carries a hex value
+      tag ("2C") near its driver, next to a short slash with its width ("8").
+      The design system artifact gains `--wire-width-bus` and the tag's
+      CanvasKit spec first, as ADR 0008 requires.
+    - Junctions on a bus are drawn larger. Hovering a bus shows its value in
+      decimal and hex in the status bar ("8 bits: 44, 0x2C").
+    - The engine supplies widths (`wireWidths`) and values, so the canvas
+      computes neither. While the circuit has validation errors, no netlist
+      is loaded, so wires draw as they do today and the diagnostic
+      highlights the mismatch.
+17. **Setting a width.**
+    - For a single selected part, the inspector shows **Width** (1–32) on
+      kinds the catalog marks `sized`. On `split` and `merge` it shows
+      **Fields**: a comma list, least significant field first, with the
+      total shown. Both commit on blur or Enter, Escape cancels, and each
+      change is one undo step, as labels are today.
+    - Changing `fields` also deletes wires to field ports that no longer
+      exist, in the same undo step. Unlike a pin on another sheet, those
+      ports belong to the part being edited.
+    - Layouts now depend on props. `layoutOf` takes `props.width` and
+      `props.fields`, and its cache key includes whether the part is wide
+      and how many fields it has. A width or fields edit counts as touching
+      that part's wires, so they are routed again (ADR 0011 routes again
+      only the wires an edit touches).
+    - The parts panel gains **Splitter** and **Merger**. Setting the width
+      of several parts at once is left for later.
 
 ### Out of scope
 
@@ -200,17 +267,22 @@ editing.
 Native (`sim-core`):
 
 - Bitwise gates at widths 1, 8 and 32 match `&`, `|`, `^` and `!` masked to
-  the width (property tests). A 4-bit `not` of 0 is 15.
+  the width (property tests). A 4-bit `not` of 0 is 15, and a 32-bit `not`
+  of 0 is `u32::MAX`.
 - `merge(split(x)) = x` for fields `[3, 5]`, eight `[1]`s and `[32]`.
-- `widthMismatch` is reported for an 8-bit switch wired to a 1-bit LED,
-  through a junction, at an instance port whose pin is wider than the outside
-  wire, and inside a definition. Each is reported once, with the expected
-  IDs.
-- `invalidWidth` is reported for widths 0 and 33, a `width` on `split`,
-  empty `fields`, `fields` totalling 33, and `fields` on a gate.
+- `widthMismatch` is reported in each of these cases, once and with the
+  expected IDs:
+  - an 8-bit switch wired to a 1-bit LED;
+  - the same mismatch through a junction;
+  - an instance port whose pin is wider than the port it is wired to;
+  - a mismatch inside a definition used by two instances, reported once,
+    named by the first instance.
+- `invalidWidth` is reported for widths 0, 33 and 2.5, a `width` on `split`,
+  missing or empty `fields`, `fields` totalling 33, and `fields` on a gate.
+  It is reported in an unused definition too.
 - An unconnected 8-bit input reads 0 and warns. An 8-bit `not` fed back to
-  itself is reported `Unstable` within the bound. `set_input` refuses a value
-  of 2^width or more.
+  itself is reported `Unstable` within the bound, naming the part once.
+  `set_input` refuses 2^width at widths 1 and 8.
 - **8-bit adder example** (`examples/8-bit-adder.clockyard.json`): 8-bit
   switches A and B, each split into bits and fed to eight instances of the
   existing full-adder definition, merged into an 8-bit sum LED, with
@@ -218,13 +290,19 @@ Native (`sim-core`):
   65,536 (A, B) pairs with carry-in 0 and 1 against `(A + B + cin) mod 256`
   and the carry.
 
+Boundary (`sim-wasm`): `set_input` refuses 2^32, −1 and 2.5 instead of
+wrapping. `wireWidths` gives an undriven bus wire its bus width.
+
 Web (Vitest):
 
 - A v4 file migrates to v5 with nothing but the version changed. Width and
   fields round-trip through export and import. Import refuses width 0, 33 or
-  2.5, and bad `fields`.
-- Projection copies `width` and `fields` and drops `label`. Layout names
-  match the engine for `split` and `merge`, with sample fields.
+  2.5, bad `fields`, a `width` on `split` and `fields` on a gate.
+- Projection copies `width` and `fields` and drops `label`. Layout port
+  names match the catalog's `fieldPorts` rule for sample fields. A wide part
+  and a 1-bit part of the same kind get different layouts.
+- An 8-way split's field wires route without touching each other.
+- Hex formatting handles a 32-bit value of `0xFFFFFFFF`.
 
 Browser (Playwright):
 
@@ -238,11 +316,10 @@ Browser (Playwright):
 - One bus net carries a whole value, so circuits are smaller, settle in the
   same number of deltas as their 1-bit equivalents, and draw with far fewer
   wires.
-- Engine changes stay contained. The value type widens from `u8` to `u32`,
-  one mask is added per evaluation, and two primitives and two diagnostic
-  codes are new. The scheduler and the net rules are untouched. This work
-  starts after the `sim.rs` compile and settle optimization lands, and
-  rebases on it.
+- Engine changes are contained but real. The value type widens from `u8` to
+  `u32`, and `compile` gains primitives separate from parts, with a
+  part-to-primitive table. There are two new diagnostic codes. The delta
+  loop, the presettle and the net rules stay as they are.
 - Splitters and mergers each add one delta. Combinational results are
   unchanged, but the order of glitches in feedback loops differs from
   wiring the bits by hand. That is still deterministic.
@@ -250,7 +327,7 @@ Browser (Playwright):
   A "match connected width" helper can come later without a format change.
 - While a width error stands, buses lose their bus styling, because no
   netlist is loaded. The highlighted diagnostic points at the cause.
-- Port widths now depend on props, so the catalog is no longer a fixed
-  list of port names for every kind. The layout test covers the generated
-  names.
+- Port widths and layouts now depend on props, so neither the catalog nor
+  the layouts are a fixed table for every kind any more. The layout test
+  covers the generated names.
 - A v5 file cannot be opened by a v4 build, as designed.

@@ -165,19 +165,22 @@ Progress:
   kind. `split` and `merge` parts take a `fields` list. New errors are
   `widthMismatch` and `invalidWidth`. File format v5 (the v4 migration only
   bumps the version). Steps, in order:
-  1. Engine (after the `sim.rs` speed work lands): `u32` net values with
-     per-net widths and masks, bitwise gates, `split`/`merge` primitives,
-     the two new errors (per flat net and per level at pins), and a ranged
-     `set_input`. Native tests, including the 8-bit adder example checked
-     for all inputs.
-  2. Boundary: `Uint32Array` net values, `netWidths` in `loaded`, a
-     numeric `setInput`, and `MAX_WIDTH`, `sized` and field ports in the
-     catalog.
-  3. Format v5 with import range checks; projection of `width` and `fields`.
+  1. Engine, built on the topological presettle (PR #20): `u32` net
+     values with per-net widths and masks; compiled primitives separate
+     from parts, so a split's fields and a merge each compile to their own;
+     bitwise gates; the two new errors (per level before flattening, and
+     per flat net); and a ranged `set_input`. Native tests, including the
+     8-bit adder example checked for all inputs.
+  2. Boundary: `Uint32Array` net values, `wireWidths` in `loaded`, a
+     numeric `setInput` checked in `sim-wasm`, and `MAX_WIDTH`, `sized` and
+     `fieldPorts` in the catalog.
+  3. Format v5 with import checks (ranges, and props only on the kinds that
+     take them); projection of `width` and `fields`; architecture and
+     simulation-model docs updated to match.
   4. Editor: Width, Fields and Value in the inspector; Splitter and Merger
-     in the parts panel with their layouts; wide switches and LEDs as hex
-     bodies; buses drawn thick with a width tag and the value on hover;
-     values in the readout.
+     in the parts panel, with layouts that depend on props; wide switches
+     and LEDs as hex bodies; buses in `--signal-bus` with a width slash and
+     a hex value tag (design system first); values in the readout.
   5. Playwright: the 8-bit adder in the browser, and a mismatch shown then
      fixed.
 - ✅ 4-bit adder example: one full-adder definition instanced four times,
