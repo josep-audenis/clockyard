@@ -71,11 +71,15 @@ export function endAt(at: Places, end: Endpoint): Point | undefined {
 export function simplify(points: Point[]): Point[] {
   const out: Point[] = [];
   for (const p of points) {
-    const last = out.at(-1);
-    if (last && last.x === p.x && last.y === p.y) continue;
-    const before = out.at(-2);
-    if (before && last && (before.x === last.x) === (last.x === p.x) && (before.y === last.y) === (last.y === p.y)) out.pop();
     out.push(p);
+    // Removing one point can line up the ones before it, so check again until nothing changes.
+    for (;;) {
+      const n = out.length;
+      const [a, b, c] = [out[n - 3], out[n - 2], out[n - 1]];
+      if (b && c && b.x === c.x && b.y === c.y) out.splice(n - 2, 1);
+      else if (a && b && c && ((a.x === b.x && b.x === c.x) || (a.y === b.y && b.y === c.y))) out.splice(n - 2, 1);
+      else break;
+    }
   }
   return out;
 }
@@ -114,11 +118,20 @@ export function dragSegment(points: Point[], i: number, to: Point, exits: [numbe
   const p = points.map((q) => ({ ...q }));
   const [s, e] = [p[i] as Point, p[i + 1] as Point];
   const horizontal = s.y === e.y;
+  const last = points.length - 1;
+  let x = to.x;
+  if (!horizontal) {
+    // The vertical next to a port's first run stays outside that port, or the wire would cut back through its part.
+    const [a, b] = [points[0] as Point, points[last] as Point];
+    if (i === 1 && exits[0]) x = exits[0] > 0 ? Math.max(x, a.x + 1) : Math.min(x, a.x - 1);
+    if (i + 2 === last && exits[1]) x = exits[1] > 0 ? Math.max(x, b.x + 1) : Math.min(x, b.x - 1);
+    const outside = (end: Point, exit: number) => !exit || (x - end.x) * exit >= 1;
+    if ((i === 1 && !outside(a, exits[0])) || (i + 2 === last && !outside(b, exits[1]))) return points;
+  }
   for (const q of [s, e]) {
     if (horizontal) q.y = to.y;
-    else q.x = to.x;
+    else q.x = x;
   }
-  const last = points.length - 1;
   const route = p.slice(1, -1);
   const a = points[0] as Point;
   const b = points[last] as Point;
@@ -144,9 +157,8 @@ export function wirePoints(at: Places, wire: Wire): Point[] | null {
   if (!a || !b) return null;
   const [aj, bj] = [isJunction(wire.from), isJunction(wire.to)];
   if (!aj && !bj) {
-    if (a.y === b.y) return [a, b];
     const mx = Math.round((a.x + b.x) / 2);
-    return [a, { x: mx, y: a.y }, { x: mx, y: b.y }, b];
+    return simplify([a, { x: mx, y: a.y }, { x: mx, y: b.y }, b]);
   }
   if (aj && bj) return simplify([a, { x: b.x, y: a.y }, b]);
   const [port, junction] = aj ? [b, a] : [a, b];

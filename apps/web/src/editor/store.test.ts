@@ -458,3 +458,16 @@ test("shaping a wire and resetting its route are undoable; bends ride along in g
   paste();
   expect(useEditor.getState().circuit.wires.at(-1)?.bends).toEqual([{ x: 8, y: 5 }, { x: 8, y: 9 }]);
 });
+
+test("a shape is simplified, and one with more bends than a file may hold is not kept", () => {
+  const { add, connect, shape } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const l = add("led", { x: 8, y: 4 });
+  const w = connect(port(s, "out"), port(l, "in")) ?? "";
+  const bends = () => useEditor.getState().circuit.wires.find((wire) => wire.id === w)?.bends;
+  shape(w, [{ x: 5, y: 1 }, { x: 5, y: 1 }, { x: 5, y: 3 }, { x: 5, y: 5 }]);
+  expect(bends()).toEqual([{ x: 5, y: 1 }, { x: 5, y: 5 }]);
+  const zigzag = Array.from({ length: 70 }, (_, i) => ({ x: 3 + Math.floor((i + 1) / 2), y: i % 2 === 0 ? 1 : 5 }));
+  shape(w, zigzag);
+  expect(bends()).toEqual([{ x: 5, y: 1 }, { x: 5, y: 5 }]);
+});

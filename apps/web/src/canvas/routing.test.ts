@@ -83,3 +83,24 @@ test("a shaped wire keeps its bends", () => {
     { x: 8, y: 6 },
   ]);
 });
+
+test("ends a million cells apart get the plain route at once instead of a huge search", () => {
+  const far: Circuit = {
+    components: [part("s", "switch", 0, 0), part("l", "led", 999_990, 999_990)],
+    junctions: [],
+    wires: [
+      wire("w", "s.out", "l.in"),
+      // A shaped wire whose bends lie far from everything.
+      { ...wire("v", "s.out", "l.in"), id: "v", bends: [{ x: 999_000, y: 1 }, { x: 999_000, y: 999_991 }] },
+    ],
+  };
+  const started = performance.now();
+  const all = routes(far);
+  expect(performance.now() - started).toBeLessThan(500);
+  expect(all.get("w")).toEqual([
+    { x: 2, y: 1 },
+    { x: 499_996, y: 1 },
+    { x: 499_996, y: 999_991 },
+    { x: 999_990, y: 999_991 },
+  ]);
+});

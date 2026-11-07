@@ -1,11 +1,12 @@
 // The editor's document store (ADR 0007). The canvas reads it outside React
 // through `useEditor.getState()` / `subscribe`.
 import { create } from "zustand";
-import { stacksJunction } from "../canvas/geometry";
+import { simplify, stacksJunction } from "../canvas/geometry";
 import type { Endpoint } from "../simulation/protocol";
 import {
   endOwner,
   isJunction,
+  MAX_BENDS,
   MAX_LABEL,
   normalizeLabel,
   sameEnd,
@@ -31,7 +32,10 @@ export type EditorState = {
    * Bends of shaped wires whose two ends move by the same amount move with them.
    */
   move: (positions: Record<string, Point>) => void;
-  /** Sets a wire's bends while dragging its segment; not recorded (see `record`). */
+  /**
+   * Sets a wire's bends while dragging its segment; not recorded (see `record`).
+   * More than `MAX_BENDS` (after simplifying) is ignored, so every shape can be saved and opened again.
+   */
   shape: (wire: string, bends: Point[]) => void;
   /** Drops a wire's bends so it is routed automatically again; one edit, none if it had none. */
   resetRoute: (wire: string) => void;
@@ -209,7 +213,12 @@ export const useEditor = create<EditorState>()((set, get) => ({
     }),
 
   shape: (id, bends) =>
-    set(({ circuit }) => ({ circuit: { ...circuit, wires: circuit.wires.map((w) => (w.id === id ? { ...w, bends } : w)) } })),
+    set((state) => {
+      const kept = simplify(bends);
+      if (kept.length > MAX_BENDS) return state;
+      const { circuit } = state;
+      return { circuit: { ...circuit, wires: circuit.wires.map((w) => (w.id === id ? { ...w, bends: kept } : w)) } };
+    }),
 
   resetRoute: (id) =>
     set((state) => {

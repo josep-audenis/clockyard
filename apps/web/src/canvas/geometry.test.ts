@@ -163,3 +163,43 @@ test("dragging a middle segment moves it; dragging an end segment adds a stub so
     { x: 8, y: 1 },
   ]);
 });
+
+test("simplify keeps checking after a removal lines up earlier points", () => {
+  // Removing the doubled-back (5,3) leaves (5,0) twice and then a straight run along row 0.
+  expect(
+    simplify([
+      { x: 0, y: 0 },
+      { x: 5, y: 0 },
+      { x: 5, y: 3 },
+      { x: 5, y: 0 },
+      { x: 8, y: 0 },
+    ]),
+  ).toEqual([
+    { x: 0, y: 0 },
+    { x: 8, y: 0 },
+  ]);
+});
+
+test("the segment next to a port's first run cannot be dragged back over that port", () => {
+  // From an output at (2,1) heading right (exit +1): its first vertical stays at x >= 3.
+  const route = [
+    { x: 2, y: 1 },
+    { x: 5, y: 1 },
+    { x: 5, y: 4 },
+    { x: 9, y: 4 },
+  ];
+  expect(dragSegment(route, 1, { x: 0, y: 2 }, [1, -1])).toEqual([
+    { x: 2, y: 1 },
+    { x: 3, y: 1 },
+    { x: 3, y: 4 },
+    { x: 9, y: 4 },
+  ]);
+  // An output at x 2 (needs x >= 3) and an input at x 3 (needs x <= 2): no room, so the drag is ignored.
+  const tight = [
+    { x: 2, y: 1 },
+    { x: 5, y: 1 },
+    { x: 5, y: 4 },
+    { x: 3, y: 4 },
+  ];
+  expect(dragSegment(tight, 1, { x: 4, y: 2 }, [1, -1])).toBe(tight);
+});
