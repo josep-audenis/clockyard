@@ -5,12 +5,12 @@ import { parseDocument, serializeDocument } from "./file";
 
 const document: CircuitDocument = {
   format: "clockyard",
-  version: 4,
+  version: 5,
   metadata: { name: "AND demo", createdAt: "2026-11-06T12:00:00Z", modifiedAt: "2026-11-06T12:30:00Z" },
   circuit: {
     components: [
       { id: "a", kind: "switch", position: { x: 0, y: 0 }, rotation: 0, props: { label: "A" } },
-      { id: "g", kind: "and", position: { x: 6, y: -2 }, rotation: 0, props: {} },
+      { id: "g", kind: "and", position: { x: 6, y: -2 }, rotation: 0, props: { width: 8 } },
       { id: "x", kind: "custom", definition: "inv", position: { x: 6, y: 8 }, rotation: 90, props: {} },
     ],
     junctions: [{ id: "j", position: { x: 3, y: 1 } }],
@@ -62,7 +62,7 @@ test("unknown fields are dropped", () => {
 test("labels are normalized like the editor does, and a blank one is dropped", () => {
   const result = broken((doc, component) => {
     component.props.label = "  A" + String.fromCodePoint(0x200b) + " ";
-    Object.assign(doc.circuit.components[1] as CircuitComponent, { props: { label: "   " } });
+    Object.assign((doc.circuit.components[1] as CircuitComponent).props, { label: "   " });
   });
   expect(result).toEqual({ ok: true, document });
 });
@@ -77,7 +77,7 @@ test("definition names are normalized like the editor does, and a blank one beco
 test.each([
   ["not JSON", () => parseDocument("{"), "not valid JSON"],
   ["another format", () => broken((doc) => Object.assign(doc, { format: "other" })), "not a Clockyard file"],
-  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 5 })), "newer Clockyard"],
+  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 6 })), "newer Clockyard"],
   ["an instance of a missing definition", () => broken((doc) => Object.assign(doc.circuit.components[2] ?? {}, { definition: "gone" })), "missing definition gone"],
   ["an ID with a slash", () => broken((_, c) => (c.id = "a/b")), 'must not contain "/"'],
   ["a definition ID used twice", () => broken((doc) => doc.definitions.push({ ...(doc.definitions[0] as Definition) })), "ID inv is used more than once"],
@@ -100,6 +100,13 @@ test.each([
   ["an over-long label", () => broken((_, c) => (c.props.label = "x".repeat(33))), "longer than 32"],
   ["an over-long definition name", () => broken((doc) => Object.assign(doc.definitions[0] ?? {}, { name: "x".repeat(33) })), "Definition 1 name is longer than 32"],
   ["missing wires", () => broken((doc) => Reflect.deleteProperty(doc.circuit, "wires")), "circuit.wires must be a list"],
+  ["width 0", () => broken((_, c) => Object.assign(c.props, { width: 0 })), "Component 1 width must be a whole number from 1 to 32"],
+  ["width 33", () => broken((_, c) => Object.assign(c.props, { width: 33 })), "from 1 to 32"],
+  ["width 2.5", () => broken((_, c) => Object.assign(c.props, { width: 2.5 })), "from 1 to 32"],
+  ["a width that is not a number", () => broken((_, c) => Object.assign(c.props, { width: "8" })), "from 1 to 32"],
+  ["a width on a custom component", () => broken((doc) => Object.assign(doc.circuit.components[2]?.props ?? {}, { width: 8 })), "Component 3 is a custom component, which takes no width"],
+  ["fields on a gate", () => broken((doc) => Object.assign(doc.circuit.components[1]?.props ?? {}, { fields: [4, 4] })), "Component 2 has fields"],
+  ["a splitter, until it has a layout", () => broken((_, c) => Object.assign(c, { kind: "split", props: { fields: [4, 4] } })), 'unknown kind "split"'],
 ])("rejects %s", (_name, parse, message) => {
   const result = parse();
   expect(result.ok).toBe(false);
@@ -158,4 +165,14 @@ test("a version 3 file is migrated inside definitions too: a wire to a nested in
   const v3 = { ...document, version: 3, definitions: [...document.definitions, outer] };
   const result = parseDocument(JSON.stringify(v3));
   expect(result.ok && result.document.definitions[1]?.circuit.wires[0]?.to).toEqual({ component: "y", port: "i" });
+});
+
+test("a version 4 file is migrated: only the version changes", () => {
+  const v4 = { ...document, version: 4 };
+  expect(parseDocument(JSON.stringify(v4))).toEqual({ ok: true, document });
+});
+
+test("width 1 is the default: dropped on import, so 1-bit circuits export as before", () => {
+  const result = broken((_, c) => Object.assign(c.props, { width: 1 }));
+  expect(result).toEqual({ ok: true, document });
 });

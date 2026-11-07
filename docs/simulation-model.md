@@ -23,9 +23,9 @@ high, stored as one `u32` cut to that width. A 1-bit net holds `0` or `1`.
 Widths are declared on parts (`width` on switches, LEDs and gates, `fields`
 on splits and merges) and never inferred. They are checked when a circuit
 loads: a bad `width` or `fields` is `invalidWidth`, and ports of different
-widths on one net are `widthMismatch`, never a silent truncation. The engine
-handles widths now; the protocol, file format and editor follow in ADR 0014
-steps 2–4.
+widths on one net are `widthMismatch`, never a silent truncation. The engine,
+protocol and file format (v5) carry widths; editing them and splitters on the
+canvas follow in ADR 0014 step 4.
 
 Designed to extend to:
 

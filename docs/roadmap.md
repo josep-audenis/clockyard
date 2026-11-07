@@ -19,8 +19,8 @@ Editing comfort, labels, junctions and nets, routing and rotation merged (PRs
 #8–#14). Custom components and the 4-bit adder target demo merged (PR #16);
 pins renamed safely by part ID (ADR 0013, file format v4); definitions can be
 renamed and deleted (ADR 0012 amendment). Multi-bit signals, buses and
-splitters are designed in ADR 0014 (proposed); the engine (PR #26) and
-boundary steps are built, format v5 is next.
+splitters are designed in ADR 0014 (proposed); the engine (PR #26),
+boundary (PR #27) and format v5 steps are built, the editor is next.
 
 ## Phase 0 — Foundation ✅
 
@@ -159,7 +159,7 @@ Progress:
   topological order before the first settle (same results), so a
   95,000-gate NOT chain loads in about 0.25 s instead of 48 s (release)
 - 🔨 Multi-bit signals, buses, splitters: designed in ADR 0014 (proposed);
-  steps 1 (engine) and 2 (boundary) built, steps 3–5 not yet. Widths are 1
+  steps 1–3 (engine, boundary, format v5) built, steps 4–5 not yet. Widths are 1
   to 32 bits and are declared per part
   (`props.width` on switches, LEDs and gates). A net takes the width of its
   ports, and wires store none. Each net holds a `u32`, and the delta
@@ -175,21 +175,25 @@ Progress:
      per flat net); and a ranged `set_input`. Native tests
      (`crates/sim-core/tests/widths.rs`), including the 8-bit adder checked
      for all 131,072 inputs. For now that adder is built in
-     `tests/examples.rs` from the 4-bit adder's full-adder definition: a
-     v5 file in `examples/` would fail the v4 import check, so the file
-     comes with step 3.
+     `tests/examples.rs` from the 4-bit adder's full-adder definition; the
+     file in `examples/` comes with step 4, once splitters can be opened.
   2. ✅ Boundary: `Uint32Array` net values, `wireWidths` in `loaded`, a
      numeric `setInput` checked in `sim-wasm`, and `MAX_WIDTH`
      (`max_width()`), `sized` and `fieldPorts` in the catalog. The editor
      still projects no widths, so every net it loads is 1 bit; `split` and
      `merge` are in the catalog but have no layouts until step 4.
-  3. Format v5 with import checks (ranges, and props only on the kinds that
-     take them); projection of `width` and `fields`; architecture and
-     simulation-model docs updated to match.
+  3. ✅ Format v5: `props.width` (a whole number from 1 to 32, on switches,
+     LEDs and gates only; 1 is not stored) is checked on import and
+     projected to the engine; the v4 migration only bumps the version, and
+     the examples are v5. The readout already shows a wide switch or LED in
+     decimal and hex ("44 (0x2C)"). `split`, `merge` and `fields` are still
+     refused on import, since the canvas cannot draw them yet; they move to
+     step 4. Until then a wide part draws and toggles like a 1-bit one.
   4. Editor: Width, Fields and Value in the inspector; Splitter and Merger
-     in the parts panel, with layouts that depend on props; wide switches
-     and LEDs as hex bodies; buses in `--signal-bus` with a width slash and
-     a hex value tag (design system first); values in the readout.
+     in the parts panel, with layouts that depend on props, and accepted on
+     import with their `fields` checks; wide switches and LEDs as hex
+     bodies; buses in `--signal-bus` with a width slash and a hex value tag
+     (design system first); the 8-bit adder in `examples/`.
   5. Playwright: the 8-bit adder in the browser, and a mismatch shown then
      fixed.
 - 🔨 Named connections (net labels): designed in ADR 0015 (proposed), not

@@ -1,6 +1,6 @@
 {
   "format": "clockyard",
-  "version": 4,
+  "version": 5,
   "metadata": {"name": "4-bit adder", "createdAt": "2026-11-07T12:00:00.000Z", "modifiedAt": "2026-11-07T12:00:00.000Z"},
   "circuit": {
     "components": [

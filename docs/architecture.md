@@ -50,17 +50,17 @@ The UI never computes a signal value. It renders values received from the worker
 
 The editable design. Owned by the frontend, serialized as JSON, versioned.
 
-Format version 4 (ADRs 0010, 0012, 0013; exact schema fixed in code with validation):
+Format version 5 (ADRs 0010, 0012, 0013, 0014; exact schema fixed in code with validation):
 
 ```json
 {
   "format": "clockyard",
-  "version": 4,
+  "version": 5,
   "metadata": { "name": "AND demo", "createdAt": "2026-11-06T12:00:00Z", "modifiedAt": "2026-11-06T12:00:00Z" },
   "circuit": {
     "components": [
       { "id": "k3f9a", "kind": "switch", "position": { "x": 0, "y": 0 }, "rotation": 0, "props": { "label": "A" } },
-      { "id": "p81c2", "kind": "and",    "position": { "x": 6, "y": 1 }, "rotation": 0, "props": {} },
+      { "id": "p81c2", "kind": "and",    "position": { "x": 6, "y": 1 }, "rotation": 0, "props": { "width": 8 } },
       { "id": "m02de", "kind": "led",    "position": { "x": 12, "y": 1 }, "rotation": 0, "props": {} }
     ],
     "junctions": [
@@ -87,8 +87,8 @@ Rules:
   junction `{ junction }`. Connectivity comes from references, never from
   geometry. Two wires crossing on screen are not connected.
 - A **junction** is a document object, not an overlap. Wires that share a port
-  or junction form one net; the engine resolves nets (ADR 0010). Bus widths
-  join the format with multi-bit signals.
+  or junction form one net; the engine resolves nets (ADR 0010). Wires and
+  junctions carry no width: a net takes its ports' width (ADR 0014).
 - `rotation` (0, 90, 180, 270, clockwise) turns a part about its box; the
   canvas derives the turned port positions (`canvas/layout.ts`, `layoutOf`).
 - A wire's route is geometry only. It is routed on the grid automatically
@@ -106,15 +106,21 @@ Rules:
   document.
 - Loading an older `version` runs explicit migrations in `storage/`
   (v1 → v2 adds an empty `junctions` list, v2 → v3 an empty `definitions`
-  list, v3 → v4 renames instance ports from pin labels to pin part IDs). Unknown future versions are
+  list, v3 → v4 renames instance ports from pin labels to pin part IDs, v4 →
+  v5 changes nothing but the version, so a v4 build refuses a file with
+  widths instead of dropping them). Unknown future versions are
   rejected with a clear message. Export always writes the current version.
 - Import (`storage/file.ts`) treats the file as untrusted: every field is
   type-checked, unknown fields are dropped, IDs must be unique across parts,
   junctions and wires, wires must reference existing parts and junctions, and
   positions are whole numbers within ±1,000,000 grid cells. Port names are checked by the engine on load.
   Switch positions are transient and never saved.
-- `props` holds editor-only properties; the engine never sees them. Today that
-  is `label`: one line of text, at most 32 characters, edited in the inspector
+- `props.width` (ADR 0014) is a whole number from 1 to 32, allowed only on
+  switches, LEDs and gates; it sets every port's width. 1 is the default and
+  is not stored, so 1-bit circuits read as before. Import refuses a bad
+  width, a width on a custom component, and `fields` (splitters and mergers,
+  which the editor cannot draw yet). It is projected to the engine.
+- The other prop, `label`, is editor-only; the engine never sees it. It is one line of text, at most 32 characters, edited in the inspector
   and drawn under the part. Control characters become spaces, bidi and
   zero-width characters are removed and the ends are trimmed, both in the
   editor and on import. The editor stops at 32 characters; an imported file
@@ -132,7 +138,8 @@ file format evolve (migrations, layout fields) without touching Rust.
 ```ts
 // apps/web/src/simulation/protocol.ts ↔ sim-core `description`
 type CircuitBody = {
-  components: { id: string; kind: string; definition?: string }[];
+  // width: from props.width (ADR 0014); fields (split, merge) once the editor has them.
+  components: { id: string; kind: string; definition?: string; width?: number; fields?: number[] }[];
   junctions: { id: string }[];
   connections: { id: string; from: Endpoint; to: Endpoint }[]; // id = document wire ID
 };
@@ -147,7 +154,7 @@ A connection may list its output end in either `from` or `to`. The engine
 joins every port and junction that connections share into nets and checks each
 net as a whole (`docs/simulation-model.md#nets`); `wireNets` reports the net of
 every wire, so the frontend never remaps IDs. Component `props` join the description when a kind needs
-one.
+one: today `width`; `label` stays in the editor.
 
 The projection is a pure function with unit tests.
 
