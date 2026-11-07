@@ -258,7 +258,8 @@ evaluated once in topological order before the first settle (PR #20,
 
 ### Out of scope
 
-Named connections (net labels or tunnels) get a decision of their own. Also
+Named connections (net labels or tunnels) get a decision of their own
+(ADR 0015). Also
 out of scope: bidirectional splitters, multi-driver or tri-state buses,
 signed display, widths above 32, width inference, and multi-part width
 editing.
