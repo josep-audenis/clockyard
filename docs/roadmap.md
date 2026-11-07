@@ -14,9 +14,10 @@ the browser through WASM in a Web Worker, linting, tests and a pre-push check ho
 PixiJS canvas, simulated by the Rust engine in a worker, exported and imported
 as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
 
-**Phase 2 — 🔨 in progress** (branch `feat/phase-2-nets`). Editing comfort
-(PR #8) and labels, inspector and labelled pins (PR #9) merged. Junctions and
-nets with file format v2 done. Next: custom reusable components (ADR).
+**Phase 2 — 🔨 in progress** (branch `feat/custom-components`). Editing
+comfort, labels, junctions and nets, routing and rotation merged (PRs #8–#14).
+Custom components (ADR 0012, file format v3) and the 4-bit adder target demo
+done. Next: multi-bit signals, buses and splitters (ADR).
 
 ## Phase 0 — Foundation ✅
 
@@ -140,9 +141,16 @@ Progress:
   files already held
 - ✅ Routing keeps nets strictly apart (crossings only), routes again only the
   wires an edit or a drag touches, and Escape cancels a drag in progress
-- ⬜ Custom reusable components and nested definitions
+- ✅ Custom reusable components and nested definitions (ADR 0012): format v3
+  `definitions`; labelled switches and LEDs are a definition's pins; Make
+  component turns a selection into a definition with one instance in its
+  place; a Chips section places instances; Edit component opens a definition
+  on its own sheet (simulated on its own, own undo history); the engine
+  flattens instances (own state each), refusing unknown or recursive
+  definitions, bad pins and oversized expansions
 - ⬜ Multi-bit signals, buses, splitters
-- ⬜ 4-bit adder example and tests
+- ✅ 4-bit adder example: one full-adder definition instanced four times,
+  checked natively for all 512 inputs and in the browser
 
 ## Phase 3 — Clocks and sequential logic
 
@@ -190,9 +198,10 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 2 custom reusable components and nested definitions (ADR): a circuit's
-labelled switches and LEDs become the ports of a component definition, with a
-duplicate pin-name check. Known limits still open: a wire cannot start from a
+Phase 2 multi-bit signals, buses and splitters (ADR), which also widens custom
+component pins. Custom components cannot yet be renamed or deleted, and Make
+component drops wires that crossed the selection's edge. Known limits still
+open: a wire cannot start from a
 junction (drag from a port onto it instead), no autosave, the inspector does
 not collapse on narrow screens yet, and wires kept after an edit can stay
 longer than needed until the file is opened again.

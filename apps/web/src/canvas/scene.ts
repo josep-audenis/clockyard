@@ -2,7 +2,7 @@
 // spec. Reads the editor and engine stores outside React and redraws on change.
 // shortcut: the whole scene is redrawn per change; move to per-object updates when profiling says so.
 import { Application, Container, Graphics, Text } from "pixi.js";
-import { endOwner, type Circuit, type CircuitComponent, type ComponentKind } from "../editor/document";
+import { endOwner, type Circuit, type CircuitComponent } from "../editor/document";
 import { useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
 import { useSim } from "../simulation/sync";
@@ -20,7 +20,7 @@ import {
   type Hit,
   type Point,
 } from "./geometry";
-import { LAYOUTS, layoutOf } from "./layout";
+import { definitionName, layoutOf } from "./layout";
 import { routes, routesKeeping } from "./routing";
 
 const MIN_ZOOM = 0.25;
@@ -93,8 +93,8 @@ type Gesture =
 const GHOST = "placement-preview";
 
 /** Where a part placed at `p` goes: centred on the pointer, turned by `rotation`. */
-function placement(kind: ComponentKind, rotation: CircuitComponent["rotation"], p: Point): Point {
-  const { width, height } = layoutOf({ kind, rotation });
+function placement(part: Pick<CircuitComponent, "kind" | "rotation" | "definition">, p: Point): Point {
+  const { width, height } = layoutOf(part);
   return { x: Math.round(p.x - width / 2), y: Math.round(p.y - height / 2) };
 }
 
@@ -231,7 +231,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     // The armed part, half see-through, where a click would place it, turned as it would be.
     if (armed && pointer && !gesture) {
       const rotation = useEditor.getState().armedRotation;
-      const ghost = { id: GHOST, kind: armed, rotation, position: placement(armed, rotation, toWorld(pointer)), props: {} };
+      const definition = useEditor.getState().armedDefinition ?? undefined;
+      const shape = { kind: armed, rotation, definition };
+      const ghost = { id: GHOST, ...shape, position: placement(shape, toWorld(pointer)), props: {} };
       // Outlined in the danger colour where a click would be refused.
       drawBody(ghost, placementStacks(circuit, ghost), () => null);
       present.add(GHOST);
@@ -278,29 +280,48 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     }
   }
 
-  // CanvasKit: labels in the canvas-label style, ink-muted, centred below the body.
+  // CanvasKit: labels in the canvas-label style, ink-muted, centred below the body;
+  // a custom component also shows its definition's name (unless labelled) and its pin names inside.
   function drawLabels(components: CircuitComponent[]) {
     const c = cell();
     const style = { fontFamily: theme.mono, fontSize: 11, fontWeight: "500", fill: theme.color["ink-muted"] } as const;
     const seen = new Set<string>();
-    for (const component of components) {
-      const label = component.props.label;
-      if (!label) continue;
-      seen.add(component.id);
-      let text = texts.get(component.id);
+    const put = (key: string, value: string, x: number, y: number, anchor: Point) => {
+      seen.add(key);
+      let text = texts.get(key);
       if (!text) {
         // shortcut: rendered at twice the device ratio, so labels soften beyond 2x zoom; switch to BitmapText if that bothers.
-        text = new Text({ text: label, style, anchor: { x: 0.5, y: 0 }, resolution: 2 * window.devicePixelRatio });
-        texts.set(component.id, text);
+        text = new Text({ text: value, style, resolution: 2 * window.devicePixelRatio });
+        texts.set(key, text);
         labels.addChild(text);
       }
-      if (text.text !== label) text.text = label;
-      const { width, height } = layoutOf(component);
-      text.position.set((component.position.x + width / 2) * c, (component.position.y + height) * c + 6);
+      if (text.text !== value) text.text = value;
+      text.anchor.set(anchor.x, anchor.y);
+      text.position.set(x * c, y * c);
+    };
+    for (const component of components) {
+      const layout = layoutOf(component);
+      const { x, y } = component.position;
+      const caption = component.props.label ?? (component.kind === "custom" ? definitionName(component.definition) : undefined);
+      if (caption) put(component.id, caption, x + layout.width / 2, y + layout.height + 6 / c, { x: 0.5, y: 0 });
+      if (component.kind !== "custom") continue;
+      // Pin names just inside the body, facing in from the side the port is on.
+      for (const [name, p] of Object.entries({ ...layout.inputs, ...layout.outputs })) {
+        const inset = 0.3;
+        const [dx, dy, anchor] =
+          p.x === 0
+            ? [inset, 0, { x: 0, y: 0.5 }]
+            : p.x === layout.width
+              ? [-inset, 0, { x: 1, y: 0.5 }]
+              : p.y === 0
+                ? [0, inset, { x: 0.5, y: 0 }]
+                : [0, -inset, { x: 0.5, y: 1 }];
+        put(`${component.id}:${name}`, name, x + p.x + dx, y + p.y + dy, anchor);
+      }
     }
-    for (const [id, text] of texts) {
-      if (seen.has(id)) continue;
-      texts.delete(id);
+    for (const [key, text] of texts) {
+      if (seen.has(key)) continue;
+      texts.delete(key);
       text.destroy();
     }
   }
@@ -322,7 +343,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       bodies.addChild(g);
     }
     // Drawn in the part's own unrotated frame, then turned about its centre into the placed box.
-    const local = LAYOUTS[component.kind];
+    const local = layoutOf({ ...component, rotation: 0 });
     const placed = layoutOf(component);
     const at = px(component.position);
     g.pivot.set((local.width * c) / 2, (local.height * c) / 2);
@@ -331,7 +352,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     g.alpha = component.id === GHOST ? 0.5 : 1;
     // Moving or turning a part is only a transform; its shape is rebuilt only when what it shows changes.
     const ports = [...Object.keys(local.inputs), ...Object.keys(local.outputs)];
-    const look = `${component.kind}|${culprit}|${ports.map(value).join()}|${themeVersion}`;
+    // A chip's size follows its definition's pins, so it is part of what is shown.
+    const look = `${component.kind}|${local.width}x${local.height}|${culprit}|${ports.map(value).join()}|${themeVersion}`;
     if (looks.get(component.id) === look) return;
     looks.set(component.id, look);
     g.clear();
@@ -342,6 +364,11 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const lead = (x1: number, x2: number, ly: number) => g.moveTo(x1, ly).lineTo(x2, ly).stroke(outline);
 
     switch (component.kind) {
+      case "custom": {
+        // A chip: a plain box; its name and pin names are drawn as labels.
+        g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(outline);
+        break;
+      }
       case "switch": {
         g.roundRect(x, y, 2 * c, 2 * c, size["radius-sm"]).fill(body).stroke(outline);
         if (value("out") === 1) {
@@ -408,7 +435,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       }
     }
 
-    const layout = LAYOUTS[component.kind];
+    const layout = local;
     const r = size["port-size"] / 2;
     for (const p of Object.values(layout.inputs)) {
       g.circle(x + p.x * c, y + p.y * c, r).fill({ color: color.bench }).stroke({ width: 1.5, color: color["ink-muted"] });
@@ -488,8 +515,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     if (e.button === 1 || (e.button === 0 && spaceHeld)) {
       gesture = { type: "pan", last: { x: e.clientX, y: e.clientY } };
     } else if (e.button === 0 && editor.armed) {
-      const part = { id: GHOST, kind: editor.armed, rotation: editor.armedRotation, props: {} };
-      const position = placement(part.kind, part.rotation, p);
+      const part = { id: GHOST, kind: editor.armed, rotation: editor.armedRotation, definition: editor.armedDefinition ?? undefined, props: {} };
+      const position = placement(part, p);
       // A port on a junction would look joined: refused, and the part stays armed (the preview shows why).
       if (!placementStacks(editor.circuit, { ...part, position })) editor.add(part.kind, position);
     } else if (e.button === 0) {

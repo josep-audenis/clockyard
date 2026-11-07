@@ -1,6 +1,6 @@
 {
   "format": "clockyard",
-  "version": 2,
+  "version": 3,
   "metadata": {
     "name": "Half adder",
     "createdAt": "2026-11-06T12:00:00.000Z",
@@ -29,5 +29,6 @@
       { "id": "w-sum-led", "from": { "component": "sum", "port": "out" }, "to": { "component": "led-sum", "port": "in" } },
       { "id": "w-carry-led", "from": { "component": "carry", "port": "out" }, "to": { "component": "led-carry", "port": "in" } }
     ]
-  }
+  },
+  "definitions": []
 }

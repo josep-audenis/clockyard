@@ -2,7 +2,7 @@
 // through `useEditor.getState()` / `subscribe`.
 import { create } from "zustand";
 import { simplify, stacksJunction } from "../canvas/geometry";
-import { layoutOf } from "../canvas/layout";
+import { layoutOf, setDefinitionLayouts } from "../canvas/layout";
 import { forgetRoutes } from "../canvas/routing";
 import type { Endpoint } from "../simulation/protocol";
 import {
@@ -15,7 +15,8 @@ import {
   type Circuit,
   type CircuitComponent,
   type CircuitDocument,
-  type ComponentKind,
+  type Definition,
+  type PartKind,
 } from "./document";
 
 type Point = { x: number; y: number };
@@ -28,8 +29,10 @@ export type EditorState = {
   /** Switch positions set by the user. Transient: never saved with the document. */
   inputs: Record<string, 0 | 1>;
   /** Part waiting to be placed by the next canvas click. */
-  armed: ComponentKind | null;
-  add: (kind: ComponentKind, position: { x: number; y: number }) => string;
+  armed: PartKind | null;
+  /** For an armed `custom` part: the definition it will be an instance of. */
+  armedDefinition: string | null;
+  add: (kind: PartKind, position: { x: number; y: number }) => string;
   /**
    * Sets positions by component or junction ID in one update; not recorded (see `record`).
    * Bends of shaped wires whose two ends move by the same amount move with them.
@@ -75,7 +78,26 @@ export type EditorState = {
   /** Sets a part's label as one edit; blank removes it. Normalized and capped at `MAX_LABEL` characters. */
   setLabel: (id: string, label: string) => void;
   toggle: (id: string) => void;
-  arm: (kind: ComponentKind | null) => void;
+  arm: (kind: PartKind | null) => void;
+  /** Arms an instance of a definition (a chip from the parts panel). */
+  armChip: (definition: string) => void;
+  /** Custom component definitions (ADR 0012); the one open on a sheet is `circuit`, see `liveDefinitions`. */
+  definitions: Definition[];
+  /**
+   * Turns the selection into a new definition named `name` and puts one
+   * instance in its place, as one edit. Returns why it cannot, or null.
+   */
+  makeComponent: (name: string) => string | null;
+  /** The definition open for editing, or null for the main circuit. */
+  sheet: string | null;
+  /** The main circuit and its history, kept aside while a definition is open. */
+  main: { circuit: Circuit; past: Circuit[]; future: Circuit[] } | null;
+  /** Undo histories of definitions not open, by definition ID. */
+  histories: Record<string, { past: Circuit[]; future: Circuit[] }>;
+  /** Opens a definition on its own sheet. */
+  openSheet: (definition: string) => void;
+  /** Back to the main circuit. */
+  closeSheet: () => void;
   /** Replaces the whole document, e.g. from an imported file. Clears history. */
   load: (document: CircuitDocument) => void;
   /** Earlier circuits, most recent last; `undo` restores them. */
@@ -180,6 +202,18 @@ function canConnect(circuit: Circuit, from: Endpoint, to: Endpoint) {
   return !sameEnd(from, to) && !exists && present(circuit, from) && present(circuit, to);
 }
 
+/** What a sheet starts with: nothing selected, armed or switched on. */
+const fresh = { selection: [], inputs: {}, armed: null, armedDefinition: null };
+
+/** Every definition as it is now: the open one's circuit is the one being edited. */
+export function liveDefinitions(state: Pick<EditorState, "definitions" | "sheet" | "circuit">): Definition[] {
+  const { sheet, circuit } = state;
+  return sheet ? state.definitions.map((d) => (d.id === sheet ? { ...d, circuit } : d)) : state.definitions;
+}
+
+/** The main circuit, wherever the editor is. */
+export const mainCircuit = (state: Pick<EditorState, "main" | "circuit">) => state.main?.circuit ?? state.circuit;
+
 const remember = (state: EditorState) => ({ past: [...state.past, state.circuit].slice(-HISTORY_LIMIT), future: [] });
 
 /** A document edit: undoable, and it clears redo. */
@@ -191,6 +225,11 @@ export const useEditor = create<EditorState>()((set, get) => ({
   selection: [],
   inputs: {},
   armed: null,
+  armedDefinition: null,
+  definitions: [],
+  sheet: null,
+  main: null,
+  histories: {},
   past: [],
   future: [],
   clipboard: null,
@@ -198,16 +237,82 @@ export const useEditor = create<EditorState>()((set, get) => ({
 
   add: (kind, position) => {
     const id = crypto.randomUUID();
-    set((state) => ({
-      ...edit(state, {
-        ...state.circuit,
-        components: [...state.circuit.components, { id, kind, position, rotation: state.armedRotation, props: {} }],
-      }),
-      selection: [id],
-      armed: null,
-    }));
+    set((state) => {
+      const part: CircuitComponent = { id, kind, position, rotation: state.armedRotation, props: {} };
+      if (kind === "custom" && state.armedDefinition) part.definition = state.armedDefinition;
+      return {
+        ...edit(state, { ...state.circuit, components: [...state.circuit.components, part] }),
+        selection: [id],
+        armed: null,
+      };
+    });
     return id;
   },
+
+  makeComponent: (name) => {
+    const state = get();
+    const part = fragment(state.circuit, state.selection);
+    if (part.components.length === 0) return "Select the parts to make a component from.";
+    const pins = part.components.filter((c) => c.kind === "switch" || c.kind === "led");
+    if (pins.length === 0) return "A component needs pins: labelled switches (inputs) and LEDs (outputs).";
+    const names = pins.map((c) => c.props.label ?? "");
+    if (names.some((n) => !n)) return "Label every switch and LED: their labels name the component's pins.";
+    if (new Set(names).size !== names.length) return "Two pins share a name: give each switch and LED its own label.";
+    // The definition starts at its own origin; the instance takes the selection's top-left corner.
+    const at = [...part.components, ...part.junctions].map((item) => item.position);
+    const origin = { x: Math.min(...at.map((p) => p.x)), y: Math.min(...at.map((p) => p.y)) };
+    const shift = (p: Point) => ({ x: p.x - origin.x, y: p.y - origin.y });
+    const definition: Definition = {
+      id: crypto.randomUUID(),
+      name: [...(normalizeLabel(name) || "Component")].slice(0, MAX_LABEL).join(""),
+      circuit: {
+        components: part.components.map((c) => ({ ...c, position: shift(c.position) })),
+        junctions: part.junctions.map((j) => ({ ...j, position: shift(j.position) })),
+        wires: part.wires.map((w) => (w.bends ? { ...w, bends: w.bends.map(shift) } : w)),
+      },
+    };
+    const instance: CircuitComponent = {
+      id: crypto.randomUUID(),
+      kind: "custom",
+      definition: definition.id,
+      position: origin,
+      rotation: 0,
+      props: {},
+    };
+    set((s) => {
+      const gone = new Set([...part.components, ...part.junctions].map((item) => item.id));
+      // Wires leaving the selection go with it; junctions left without wires too.
+      const wires = s.circuit.wires.filter((w) => !gone.has(endOwner(w.from)) && !gone.has(endOwner(w.to)));
+      const used = new Set(wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
+      const circuit = {
+        components: [...s.circuit.components.filter((c) => !gone.has(c.id)), instance],
+        junctions: s.circuit.junctions.filter((j) => !gone.has(j.id) && used.has(j.id)),
+        wires,
+      };
+      return { ...edit(s, circuit), definitions: [...s.definitions, definition], selection: [instance.id] };
+    });
+    return null;
+  },
+
+  openSheet: (id) =>
+    set((s) => {
+      const definitions = liveDefinitions(s);
+      const target = definitions.find((d) => d.id === id);
+      if (!target || s.sheet === id) return s;
+      const histories = { ...s.histories };
+      if (s.sheet) histories[s.sheet] = { past: s.past, future: s.future };
+      const main = s.sheet ? s.main : { circuit: s.circuit, past: s.past, future: s.future };
+      const { past, future } = histories[id] ?? { past: [], future: [] };
+      return { definitions, sheet: id, main, histories, circuit: target.circuit, past, future, ...fresh };
+    }),
+
+  closeSheet: () =>
+    set((s) => {
+      if (!s.sheet || !s.main) return s;
+      const histories = { ...s.histories, [s.sheet]: { past: s.past, future: s.future } };
+      const { circuit, past, future } = s.main;
+      return { definitions: liveDefinitions(s), sheet: null, main: null, histories, circuit, past, future, ...fresh };
+    }),
 
   move: (positions) =>
     set(({ circuit }) => {
@@ -388,11 +493,12 @@ export const useEditor = create<EditorState>()((set, get) => ({
   armedRotation: 0,
   turnArmed: (turn) => set(({ armedRotation }) => ({ armedRotation: ((armedRotation + 90 * turn + 360) % 360) as typeof armedRotation })),
   toggle: (id) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: inputs[id] === 1 ? 0 : 1 } })),
-  arm: (kind) => set({ armed: kind, armedRotation: 0 }),
-  load: ({ metadata, circuit }) => {
+  arm: (kind) => set({ armed: kind, armedDefinition: null, armedRotation: 0 }),
+  armChip: (definition) => set({ armed: "custom", armedDefinition: definition, armedRotation: 0 }),
+  load: ({ metadata, circuit, definitions }) => {
     // An opened file is routed afresh, never shaped by whatever was on screen before.
     forgetRoutes();
-    set({ metadata, circuit, selection: [], inputs: {}, armed: null, past: [], future: [] });
+    set({ metadata, circuit, definitions, sheet: null, main: null, histories: {}, past: [], future: [], ...fresh });
   },
 
   record: () => set(remember),
@@ -415,3 +521,14 @@ export const useEditor = create<EditorState>()((set, get) => ({
       return { ...withCircuit(state, next), past: [...state.past, state.circuit], future: rest };
     }),
 }));
+
+// Instances are laid out from their definitions' pins, which change while a definition is edited.
+let laidOut: [Definition[], Circuit | null] | null = null;
+const layOut = (state: EditorState) => {
+  const key: [Definition[], Circuit | null] = [state.definitions, state.sheet ? state.circuit : null];
+  if (laidOut && laidOut[0] === key[0] && laidOut[1] === key[1]) return;
+  laidOut = key;
+  setDefinitionLayouts(liveDefinitions(state));
+};
+layOut(useEditor.getState());
+useEditor.subscribe(layOut);

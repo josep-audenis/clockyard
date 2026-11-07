@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use crate::catalog::Kind;
 use crate::description::{CircuitDescription, Code, Diagnostic, Endpoint};
+use crate::elaborate::{elaborate, lift};
 
 /// Net 0 is never driven: unconnected inputs read it as 0.
 const GROUND: u32 = 0;
@@ -37,7 +38,8 @@ pub struct Simulator {
 enum End {
     Out(usize),
     In(usize, usize),
-    Junction,
+    /// `true` for a custom component's pin.
+    Junction(bool),
 }
 
 /// Union-find root of `node`, halving paths on the way.
@@ -65,6 +67,8 @@ struct Group<'a> {
     outputs: Vec<usize>,
     inputs: Vec<(usize, usize)>,
     wires: Vec<&'a str>,
+    /// Reaches a custom component's pin: with no output, an input left unconnected outside.
+    pin: bool,
 }
 
 impl Simulator {
@@ -72,6 +76,17 @@ impl Simulator {
     /// nets. Returns the simulator with warnings (unconnected inputs, an
     /// unstable initial settle), or the validation errors.
     pub fn load(
+        description: &CircuitDescription,
+    ) -> Result<(Simulator, Vec<Diagnostic>), Vec<Diagnostic>> {
+        // Custom components are flattened first (ADR 0012); diagnostics name top-level IDs.
+        let flat = elaborate(description)?;
+        match Self::compile(&flat) {
+            Ok((sim, warnings)) => Ok((sim, lift(warnings))),
+            Err(errors) => Err(lift(errors)),
+        }
+    }
+
+    fn compile(
         description: &CircuitDescription,
     ) -> Result<(Simulator, Vec<Diagnostic>), Vec<Diagnostic>> {
         let mut errors = Vec::new();
@@ -122,7 +137,7 @@ impl Simulator {
                 ));
             } else {
                 junctions.insert(id, ends.len());
-                ends.push(End::Junction);
+                ends.push(End::Junction(junction.pin));
             }
         }
         // Wire errors against unknown components would only repeat these.
@@ -219,7 +234,7 @@ impl Simulator {
             match *end {
                 End::Out(c) => group.outputs.push(c),
                 End::In(c, slot) => group.inputs.push((c, slot)),
-                End::Junction => {}
+                End::Junction(pin) => group.pin |= pin,
             }
         }
 
@@ -246,6 +261,8 @@ impl Simulator {
                 ([driver], _) => outputs[*driver].expect("an output port has a net"),
                 // A dangling branch: its input (if any) stays unconnected and reads 0.
                 ([], []) | ([], [_]) => GROUND,
+                // An instance input wired to nothing outside: its readers inside read 0.
+                ([], _) if group.pin => GROUND,
                 ([], _) => {
                     let message = format!(
                         "{} inputs and nothing drives them",
@@ -352,7 +369,7 @@ impl Simulator {
             ));
         }
         self.state[c] = value.into();
-        Ok(self.settle(vec![c as u32]))
+        Ok(self.settle(vec![c as u32]).map(|d| lift(vec![d]).remove(0)))
     }
 
     /// Current value of every net, 0 or 1. Net 0 is ground.
@@ -442,11 +459,13 @@ mod tests {
     fn circuit(components: &[(&str, &str)], wires: &[(&str, &str)]) -> CircuitDescription {
         CircuitDescription {
             junctions: Vec::new(),
+            definitions: Vec::new(),
             components: components
                 .iter()
                 .map(|(id, kind)| ComponentDesc {
                     id: (*id).into(),
                     kind: (*kind).into(),
+                    definition: None,
                 })
                 .collect(),
             connections: wires
@@ -711,7 +730,10 @@ mod tests {
     fn with_junctions(mut description: CircuitDescription, ids: &[&str]) -> CircuitDescription {
         description.junctions = ids
             .iter()
-            .map(|id| JunctionDesc { id: (*id).into() })
+            .map(|id| JunctionDesc {
+                id: (*id).into(),
+                pin: false,
+            })
             .collect();
         description
     }

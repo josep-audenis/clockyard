@@ -1,9 +1,12 @@
-// The editable circuit document, format version 2 (docs/architecture.md#circuit-document, ADR 0010).
+// The editable circuit document, format version 3 (docs/architecture.md#circuit-document, ADRs 0010, 0012).
 // Connectivity is explicit: wires reference ports and junctions by ID, never by geometry.
-import type { CircuitDescription, Endpoint, JunctionRef } from "../simulation/protocol";
+import type { CircuitBody, CircuitDescription, Endpoint, JunctionRef, PinDesc } from "../simulation/protocol";
 
+/** The built-in parts (the engine's catalog). */
 export const COMPONENT_KINDS = ["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor"] as const;
 export type ComponentKind = (typeof COMPONENT_KINDS)[number];
+/** A built-in part, or an instance of a custom component (ADR 0012). */
+export type PartKind = ComponentKind | "custom";
 
 export const ROTATIONS = [0, 90, 180, 270] as const;
 
@@ -26,7 +29,9 @@ export const normalizeLabel = (text: string) =>
 
 export type CircuitComponent = {
   id: string;
-  kind: ComponentKind;
+  kind: PartKind;
+  /** For `custom` parts: the ID of the definition it is an instance of. */
+  definition?: string;
   /** Grid units. */
   position: { x: number; y: number };
   rotation: (typeof ROTATIONS)[number];
@@ -52,18 +57,54 @@ export const sameEnd = (a: Endpoint, b: Endpoint) =>
     ? isJunction(a) && isJunction(b) && a.junction === b.junction
     : a.component === b.component && a.port === b.port;
 
+/** A reusable component: a circuit whose labelled switches and LEDs are its pins (ADR 0012). */
+export type Definition = { id: string; name: string; circuit: Circuit };
+
 export type CircuitDocument = {
   format: "clockyard";
-  version: 2;
+  version: 3;
   metadata: { name: string; createdAt: string; modifiedAt: string };
   circuit: Circuit;
+  definitions: Definition[];
 };
 
-/** Drops geometry and editor-only data; the engine sees only connectivity. */
-export function project(circuit: Circuit): CircuitDescription {
+/**
+ * A definition's pins: switches are inputs and LEDs outputs, named by their
+ * labels, each in top-to-bottom (then left-to-right) order.
+ */
+export function pinsOf(circuit: Circuit): { inputs: PinDesc[]; outputs: PinDesc[] } {
+  const pins = (kind: ComponentKind) =>
+    circuit.components
+      .filter((c) => c.kind === kind)
+      .sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x)
+      .map((c) => ({ name: c.props.label ?? "", component: c.id }));
+  return { inputs: pins("switch"), outputs: pins("led") };
+}
+
+/** A definition the editor shows by `id` cannot be placed in a definition that it contains (directly or deeper). */
+export function contains(definitions: Definition[], outer: string, inner: string): boolean {
+  const byId = new Map(definitions.map((d) => [d.id, d]));
+  const seen = new Set<string>();
+  const visit = (id: string): boolean => {
+    if (id === inner) return true;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    const parts = byId.get(id)?.circuit.components ?? [];
+    return parts.some((c) => c.kind === "custom" && c.definition !== undefined && visit(c.definition));
+  };
+  return visit(outer);
+}
+
+const body = (circuit: Circuit): CircuitBody => ({
+  components: circuit.components.map(({ id, kind, definition }) => (definition ? { id, kind, definition } : { id, kind })),
+  junctions: circuit.junctions.map(({ id }) => ({ id })),
+  connections: circuit.wires.map(({ id, from, to }) => ({ id, from, to })),
+});
+
+/** Drops geometry and editor-only data; the engine sees only connectivity and each definition's pins. */
+export function project(circuit: Circuit, definitions: Definition[] = []): CircuitDescription {
   return {
-    components: circuit.components.map(({ id, kind }) => ({ id, kind })),
-    junctions: circuit.junctions.map(({ id }) => ({ id })),
-    connections: circuit.wires.map(({ id, from, to }) => ({ id, from, to })),
+    ...body(circuit),
+    definitions: definitions.map((d) => ({ id: d.id, ...body(d.circuit), ...pinsOf(d.circuit) })),
   };
 }

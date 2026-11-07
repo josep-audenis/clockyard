@@ -19,6 +19,7 @@ test("projection keeps connectivity, junctions included, and drops geometry and 
       { id: "l", kind: "led" },
     ],
     junctions: [{ id: "j" }],
+    definitions: [],
     connections: [
       { id: "w", from: { component: "s", port: "out" }, to: { junction: "j" } },
       { id: "v", from: { junction: "j" }, to: { component: "l", port: "in" } },

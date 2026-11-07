@@ -1,16 +1,17 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { expect, test } from "vitest";
-import type { CircuitComponent, CircuitDocument, ComponentKind, Wire } from "../editor/document";
+import type { CircuitComponent, CircuitDocument, ComponentKind, Definition, Wire } from "../editor/document";
 import { parseDocument, serializeDocument } from "./file";
 
 const document: CircuitDocument = {
   format: "clockyard",
-  version: 2,
+  version: 3,
   metadata: { name: "AND demo", createdAt: "2026-11-06T12:00:00Z", modifiedAt: "2026-11-06T12:30:00Z" },
   circuit: {
     components: [
       { id: "a", kind: "switch", position: { x: 0, y: 0 }, rotation: 0, props: { label: "A" } },
       { id: "g", kind: "and", position: { x: 6, y: -2 }, rotation: 0, props: {} },
+      { id: "x", kind: "custom", definition: "inv", position: { x: 6, y: 8 }, rotation: 90, props: {} },
     ],
     junctions: [{ id: "j", position: { x: 3, y: 1 } }],
     wires: [
@@ -18,6 +19,24 @@ const document: CircuitDocument = {
       { id: "v", from: { junction: "j" }, to: { component: "g", port: "b" }, bends: [{ x: 4, y: 1 }] },
     ],
   },
+  definitions: [
+    {
+      id: "inv",
+      name: "Inverter",
+      circuit: {
+        components: [
+          { id: "i", kind: "switch", position: { x: 0, y: 0 }, rotation: 0, props: { label: "In" } },
+          { id: "n", kind: "not", position: { x: 4, y: 0 }, rotation: 0, props: {} },
+          { id: "o", kind: "led", position: { x: 9, y: 0 }, rotation: 0, props: { label: "Out" } },
+        ],
+        junctions: [],
+        wires: [
+          { id: "w1", from: { component: "i", port: "out" }, to: { component: "n", port: "in" } },
+          { id: "w2", from: { component: "n", port: "out" }, to: { component: "o", port: "in" } },
+        ],
+      },
+    },
+  ],
 };
 
 // Breaks a deep copy: `change` edits the copy, its first component and its first wire in place.
@@ -51,7 +70,12 @@ test("labels are normalized like the editor does, and a blank one is dropped", (
 test.each([
   ["not JSON", () => parseDocument("{"), "not valid JSON"],
   ["another format", () => broken((doc) => Object.assign(doc, { format: "other" })), "not a Clockyard file"],
-  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 3 })), "newer Clockyard"],
+  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 4 })), "newer Clockyard"],
+  ["an instance of a missing definition", () => broken((doc) => Object.assign(doc.circuit.components[2] ?? {}, { definition: "gone" })), "missing definition gone"],
+  ["an ID with a slash", () => broken((_, c) => (c.id = "a/b")), 'must not contain "/"'],
+  ["a definition ID used twice", () => broken((doc) => doc.definitions.push({ ...(doc.definitions[0] as Definition) })), "ID inv is used more than once"],
+  ["a definition with a broken wire", () => broken((doc) => Object.assign(doc.definitions[0]?.circuit.wires[0]?.to ?? {}, { component: "gone" })), "Definition 1: Wire 1 end refers to missing component gone"],
+  ["definitions that are not a list", () => broken((doc) => Object.assign(doc, { definitions: {} })), "definitions must be a list"],
   ["a fractional junction", () => broken((doc) => Object.assign(doc.circuit.junctions[0] ?? {}, { position: { x: 1.5, y: 0 } })), "x must be a whole number"],
   ["a junction sharing an ID", () => broken((doc) => Object.assign(doc.circuit.junctions[0] ?? {}, { id: "g" })), "ID g is used more than once"],
   ["a wire to a missing junction", () => broken((_, _c, w) => (w.to = { junction: "gone" })), "missing junction gone"],
@@ -85,10 +109,20 @@ test("a version 1 file is migrated: same parts and wires, no junctions", () => {
     format: "clockyard",
     version: 1,
     metadata: document.metadata,
-    circuit: { components: document.circuit.components, wires: document.circuit.wires.slice(0, 1) },
+    circuit: { components: document.circuit.components.slice(0, 2), wires: document.circuit.wires.slice(0, 1) },
   };
   expect(parseDocument(JSON.stringify(v1))).toEqual({
     ok: true,
-    document: { ...document, circuit: { ...document.circuit, junctions: [], wires: document.circuit.wires.slice(0, 1) } },
+    document: {
+      ...document,
+      circuit: { components: document.circuit.components.slice(0, 2), junctions: [], wires: document.circuit.wires.slice(0, 1) },
+      definitions: [],
+    },
   });
+});
+
+test("a version 2 file is migrated: the same circuit, no definitions", () => {
+  const circuit = { ...document.circuit, components: document.circuit.components.slice(0, 2) };
+  const v2 = { format: "clockyard", version: 2, metadata: document.metadata, circuit };
+  expect(parseDocument(JSON.stringify(v2))).toEqual({ ok: true, document: { ...document, circuit, definitions: [] } });
 });

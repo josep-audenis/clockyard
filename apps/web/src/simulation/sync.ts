@@ -2,7 +2,7 @@
 // reported. The UI renders only these engine values.
 import { create } from "zustand";
 import { project } from "../editor/document";
-import { useEditor, type EditorState } from "../editor/store";
+import { liveDefinitions, useEditor, type EditorState } from "../editor/store";
 import { startSimulation } from "./client";
 import type { Diagnostic, Result } from "./protocol";
 
@@ -55,9 +55,11 @@ export function connectEngine(): () => void {
 
   let description = "";
   let sent: EditorState["inputs"] = {};
-  const sync = ({ circuit, inputs }: EditorState) => {
-    // Moving a part changes only geometry, so the engine keeps its state.
-    const projected = project(circuit);
+  const sync = (state: EditorState) => {
+    const { circuit, inputs } = state;
+    // Moving a part changes only geometry, so the engine keeps its state. The open sheet (main or a
+    // definition) is what is simulated, with every definition as it is now.
+    const projected = project(circuit, liveDefinitions(state));
     const next = JSON.stringify(projected);
     if (next !== description) {
       description = next;

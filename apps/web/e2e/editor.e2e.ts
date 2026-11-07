@@ -436,3 +436,60 @@ test("R turns a part armed from the parts panel, before it is placed", async ({ 
   const saved = JSON.parse(readFileSync((await (await download).path()) as string, "utf8")) as CircuitDocument;
   expect(saved.circuit.components[0]?.rotation).toBe(90);
 });
+
+test("the 4-bit adder example adds through four instances of one full adder", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("4-bit-adder"));
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+  // Switch Ai at (0, 10i), Bi at (4, 10i + 3), Cin at (0, 6).
+  const flip = async (name: string) => {
+    const [kind, bit] = [name[0], Number(name[1])];
+    if (name === "Cin") return click(page, at(1, 7));
+    return kind === "A" ? click(page, at(1, 10 * bit + 1)) : click(page, at(5, 10 * bit + 4));
+  };
+  for (const name of ["A0", "A2", "B0", "B1"]) await flip(name); // 5 + 3
+  await expectStates(page, { "LED S0": 0, "LED S1": 0, "LED S2": 0, "LED S3": 1, "LED Cout": 0 });
+  await flip("Cin"); // 5 + 3 + 1
+  await expectStates(page, { "LED S0": 1, "LED S3": 1, "LED Cout": 0 });
+  for (const name of ["A1", "A3", "B2", "B3"]) await flip(name); // 15 + 15 + 1 = 31
+  await expectStates(page, { "LED S0": 1, "LED S1": 1, "LED S2": 1, "LED S3": 1, "LED Cout": 1 });
+});
+
+test("make a component from a selection, place another from Chips, open it on its own sheet and come back", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  const label = inspector.getByRole("textbox", { name: "Label" });
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0)
+  await label.fill("In");
+  await label.press("Enter");
+  await page.keyboard.press("n");
+  await click(page, at(7.5, 1)); // NOT at (6,0)
+  await page.keyboard.press("l");
+  await click(page, at(13, 1)); // LED at (12,0)
+  await label.fill("Out");
+  await label.press("Enter");
+  await drag(page, at(2, 1), at(6, 1));
+  await drag(page, at(9, 1), at(12, 1));
+
+  await drag(page, at(-1, -1), at(15, 4)); // select it all
+  await inspector.getByRole("textbox", { name: "Component name" }).fill("Inverter");
+  await inspector.getByRole("button", { name: "Make component" }).click();
+  await expect(inspector).toContainText("Inverter");
+  await expect(readout(page, "Switch In")).toHaveCount(0); // the switch now lives inside the component
+
+  // Place a second instance from the Chips section.
+  await page.getByRole("complementary", { name: "Parts" }).getByRole("button", { name: "Inverter" }).click();
+  await click(page, at(3, 10));
+  await expect(inspector.getByRole("button", { name: "Edit component" })).toBeVisible();
+
+  // Open its definition: it simulates on its own, with its own switch.
+  await inspector.getByRole("button", { name: "Edit component" }).click();
+  await expect(page.getByRole("navigation", { name: "Sheet" })).toContainText("Inverter");
+  await expectStates(page, { "Switch In": 0, "LED Out": 1 });
+  await page.getByRole("button", { name: "Main circuit" }).click();
+  await expect(page.getByRole("navigation", { name: "Sheet" })).toHaveCount(0);
+  await expect(readout(page, "Switch In")).toHaveCount(0);
+});

@@ -32,6 +32,17 @@ Designed to extend to:
 Code that reads values goes through the `logic` module's value type so the
 representation can change without touching every evaluator.
 
+## Custom components
+
+Before nets are resolved, `sim-core` flattens every instance of a custom
+component (ADR 0012), depth first: the definition's parts, junctions and wires
+are copied with IDs prefixed `instance/`, and each of its pin switches and LEDs
+becomes a junction that the instance's port is joined to. Each instance thus
+has its own state. A net that reaches a pin but has no output is an input left
+unconnected outside the instance: its readers read 0 and warn. Diagnostics
+name the top-level part an inner ID belongs to. Unknown or recursive
+definitions, bad pins and more than 200,000 expanded parts are errors.
+
 ## Nets
 
 Wires join two ends: ports or junctions. On load the engine joins every port
