@@ -378,7 +378,19 @@ const PIN_HINT: Partial<Record<PartKind, string>> = {
  * A text field committed on blur (Enter blurs) and cancelled by Escape: the design system's Field rule.
  * Its parent remounts it (by `key`) when the stored value changes.
  */
-function CommitField({ label, saved, hint, onCommit }: { label: string; saved: string; hint: string; onCommit: (value: string) => void }) {
+function CommitField({
+  label,
+  saved,
+  hint,
+  onCommit,
+  maxLength = MAX_LABEL,
+}: {
+  label: string;
+  saved: string;
+  hint: string;
+  onCommit: (value: string) => void;
+  maxLength?: number;
+}) {
   const [draft, setDraft] = useState(saved);
   /** Escape leaves the field without saving. */
   const cancelled = useRef(false);
@@ -393,7 +405,7 @@ function CommitField({ label, saved, hint, onCommit }: { label: string; saved: s
         aria-describedby={`${id}-hint`}
         className="input"
         value={draft}
-        maxLength={MAX_LABEL}
+        maxLength={maxLength}
         spellCheck={false}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => {
@@ -436,8 +448,12 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           saved={(part.props.fields ?? []).join(", ")}
           hint={fieldsHint(part.props.fields ?? [])}
           // One undoable edit; it also removes wires to fields that go. Invalid lists change nothing.
+          // Room for 32 one-bit fields written "1, 1, …".
+          maxLength={4 * MAX_WIDTH}
           onCommit={(value) => {
-            const fields = value.split(/[\s,]+/).filter(Boolean).map(Number);
+            // Digits only, as in Width: no 0x4, 1e1 or 4.0.
+            const tokens = value.split(/[\s,]+/).filter(Boolean);
+            const fields = tokens.every((t) => /^\d+$/.test(t)) ? tokens.map(Number) : [];
             if (!fieldsProblem(fields)) useEditor.getState().setFields(part.id, fields);
           }}
         />

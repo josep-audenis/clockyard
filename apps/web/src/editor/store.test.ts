@@ -898,3 +898,21 @@ test("a splitter starts with four 1-bit fields; setFields is one undo step and d
   setFields(l, [4, 4]);
   expect(useEditor.getState().circuit.components.find((c) => c.id === l)?.props).toEqual({});
 });
+
+test("setFields takes up to 32 fields, keeps the bus wire, and drops a junction left with no wires", () => {
+  const { add, connect, connectToWire, setFields } = useEditor.getState();
+  const sp = add("split", { x: 0, y: 0 });
+  const s = add("switch", { x: -6, y: 0 });
+  const bus = connect(port(s, "out"), port(sp, "in"));
+  // A junction whose three wires all reach fields f1 to f3.
+  const between = connect(port(sp, "f1"), port(sp, "f2"));
+  if (!between) throw new Error("no wire");
+  connectToWire(port(sp, "f3"), between, { x: 5, y: 2 });
+  expect(useEditor.getState().circuit.junctions).toHaveLength(1);
+  setFields(sp, Array<number>(32).fill(1));
+  expect(useEditor.getState().circuit.components.find((c) => c.id === sp)?.props.fields).toHaveLength(32);
+  setFields(sp, [8]);
+  const { wires, junctions } = useEditor.getState().circuit;
+  expect(wires.map((w) => w.id)).toEqual([bus]);
+  expect(junctions).toEqual([]);
+});

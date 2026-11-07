@@ -203,11 +203,14 @@ Progress:
        inspector (a comma list, lowest bits first; one undo step that also
        deletes wires to fields that go); bars 3 cells wide with each
        field's bit range beside its port, outlined in `signal-bus`;
-       imported with their `fields` checks. Fields sit one cell apart: an
+       imported with their `fields` checks. A fields edit that keeps the
+       count keeps the routes, since the ports stay where they are. Fields
+       sit one cell apart: an
        8-way fan-out routes without wires touching, so the 2-cell fallback
        in ADR 0014 item 10 is not needed. The 8-bit adder is in
-       `examples/`, checked natively and opened in the browser (A = 200,
-       B = 100 gives Sum 44 (0x2C), Cout on).
+       `examples/`, checked natively and opened in the browser by hand
+       (A = 200, B = 100 gives Sum 44 (0x2C), Cout on); step 5 makes that a
+       Playwright test.
   5. Playwright: the 8-bit adder in the browser, and a mismatch shown then
      fixed.
 - 🔨 Named connections (net labels): designed in ADR 0015 (proposed), not

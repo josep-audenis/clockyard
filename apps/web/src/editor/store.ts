@@ -538,10 +538,14 @@ export const useEditor = create<EditorState>()((set, get) => ({
       const part = state.circuit.components.find((c) => c.id === id);
       if (!part || !isFielded(part.kind) || fieldsProblem(fields) || part.props.fields?.join() === fields.join()) return state;
       const gone = (end: Endpoint) => !isJunction(end) && end.component === id && /^f\d+$/.test(end.port) && Number(end.port.slice(1)) >= fields.length;
+      const wires = state.circuit.wires.filter((w) => !gone(w.from) && !gone(w.to));
+      // A junction left with no wires goes too, as when deleting.
+      const used = new Set(wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
+      const dropped = new Set(state.circuit.wires.filter((w) => !wires.includes(w)).flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
       return edit(state, {
-        ...state.circuit,
         components: state.circuit.components.map((c) => (c === part ? { ...c, props: { ...c.props, fields: [...fields] } } : c)),
-        wires: state.circuit.wires.filter((w) => !gone(w.from) && !gone(w.to)),
+        junctions: state.circuit.junctions.filter((j) => used.has(j.id) || !dropped.has(j.id)),
+        wires,
       });
     }),
   rotate: (ids, turn) =>

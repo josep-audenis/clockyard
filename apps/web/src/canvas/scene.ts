@@ -367,7 +367,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   // a custom component also shows its definition's name (unless labelled) and its pin names inside.
   function drawLabels(components: CircuitComponent[]) {
     const c = cell();
-    const label = (key: string, value: string, x: number, y: number, anchor: Point) => put(key, value, x * c, y * c, anchor);
+    const label = (key: string, value: string, x: number, y: number, anchor: Point, angle = 0) => {
+      put(key, value, x * c, y * c, anchor).angle = angle;
+    };
     for (const component of components) {
       const layout = layoutOf(component);
       const { x, y } = component.position;
@@ -383,15 +385,17 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         const name = nameOf(port);
         if (!name) continue;
         const inset = 0.3;
-        const [dx, dy, anchor] =
+        // Ports on the top or bottom of a turned part sit one cell apart side by side: their
+        // names run up the body, reading inward, so neighbours never overlap.
+        const [dx, dy, anchor, angle] =
           p.x === 0
-            ? [inset, 0, { x: 0, y: 0.5 }]
+            ? [inset, 0, { x: 0, y: 0.5 }, 0]
             : p.x === layout.width
-              ? [-inset, 0, { x: 1, y: 0.5 }]
+              ? [-inset, 0, { x: 1, y: 0.5 }, 0]
               : p.y === 0
-                ? [0, inset, { x: 0.5, y: 0 }]
-                : [0, -inset, { x: 0.5, y: 1 }];
-        label(`${component.id}:${port}`, name, x + p.x + dx, y + p.y + dy, anchor);
+                ? [0, inset, { x: 1, y: 0.5 }, -90]
+                : [0, -inset, { x: 0, y: 0.5 }, -90];
+        label(`${component.id}:${port}`, name, x + p.x + dx, y + p.y + dy, anchor, angle);
       }
     }
   }
