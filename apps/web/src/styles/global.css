@@ -272,3 +272,7 @@ button:focus-visible {
   font: 400 11px/14px var(--font-sans);
   color: var(--ink-muted);
 }
+
+.inspector-body .button {
+  align-self: flex-start;
+}

@@ -8,17 +8,19 @@ import type { Endpoint } from "../simulation/protocol";
 import { useSim } from "../simulation/sync";
 import {
   endAt,
+  dragSegment,
+  exitOf,
   hitTest,
   itemsInBox,
   nearestOnRoute,
   occupied,
   places,
   stacksJunction,
-  wirePoints,
   type Hit,
   type Point,
 } from "./geometry";
 import { LAYOUTS } from "./layout";
+import { routes } from "./routing";
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
@@ -69,6 +71,17 @@ type Gesture =
       blocked: Point | null;
     }
   | { type: "wire"; from: Endpoint; at: Point }
+  // Drags one segment of a wire's route sideways (ADR 0011); `route` is the route when pressed.
+  | {
+      type: "segment";
+      wire: string;
+      index: number;
+      route: Point[];
+      exits: [number, number];
+      start: Point;
+      moved: boolean;
+      recorded: boolean;
+    }
   // Marquee selection; `base` is the selection kept from before (Shift).
   | { type: "box"; from: Point; to: Point; base: string[] };
 
@@ -145,13 +158,14 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const signal = (net: number | undefined): 0 | 1 | null =>
       stale || !nets || net === undefined ? null : nets[net] === 1 ? 1 : 0;
     const at = places(circuit);
+    const paths = routes(circuit);
 
     wires.clear();
     bodies.clear();
     overlay.clear();
 
     for (const wire of circuit.wires) {
-      const points = wirePoints(at, wire)?.map(px);
+      const points = paths.get(wire.id)?.map(px);
       if (!points) continue;
       const value = signal(loaded?.wireNets[wire.id]);
       const width = value === 1 ? size["wire-width-high"] : size["wire-width"];
@@ -373,7 +387,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       return point ? { at: point, end } : null;
     }
     const wire = wiring && hit?.type === "wire" ? circuit.wires.find((w) => w.id === hit.id) : undefined;
-    const points = wire && wirePoints(at, wire);
+    const points = wire && routes(circuit).get(wire.id);
     const point = points && nearestOnRoute(points, p);
     if (!wire || !point) return null;
     const end = [wire.from, wire.to].find((e) => samePoint(endAt(at, e), point));
@@ -396,7 +410,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const { width, height } = LAYOUTS[editor.armed];
       editor.add(editor.armed, { x: Math.round(p.x - width / 2), y: Math.round(p.y - height / 2) });
     } else if (e.button === 0) {
-      const hit = hitTest(editor.circuit, p, pick());
+      const hit = hitTest(editor.circuit, p, pick(), routes(editor.circuit));
       // Parts and junctions are selected and dragged alike.
       const item = hit?.type === "component" || hit?.type === "junction" ? hit.id : undefined;
       const position = item && positionOf(editor.circuit, item);
@@ -412,8 +426,18 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         const grab = { x: p.x - position.x, y: p.y - position.y };
         const start = { x: e.clientX, y: e.clientY };
         gesture = { type: "move", id: item, grab, starts, start, moved: false, recorded: false, blocked: null };
+      } else if (hit?.type === "wire" && e.shiftKey) {
+        editor.select(toggled(editor.selection, hit.id));
       } else if (hit?.type === "wire") {
-        editor.select(e.shiftKey ? toggled(editor.selection, hit.id) : [hit.id]);
+        editor.select([hit.id]);
+        const wire = editor.circuit.wires.find((w) => w.id === hit.id);
+        const route = routes(editor.circuit).get(hit.id);
+        if (wire && route) {
+          const at = places(editor.circuit);
+          const exits: [number, number] = [exitOf(at, wire.from), exitOf(at, wire.to)];
+          const start = { x: e.clientX, y: e.clientY };
+          gesture = { type: "segment", wire: wire.id, index: hit.segment, route, exits, start, moved: false, recorded: false };
+        }
       } else {
         const base = e.shiftKey ? editor.selection : [];
         editor.select(base);
@@ -452,6 +476,20 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
           editor.move(positions);
         }
       }
+    } else if (gesture?.type === "segment") {
+      const g = gesture;
+      g.moved ||= Math.hypot(e.clientX - g.start.x, e.clientY - g.start.y) > DRAG_THRESHOLD;
+      if (g.moved) {
+        const next = dragSegment(g.route, g.index, { x: Math.round(p.x), y: Math.round(p.y) }, g.exits);
+        const bends = next.slice(1, -1);
+        const wire = editor.circuit.wires.find((w) => w.id === g.wire);
+        if (wire && JSON.stringify(bends) !== JSON.stringify(routes(editor.circuit).get(wire.id)?.slice(1, -1))) {
+          // The whole drag is one undo step.
+          if (!g.recorded) editor.record();
+          g.recorded = true;
+          editor.shape(g.wire, bends);
+        }
+      }
     } else if (gesture?.type === "wire") {
       gesture.at = p;
     } else if (gesture?.type === "box") {
@@ -461,7 +499,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const wires = editor.circuit.wires.filter((w) => boxed.has(endOwner(w.from)) && boxed.has(endOwner(w.to)));
       editor.select([...new Set([...boxed, ...wires.map((w) => w.id)])]);
     }
-    const hit = gesture?.type === "wire" || !gesture ? hitTest(editor.circuit, p, pick()) : null;
+    const hit = gesture?.type === "wire" || !gesture ? hitTest(editor.circuit, p, pick(), routes(editor.circuit)) : null;
     hover = target(editor.circuit, hit, p, gesture?.type === "wire")?.at ?? null;
     schedule();
   };
@@ -475,7 +513,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       if (editor.circuit.components.find((c) => c.id === id)?.kind === "switch") editor.toggle(id);
     } else if (gesture?.type === "wire") {
       const p = toWorld(e);
-      const end = target(editor.circuit, hitTest(editor.circuit, p, pick()), p, true);
+      const end = target(editor.circuit, hitTest(editor.circuit, p, pick(), routes(editor.circuit)), p, true);
       if (end?.wire) editor.connectToWire(gesture.from, end.wire, end.at);
       else if (end?.end) editor.connect(gesture.from, end.end);
     }

@@ -67,8 +67,84 @@ export function endAt(at: Places, end: Endpoint): Point | undefined {
   return component && portAt(component, end.port);
 }
 
-const withoutRepeats = (points: Point[]) =>
-  points.filter((p, i) => i === 0 || p.x !== points[i - 1]?.x || p.y !== points[i - 1]?.y);
+/** Drops repeated points and points in the middle of a straight run (doubling back included). */
+export function simplify(points: Point[]): Point[] {
+  const out: Point[] = [];
+  for (const p of points) {
+    out.push(p);
+    // Removing one point can line up the ones before it, so check again until nothing changes.
+    for (;;) {
+      const n = out.length;
+      const [a, b, c] = [out[n - 3], out[n - 2], out[n - 1]];
+      if (b && c && b.x === c.x && b.y === c.y) out.splice(n - 2, 1);
+      else if (a && b && c && ((a.x === b.x && b.x === c.x) || (a.y === b.y && b.y === c.y))) out.splice(n - 2, 1);
+      else break;
+    }
+  }
+  return out;
+}
+
+/** Which way a wire leaves this end: a port heads away from its part (+1 right, -1 left); a junction any way (0). */
+export function exitOf(at: Places, end: Endpoint): number {
+  if (isJunction(end)) return 0;
+  const component = at.components.get(end.component);
+  if (!component) return 0;
+  const layout = LAYOUTS[component.kind];
+  const offset = layout.inputs[end.port] ?? layout.outputs[end.port];
+  return offset?.x === 0 ? -1 : offset?.x === layout.width ? 1 : 0;
+}
+
+/**
+ * A shaped wire's route: its ends and bends, with corners added where two
+ * neighbours are not in line (an end has moved). Ends are left horizontally.
+ */
+export function orthogonal(a: Point, bends: Point[], b: Point): Point[] {
+  const points = [a, ...bends, b];
+  const out: Point[] = [a];
+  for (let i = 1; i < points.length; i++) {
+    const [p, q] = [points[i - 1] as Point, points[i] as Point];
+    if (p.x !== q.x && p.y !== q.y) out.push(i === points.length - 1 ? { x: p.x, y: q.y } : { x: q.x, y: p.y });
+    out.push(q);
+  }
+  return simplify(out);
+}
+
+/**
+ * The route after dragging segment `i` sideways to pass through `to`. A
+ * segment touching an end gains a stub (one cell out of a port, along `exits`)
+ * so the end stays put. Returns the full route.
+ */
+export function dragSegment(points: Point[], i: number, to: Point, exits: [number, number]): Point[] {
+  const p = points.map((q) => ({ ...q }));
+  const [s, e] = [p[i] as Point, p[i + 1] as Point];
+  const horizontal = s.y === e.y;
+  const last = points.length - 1;
+  let x = to.x;
+  if (!horizontal) {
+    // The vertical next to a port's first run stays outside that port, or the wire would cut back through its part.
+    const [a, b] = [points[0] as Point, points[last] as Point];
+    if (i === 1 && exits[0]) x = exits[0] > 0 ? Math.max(x, a.x + 1) : Math.min(x, a.x - 1);
+    if (i + 2 === last && exits[1]) x = exits[1] > 0 ? Math.max(x, b.x + 1) : Math.min(x, b.x - 1);
+    const outside = (end: Point, exit: number) => !exit || (x - end.x) * exit >= 1;
+    if ((i === 1 && !outside(a, exits[0])) || (i + 2 === last && !outside(b, exits[1]))) return points;
+  }
+  for (const q of [s, e]) {
+    if (horizontal) q.y = to.y;
+    else q.x = x;
+  }
+  const route = p.slice(1, -1);
+  const a = points[0] as Point;
+  const b = points[last] as Point;
+  const head = i === 0 ? stub(a, exits[0], s, horizontal) : [a, p[0] as Point];
+  const tail = i + 1 === last ? stub(b, exits[1], e, horizontal).reverse() : [p[last] as Point, b];
+  return simplify([...head, ...route, ...tail]);
+}
+
+/** From fixed end `end` to the moved segment end `moved`: out along the exit, then across. */
+function stub(end: Point, exit: number, moved: Point, horizontal: boolean): Point[] {
+  const out = { x: end.x + exit, y: end.y };
+  return [end, out, horizontal ? { x: out.x, y: moved.y } : { x: moved.x, y: out.y }];
+}
 
 /**
  * Orthogonal route. Between two ports the bend sits on the column half-way
@@ -81,21 +157,21 @@ export function wirePoints(at: Places, wire: Wire): Point[] | null {
   if (!a || !b) return null;
   const [aj, bj] = [isJunction(wire.from), isJunction(wire.to)];
   if (!aj && !bj) {
-    if (a.y === b.y) return [a, b];
     const mx = Math.round((a.x + b.x) / 2);
-    return [a, { x: mx, y: a.y }, { x: mx, y: b.y }, b];
+    return simplify([a, { x: mx, y: a.y }, { x: mx, y: b.y }, b]);
   }
-  if (aj && bj) return withoutRepeats([a, { x: b.x, y: a.y }, b]);
+  if (aj && bj) return simplify([a, { x: b.x, y: a.y }, b]);
   const [port, junction] = aj ? [b, a] : [a, b];
   const route = [port, { x: junction.x, y: port.y }, junction];
-  return withoutRepeats(aj ? route.reverse() : route);
+  return simplify(aj ? route.reverse() : route);
 }
 
 export type Hit =
   | { type: "port"; ref: PortRef }
   | { type: "junction"; id: string }
   | { type: "component"; id: string }
-  | { type: "wire"; id: string }
+  // `segment`: index of the route segment under the pointer.
+  | { type: "wire"; id: string; segment: number }
   | null;
 
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -127,8 +203,8 @@ export function nearestOnRoute(points: Point[], p: Point): Point | undefined {
   return best;
 }
 
-/** Ports win over junctions, junctions over bodies, bodies over wires; later items are on top. */
-export function hitTest(circuit: Circuit, p: Point, pick: number): Hit {
+/** Ports win over junctions, junctions over bodies, bodies over wires; later items are on top. `routes` by wire ID. */
+export function hitTest(circuit: Circuit, p: Point, pick: number, routes: Map<string, Point[]>): Hit {
   let port: Hit = null;
   let best = pick;
   for (const component of circuit.components) {
@@ -154,12 +230,11 @@ export function hitTest(circuit: Circuit, p: Point, pick: number): Hit {
     if (p.x >= x && p.x <= x + width && p.y >= y && p.y <= y + height) return { type: "component", id: component.id };
   }
 
-  const at = places(circuit);
   for (const wire of [...circuit.wires].reverse()) {
-    const points = wirePoints(at, wire) ?? [];
+    const points = routes.get(wire.id) ?? [];
     for (let i = 1; i < points.length; i++) {
       const [a, b] = [points[i - 1], points[i]];
-      if (a && b && segmentDistance(p, a, b) <= pick / 2) return { type: "wire", id: wire.id };
+      if (a && b && segmentDistance(p, a, b) <= pick / 2) return { type: "wire", id: wire.id, segment: i - 1 };
     }
   }
   return null;

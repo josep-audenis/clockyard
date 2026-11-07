@@ -15,7 +15,7 @@ const document: CircuitDocument = {
     junctions: [{ id: "j", position: { x: 3, y: 1 } }],
     wires: [
       { id: "w", from: { component: "a", port: "out" }, to: { component: "g", port: "a" } },
-      { id: "v", from: { junction: "j" }, to: { component: "g", port: "b" } },
+      { id: "v", from: { junction: "j" }, to: { component: "g", port: "b" }, bends: [{ x: 4, y: 1 }] },
     ],
   },
 };
@@ -56,6 +56,8 @@ test.each([
   ["a junction sharing an ID", () => broken((doc) => Object.assign(doc.circuit.junctions[0] ?? {}, { id: "g" })), "ID g is used more than once"],
   ["a wire to a missing junction", () => broken((_, _c, w) => (w.to = { junction: "gone" })), "missing junction gone"],
   ["a wire from a port to itself", () => broken((_, _c, w) => (w.to = { ...w.from })), "starts and ends at the same place"],
+  ["too many bends", () => broken((_, _c, w) => (w.bends = Array.from({ length: 65 }, () => ({ x: 0, y: 0 })))), "more than 64 bends"],
+  ["a fractional bend", () => broken((_, _c, w) => (w.bends = [{ x: 0.5, y: 0 }])), "bend 1 x must be a whole number"],
   ["missing junctions", () => broken((doc) => Reflect.deleteProperty(doc.circuit, "junctions")), "circuit.junctions must be a list"],
   ["an unknown kind", () => broken((_, c) => (c.kind = "flux" as ComponentKind)), 'unknown kind "flux"'],
   ["a fractional position", () => broken((_, c) => (c.position.x = 0.5)), "x must be a whole number"],

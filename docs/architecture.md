@@ -86,6 +86,9 @@ Rules:
 - A **junction** is a document object, not an overlap. Wires that share a port
   or junction form one net; the engine resolves nets (ADR 0010). Bus widths
   join the format with multi-bit signals.
+- A wire's route is geometry only. It is routed on the grid automatically
+  (`canvas/routing.ts`), unless the user shaped it: then its optional `bends`
+  lists the route's interior grid points (at most 64; ADR 0011).
 - Custom component definitions live in a `definitions` section; instances refer
   to them by definition ID (Phase 2).
 - Transient simulation data (signal values, clock count) is never part of the

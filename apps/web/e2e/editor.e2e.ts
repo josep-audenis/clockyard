@@ -222,7 +222,7 @@ test("label parts in the inspector; labels name pins in the readout and status b
   await page.keyboard.press("l");
   await click(page, at(6, 1)); // LED at (5,0), in (5,1)
   await drag(page, at(2, 1), at(5, 1));
-  await expect(inspector).toContainText("Wires and junctions have no properties yet.");
+  await expect(inspector).toContainText("Routed automatically.");
 
   // Enter commits.
   await click(page, at(1, 1)); // selects the switch and turns it on
@@ -317,4 +317,32 @@ test("drop a wire on a wire to branch it at a junction; move and delete the junc
   await expectStates(page, { "Switch 1": 1, "LED 1": 0, "LED 2": 0 });
   await page.keyboard.press("Control+z");
   await expectStates(page, { "LED 1": 1, "LED 2": 1 });
+});
+
+test("drag a wire segment to reshape it; reset its route from the inspector; both undo", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0), out (2,1)
+  await page.keyboard.press("l");
+  await click(page, at(13, 1)); // LED at (12,0), in (12,1)
+  await drag(page, at(2, 1), at(12, 1)); // a straight wire along row 1
+  await expect(inspector).toContainText("Routed automatically.");
+
+  // Pull its middle down four rows: it now runs along row 5, and is still the same connection.
+  await drag(page, at(7, 1), at(7, 5));
+  await expect(inspector).toContainText("Route shaped by hand.");
+  await click(page, at(1, 1));
+  await expectStates(page, { "Switch 1": 1, "LED 1": 1 });
+  await click(page, at(7, 5)); // the moved segment is where the wire is now
+  await expect(inspector).toContainText("Route shaped by hand.");
+
+  await inspector.getByRole("button", { name: "Reset route" }).click();
+  await expect(inspector).toContainText("Routed automatically.");
+  await page.keyboard.press("Control+z");
+  await expect(inspector).toContainText("Route shaped by hand.");
+  await page.keyboard.press("Control+z");
+  await click(page, at(7, 1)); // the drag undone: the wire is back on row 1
+  await expect(inspector).toContainText("Routed automatically.");
 });
