@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { mountCanvas } from "../canvas/scene";
-import type { ComponentKind } from "../editor/document";
+import { MAX_LABEL, normalizeLabel, type CircuitComponent, type ComponentKind } from "../editor/document";
 import { useEditor } from "../editor/store";
 import { connectEngine, useSim } from "../simulation/sync";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
@@ -23,6 +23,7 @@ const LIBRARY: { title: string; parts: Part[] }[] = [
     ],
   },
 ];
+const NAMES = new Map(LIBRARY.flatMap(({ parts }) => parts.map(({ kind, name }) => [kind, name] as const)));
 const SHORTCUTS = new Map(LIBRARY.flatMap(({ parts }) => parts.flatMap(({ kind, key }) => (key ? [[key, kind] as const] : []))));
 /** The platform's name for the shortcut modifier (design system Kbd rule). */
 const MOD = navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl";
@@ -51,6 +52,7 @@ export function App() {
       <div className="workspace">
         <PartsLibrary />
         <Canvas />
+        <Inspector />
         <Readout />
       </div>
       <StatusBar />
@@ -189,6 +191,89 @@ function Canvas() {
   return <main ref={host} className="canvas-host" aria-label="Circuit canvas" />;
 }
 
+function Inspector() {
+  const selection = useEditor((s) => s.selection);
+  const part = useEditor((s) => (s.selection.length === 1 ? s.circuit.components.find((c) => c.id === s.selection[0]) : undefined));
+  return (
+    <aside className="inspector" aria-label="Inspector">
+      <section className="panel">
+        <h2 className="type-heading panel-title">PROPERTIES</h2>
+        {part ? (
+          // Remounts for another part, or when undo changes the label, so the field shows the saved value.
+          <PartProperties key={`${part.id}:${part.props.label ?? ""}`} part={part} />
+        ) : (
+          <p className="type-body inspector-empty">
+            {selection.length === 0
+              ? "Select a component to edit its properties."
+              : selection.length === 1
+                ? "Wires have no properties yet."
+                : `${selection.length} items selected. Select one component to edit its properties.`}
+          </p>
+        )}
+      </section>
+    </aside>
+  );
+}
+
+const PIN_HINT: Partial<Record<ComponentKind, string>> = {
+  switch: "Names this input pin of the circuit.",
+  led: "Names this output pin of the circuit.",
+};
+
+function PartProperties({ part }: { part: CircuitComponent }) {
+  const saved = part.props.label ?? "";
+  const [draft, setDraft] = useState(saved);
+  /** Escape leaves the field without saving. */
+  const cancelled = useRef(false);
+  const id = useId();
+  return (
+    <div className="inspector-body">
+      <p className="type-label inspector-kind">{NAMES.get(part.kind)}</p>
+      <div className="field">
+        <label className="field-label" htmlFor={`${id}-label`}>
+          Label
+        </label>
+        <input
+          id={`${id}-label`}
+          aria-describedby={`${id}-hint`}
+          className="input"
+          value={draft}
+          maxLength={MAX_LABEL}
+          spellCheck={false}
+          onChange={(e) => setDraft(e.target.value)}
+          // Committed on blur (Enter blurs), as one undoable edit: the design system's Field rule.
+          onBlur={() => {
+            if (!cancelled.current) useEditor.getState().setLabel(part.id, draft);
+            cancelled.current = false;
+            // Show what was stored: when trimming leaves the label unchanged, nothing remounts the field.
+            setDraft((value) => (normalizeLabel(value) === saved ? saved : value));
+          }}
+          onKeyDown={(e) => {
+            // Enter and Escape during IME composition pick or dismiss a candidate; they are not ours.
+            if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+            if (e.key !== "Enter" && e.key !== "Escape") return;
+            if (e.key === "Escape") {
+              cancelled.current = true;
+              setDraft(saved);
+            }
+            e.currentTarget.blur();
+          }}
+        />
+        <p id={`${id}-hint`} className="field-hint">
+          {PIN_HINT[part.kind] ?? "Shown under the part on the canvas."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** A part's label, or its kind and position among parts of that kind ("Switch 2"). */
+function partName(components: CircuitComponent[], part: CircuitComponent) {
+  if (part.props.label) return `${NAMES.get(part.kind)} ${part.props.label}`;
+  const same = components.filter((c) => c.kind === part.kind);
+  return `${NAMES.get(part.kind)} ${same.indexOf(part) + 1}`;
+}
+
 /** The canvas is pixels only; this lists switch and LED states for screen readers (and browser tests). */
 function Readout() {
   const components = useEditor((s) => s.circuit.components);
@@ -203,11 +288,11 @@ function Readout() {
   const leds = components.filter((c) => c.kind === "led");
   return (
     <ul className="visually-hidden" aria-label="Inputs and outputs">
-      {switches.map((c, i) => (
-        <li key={c.id}>{`Switch ${i + 1}: ${value(c.id, "out")}`}</li>
+      {switches.map((c) => (
+        <li key={c.id}>{`${partName(components, c)}: ${value(c.id, "out")}`}</li>
       ))}
-      {leds.map((c, i) => (
-        <li key={c.id}>{`LED ${i + 1}: ${value(c.id, "in")}`}</li>
+      {leds.map((c) => (
+        <li key={c.id}>{`${partName(components, c)}: ${value(c.id, "in")}`}</li>
       ))}
     </ul>
   );
@@ -227,7 +312,8 @@ function StatusBar() {
   const error = useSim((s) => s.error);
   const loaded = useSim((s) => s.loaded);
   const runtime = useSim((s) => s.runtime);
-  const empty = useEditor((s) => s.circuit.components.length === 0);
+  const components = useEditor((s) => s.circuit.components);
+  const empty = components.length === 0;
 
   const diagnostics = [...(loaded?.diagnostics ?? []), ...runtime];
   const errors = diagnostics.filter((d) => d.severity === "error");
@@ -244,10 +330,15 @@ function StatusBar() {
               ? ["No circuit", "muted"]
               : ["Settled", "ok"];
   const first = errors[0] ?? diagnostics[0];
+  // Name the labelled parts involved; unlabelled ones are highlighted on the canvas.
+  const named = first
+    ? components.filter((c) => c.props.label && first.ids.includes(c.id)).map((c) => partName(components, c))
+    : [];
   const message =
     status === "error"
       ? error
-      : first && `${PLAIN[first.code] ?? first.message}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`;
+      : first &&
+        `${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`;
 
   return (
     <footer className="statusbar" role="status">

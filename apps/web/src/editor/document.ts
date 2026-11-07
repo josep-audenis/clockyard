@@ -7,13 +7,30 @@ export type ComponentKind = (typeof COMPONENT_KINDS)[number];
 
 export const ROTATIONS = [0, 90, 180, 270] as const;
 
+/** Longest label a part can carry; longer ones crowd the canvas. */
+export const MAX_LABEL = 32;
+
+/**
+ * Editor-only properties; the engine never sees them. A switch's or LED's label
+ * names the circuit's input or output pin.
+ */
+export type Props = { label?: string };
+
+/**
+ * A label as stored: control characters (a newline, say) become spaces; bidi and
+ * zero-width characters go, since they hide or reorder the text; then trimmed.
+ * Length is checked by callers.
+ */
+export const normalizeLabel = (text: string) =>
+  text.replace(/\p{Cc}/gu, " ").replace(/[\p{Bidi_Control}\u200B\uFEFF]/gu, "").trim();
+
 export type CircuitComponent = {
   id: string;
   kind: ComponentKind;
   /** Grid units. */
   position: { x: number; y: number };
   rotation: (typeof ROTATIONS)[number];
-  props: Record<string, unknown>;
+  props: Props;
 };
 
 export type Wire = { id: string; from: PortRef; to: PortRef };

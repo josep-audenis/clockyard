@@ -2,10 +2,13 @@
 // Imported files are untrusted: every field is checked and unknown fields are dropped.
 import {
   COMPONENT_KINDS,
+  MAX_LABEL,
+  normalizeLabel,
   ROTATIONS,
   type CircuitComponent,
   type CircuitDocument,
   type ComponentKind,
+  type Props,
   type Wire,
 } from "../editor/document";
 
@@ -59,6 +62,14 @@ function integer(value: unknown, where: string): number {
   return value as number;
 }
 
+/** Known properties only; unknown ones are dropped like any other unknown field. */
+function readProps(props: Record<string, unknown>, where: string): Props {
+  if (props.label === undefined) return {};
+  const label = normalizeLabel(text(props.label, `${where} label`));
+  if ([...label].length > MAX_LABEL) throw new Error(`${where} label is longer than ${MAX_LABEL} characters.`);
+  return label ? { label } : {};
+}
+
 function readDocument(data: unknown): CircuitDocument {
   if (!isObject(data) || data.format !== "clockyard") throw new Error("This is not a Clockyard file.");
   const version = data.version;
@@ -91,7 +102,7 @@ function readDocument(data: unknown): CircuitDocument {
       kind: kind as ComponentKind,
       position: { x: integer(position.x, `${where} x`), y: integer(position.y, `${where} y`) },
       rotation: rotation as CircuitComponent["rotation"],
-      props: object(c.props, `${where} props`),
+      props: readProps(object(c.props, `${where} props`), where),
     };
   });
 

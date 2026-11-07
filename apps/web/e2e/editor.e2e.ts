@@ -209,3 +209,63 @@ test("copying selected page text does not stop the canvas copying afterwards", a
   await page.keyboard.press("Control+v");
   await expectStates(page, { "Switch 2": 0 });
 });
+
+test("label parts in the inspector; labels name pins in the readout and status bar, undo, and survive a save", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  const label = inspector.getByRole("textbox", { name: "Label" });
+  await expect(inspector).toContainText("Select a component to edit its properties.");
+
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0), out (2,1)
+  await page.keyboard.press("l");
+  await click(page, at(6, 1)); // LED at (5,0), in (5,1)
+  await drag(page, at(2, 1), at(5, 1));
+  await expect(inspector).toContainText("Wires have no properties yet.");
+
+  // Enter commits.
+  await click(page, at(1, 1)); // selects the switch and turns it on
+  await expect(label).toHaveAccessibleDescription("Names this input pin of the circuit.");
+  await label.fill("A");
+  await label.press("Enter");
+  await expectStates(page, { "Switch A": 1, "LED 1": 1 });
+  // The field shows what was stored, even when trimming leaves the label as it was.
+  await label.fill("A  ");
+  await label.press("Enter");
+  await expect(label).toHaveValue("A");
+
+  // Pressing the canvas commits to the part being edited, not the next selection.
+  await click(page, at(6.5, 1));
+  await label.fill("sum");
+  await click(page, at(1, 1)); // and turns the switch off
+  await expectStates(page, { "Switch A": 0, "LED sum": 0 });
+  await expect(label).toHaveValue("A");
+
+  // Escape cancels.
+  await label.fill("B");
+  await label.press("Escape");
+  await expect(label).toHaveValue("A");
+  await expect(readout(page, "Switch A")).toHaveCount(1);
+
+  // Each label is one undo step.
+  await page.keyboard.press("Control+z");
+  await expect(readout(page, "LED 1")).toHaveCount(1);
+  await page.keyboard.press("Control+Shift+z");
+  await expect(readout(page, "LED sum")).toHaveCount(1);
+
+  // A diagnostic names the labelled part it is about.
+  await page.keyboard.press("a");
+  await click(page, at(12, 8)); // AND at (10,6), inputs unconnected
+  await label.fill("half");
+  await label.press("Enter");
+  await expect(status(page)).toContainText("An input is unconnected and reads 0. (AND half)");
+
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export" }).click();
+  const file = await (await download).path();
+  await page.reload();
+  await page.locator('[data-testid="import-file"]').setInputFiles(file);
+  await expectStates(page, { "Switch A": 0, "LED sum": 0 });
+  await expect(status(page)).toContainText("(AND half)");
+});

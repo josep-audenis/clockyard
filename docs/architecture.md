@@ -90,6 +90,14 @@ Rules:
   type-checked, unknown fields are dropped, IDs must be unique and wires must
   reference existing components. Port names are checked by the engine on load.
   Switch positions are transient and never saved.
+- `props` holds editor-only properties; the engine never sees them. Today that
+  is `label`: one line of text, at most 32 characters, edited in the inspector
+  and drawn under the part. Control characters become spaces, bidi and
+  zero-width characters are removed and the ends are trimmed, both in the
+  editor and on import. The editor stops at 32 characters; an imported file
+  with a longer label is refused. A switch's or LED's label names the circuit's input or
+  output pin, for the readout, the status bar and, later, the ports of a custom
+  component built from the circuit. Unknown props are dropped on import.
 
 ## Circuit description (engine input)
 
