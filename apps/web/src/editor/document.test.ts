@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { project, showValue, type Circuit } from "./document";
+import { hex, parseValue, project, showValue, type Circuit } from "./document";
 
 test("projection keeps connectivity and widths, junctions included, and drops geometry and labels", () => {
   const circuit: Circuit = {
@@ -49,4 +49,12 @@ test("a definition's parts, its pins included, project their widths too", () => 
     { id: "i", kind: "switch", width: 8 },
     { id: "o", kind: "led", width: 8 },
   ]);
+});
+
+test("a typed value is decimal, 0x or 0b, and must fit the width", () => {
+  expect(["44", "0x2C", "0X2c", "0b0010_1100", " 255 "].map((t) => parseValue(t, 8))).toEqual([44, 44, 44, 44, 255]);
+  expect(["256", "-1", "2.5", "", "0x", "0b2", "1e3", "0x1FF"].map((t) => parseValue(t, 8))).toEqual(Array(8).fill(null));
+  expect(parseValue("0xFFFFFFFF", 32)).toBe(0xffffffff);
+  expect(parseValue("4294967296", 32)).toBeNull();
+  expect([hex(44, 8), hex(5, 12), hex(0xffffffff, 32), hex(1, 2)]).toEqual(["0x2C", "0x005", "0xFFFFFFFF", "0x1"]);
 });

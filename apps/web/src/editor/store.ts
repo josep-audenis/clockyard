@@ -11,6 +11,7 @@ import {
   isJunction,
   MAX_BENDS,
   MAX_LABEL,
+  MAX_WIDTH,
   normalizeLabel,
   normalizeName,
   sameEnd,
@@ -28,8 +29,8 @@ export type EditorState = {
   circuit: Circuit;
   /** Selected component, junction and wire IDs. */
   selection: string[];
-  /** Switch positions set by the user. Transient: never saved with the document. */
-  inputs: Record<string, 0 | 1>;
+  /** Switch values set by the user (0 or 1, or up to 2^width − 1 when wide). Transient: never saved with the document. */
+  inputs: Record<string, number>;
   /** Part waiting to be placed by the next canvas click. */
   armed: PartKind | null;
   /** For an armed `custom` part: the definition it will be an instance of. */
@@ -79,7 +80,11 @@ export type EditorState = {
   duplicate: () => void;
   /** Sets a part's label as one edit; blank removes it. Normalized and capped at `MAX_LABEL` characters. */
   setLabel: (id: string, label: string) => void;
+  /** Sets a switch's, LED's or gate's width (1 to `MAX_WIDTH`) as one edit; 1 removes the prop. A switch keeps the bits that still fit. */
+  setWidth: (id: string, width: number) => void;
   toggle: (id: string) => void;
+  /** Sets a wide switch's value, already checked against its width. Not an edit, like a toggle. */
+  setInput: (id: string, value: number) => void;
   arm: (kind: PartKind | null) => void;
   /** Arms an instance of a definition (a chip from the parts panel). */
   armChip: (definition: string) => void;
@@ -124,13 +129,22 @@ export type EditorState = {
 const now = new Date().toISOString();
 const HISTORY_LIMIT = 200;
 
-/** Sets the circuit and drops selection and switch positions that point at items no longer in it. */
+/**
+ * Sets the circuit and drops selection and switch positions that point at items no longer in it.
+ * A switch keeps the bits of its value that fit its width now, whether an edit, undo or redo changed it.
+ */
 function withCircuit(state: EditorState, circuit: Circuit) {
   const kept = new Set(items(circuit).map((item) => item.id));
+  const width = new Map(circuit.components.map((c) => [c.id, c.props.width ?? 1]));
   return {
     circuit,
     selection: state.selection.filter((id) => kept.has(id)),
-    inputs: Object.fromEntries(Object.entries(state.inputs).filter(([id]) => kept.has(id))),
+    inputs: Object.fromEntries(
+      Object.entries(state.inputs).flatMap(([id, value]) => {
+        const bits = width.get(id);
+        return bits === undefined ? [] : [[id, value % 2 ** bits]];
+      }),
+    ),
   };
 }
 
@@ -501,6 +515,16 @@ export const useEditor = create<EditorState>()((set, get) => ({
       else delete props.label;
       return edit(state, { ...state.circuit, components: state.circuit.components.map((c) => (c === part ? { ...c, props } : c)) });
     }),
+  setWidth: (id, width) =>
+    set((state) => {
+      const part = state.circuit.components.find((c) => c.id === id);
+      const valid = Number.isInteger(width) && width >= 1 && width <= MAX_WIDTH;
+      if (!part || part.kind === "custom" || !valid || (part.props.width ?? 1) === width) return state;
+      const props = { ...part.props };
+      if (width > 1) props.width = width;
+      else delete props.width;
+      return edit(state, { ...state.circuit, components: state.circuit.components.map((c) => (c === part ? { ...c, props } : c)) });
+    }),
   rotate: (ids, turn) =>
     set((state) => {
       const { circuit } = state;
@@ -555,6 +579,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   armedRotation: 0,
   turnArmed: (turn) => set(({ armedRotation }) => ({ armedRotation: ((armedRotation + 90 * turn + 360) % 360) as typeof armedRotation })),
   toggle: (id) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: inputs[id] === 1 ? 0 : 1 } })),
+  setInput: (id, value) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: value } })),
   arm: (kind) => set({ armed: kind, armedDefinition: null, armedRotation: 0 }),
   armChip: (definition) => set({ armed: "custom", armedDefinition: definition, armedRotation: 0 }),
   load: ({ metadata, circuit, definitions }) => {

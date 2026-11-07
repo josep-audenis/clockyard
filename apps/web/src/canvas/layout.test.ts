@@ -32,3 +32,12 @@ test("rotation turns a layout clockwise about its box, and four turns come back"
   expect(layoutOf({ kind: "not", rotation: 270 })).toMatchObject({ width: 2, height: 3, inputs: { in: { x: 1, y: 3 } } });
   expect(layoutOf({ kind: "xor", rotation: 0 })).toBe(LAYOUTS.xor);
 });
+
+test("a wide switch or LED is a 5x2 body with its port where a 1-bit one has it; gates keep their shape", () => {
+  const wide = { width: 8 };
+  expect(layoutOf({ kind: "switch", rotation: 0, props: wide })).toEqual({ width: 5, height: 2, inputs: {}, outputs: { out: { x: 5, y: 1 } } });
+  expect(layoutOf({ kind: "led", rotation: 0, props: wide })).toEqual({ width: 5, height: 2, inputs: { in: { x: 0, y: 1 } }, outputs: {} });
+  expect(layoutOf({ kind: "switch", rotation: 0, props: { width: 1 } })).toBe(LAYOUTS.switch);
+  expect(layoutOf({ kind: "switch", rotation: 90, props: wide })).toMatchObject({ width: 2, height: 5 });
+  expect(layoutOf({ kind: "and", rotation: 0, props: wide })).toBe(LAYOUTS.and);
+});

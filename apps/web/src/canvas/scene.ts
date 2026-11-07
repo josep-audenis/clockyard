@@ -2,7 +2,8 @@
 // spec. Reads the editor and engine stores outside React and redraws on change.
 // shortcut: the whole scene is redrawn per change; move to per-object updates when profiling says so.
 import { Application, Container, Graphics, Text } from "pixi.js";
-import { endOwner, sameEnd, type Circuit, type CircuitComponent } from "../editor/document";
+import { create } from "zustand";
+import { endOwner, hex, sameEnd, type Circuit, type CircuitComponent } from "../editor/document";
 import { useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
 import { useSim } from "../simulation/sync";
@@ -37,12 +38,19 @@ const COLORS = [
   "signal-high-soft",
   "on-signal-high",
   "signal-low",
+  "signal-bus",
   "select",
   "accent",
   "accent-soft",
   "danger",
 ] as const;
-const SIZES = ["grid-cell", "wire-width", "wire-width-high", "select-width", "port-size", "hit-slop", "radius-sm"] as const;
+const SIZES = ["grid-cell", "wire-width", "wire-width-high", "bus-width", "select-width", "port-size", "hit-slop", "radius-sm"] as const;
+
+/**
+ * What the canvas tells the rest of the editor: the wire under the pointer (the status
+ * bar shows a bus's value), and a wide switch just clicked, whose Value field takes focus.
+ */
+export const useCanvasHints = create<{ wire: string | null; focusValue: string | null }>(() => ({ wire: null, focusValue: null }));
 
 type Theme = { color: Record<(typeof COLORS)[number], string>; size: Record<(typeof SIZES)[number], number>; mono: string };
 
@@ -93,7 +101,7 @@ type Gesture =
 const GHOST = "placement-preview";
 
 /** Where a part placed at `p` goes: centred on the pointer, turned by `rotation`. */
-function placement(part: Pick<CircuitComponent, "kind" | "rotation" | "definition">, p: Point): Point {
+function placement(part: Pick<CircuitComponent, "kind" | "rotation" | "definition" | "props">, p: Point): Point {
   const { width, height } = layoutOf(part);
   return { x: Math.round(p.x - width / 2), y: Math.round(p.y - height / 2) };
 }
@@ -176,47 +184,86 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     );
     const selected = new Set(selection);
     // A value is shown only once the engine has reported on the current document.
-    // shortcut: a bus reads as lit whenever it is non-zero, until buses get their own drawing (ADR 0014 step 4).
-    const signal = (net: number | undefined): 0 | 1 | null =>
-      stale || !nets || net === undefined ? null : nets[net] === 0 ? 0 : 1;
+    const signal = (net: number | undefined): number | null => (stale || !nets || net === undefined ? null : (nets[net] ?? 0));
+    // The engine reports each wire's width (ADR 0014). While an edit waits for it, the last report stands (wire IDs are
+    // stable), so buses do not thin for a frame; with no netlist (validation errors) every wire is 1 bit.
+    const bitsOf = (wire: string | undefined) => (wire === undefined ? 1 : (loaded?.wireWidths[wire] ?? 1));
+    /** Hex tags of hovered buses, drawn once every wire is, so no other wire crosses them. */
+    const tags: (() => void)[] = [];
     const at = places(circuit);
     const paths = currentRoutes(circuit);
+    const hovered = useCanvasHints.getState().wire;
 
     wires.clear();
     overlay.clear();
+    seen.clear();
 
     for (const wire of circuit.wires) {
       const points = paths.get(wire.id)?.map(px);
       if (!points) continue;
       const value = signal(loaded?.wireNets[wire.id]);
-      const width = value === 1 ? size["wire-width-high"] : size["wire-width"];
+      const bits = bitsOf(wire.id);
+      // CanvasKit: a bus has one width and colour whatever it carries; a slash tag gives its width, a hex tag on hover its value.
+      const lit = bits === 1 && value !== null && value !== 0;
+      const width = bits > 1 ? size["bus-width"] : lit ? size["wire-width-high"] : size["wire-width"];
       if (selected.has(wire.id)) {
         polyline(wires, points).stroke({ width: width + 2 * size["select-width"], color: color.select, cap: "round", join: "round" });
       }
       polyline(wires, points).stroke({
         width,
-        color: culprits.has(wire.id) ? color.danger : value === 1 ? color["signal-high"] : color["signal-low"],
+        color: culprits.has(wire.id) ? color.danger : bits > 1 ? color["signal-bus"] : lit ? color["signal-high"] : color["signal-low"],
         alpha: value === null ? 0.5 : 1,
         cap: "round",
         join: "round",
       });
+      const [a, b] = points;
+      if (bits > 1 && a && b) {
+        // The slash crosses the middle of the first segment, with the width just past it.
+        const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        const across = a.y === b.y ? { x: 4, y: -8 } : { x: 8, y: -4 };
+        const bus = { width: 1.5, color: color["signal-bus"], cap: "round" } as const;
+        wires.moveTo(m.x - across.x, m.y - across.y).lineTo(m.x + across.x, m.y + across.y).stroke(bus);
+        put(`${wire.id}:bits`, String(bits), m.x + 6, m.y - 6, { x: 0, y: 1 }, color["signal-bus"]);
+        if (hovered === wire.id && value !== null) {
+          tags.push(() => {
+            const tag = put(`${wire.id}:value`, hex(value, bits), m.x + 10, m.y + 10, { x: 0, y: 0 }, color["signal-bus"]);
+            wires
+              .roundRect(m.x + 6, m.y + 7, tag.width + 8, tag.height + 6, size["radius-sm"])
+              .fill({ color: color.bench })
+              .stroke({ width: 1.5, color: color["signal-bus"] });
+          });
+        }
+      }
     }
+    for (const tag of tags) tag();
 
     // CanvasKit: a junction is a 4px dot in its net's state colour, read from any wire on it.
     const wireAt = new Map(circuit.wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)].map((owner) => [owner, w.id])));
     for (const junction of circuit.junctions) {
       const attached = wireAt.get(junction.id);
       const value = signal(attached === undefined ? undefined : loaded?.wireNets[attached]);
+      const lit = value !== null && value !== 0;
+      const tone = bitsOf(attached) > 1 ? color["signal-bus"] : lit ? color["signal-high"] : color["signal-low"];
       const { x, y } = px(junction.position);
       if (selected.has(junction.id)) wires.circle(x, y, 8).stroke({ width: size["select-width"], color: color.select });
-      wires
-        .circle(x, y, 4)
-        .fill({ color: value === 1 ? color["signal-high"] : color["signal-low"], alpha: value === null ? 0.5 : 1 });
+      wires.circle(x, y, 4).fill({ color: tone, alpha: value === null ? 0.5 : 1 });
     }
 
     for (const component of circuit.components) {
       const ports = loaded?.portNets[component.id];
-      drawBody(component, culprits.has(component.id), (port) => signal(ports?.[port]));
+      const value = (port: string) => signal(ports?.[port]);
+      drawBody(component, culprits.has(component.id), value);
+      const bits = component.props.width ?? 1;
+      if ((component.kind === "switch" || component.kind === "led") && bits > 1) {
+        // A wide switch or LED shows its value in hex, upright whatever its rotation.
+        const shown = value(component.kind === "switch" ? "out" : "in");
+        const { width, height } = layoutOf(component);
+        const centre = px({ x: component.position.x + width / 2, y: component.position.y + height / 2 });
+        const text = shown === null ? "--" : hex(shown, bits);
+        // Along the body: a wide part turned upright is too narrow for 8 hex digits across it.
+        const along = component.rotation % 180 === 0 ? 0 : -90;
+        put(`${component.id}:value`, text, centre.x, centre.y, { x: 0.5, y: 0.5 }, color["signal-bus"]).angle = along;
+      }
       if (selected.has(component.id)) {
         const { x, y } = px(component.position);
         const { width, height } = layoutOf(component);
@@ -233,7 +280,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     if (armed && pointer && !gesture) {
       const rotation = useEditor.getState().armedRotation;
       const definition = useEditor.getState().armedDefinition ?? undefined;
-      const shape = { kind: armed, rotation, definition };
+      const shape = { kind: armed, rotation, definition, props: {} };
       const ghost = { id: GHOST, ...shape, position: placement(shape, toWorld(pointer)), props: {} };
       // Outlined in the danger colour where a click would be refused.
       drawBody(ghost, placementStacks(circuit, ghost), () => null);
@@ -279,32 +326,42 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const { x, y } = px(hover);
       overlay.circle(x, y, size["port-size"]).stroke({ width: 2, color: color.accent });
     }
+    for (const [key, text] of texts) {
+      if (seen.has(key)) continue;
+      texts.delete(key);
+      text.destroy();
+    }
+  }
+
+  /** Texts drawn this frame; the rest are removed once it is drawn. */
+  const seen = new Set<string>();
+  /** A text at world point (x, y) in the canvas-label style, reused across frames by `key`. */
+  function put(key: string, value: string, x: number, y: number, anchor: Point, fill = theme.color["ink-muted"]) {
+    seen.add(key);
+    let text = texts.get(key);
+    if (!text) {
+      const style = { fontFamily: theme.mono, fontSize: 11, fontWeight: "500", fill } as const;
+      // shortcut: rendered at twice the device ratio, so labels soften beyond 2x zoom; switch to BitmapText if that bothers.
+      text = new Text({ text: value, style, resolution: 2 * window.devicePixelRatio });
+      texts.set(key, text);
+      labels.addChild(text);
+    }
+    if (text.text !== value) text.text = value;
+    text.anchor.set(anchor.x, anchor.y);
+    text.position.set(x, y);
+    return text;
   }
 
   // CanvasKit: labels in the canvas-label style, ink-muted, centred below the body;
   // a custom component also shows its definition's name (unless labelled) and its pin names inside.
   function drawLabels(components: CircuitComponent[]) {
     const c = cell();
-    const style = { fontFamily: theme.mono, fontSize: 11, fontWeight: "500", fill: theme.color["ink-muted"] } as const;
-    const seen = new Set<string>();
-    const put = (key: string, value: string, x: number, y: number, anchor: Point) => {
-      seen.add(key);
-      let text = texts.get(key);
-      if (!text) {
-        // shortcut: rendered at twice the device ratio, so labels soften beyond 2x zoom; switch to BitmapText if that bothers.
-        text = new Text({ text: value, style, resolution: 2 * window.devicePixelRatio });
-        texts.set(key, text);
-        labels.addChild(text);
-      }
-      if (text.text !== value) text.text = value;
-      text.anchor.set(anchor.x, anchor.y);
-      text.position.set(x * c, y * c);
-    };
+    const label = (key: string, value: string, x: number, y: number, anchor: Point) => put(key, value, x * c, y * c, anchor);
     for (const component of components) {
       const layout = layoutOf(component);
       const { x, y } = component.position;
       const caption = component.props.label ?? (component.kind === "custom" ? definitionName(component.definition) : undefined);
-      if (caption) put(component.id, caption, x + layout.width / 2, y + layout.height + 6 / c, { x: 0.5, y: 0 });
+      if (caption) label(component.id, caption, x + layout.width / 2, y + layout.height + 6 / c, { x: 0.5, y: 0 });
       if (component.kind !== "custom") continue;
       // Pin names just inside the body, facing in from the side the port is on.
       for (const [port, p] of Object.entries({ ...layout.inputs, ...layout.outputs })) {
@@ -319,13 +376,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
               : p.y === 0
                 ? [0, inset, { x: 0.5, y: 0 }]
                 : [0, -inset, { x: 0.5, y: 1 }];
-        put(`${component.id}:${port}`, name, x + p.x + dx, y + p.y + dy, anchor);
+        label(`${component.id}:${port}`, name, x + p.x + dx, y + p.y + dy, anchor);
       }
-    }
-    for (const [key, text] of texts) {
-      if (seen.has(key)) continue;
-      texts.delete(key);
-      text.destroy();
     }
   }
 
@@ -336,7 +388,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     return g;
   }
 
-  function drawBody(component: CircuitComponent, culprit: boolean, value: (port: string) => 0 | 1 | null) {
+  function drawBody(component: CircuitComponent, culprit: boolean, value: (port: string) => number | null) {
     const { color, size } = theme;
     const c = cell();
     let g = shapes.get(component.id);
@@ -373,25 +425,31 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(outline);
         break;
       }
-      case "switch": {
+      case "switch":
+      case "led": {
+        // Wide (ADR 0014): a plain box; its hex value is drawn as a label.
+        if (local.width > 2) {
+          g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(outline);
+          break;
+        }
+        if (component.kind === "led") {
+          const cx = x + c;
+          const cy = y + c;
+          lead(x, cx - 10, cy);
+          if (value("in") === 1) {
+            g.circle(cx, cy, 18).fill({ color: color["signal-high-soft"] });
+            g.circle(cx, cy, 11).fill({ color: color["signal-high"] });
+          } else {
+            g.circle(cx, cy, 10).fill(body).stroke({ width: 2, color: culprit ? color.danger : color["signal-low"] });
+          }
+          break;
+        }
         g.roundRect(x, y, 2 * c, 2 * c, size["radius-sm"]).fill(body).stroke(outline);
         if (value("out") === 1) {
           g.roundRect(x + 8, y + 8, 16, 16, 2).fill({ color: color["signal-high"] });
           g.moveTo(x + 16, y + 12).lineTo(x + 16, y + 20).stroke({ width: 2, color: color["on-signal-high"], cap: "round" });
         } else {
           g.roundRect(x + 9, y + 9, 14, 14, 2).stroke({ width: 2, color: color["signal-low"] });
-        }
-        break;
-      }
-      case "led": {
-        const cx = x + c;
-        const cy = y + c;
-        lead(x, cx - 10, cy);
-        if (value("in") === 1) {
-          g.circle(cx, cy, 18).fill({ color: color["signal-high-soft"] });
-          g.circle(cx, cy, 11).fill({ color: color["signal-high"] });
-        } else {
-          g.circle(cx, cy, 10).fill(body).stroke({ width: 2, color: culprit ? color.danger : color["signal-low"] });
         }
         break;
       }
@@ -620,6 +678,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     }
     const hit = gesture?.type === "wire" || !gesture ? hitTest(editor.circuit, p, pick(), currentRoutes(editor.circuit)) : null;
     hover = target(editor.circuit, hit, p, gesture?.type === "wire")?.at ?? null;
+    const wire = !gesture && hit?.type === "wire" ? hit.id : null;
+    if (useCanvasHints.getState().wire !== wire) useCanvasHints.setState({ wire });
     schedule();
   };
 
@@ -629,7 +689,14 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const id = gesture.id;
       // A plain click inside a multi-selection narrows it to the clicked part.
       if (editor.selection.length > 1) editor.select([id]);
-      if (editor.circuit.components.find((c) => c.id === id)?.kind === "switch") editor.toggle(id);
+      const part = editor.circuit.components.find((c) => c.id === id);
+      if (part?.kind === "switch" && (part.props.width ?? 1) > 1) {
+        // A wide switch is set in the inspector (ADR 0014): select it and send the keyboard there.
+        editor.select([id]);
+        useCanvasHints.setState({ focusValue: id });
+      } else if (part?.kind === "switch") {
+        editor.toggle(id);
+      }
     } else if (gesture?.type === "wire") {
       const p = toWorld(e);
       const end = target(editor.circuit, hitTest(editor.circuit, p, pick(), currentRoutes(editor.circuit)), p, true);
@@ -724,6 +791,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   canvas.addEventListener("pointercancel", () => endGesture(true));
   canvas.addEventListener("pointerleave", () => {
     pointer = null;
+    useCanvasHints.setState({ wire: null });
     schedule();
   });
   canvas.addEventListener("wheel", onWheel, { passive: false });

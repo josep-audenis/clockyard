@@ -3,7 +3,7 @@
 // Sizes follow the design system's CanvasKit spec; ports sit on grid points.
 // `LAYOUTS` is each kind unrotated; `layoutOf` applies a part's rotation.
 // A custom component's layout comes from its definition's pins (ADR 0012).
-import { pinsOf, type CircuitComponent, type ComponentKind, type Definition } from "../editor/document";
+import { pinsOf, type CircuitComponent, type ComponentKind, type Definition, type Props } from "../editor/document";
 
 export type Point = { x: number; y: number };
 
@@ -26,6 +26,16 @@ export const LAYOUTS: Record<ComponentKind, Layout> = {
   nor: gate,
   xor: gate,
   xnor: gate,
+};
+
+/**
+ * A switch or LED wider than 1 bit: a 5×2 body that shows its value in hex, its
+ * port at the middle of the side where a 1-bit one has it (ADR 0014). Gates keep
+ * their shape at any width.
+ */
+const WIDE: Partial<Record<ComponentKind, Layout>> = {
+  switch: { width: 5, height: 2, inputs: {}, outputs: { out: { x: 5, y: 1 } } },
+  led: { width: 5, height: 2, inputs: { in: { x: 0, y: 1 } }, outputs: {} },
 };
 
 /** A layout turned 90° clockwise about its box: (x, y) in w×h goes to (h - y, x) in h×w. */
@@ -79,12 +89,22 @@ export const pinLabel = (definition: string | undefined, port: string) =>
 /** Name of a definition, for instances' captions and the inspector. */
 export const definitionName = (id: string | undefined) => (id === undefined ? undefined : custom.get(id)?.name);
 
-/** A part's layout as placed: its kind's (or definition's) layout turned clockwise by its rotation. */
-export function layoutOf({ kind, rotation, definition }: Pick<CircuitComponent, "kind" | "rotation" | "definition">): Layout {
-  const key = kind === "custom" ? `custom:${definition}:${rotation}` : `${kind}:${rotation}`;
+/**
+ * A part's layout as placed: its kind's (or definition's) layout, wide where its
+ * width calls for one, turned clockwise by its rotation. Cached, so two parts
+ * with the same layout get the same object.
+ */
+export function layoutOf({
+  kind,
+  rotation,
+  definition,
+  props,
+}: Pick<CircuitComponent, "kind" | "rotation" | "definition"> & { props?: Props }): Layout {
+  const wide = kind !== "custom" && (props?.width ?? 1) > 1 ? WIDE[kind] : undefined;
+  const key = kind === "custom" ? `custom:${definition}:${rotation}` : `${kind}${wide ? ":wide" : ""}:${rotation}`;
   let layout = rotated.get(key);
   if (!layout) {
-    layout = kind === "custom" ? (custom.get(definition ?? "")?.layout ?? MISSING) : LAYOUTS[kind];
+    layout = kind === "custom" ? (custom.get(definition ?? "")?.layout ?? MISSING) : (wide ?? LAYOUTS[kind]);
     for (let r = 0; r < rotation; r += 90) layout = turned(layout);
     rotated.set(key, layout);
   }

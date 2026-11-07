@@ -23,9 +23,25 @@ export const MAX_WIDTH = 32;
  */
 export type Props = { label?: string; width?: number };
 
+/** A value in hex, one digit per started 4 bits: an 8-bit 44 is "0x2C". */
+export const hex = (value: number, width: number) =>
+  `0x${value.toString(16).toUpperCase().padStart(Math.ceil(width / 4), "0")}`;
+
 /** How the readout shows a value: on or off for 1 bit, else decimal and hex ("44 (0x2C)"). */
 export const showValue = (value: number, width: number) =>
-  width > 1 ? `${value} (0x${value.toString(16).toUpperCase()})` : value === 1 ? "on" : "off";
+  width > 1 ? `${value} (${hex(value, width)})` : value === 1 ? "on" : "off";
+
+/** Largest value `width` bits hold. Not built with `<<`, which is 32-bit signed in JS. */
+export const maxValue = (width: number) => 2 ** width - 1;
+
+/** A switch value as typed: decimal, `0x…` or `0b…` (underscores allowed), from 0 to `maxValue(width)`; else null. */
+export function parseValue(text: string, width: number): number | null {
+  const match = /^(?:0x([0-9a-f]+)|0b([01]+)|([0-9]+))$/.exec(text.trim().replaceAll("_", "").toLowerCase());
+  if (!match) return null;
+  const [, hexDigits, binary, decimal] = match;
+  const value = hexDigits ? parseInt(hexDigits, 16) : binary ? parseInt(binary, 2) : Number(decimal);
+  return value <= maxValue(width) ? value : null;
+}
 
 /**
  * A label as stored: control characters (a newline, say) become spaces; bidi and
