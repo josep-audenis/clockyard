@@ -14,9 +14,9 @@ the browser through WASM in a Web Worker, linting, tests and a pre-push check ho
 PixiJS canvas, simulated by the Rust engine in a worker, exported and imported
 as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
 
-**Phase 2 — 🔨 in progress** (branch `feat/phase-2-properties`). Editing
-comfort merged in PR #8. Component labels, the inspector and labelled pins done.
-Next: explicit junctions and nets (format v2).
+**Phase 2 — 🔨 in progress** (branch `feat/phase-2-nets`). Editing comfort
+(PR #8) and labels, inspector and labelled pins (PR #9) merged. Junctions and
+nets with file format v2 done. Next: custom reusable components (ADR).
 
 ## Phase 0 — Foundation ✅
 
@@ -119,7 +119,14 @@ Progress:
   pin; the readout and status bar use labels ("Switch A", "(AND carry)").
   No separate pin parts: switches and LEDs become a custom component's ports
   when that lands; duplicate pin names are checked then
-- ⬜ Explicit junctions and nets, better wire routing (format v2 + migration)
+- ✅ Junctions and nets (ADR 0010): file format v2 with a v1 migration; the
+  engine resolves nets through junctions and checks each net as a whole;
+  dropping a wire on a wire splits it with a junction (one undo step);
+  junctions are selected, dragged, copied and deleted like parts, and one left
+  without wires is removed; half-adder example uses junctions
+- ✅ Routing: wires leave ports horizontally and bend on a junction's column,
+  so junctions act as waypoints. Automatic avoidance of shared bend columns is
+  still to do
 - ⬜ Custom reusable components and nested definitions
 - ⬜ Multi-bit signals, buses, splitters
 - ⬜ 4-bit adder example and tests
@@ -170,7 +177,9 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 2 explicit junctions and nets, with better wire routing: file format v2
-with a migration from v1, and an ADR. Known limits still open: wires from
-different nets can share a bend column, no part rotation, no autosave, the
-inspector does not collapse on narrow screens yet.
+Phase 2 custom reusable components and nested definitions (ADR): a circuit's
+labelled switches and LEDs become the ports of a component definition, with a
+duplicate pin-name check. Known limits still open: port-to-port wires of
+different nets can share a bend column (add a junction to reroute), a wire
+cannot start from a junction (drag from a port onto it instead), no part
+rotation, no autosave, the inspector does not collapse on narrow screens yet.

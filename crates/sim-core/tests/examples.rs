@@ -2,7 +2,7 @@
 //! the engine. Expected outputs live here, never in the example files.
 
 use serde::Deserialize;
-use sim_core::description::{ComponentDesc, Connection};
+use sim_core::description::{ComponentDesc, Connection, JunctionDesc};
 use sim_core::{CircuitDescription, Simulator};
 
 /// The parts of a project file the engine needs; geometry is ignored.
@@ -14,6 +14,7 @@ struct Document {
 #[derive(Deserialize)]
 struct Circuit {
     components: Vec<ComponentDesc>,
+    junctions: Vec<JunctionDesc>,
     wires: Vec<Connection>,
 }
 
@@ -26,6 +27,7 @@ fn load(name: &str) -> Simulator {
     let document: Document = serde_json::from_str(&text).expect("valid project file");
     let description = CircuitDescription {
         components: document.circuit.components,
+        junctions: document.circuit.junctions,
         connections: document.circuit.wires,
     };
     let (sim, warnings) = Simulator::load(&description).expect("valid circuit");

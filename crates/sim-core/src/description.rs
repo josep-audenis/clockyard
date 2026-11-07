@@ -7,7 +7,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct CircuitDescription {
     pub components: Vec<ComponentDesc>,
+    /// Junction points joining wires into one net (ADR 0010).
+    #[serde(default)]
+    pub junctions: Vec<JunctionDesc>,
     pub connections: Vec<Connection>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct JunctionDesc {
+    pub id: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -16,13 +24,21 @@ pub struct ComponentDesc {
     pub kind: String,
 }
 
-/// A wire between two ports. Either end may be the output; the engine
-/// normalizes direction.
+/// A wire between two ends. Either end may be the output; the engine
+/// normalizes direction and joins wires that share a port or junction into nets.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Connection {
     pub id: String,
-    pub from: PortRef,
-    pub to: PortRef,
+    pub from: Endpoint,
+    pub to: Endpoint,
+}
+
+/// A wire end: a component port, or a junction (`{ "junction": id }`).
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(untagged)]
+pub enum Endpoint {
+    Port(PortRef),
+    Junction { junction: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]

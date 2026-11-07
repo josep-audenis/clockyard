@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use crate::catalog::Kind;
-use crate::description::{CircuitDescription, Code, Diagnostic, PortRef};
+use crate::description::{CircuitDescription, Code, Diagnostic, Endpoint};
 
 /// Net 0 is never driven: unconnected inputs read it as 0.
 const GROUND: u32 = 0;
@@ -32,9 +32,39 @@ pub struct Simulator {
     unsettled: Vec<u32>,
 }
 
+/// A node of the connection graph: a component port or a junction.
+#[derive(Clone, Copy)]
 enum End {
     Out(usize),
     In(usize, usize),
+    Junction,
+}
+
+/// Union-find root of `node`, halving paths on the way.
+fn find(parent: &mut [usize], mut node: usize) -> usize {
+    while parent[node] != node {
+        parent[node] = parent[parent[node]];
+        node = parent[node];
+    }
+    node
+}
+
+/// "wire w0 connects" or "wires w0, w1 connect".
+fn wires_verb(wires: &[String], verb: &str) -> String {
+    let (s, verb_s) = if wires.len() == 1 {
+        ("", "s")
+    } else {
+        ("s", "")
+    };
+    format!("wire{s} {} {verb}{verb_s}", wires.join(", "))
+}
+
+/// One net as joined by wires: its outputs, inputs (component, slot) and wires.
+#[derive(Default)]
+struct Group<'a> {
+    outputs: Vec<usize>,
+    inputs: Vec<(usize, usize)>,
+    wires: Vec<&'a str>,
 }
 
 impl Simulator {
@@ -70,23 +100,46 @@ impl Simulator {
                 ));
             }
         }
+        // Graph nodes: every port, inputs before the output, then every junction.
+        let mut ends = Vec::new();
+        let mut base = Vec::new();
+        for (c, kind) in kinds.iter().enumerate() {
+            base.push(ends.len());
+            ends.extend((0..kind.inputs().len()).map(|slot| End::In(c, slot)));
+            if !kind.outputs().is_empty() {
+                ends.push(End::Out(c));
+            }
+        }
+        let mut junctions = BTreeMap::new();
+        for junction in &description.junctions {
+            let id = junction.id.as_str();
+            if junctions.contains_key(id) || ids.binary_search(&junction.id).is_ok() {
+                let message = format!("junction ID {id} is used more than once");
+                errors.push(Diagnostic::error(
+                    Code::DuplicateId,
+                    message,
+                    vec![id.into()],
+                ));
+            } else {
+                junctions.insert(id, ends.len());
+                ends.push(End::Junction);
+            }
+        }
         // Wire errors against unknown components would only repeat these.
         if !errors.is_empty() {
             return Err(errors);
         }
 
-        let mut net_count = 1;
-        let outputs: Vec<Option<u32>> = kinds
-            .iter()
-            .map(|kind| {
-                (!kind.outputs().is_empty()).then(|| {
-                    net_count += 1;
-                    net_count - 1
-                })
-            })
-            .collect();
-
-        let resolve = |wire: &str, port: &PortRef| -> Result<End, Diagnostic> {
+        let resolve = |wire: &str, end: &Endpoint| -> Result<usize, Diagnostic> {
+            let port = match end {
+                Endpoint::Port(port) => port,
+                Endpoint::Junction { junction } => {
+                    return junctions.get(junction.as_str()).copied().ok_or_else(|| {
+                        let message = format!("wire {wire} references unknown junction {junction}");
+                        Diagnostic::error(Code::UnknownComponent, message, vec![wire.into()])
+                    });
+                }
+            };
             let Ok(c) = ids.binary_search(&port.component) else {
                 let message = format!(
                     "wire {wire} references unknown component {}",
@@ -100,9 +153,9 @@ impl Simulator {
             };
             let kind = kinds[c];
             if kind.outputs().contains(&port.port.as_str()) {
-                Ok(End::Out(c))
+                Ok(base[c] + kind.inputs().len())
             } else if let Some(slot) = kind.inputs().iter().position(|name| *name == port.port) {
-                Ok(End::In(c, slot))
+                Ok(base[c] + slot)
             } else {
                 let message = format!(
                     "wire {wire}: {} {} has no port '{}'",
@@ -118,10 +171,9 @@ impl Simulator {
             }
         };
 
-        // Per component, per input slot: (driving net, wire ID).
-        let mut drivers: Vec<Vec<Option<(u32, &str)>>> =
-            kinds.iter().map(|k| vec![None; k.inputs().len()]).collect();
-        let mut wire_nets = BTreeMap::new();
+        // Join every port and junction that a wire connects (ADR 0010).
+        let mut parent: Vec<usize> = (0..ends.len()).collect();
+        let mut joined = Vec::new();
         let mut wire_ids = std::collections::BTreeSet::new();
         for wire in &description.connections {
             if !wire_ids.insert(wire.id.as_str()) {
@@ -133,52 +185,89 @@ impl Simulator {
                 ));
                 continue;
             }
-            let (driver, reader, slot) =
-                match (resolve(&wire.id, &wire.from), resolve(&wire.id, &wire.to)) {
-                    (Ok(End::Out(d)), Ok(End::In(r, s))) | (Ok(End::In(r, s)), Ok(End::Out(d))) => {
-                        (d, r, s)
-                    }
-                    (Ok(End::Out(_)), Ok(End::Out(_))) => {
-                        let message = format!("wire {} connects two outputs", wire.id);
-                        errors.push(Diagnostic::error(
-                            Code::OutputToOutput,
-                            message,
-                            vec![wire.id.clone()],
-                        ));
-                        continue;
-                    }
-                    (Ok(End::In(..)), Ok(End::In(..))) => {
-                        let message =
-                            format!("wire {} connects two inputs and has no driver", wire.id);
-                        errors.push(Diagnostic::error(
-                            Code::InputToInput,
-                            message,
-                            vec![wire.id.clone()],
-                        ));
-                        continue;
-                    }
-                    (from, to) => {
-                        errors.extend([from.err(), to.err()].into_iter().flatten());
-                        continue;
-                    }
-                };
-            let net = outputs[driver].expect("an output port has a net");
-            match drivers[reader][slot] {
-                // A duplicate wire from the same output is redundant, not a conflict.
-                Some((existing, _)) if existing == net => {}
-                Some((_, other)) => {
+            match (resolve(&wire.id, &wire.from), resolve(&wire.id, &wire.to)) {
+                (Ok(a), Ok(b)) => {
+                    let (ra, rb) = (find(&mut parent, a), find(&mut parent, b));
+                    parent[ra] = rb;
+                    joined.push((wire.id.as_str(), a));
+                }
+                (from, to) => errors.extend([from.err(), to.err()].into_iter().flatten()),
+            }
+        }
+        if !errors.is_empty() {
+            return Err(errors);
+        }
+
+        let mut groups: BTreeMap<usize, Group> = BTreeMap::new();
+        for (wire, node) in &joined {
+            let root = find(&mut parent, *node);
+            groups.entry(root).or_default().wires.push(wire);
+        }
+        for (node, end) in ends.iter().enumerate() {
+            let root = find(&mut parent, node);
+            // Ports no wire touches stay alone: an output drives nothing, an input reads 0.
+            let Some(group) = groups.get_mut(&root) else {
+                continue;
+            };
+            match *end {
+                End::Out(c) => group.outputs.push(c),
+                End::In(c, slot) => group.inputs.push((c, slot)),
+                End::Junction => {}
+            }
+        }
+
+        let mut net_count = 1;
+        let outputs: Vec<Option<u32>> = kinds
+            .iter()
+            .map(|kind| {
+                (!kind.outputs().is_empty()).then(|| {
+                    net_count += 1;
+                    net_count - 1
+                })
+            })
+            .collect();
+
+        // Per component, per input slot: the driving net.
+        let mut drivers: Vec<Vec<Option<u32>>> =
+            kinds.iter().map(|k| vec![None; k.inputs().len()]).collect();
+        let mut wire_nets = BTreeMap::new();
+        for group in groups.values() {
+            let wires: Vec<String> = group.wires.iter().map(|w| (*w).to_string()).collect();
+            let net = match (group.outputs.as_slice(), group.inputs.as_slice()) {
+                ([driver], _) => outputs[*driver].expect("an output port has a net"),
+                // A dangling branch: its input (if any) stays unconnected and reads 0.
+                ([], []) | ([], [_]) => GROUND,
+                ([], _) => {
+                    let message = format!(
+                        "{} inputs and nothing drives them",
+                        wires_verb(&wires, "connect")
+                    );
+                    errors.push(Diagnostic::error(Code::InputToInput, message, wires));
+                    continue;
+                }
+                (_, []) => {
+                    let message = format!("{} two outputs", wires_verb(&wires, "connect"));
+                    errors.push(Diagnostic::error(Code::OutputToOutput, message, wires));
+                    continue;
+                }
+                (_, [(reader, slot), ..]) => {
                     let message = format!(
                         "input {}.{} has more than one driver",
-                        ids[reader],
-                        kinds[reader].inputs()[slot]
+                        ids[*reader],
+                        kinds[*reader].inputs()[*slot]
                     );
-                    let culprits = vec![ids[reader].clone(), other.into(), wire.id.clone()];
+                    let mut culprits: Vec<String> =
+                        group.inputs.iter().map(|(c, _)| ids[*c].clone()).collect();
+                    culprits.dedup();
+                    culprits.extend(wires);
                     errors.push(Diagnostic::error(Code::MultipleDrivers, message, culprits));
                     continue;
                 }
-                None => drivers[reader][slot] = Some((net, &wire.id)),
+            };
+            for (reader, slot) in &group.inputs {
+                drivers[*reader][*slot] = Some(net);
             }
-            wire_nets.insert(wire.id.clone(), net);
+            wire_nets.extend(wires.into_iter().map(|w| (w, net)));
         }
         if !errors.is_empty() {
             return Err(errors);
@@ -194,7 +283,7 @@ impl Simulator {
             let mut nets = Vec::new();
             for (slot, driver) in slots.iter().enumerate() {
                 let name = kind.inputs()[slot];
-                let net = driver.map_or(GROUND, |(net, _)| net);
+                let net = driver.unwrap_or(GROUND);
                 if net == GROUND {
                     let message = format!("input {}.{name} is unconnected and reads 0", ids[c]);
                     warnings.push(Diagnostic::warning(
@@ -320,19 +409,26 @@ impl Simulator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::description::{ComponentDesc, Connection, Severity};
+    use crate::description::{ComponentDesc, Connection, JunctionDesc, PortRef, Severity};
 
-    fn port(spec: &str) -> PortRef {
-        let (component, port) = spec.split_once('.').expect("component.port");
-        PortRef {
-            component: component.into(),
-            port: port.into(),
+    /// "component.port", or a bare junction ID.
+    fn end(spec: &str) -> Endpoint {
+        match spec.split_once('.') {
+            Some((component, port)) => Endpoint::Port(PortRef {
+                component: component.into(),
+                port: port.into(),
+            }),
+            None => Endpoint::Junction {
+                junction: spec.into(),
+            },
         }
     }
 
-    /// Components as (id, kind); wires as ("from.port", "to.port"), IDs w0, w1, ….
+    /// Components as (id, kind); wires as ("from.port", "to.port") or junction IDs,
+    /// with IDs w0, w1, …. Junctions are declared with `with_junctions`.
     fn circuit(components: &[(&str, &str)], wires: &[(&str, &str)]) -> CircuitDescription {
         CircuitDescription {
+            junctions: Vec::new(),
             components: components
                 .iter()
                 .map(|(id, kind)| ComponentDesc {
@@ -345,8 +441,8 @@ mod tests {
                 .enumerate()
                 .map(|(i, (from, to))| Connection {
                     id: format!("w{i}"),
-                    from: port(from),
-                    to: port(to),
+                    from: end(from),
+                    to: end(to),
                 })
                 .collect(),
         }
@@ -597,5 +693,115 @@ mod tests {
         let mut sim = load(&and_demo());
         assert!(sim.set_input("g", true).is_err());
         assert!(sim.set_input("missing", true).is_err());
+    }
+
+    fn with_junctions(mut description: CircuitDescription, ids: &[&str]) -> CircuitDescription {
+        description.junctions = ids
+            .iter()
+            .map(|id| JunctionDesc { id: (*id).into() })
+            .collect();
+        description
+    }
+
+    #[test]
+    fn a_junction_fans_one_output_out_and_every_wire_reports_its_net() {
+        // a ─ j ─┬─ g.a
+        //        └─ g.b   (and the LED reads g)
+        let description = with_junctions(
+            circuit(
+                &[("a", "switch"), ("g", "and"), ("l", "led")],
+                &[
+                    ("a.out", "j"),
+                    ("j", "g.a"),
+                    ("g.b", "j"),
+                    ("g.out", "l.in"),
+                ],
+            ),
+            &["j"],
+        );
+        let mut sim = load(&description);
+        for a in [0, 1] {
+            sim.set_input("a", a == 1).unwrap();
+            assert_eq!(value(&sim, "l", "in"), a, "a AND a = a");
+            for wire in ["w0", "w1", "w2"] {
+                assert_eq!(sim.nets()[sim.wire_nets()[wire] as usize], a, "{wire}");
+            }
+        }
+    }
+
+    #[test]
+    fn junctions_chain_and_a_dangling_branch_reads_zero() {
+        // a ─ j1 ─ j2 ─ l, plus a stub j2 ─ j3 and an input n.in on its own branch j4.
+        let description = with_junctions(
+            circuit(
+                &[("a", "switch"), ("l", "led"), ("n", "not"), ("m", "led")],
+                &[
+                    ("a.out", "j1"),
+                    ("j1", "j2"),
+                    ("j2", "l.in"),
+                    ("j2", "j3"),
+                    ("n.in", "j4"),
+                    ("n.out", "m.in"),
+                ],
+            ),
+            &["j1", "j2", "j3", "j4"],
+        );
+        let (mut sim, warnings) = Simulator::load(&description).expect("valid circuit");
+        assert_eq!(
+            warnings
+                .iter()
+                .map(|d| (d.code, d.ids.clone()))
+                .collect::<Vec<_>>(),
+            vec![(Code::UnconnectedInput, vec!["n".to_string()])]
+        );
+        assert_eq!(sim.wire_nets()["w4"], GROUND);
+        sim.set_input("a", true).unwrap();
+        assert_eq!(value(&sim, "l", "in"), 1);
+        assert_eq!(
+            sim.nets()[sim.wire_nets()["w3"] as usize],
+            1,
+            "the stub is on a's net"
+        );
+        assert_eq!(value(&sim, "m", "in"), 1, "NOT of an unconnected input");
+    }
+
+    #[test]
+    fn nets_joined_through_junctions_are_checked_as_a_whole() {
+        let parts = [("a", "switch"), ("b", "switch"), ("g", "and"), ("l", "led")];
+        let cases = [
+            (
+                vec![("a.out", "j"), ("j", "b.out")],
+                Code::OutputToOutput,
+                vec!["w0", "w1"],
+            ),
+            (
+                vec![("g.a", "j"), ("j", "l.in")],
+                Code::InputToInput,
+                vec!["w0", "w1"],
+            ),
+            (
+                vec![("a.out", "j"), ("b.out", "k"), ("j", "g.a"), ("k", "g.a")],
+                Code::MultipleDrivers,
+                vec!["g", "w0", "w1", "w2", "w3"],
+            ),
+            (vec![("a.out", "gone")], Code::UnknownComponent, vec!["w0"]),
+        ];
+        for (wires, code, ids) in cases {
+            let description = with_junctions(circuit(&parts, &wires), &["j", "k"]);
+            let errors = Simulator::load(&description).unwrap_err();
+            assert_eq!(
+                errors
+                    .iter()
+                    .map(|d| (d.code, d.ids.clone()))
+                    .collect::<Vec<_>>(),
+                vec![(code, ids.iter().map(|id| id.to_string()).collect())],
+                "{wires:?}"
+            );
+        }
+        let clash = with_junctions(circuit(&parts, &[]), &["j", "j", "g"]);
+        assert_eq!(
+            codes(Simulator::load(&clash)),
+            vec![Code::DuplicateId, Code::DuplicateId]
+        );
     }
 }

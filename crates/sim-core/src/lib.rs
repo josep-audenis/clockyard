@@ -9,5 +9,5 @@ pub mod description;
 pub mod sim;
 
 pub use catalog::Kind;
-pub use description::{CircuitDescription, Code, Diagnostic, PortRef, Severity};
+pub use description::{CircuitDescription, Code, Diagnostic, Endpoint, PortRef, Severity};
 pub use sim::{PortNets, Simulator};

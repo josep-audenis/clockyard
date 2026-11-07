@@ -222,7 +222,7 @@ test("label parts in the inspector; labels name pins in the readout and status b
   await page.keyboard.press("l");
   await click(page, at(6, 1)); // LED at (5,0), in (5,1)
   await drag(page, at(2, 1), at(5, 1));
-  await expect(inspector).toContainText("Wires have no properties yet.");
+  await expect(inspector).toContainText("Wires and junctions have no properties yet.");
 
   // Enter commits.
   await click(page, at(1, 1)); // selects the switch and turns it on
@@ -268,4 +268,53 @@ test("label parts in the inspector; labels name pins in the readout and status b
   await page.locator('[data-testid="import-file"]').setInputFiles(file);
   await expectStates(page, { "Switch A": 0, "LED sum": 0 });
   await expect(status(page)).toContainText("(AND half)");
+});
+
+test("the half-adder example fans its inputs out through junctions", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("half-adder"));
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+
+  // Switch A at (0,0), B at (0,10); each feeds the XOR and the AND through one junction.
+  const switches = { a: 0, b: 0 };
+  for (const [a, b] of [[0, 0], [0, 1], [1, 0], [1, 1]] as const) {
+    if (switches.a !== a) await click(page, at(1, 1));
+    if (switches.b !== b) await click(page, at(1, 11));
+    Object.assign(switches, { a, b });
+    await expectStates(page, { "Switch A": a, "Switch B": b, "LED Sum": a ^ b, "LED Carry": a & b });
+  }
+});
+
+test("drop a wire on a wire to branch it at a junction; move and delete the junction", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0), out (2,1)
+  await page.keyboard.press("l");
+  await click(page, at(11, 1)); // LED 1 at (10,0), in (10,1)
+  await page.keyboard.press("l");
+  await click(page, at(11, 7)); // LED 2 at (10,6), in (10,7)
+  await drag(page, at(2, 1), at(10, 1));
+
+  // From LED 2's input onto the middle of the first wire: a junction at (6,1) joins them.
+  await drag(page, at(10, 7), at(6, 1.2));
+  await click(page, at(1, 1));
+  await expectStates(page, { "Switch 1": 1, "LED 1": 1, "LED 2": 1 });
+  await expect(status(page)).toContainText("Settled");
+
+  // The branch is one undo step.
+  await page.keyboard.press("Control+z");
+  await expectStates(page, { "LED 1": 1, "LED 2": 0 });
+  await page.keyboard.press("Control+Shift+z");
+  await expectStates(page, { "LED 2": 1 });
+
+  // Drag the junction down: connections hold. Then delete it: its three wires go.
+  await drag(page, at(6, 1), at(6, 4));
+  await expectStates(page, { "LED 1": 1, "LED 2": 1 });
+  await click(page, at(6, 4));
+  await page.keyboard.press("Delete");
+  await expectStates(page, { "Switch 1": 1, "LED 1": 0, "LED 2": 0 });
+  await page.keyboard.press("Control+z");
+  await expectStates(page, { "LED 1": 1, "LED 2": 1 });
 });

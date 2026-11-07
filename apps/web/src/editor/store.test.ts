@@ -1,4 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
+import { endOwner } from "./document";
 import { useEditor } from "./store";
 
 const initial = useEditor.getState();
@@ -66,8 +67,8 @@ test("load replaces the document and clears transient state", () => {
   const { add, toggle, load } = useEditor.getState();
   toggle(add("switch", { x: 0, y: 0 }));
   const metadata = { name: "Loaded", createdAt: "2026-01-01T00:00:00Z", modifiedAt: "2026-01-02T00:00:00Z" };
-  const circuit = { components: [], wires: [] };
-  load({ format: "clockyard", version: 1, metadata, circuit });
+  const circuit = { components: [], junctions: [], wires: [] };
+  load({ format: "clockyard", version: 2, metadata, circuit });
   const state = useEditor.getState();
   expect([state.metadata, state.circuit, state.selection, state.inputs]).toEqual([metadata, circuit, [], {}]);
 });
@@ -126,12 +127,12 @@ test("loading a document clears history", () => {
   const { add, load, undo } = useEditor.getState();
   add("switch", { x: 0, y: 0 });
   const metadata = { name: "x", createdAt: "", modifiedAt: "" };
-  load({ format: "clockyard", version: 1, metadata, circuit: { components: [], wires: [] } });
+  load({ format: "clockyard", version: 2, metadata, circuit: { components: [], junctions: [], wires: [] } });
   undo();
   expect(ids()).toEqual([]);
 });
 
-const wireEnds = () => useEditor.getState().circuit.wires.map((w) => [w.from.component, w.to.component]);
+const wireEnds = () => useEditor.getState().circuit.wires.map((w) => [endOwner(w.from), endOwner(w.to)]);
 
 test("move sets several positions in one update", () => {
   const { add, move } = useEditor.getState();
@@ -274,4 +275,88 @@ test("setLabel turns control characters into spaces, drops invisible ones and ne
   const smile = String.fromCodePoint(0x1f600);
   setLabel(s, "x".repeat(31) + smile + "y");
   expect(label()).toBe("x".repeat(31) + smile);
+});
+
+const junction = (id: string) => ({ junction: id });
+
+test("dropping a wire on a wire splits it with a junction, as one undo step", () => {
+  const { add, connect, connectToWire, undo } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const l = add("led", { x: 8, y: 0 });
+  const m = add("led", { x: 8, y: 6 });
+  const w = connect(port(s, "out"), port(l, "in")) ?? "";
+  const branch = connectToWire(port(m, "in"), w, { x: 5, y: 1 });
+  const { circuit, selection } = useEditor.getState();
+  const [j] = circuit.junctions;
+  expect(j?.position).toEqual({ x: 5, y: 1 });
+  const id = j?.id ?? "";
+  expect(circuit.wires.map((wire) => [wire.from, wire.to])).toEqual([
+    [port(s, "out"), junction(id)], // the split wire keeps its ID on its first half
+    [junction(id), port(l, "in")],
+    [port(m, "in"), junction(id)],
+  ]);
+  expect(circuit.wires[0]?.id).toBe(w);
+  expect(selection).toEqual([branch]);
+  undo();
+  expect(useEditor.getState().circuit.junctions).toEqual([]);
+  expect(useEditor.getState().circuit.wires.map((wire) => wire.id)).toEqual([w]);
+});
+
+test("a wire is not split by one of its own ends, and wires can end on junctions", () => {
+  const { add, connect, connectToWire } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const l = add("led", { x: 8, y: 0 });
+  const w = connect(port(s, "out"), port(l, "in")) ?? "";
+  expect(connectToWire(port(l, "in"), w, { x: 4, y: 1 })).toBeNull();
+  expect(connectToWire(port(s, "out"), "missing", { x: 4, y: 1 })).toBeNull();
+  const m = add("led", { x: 8, y: 6 });
+  connectToWire(port(m, "in"), w, { x: 4, y: 1 });
+  const id = useEditor.getState().circuit.junctions[0]?.id ?? "";
+  const n = add("led", { x: 8, y: 9 });
+  expect(connect(port(n, "in"), junction(id))).not.toBeNull();
+  expect(connect(junction(id), port(n, "in"))).toBeNull(); // duplicate, other way round
+  expect(connect(junction(id), junction(id))).toBeNull();
+  expect(connect(junction("gone"), port(n, "in"))).toBeNull();
+});
+
+test("removing a junction removes its wires; a junction left without wires goes too", () => {
+  const { add, connect, connectToWire, remove } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const l = add("led", { x: 8, y: 0 });
+  const m = add("led", { x: 8, y: 6 });
+  const w = connect(port(s, "out"), port(l, "in")) ?? "";
+  connectToWire(port(m, "in"), w, { x: 4, y: 1 });
+  const id = useEditor.getState().circuit.junctions[0]?.id ?? "";
+  remove([id]);
+  expect(useEditor.getState().circuit.wires).toEqual([]);
+  useEditor.getState().undo();
+  // Deleting the three parts leaves the junction with no wires.
+  remove([s, l, m]);
+  expect(useEditor.getState().circuit).toEqual({ components: [], junctions: [], wires: [] });
+});
+
+test("junctions move, copy and paste with the parts around them", () => {
+  const { add, connect, connectToWire, select, selectAll, move, copy, paste } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const l = add("led", { x: 8, y: 0 });
+  const m = add("led", { x: 8, y: 6 });
+  const w = connect(port(s, "out"), port(l, "in")) ?? "";
+  connectToWire(port(m, "in"), w, { x: 4, y: 1 });
+  const id = useEditor.getState().circuit.junctions[0]?.id ?? "";
+  move({ [id]: { x: 5, y: 3 } });
+  expect(useEditor.getState().circuit.junctions[0]?.position).toEqual({ x: 5, y: 3 });
+  selectAll();
+  expect(useEditor.getState().selection).toHaveLength(7); // 3 parts, 1 junction, 3 wires
+  copy();
+  paste();
+  const { circuit } = useEditor.getState();
+  const [, copyOf] = circuit.junctions;
+  expect(copyOf?.position).toEqual({ x: 7, y: 5 });
+  const pasted = circuit.wires.slice(3);
+  expect(pasted).toHaveLength(3);
+  expect(pasted.filter((wire) => "junction" in wire.to || "junction" in wire.from).length).toBe(3);
+  expect(pasted.every((wire) => !("junction" in wire.to) || wire.to.junction === copyOf?.id)).toBe(true);
+  select([id]);
+  copy(); // a junction alone is not something to copy
+  expect(useEditor.getState().clipboard?.components).toHaveLength(3);
 });

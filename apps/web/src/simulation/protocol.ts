@@ -3,11 +3,15 @@
 // `description` module.
 
 export type PortRef = { component: string; port: string };
+export type JunctionRef = { junction: string };
+/** A wire end: a component port or a junction (ADR 0010). */
+export type Endpoint = PortRef | JunctionRef;
 
 /** Geometry-free engine input, projected from the circuit document. */
 export type CircuitDescription = {
   components: { id: string; kind: string }[];
-  connections: { id: string; from: PortRef; to: PortRef }[];
+  junctions: { id: string }[];
+  connections: { id: string; from: Endpoint; to: Endpoint }[];
 };
 
 export type Diagnostic = {

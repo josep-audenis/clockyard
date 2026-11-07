@@ -160,7 +160,8 @@ function PartsLibrary() {
         </section>
       ))}
       <p className="type-caption parts-hint">
-        Pick a part or press its key, then click the canvas to place it. Esc cancels. Drag empty space to select, Shift
+        Pick a part or press its key, then click the canvas to place it. Esc cancels. Drag from a port to wire it;
+        drop on a wire to branch it. Drag empty space to select, Shift
         to add; hold Space and drag to pan. <kbd className="kbd">{MOD}</kbd> <kbd className="kbd">C</kbd>{" "}
         <kbd className="kbd">X</kbd> <kbd className="kbd">V</kbd> <kbd className="kbd">D</kbd> <kbd className="kbd">A</kbd>{" "}
         copy, cut, paste, duplicate and select all. <kbd className="kbd">{MOD}</kbd>{" "}
@@ -206,7 +207,7 @@ function Inspector() {
             {selection.length === 0
               ? "Select a component to edit its properties."
               : selection.length === 1
-                ? "Wires have no properties yet."
+                ? "Wires and junctions have no properties yet."
                 : `${selection.length} items selected. Select one component to edit its properties.`}
           </p>
         )}

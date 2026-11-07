@@ -1,6 +1,6 @@
 {
   "format": "clockyard",
-  "version": 1,
+  "version": 2,
   "metadata": {
     "name": "Cascade with fan-out",
     "createdAt": "2026-11-06T12:00:00.000Z",
@@ -15,6 +15,7 @@
       { "id": "led-a", "kind": "led", "position": { "x": 12, "y": 10 }, "rotation": 0, "props": {} },
       { "id": "led-y", "kind": "led", "position": { "x": 19, "y": 4 }, "rotation": 0, "props": {} }
     ],
+    "junctions": [],
     "wires": [
       { "id": "w-a-x", "from": { "component": "a", "port": "out" }, "to": { "component": "x", "port": "a" } },
       { "id": "w-b-x", "from": { "component": "b", "port": "out" }, "to": { "component": "x", "port": "b" } },
