@@ -564,10 +564,12 @@ test("the 8-bit adder example adds two 8-bit values typed in the inspector", asy
   await expect(readout(page, "Switch A")).toHaveText("Switch A: 200 (0xC8)");
   await expect(readout(page, "LED Sum")).toHaveText("LED Sum: 44 (0x2C)");
   await expect(readout(page, "LED Cout")).toHaveText("LED Cout: on");
-  // Up steps B to 101; Cin adds one more.
+  // Up steps B to 101; Cin adds one more: 302 wraps to 46 and still carries out.
   await value.press("ArrowUp");
+  await expect(readout(page, "Switch B")).toHaveText("Switch B: 101 (0x65)");
   await click(page, at(1, 25));
   await expect(readout(page, "LED Sum")).toHaveText("LED Sum: 46 (0x2E)");
+  await expect(readout(page, "LED Cout")).toHaveText("LED Cout: on");
   await expect(status(page)).toContainText("Settled");
 });
 
@@ -590,8 +592,10 @@ test("an 8-bit switch wired to a 1-bit LED is a width mismatch until the LED is 
   await width.fill("8");
   await width.press("Enter");
   await expect(status(page)).toContainText("Settled");
+  const value = page.getByLabel("Value");
   await click(page, at(2.5, 1));
-  await page.getByLabel("Value").fill("0b1010_0101");
-  await page.getByLabel("Value").press("Enter");
+  await expect(value).toBeFocused();
+  await value.fill("0b1010_0101");
+  await value.press("Enter");
   await expect(readout(page, "LED 1")).toHaveText("LED 1: 165 (0xA5)");
 });

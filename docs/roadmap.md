@@ -19,8 +19,8 @@ Editing comfort, labels, junctions and nets, routing and rotation merged (PRs
 #8–#14). Custom components and the 4-bit adder target demo merged (PR #16);
 pins renamed safely by part ID (ADR 0013, file format v4); definitions can be
 renamed and deleted (ADR 0012 amendment). Multi-bit signals, buses and
-splitters (ADR 0014) are built: engine, boundary, format v5, editor and
-Playwright (PRs #26–#30 and the Playwright step). Named connections (net
+splitters (ADR 0014, still marked proposed) are built: engine, boundary,
+format v5, editor and Playwright (PRs #26–#31). Named connections (net
 labels, ADR 0015) are next.
 
 ## Phase 0 — Foundation ✅
@@ -160,8 +160,7 @@ Progress:
   topological order before the first settle (same results), so a
   95,000-gate NOT chain loads in about 0.25 s instead of 48 s (release)
 - ✅ Multi-bit signals, buses, splitters (ADR 0014, built in the five steps
-  below). Widths are 1
-  to 32 bits and are declared per part
+  below). Widths are 1 to 32 bits and are declared per part
   (`props.width` on switches, LEDs and gates). A net takes the width of its
   ports, and wires store none. Each net holds a `u32`, and the delta
   scheduler is unchanged. Gates are bitwise. A wide switch or LED is a
