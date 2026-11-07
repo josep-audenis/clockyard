@@ -14,14 +14,14 @@ the browser through WASM in a Web Worker, linting, tests and a pre-push check ho
 PixiJS canvas, simulated by the Rust engine in a worker, exported and imported
 as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
 
-**Phase 2 — 🔨 in progress** (branch `feat/custom-component-hardening`).
+**Phase 2 — 🔨 in progress.**
 Editing comfort, labels, junctions and nets, routing and rotation merged (PRs
 #8–#14). Custom components and the 4-bit adder target demo merged (PR #16);
 pins renamed safely by part ID (ADR 0013, file format v4); definitions can be
 renamed and deleted (ADR 0012 amendment). Multi-bit signals, buses and
-splitters are designed in ADR 0014 (proposed); the engine (PR #26),
-boundary (PR #27), format v5 (PR #28) and editor (PR #29 and splitters)
-steps are built; Playwright for the 8-bit adder is next.
+splitters (ADR 0014) are built: engine, boundary, format v5, editor and
+Playwright (PRs #26–#30 and the Playwright step). Named connections (net
+labels, ADR 0015) are next.
 
 ## Phase 0 — Foundation ✅
 
@@ -159,8 +159,8 @@ Progress:
 - ✅ Load time linear for logic that cannot reach a loop: it is evaluated in
   topological order before the first settle (same results), so a
   95,000-gate NOT chain loads in about 0.25 s instead of 48 s (release)
-- 🔨 Multi-bit signals, buses, splitters: designed in ADR 0014 (proposed);
-  steps 1–3 (engine, boundary, format v5) built, steps 4–5 not yet. Widths are 1
+- ✅ Multi-bit signals, buses, splitters (ADR 0014, built in the five steps
+  below). Widths are 1
   to 32 bits and are declared per part
   (`props.width` on switches, LEDs and gates). A net takes the width of its
   ports, and wires store none. Each net holds a `u32`, and the delta
@@ -211,8 +211,11 @@ Progress:
        `examples/`, checked natively and opened in the browser by hand
        (A = 200, B = 100 gives Sum 44 (0x2C), Cout on); step 5 makes that a
        Playwright test.
-  5. Playwright: the 8-bit adder in the browser, and a mismatch shown then
-     fixed.
+  5. ✅ Playwright (`apps/web/e2e/editor.e2e.ts`): the 8-bit adder example
+     opens, A and B are typed in the inspector (A = 200, B = 0x64 gives
+     Sum 44 (0x2C), Cout on; ↑ and Cin carry on to 46); and an 8-bit switch
+     wired to a 1-bit LED shows the width mismatch until the LED is 8 bits
+     too, after which it shows the switch's value.
 - 🔨 Named connections (net labels): designed in ADR 0015 (proposed), not
   built yet. A label is a junction with a `name`; same-named junctions on one
   sheet are one net, resolved by the engine in the level check and the flat
@@ -268,10 +271,10 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 2 multi-bit signals, buses and splitters, built in the steps above
-from ADR 0014, which also widens custom component pins. Named connections
-(net labels) are designed in ADR 0015 (proposed) and built after multi-bit
-signals. Make component drops wires that
+Phase 2 named connections (net labels), as designed in ADR 0015 (proposed),
+on top of format v5 and the width checks from ADR 0014. Multi-bit is done;
+editing several parts' widths at once, signed display and
+widths above 32 stay out of scope (ADR 0014). Make component drops wires that
 crossed the selection's edge. Pins can be relabelled
 freely (ADR 0013, format v4); deleting one leaves its wires reported as
 unknown ports. Known limits still
