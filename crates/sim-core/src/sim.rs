@@ -363,7 +363,10 @@ impl Simulator {
     /// the same deltas; and loop-free logic forgets its starting values after
     /// at most one delta per component, well inside the delta limit, so from
     /// then on every net matches the plain all-zero settle delta by delta.
+    /// This needs `eval` to be pure while settling: a component whose state
+    /// changes during a settle (a future flip-flop) must count as a loop here.
     fn presettle(&mut self) {
+        // Every net but ground is an output's; ground is skipped below.
         let mut driver = vec![0; self.nets.len()];
         for (c, net) in self.outputs.iter().enumerate() {
             if let Some(net) = net {

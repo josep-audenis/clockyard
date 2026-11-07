@@ -108,9 +108,9 @@ Properties:
   writes apply after the whole delta. Results cannot depend on which component
   runs first.
 - **Only affected logic is evaluated.** Untouched parts of the circuit cost nothing.
-- **Acyclic circuits** settle in at most *depth + 1* deltas. Topological
-  ordering is an optimization for acyclic regions only where it gives
-  identical results (see Initial state).
+- **Acyclic circuits** settle in at most *depth + 1* deltas. On load, logic
+  that cannot reach a loop is first evaluated in topological order (see
+  Initial state); results are identical.
 - **Feedback is allowed.** Stable feedback settles normally.
 - **Bounded.** The delta limit (default proportional to component count, with a
   floor) guarantees termination. An oscillating loop, such as a NOT gate fed
@@ -131,13 +131,16 @@ designs.
 On load and on reset, all nets start at `0`, every component is marked dirty,
 and the circuit settles. A lone NOT gate therefore outputs `1` immediately.
 
-Before that settle, every component that cannot reach a feedback loop is set
-to its settled value in topological order; otherwise a chain of *n* gates
+Before that settle, every component that cannot reach a feedback loop is
+evaluated once in topological order; otherwise a chain of *n* gates
 would take *n* deltas of shrinking waves (*n²/2* evaluations). Results are
 identical: no loop, nor anything feeding one, reads those components, so loops
 see the same deltas, glitches included (a pulse from the all-zero start can
 still set a latch); and loop-free logic forgets its starting values within one
-delta per component, inside the delta limit.
+delta per component, inside the delta limit. Logic feeding a loop still
+settles delta by delta from zero, since its glitches are real behaviour; a
+component whose state changes while settling (a Phase 3 flip-flop) will count
+as a loop for this.
 
 ### Unconnected inputs
 
