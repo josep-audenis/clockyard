@@ -1,6 +1,7 @@
 //! Clockyard simulation engine.
 //!
-//! Phase 1: 1-bit combinational logic. A [`CircuitDescription`] is validated
+//! Combinational logic on signals 1 to 32 bits wide, with custom components
+//! (ADRs 0012, 0014). A [`CircuitDescription`] is validated
 //! and compiled into a netlist by [`Simulator::load`], then settled with
 //! synchronous deltas as described in `docs/simulation-model.md`.
 

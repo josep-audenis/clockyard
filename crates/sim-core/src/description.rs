@@ -88,6 +88,13 @@ impl ComponentDesc {
             None => Vec::new(),
             Some(_) if !fielded => return Err(format!("a {} takes no fields", self.kind)),
             Some(list) if list.is_empty() => return Err("fields must not be empty".into()),
+            // Every field is at least 1 bit, so this also keeps the sum below from overflowing.
+            Some(list) if list.len() > MAX_WIDTH as usize => {
+                return Err(format!(
+                    "{} fields add up to more than {MAX_WIDTH} bits",
+                    list.len()
+                ));
+            }
             Some(list) => list
                 .iter()
                 .map(|&f| whole(f))

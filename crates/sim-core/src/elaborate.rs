@@ -299,10 +299,16 @@ fn check_wiring<'a>(
                 Role::Reads => net.reads += 1,
             }
             net.pin |= pin;
-            if net.widths.iter().all(|w| w.0 != width) {
-                net.widths.push((width, node));
+            // Name each width by its first port in (component, port) order, never by wire direction.
+            match net.widths.iter_mut().find(|w| w.0 == width) {
+                Some(w) if keys[node] < keys[w.1] => w.1 = node,
+                Some(_) => {}
+                None => net.widths.push((width, node)),
             }
         }
+    }
+    for net in &mut tally {
+        net.widths.sort_by_key(|&(_, node)| keys[node]);
     }
     // The wires of each net that breaks a rule, nets in order of their first wire.
     let mut broken: BTreeMap<usize, usize> = BTreeMap::new();

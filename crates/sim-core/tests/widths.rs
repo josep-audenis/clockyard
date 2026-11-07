@@ -190,22 +190,25 @@ fn wide_buffer(id: &str, out_width: u32) -> Value {
 
 #[test]
 fn an_instance_port_has_its_pin_width() {
-    let wrong = errors(&description(json!({
-        "components": [
-            { "id": "t", "kind": "switch" },
-            { "id": "i", "kind": "custom", "definition": "buf" },
-        ],
-        "connections": wires(&[("t.out", "i.a")]),
-        "definitions": [wide_buffer("buf", 8)],
-    })));
-    assert_eq!(found(&wrong), [(Code::WidthMismatch, vec!["w0", "t", "i"])]);
-    assert!(
-        wrong[0]
-            .message
-            .contains("`t.out` is 1 bit, `i.a` is 8 bits"),
-        "{}",
-        wrong[0].message
-    );
+    // Checked on the level before flattening; ports named in part ID order either way the wire runs.
+    for wire in [("t.out", "i.a"), ("i.a", "t.out")] {
+        let wrong = errors(&description(json!({
+            "components": [
+                { "id": "t", "kind": "switch" },
+                { "id": "i", "kind": "custom", "definition": "buf" },
+            ],
+            "connections": wires(&[wire]),
+            "definitions": [wide_buffer("buf", 8)],
+        })));
+        assert_eq!(found(&wrong), [(Code::WidthMismatch, vec!["w0", "i", "t"])]);
+        assert!(
+            wrong[0]
+                .message
+                .contains("`i.a` is 8 bits, `t.out` is 1 bit"),
+            "{}",
+            wrong[0].message
+        );
+    }
 
     // The same port wired to an 8-bit switch carries its value through.
     let mut sim = load(&description(json!({
@@ -252,6 +255,7 @@ fn bad_widths_and_fields_are_reported() {
         json!({ "id": "x", "kind": "split" }),
         json!({ "id": "x", "kind": "merge", "fields": [] }),
         json!({ "id": "x", "kind": "merge", "fields": [16, 17] }),
+        json!({ "id": "x", "kind": "merge", "fields": vec![1; 33] }),
         json!({ "id": "x", "kind": "split", "fields": [4, 0.5] }),
         json!({ "id": "x", "kind": "and", "fields": [1] }),
         json!({ "id": "x", "kind": "custom", "definition": "d", "width": 8 }),
