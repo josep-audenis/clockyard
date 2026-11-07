@@ -284,6 +284,51 @@ fn an_undriven_instance_input_joined_to_other_inputs_is_still_an_error() {
         found(wires(&[("w", "x.A", "x.B")])),
         vec![(Code::InputToInput, ids(&["w", "x"]))]
     );
+    // Even when nothing inside reads those inputs.
+    let unused = json!({
+        "id": "u",
+        "components": [{ "id": "p", "kind": "switch" }],
+        "connections": [],
+        "inputs": [{ "name": "p", "component": "p" }],
+        "outputs": []
+    });
+    let joined = |connections: Value| {
+        codes(json!({
+            "components": [
+                { "id": "x", "kind": "custom", "definition": "u" },
+                { "id": "y", "kind": "custom", "definition": "u" },
+                { "id": "g", "kind": "and" }
+            ],
+            "connections": connections,
+            "definitions": [unused.clone()]
+        }))
+    };
+    assert_eq!(
+        joined(wires(&[("w", "x.p", "y.p")])),
+        vec![(Code::InputToInput, ids(&["w"]))]
+    );
+    assert_eq!(
+        joined(wires(&[("w", "x.p", "g.a")])),
+        vec![(Code::InputToInput, ids(&["w"]))]
+    );
+    // Left alone, unused inputs are fine.
+    assert_eq!(joined(json!([])), vec![]);
+    // Inside a definition, output pins read: two shorted with nothing driving them, likewise an error.
+    let shorted = json!({
+        "id": "s",
+        "components": [{ "id": "o1", "kind": "led" }, { "id": "o2", "kind": "led" }],
+        "connections": wires(&[("w", "o1.in", "o2.in")]),
+        "inputs": [],
+        "outputs": [{ "name": "o1", "component": "o1" }, { "name": "o2", "component": "o2" }]
+    });
+    assert_eq!(
+        codes(json!({
+            "components": [{ "id": "x", "kind": "custom", "definition": "s" }],
+            "connections": [],
+            "definitions": [shorted]
+        })),
+        vec![(Code::InputToInput, ids(&["x"]))]
+    );
 }
 
 #[test]
