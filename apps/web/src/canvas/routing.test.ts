@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import type { Circuit, CircuitComponent, Wire } from "../editor/document";
 import type { Point } from "./geometry";
-import { routes } from "./routing";
+import { routes, routesKeeping } from "./routing";
 
 const part = (id: string, kind: CircuitComponent["kind"], x: number, y: number): CircuitComponent => ({
   id,
@@ -103,4 +103,61 @@ test("ends a million cells apart get the plain route at once instead of a huge s
     { x: 499_996, y: 999_991 },
     { x: 999_990, y: 999_991 },
   ]);
+});
+
+/** Unit edges of a route, as sortable keys. */
+const unitEdges = (points: Point[]) => {
+  const path = cells(points);
+  return path.slice(1).map((p, i) => [path[i], p].map((q) => `${q?.x},${q?.y}`).sort().join("|"));
+};
+
+test("in a crowded grid, wires of different nets never share a grid edge", () => {
+  const components: CircuitComponent[] = [];
+  const wires: Wire[] = [];
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) components.push(part(`g${r}${c}`, "and", c * 8, r * 7));
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 3; c++) {
+      wires.push(wire(`a${r}${c}`, `g${r}${c}.out`, `g${(r + 1) % 4}${c + 1}.a`));
+      wires.push(wire(`b${r}${c}`, `g${r}${c}.out`, `g${(r + 3) % 4}${c + 1}.b`));
+    }
+  }
+  const all = routes({ components, junctions: [], wires });
+  // Both wires from one output are one net; every other pair must keep apart.
+  const owner = new Map<string, string>();
+  for (const w of wires) {
+    const net = "component" in w.from ? w.from.component : "";
+    for (const e of unitEdges(all.get(w.id) ?? [])) {
+      const other = owner.get(e);
+      expect(other === undefined || other === net, `${w.id} runs along net ${other} at ${e}`).toBe(true);
+      owner.set(e, net);
+    }
+  }
+});
+
+test("while dragging, frozen wires keep their routes exactly", () => {
+  const all = routes(loop);
+  const frozen = new Map([["fwd", all.get("fwd") ?? []]]);
+  // The AND moves; only the feedback wire is routed again.
+  const moved: Circuit = { ...loop, components: [not, { ...and, position: { x: 8, y: 9 } }] };
+  const during = routesKeeping(moved, frozen);
+  expect(during.get("fwd")).toBe(frozen.get("fwd"));
+  expect(during.get("back")?.[0]).toEqual({ x: 12, y: 11 });
+});
+
+test("after an edit, wires it leaves alone keep their routes; wires it touches or crosses are routed again", () => {
+  const before = routes(loop);
+  // A new part far away: nothing changes.
+  const far: Circuit = { ...loop, components: [...loop.components, part("x", "switch", 40, 40)] };
+  const after = routes(far);
+  expect(after.get("fwd")).toBe(before.get("fwd"));
+  expect(after.get("back")).toBe(before.get("back"));
+  // A junction dropped onto the feedback wire's route, clear of the forward wire: only the feedback wire moves.
+  const fwdCells = new Set(cells(before.get("fwd") ?? []).map((p) => `${p.x},${p.y}`));
+  const back = cells(before.get("back") ?? []).slice(1, -1);
+  const onRoute = back.find((p) => !fwdCells.has(`${p.x},${p.y}`)) as Point;
+  const blocking: Circuit = { ...far, junctions: [{ id: "y", position: onRoute }] };
+  const rerouted = routes(blocking);
+  expect(rerouted.get("fwd")).toBe(before.get("fwd"));
+  expect(rerouted.get("back")).not.toBe(before.get("back"));
+  expect(cells(rerouted.get("back") ?? []).some((p) => p.x === onRoute.x && p.y === onRoute.y)).toBe(false);
 });

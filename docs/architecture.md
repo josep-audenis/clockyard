@@ -86,6 +86,8 @@ Rules:
 - A **junction** is a document object, not an overlap. Wires that share a port
   or junction form one net; the engine resolves nets (ADR 0010). Bus widths
   join the format with multi-bit signals.
+- `rotation` (0, 90, 180, 270, clockwise) turns a part about its box; the
+  canvas derives the turned port positions (`canvas/layout.ts`, `layoutOf`).
 - A wire's route is geometry only. It is routed on the grid automatically
   (`canvas/routing.ts`), unless the user shaped it: then its optional `bends`
   lists the route's interior grid points (at most 64; ADR 0011).

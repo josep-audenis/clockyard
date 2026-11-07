@@ -2,6 +2,7 @@
 // through `useEditor.getState()` / `subscribe`.
 import { create } from "zustand";
 import { simplify, stacksJunction } from "../canvas/geometry";
+import { layoutOf } from "../canvas/layout";
 import type { Endpoint } from "../simulation/protocol";
 import {
   endOwner,
@@ -11,6 +12,7 @@ import {
   normalizeLabel,
   sameEnd,
   type Circuit,
+  type CircuitComponent,
   type CircuitDocument,
   type ComponentKind,
 } from "./document";
@@ -39,6 +41,16 @@ export type EditorState = {
   shape: (wire: string, bends: Point[]) => void;
   /** Drops a wire's bends so it is routed automatically again; one edit, none if it had none. */
   resetRoute: (wire: string) => void;
+  /**
+   * Turns the given parts and junctions 90° clockwise (1) or counter-clockwise
+   * (-1) as a group, about the centre of their box, as one edit; bends of shaped
+   * wires between them turn too. A turn and its reverse cancel exactly. Refused
+   * when a port would land on a junction.
+   */
+  rotate: (ids: string[], turn: 1 | -1) => void;
+  /** Rotation the armed part will be placed with; R and Shift R turn it before placing. */
+  armedRotation: CircuitComponent["rotation"];
+  turnArmed: (turn: 1 | -1) => void;
   /** Adds a wire unless it joins an end to itself, duplicates a wire or names a missing part or junction. */
   connect: (from: Endpoint, to: Endpoint) => string | null;
   /**
@@ -73,6 +85,8 @@ export type EditorState = {
   record: () => void;
   undo: () => void;
   redo: () => void;
+  /** Like `undo`, but forgets the undone step: for a drag cancelled half-way. */
+  revert: () => void;
 };
 
 const now = new Date().toISOString();
@@ -184,7 +198,10 @@ export const useEditor = create<EditorState>()((set, get) => ({
   add: (kind, position) => {
     const id = crypto.randomUUID();
     set((state) => ({
-      ...edit(state, { ...state.circuit, components: [...state.circuit.components, { id, kind, position, rotation: 0, props: {} }] }),
+      ...edit(state, {
+        ...state.circuit,
+        components: [...state.circuit.components, { id, kind, position, rotation: state.armedRotation, props: {} }],
+      }),
       selection: [id],
       armed: null,
     }));
@@ -316,8 +333,56 @@ export const useEditor = create<EditorState>()((set, get) => ({
       else delete props.label;
       return edit(state, { ...state.circuit, components: state.circuit.components.map((c) => (c === part ? { ...c, props } : c)) });
     }),
+  rotate: (ids, turn) =>
+    set((state) => {
+      const { circuit } = state;
+      const chosen = new Set(ids);
+      const parts = circuit.components.filter((c) => chosen.has(c.id));
+      const dots = circuit.junctions.filter((j) => chosen.has(j.id));
+      if (parts.length + dots.length === 0) return state;
+      const corners = [
+        ...parts.flatMap((c) => {
+          const { width, height } = layoutOf(c);
+          return [c.position, { x: c.position.x + width, y: c.position.y + height }];
+        }),
+        ...dots.map((j) => j.position),
+      ];
+      // Twice the centre of the selection's box.
+      let sx = Math.min(...corners.map((p) => p.x)) + Math.max(...corners.map((p) => p.x));
+      let sy = Math.min(...corners.map((p) => p.y)) + Math.max(...corners.map((p) => p.y));
+      // Grid points stay grid points only if the centre's x and y are both whole or both halves.
+      // Nudging x on a clockwise turn and y on a counter-clockwise one makes each the other's inverse.
+      if ((sx - sy) % 2 !== 0) {
+        if (turn > 0) sx++;
+        else sy++;
+      }
+      const turnPoint = (p: Point): Point =>
+        turn > 0 ? { x: (sx + sy) / 2 - p.y, y: (sy - sx) / 2 + p.x } : { x: (sx - sy) / 2 + p.y, y: (sx + sy) / 2 - p.x };
+      const positions: Record<string, Point> = {};
+      const components = circuit.components.map((c) => {
+        if (!chosen.has(c.id)) return c;
+        const { width, height } = layoutOf(c);
+        const [a, b] = [turnPoint(c.position), turnPoint({ x: c.position.x + width, y: c.position.y + height })];
+        const position = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y) };
+        positions[c.id] = position;
+        return { ...c, rotation: ((c.rotation + 90 * turn + 360) % 360) as typeof c.rotation, position };
+      });
+      const junctions = circuit.junctions.map((j) => {
+        if (!chosen.has(j.id)) return j;
+        positions[j.id] = turnPoint(j.position);
+        return { ...j, position: positions[j.id] as Point };
+      });
+      const wires = circuit.wires.map((w) =>
+        w.bends && chosen.has(endOwner(w.from)) && chosen.has(endOwner(w.to)) ? { ...w, bends: w.bends.map(turnPoint) } : w,
+      );
+      const turned = { components, junctions, wires };
+      if (stacksJunction(turned, positions)) return state;
+      return edit(state, turned);
+    }),
+  armedRotation: 0,
+  turnArmed: (turn) => set(({ armedRotation }) => ({ armedRotation: ((armedRotation + 90 * turn + 360) % 360) as typeof armedRotation })),
   toggle: (id) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: inputs[id] === 1 ? 0 : 1 } })),
-  arm: (kind) => set({ armed: kind }),
+  arm: (kind) => set({ armed: kind, armedRotation: 0 }),
   load: ({ metadata, circuit }) => set({ metadata, circuit, selection: [], inputs: {}, armed: null, past: [], future: [] }),
 
   record: () => set(remember),
@@ -326,6 +391,12 @@ export const useEditor = create<EditorState>()((set, get) => ({
       const previous = state.past.at(-1);
       if (!previous) return state;
       return { ...withCircuit(state, previous), past: state.past.slice(0, -1), future: [state.circuit, ...state.future] };
+    }),
+  revert: () =>
+    set((state) => {
+      const previous = state.past.at(-1);
+      if (!previous) return state;
+      return { ...withCircuit(state, previous), past: state.past.slice(0, -1) };
     }),
   redo: () =>
     set((state) => {
