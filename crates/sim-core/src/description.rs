@@ -38,7 +38,7 @@ pub struct PinDesc {
     pub component: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
 pub struct JunctionDesc {
     pub id: String,
     /// Set by elaboration for a custom component's pin: a net reaching one but
@@ -46,6 +46,10 @@ pub struct JunctionDesc {
     /// level's own wiring was checked before flattening (ADR 0012).
     #[serde(skip)]
     pub pin: bool,
+    /// Set by elaboration on a pin: its pin part's width, so a wire that reaches
+    /// only the pin still reports it as its width (ADR 0014).
+    #[serde(skip)]
+    pub width: Option<u32>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]

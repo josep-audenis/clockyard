@@ -14,7 +14,7 @@ const ready = init().then(
   (error: unknown) => reply({ type: "error", message: `failed to load engine: ${String(error)}` }),
 );
 
-const state = (diagnostics: Diagnostic[]) => reply({ type: "state", nets: engine?.nets() ?? new Uint8Array(), diagnostics });
+const state = (diagnostics: Diagnostic[]) => reply({ type: "state", nets: engine?.nets() ?? new Uint32Array(), diagnostics });
 
 onmessage = async (event: MessageEvent<Command>) => {
   await ready;
@@ -33,7 +33,7 @@ onmessage = async (event: MessageEvent<Command>) => {
       }
       case "setInput":
         // After validation errors there is nothing to set; the client re-sends inputs with the next load.
-        if (hasCircuit) state(JSON.parse(engine.set_input(command.component, command.value === 1)));
+        if (hasCircuit) state(JSON.parse(engine.set_input(command.component, command.value)));
         break;
     }
   } catch (error) {

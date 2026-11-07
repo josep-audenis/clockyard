@@ -79,7 +79,17 @@ impl Kind {
 
     /// Whether the `fields` prop adds field ports `f0`, `f1`, … (split, merge).
     pub fn fielded(self) -> bool {
-        matches!(self, Kind::Split | Kind::Merge)
+        self.field_ports().is_some()
+    }
+
+    /// The naming rule for field ports: whether they are outputs (a split's)
+    /// or inputs (a merge's), and the prefix their index follows.
+    pub fn field_ports(self) -> Option<(bool, &'static str)> {
+        match self {
+            Kind::Split => Some((true, "f")),
+            Kind::Merge => Some((false, "f")),
+            _ => None,
+        }
     }
 
     /// Fixed input ports. A merge's field inputs come from `ports`.
@@ -114,10 +124,11 @@ impl Kind {
                 output,
             })
         };
-        let field_ports = fields.iter().enumerate().map(|(i, &width)| Port {
-            name: Cow::Owned(format!("f{i}")),
+        let (output, prefix) = self.field_ports().unwrap_or((false, ""));
+        let field_ports = fields.iter().enumerate().map(move |(i, &width)| Port {
+            name: Cow::Owned(format!("{prefix}{i}")),
             width,
-            output: self == Kind::Split,
+            output,
         });
         let mut ports: Vec<Port> = fixed(self.inputs(), false).collect();
         if self == Kind::Merge {

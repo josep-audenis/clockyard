@@ -27,6 +27,7 @@ pub struct Simulator {
     fanout: Vec<Vec<u32>>,
     nets: Vec<u32>,
     wire_nets: BTreeMap<String, u32>,
+    wire_widths: BTreeMap<String, u32>,
     port_nets: PortNets,
     /// Primitives still dirty when the last settle hit its delta limit; the
     /// next settle resumes them, so a live loop is reported until it resolves.
@@ -60,8 +61,8 @@ struct Prim {
 #[derive(Clone, Copy)]
 enum End {
     Port(usize, usize),
-    /// `true` for a custom component's pin.
-    Junction(bool),
+    /// `true` for a custom component's pin, with that pin's width.
+    Junction(bool, Option<u32>),
 }
 
 /// Union-find root of `node`, halving paths on the way.
@@ -112,6 +113,8 @@ struct Group<'a> {
     wires: Vec<&'a str>,
     /// Reaches a custom component's pin: with no output, a pin left unconnected.
     pin: bool,
+    /// The width of a pin it reaches, for a net with no port to take one from.
+    pin_width: Option<u32>,
 }
 
 impl Simulator {
@@ -184,7 +187,7 @@ impl Simulator {
                 ));
             } else {
                 junctions.insert(id, ends.len());
-                ends.push(End::Junction(junction.pin));
+                ends.push(End::Junction(junction.pin, junction.width));
             }
         }
         // Wire errors against unknown components would only repeat these.
@@ -288,7 +291,10 @@ impl Simulator {
                         group.inputs.push((c, slot));
                     }
                 }
-                End::Junction(pin) => group.pin |= pin,
+                End::Junction(pin, width) => {
+                    group.pin |= pin;
+                    group.pin_width = group.pin_width.or(width);
+                }
             }
         }
 
@@ -310,6 +316,7 @@ impl Simulator {
         }
 
         let mut wire_nets = BTreeMap::new();
+        let mut wire_widths = BTreeMap::new();
         for root in order {
             let group = &groups[&root];
             let mut wires: Vec<String> = group.wires.iter().map(|w| (*w).to_string()).collect();
@@ -366,6 +373,14 @@ impl Simulator {
             for &(reader, slot) in &group.inputs {
                 port_net[reader][slot] = net;
             }
+            // A net with no port takes a pin's width, or is 1 bit if it reaches only plain junctions.
+            let width = group
+                .widths
+                .first()
+                .map(|w| w.0)
+                .or(group.pin_width)
+                .unwrap_or(1);
+            wire_widths.extend(wires.iter().map(|w| (w.clone(), width)));
             wire_nets.extend(wires.into_iter().map(|w| (w, net)));
         }
         if !errors.is_empty() {
@@ -450,6 +465,7 @@ impl Simulator {
             fanout,
             nets: vec![0; net_count as usize],
             wire_nets,
+            wire_widths,
             port_nets,
             unsettled: Vec::new(),
         };
@@ -533,6 +549,12 @@ impl Simulator {
     /// Wire ID → net index, for coloring wires.
     pub fn wire_nets(&self) -> &BTreeMap<String, u32> {
         &self.wire_nets
+    }
+
+    /// Wire ID → width of its net. Undriven wires share ground (net 0), so a
+    /// wire's width cannot be read from its net index.
+    pub fn wire_widths(&self) -> &BTreeMap<String, u32> {
+        &self.wire_widths
     }
 
     pub fn port_nets(&self) -> &PortNets {
@@ -962,7 +984,7 @@ mod tests {
             .iter()
             .map(|id| JunctionDesc {
                 id: (*id).into(),
-                pin: false,
+                ..Default::default()
             })
             .collect();
         description

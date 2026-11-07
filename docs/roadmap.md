@@ -19,8 +19,8 @@ Editing comfort, labels, junctions and nets, routing and rotation merged (PRs
 #8–#14). Custom components and the 4-bit adder target demo merged (PR #16);
 pins renamed safely by part ID (ADR 0013, file format v4); definitions can be
 renamed and deleted (ADR 0012 amendment). Multi-bit signals, buses and
-splitters are designed in ADR 0014 (proposed); the engine step is built
-(branch `feat/multi-bit-engine`), the boundary is next.
+splitters are designed in ADR 0014 (proposed); the engine (PR #26) and
+boundary steps are built, format v5 is next.
 
 ## Phase 0 — Foundation ✅
 
@@ -159,7 +159,8 @@ Progress:
   topological order before the first settle (same results), so a
   95,000-gate NOT chain loads in about 0.25 s instead of 48 s (release)
 - 🔨 Multi-bit signals, buses, splitters: designed in ADR 0014 (proposed);
-  step 1 (engine) built, steps 2–5 not yet. Widths are 1 to 32 bits and are declared per part
+  steps 1 (engine) and 2 (boundary) built, steps 3–5 not yet. Widths are 1
+  to 32 bits and are declared per part
   (`props.width` on switches, LEDs and gates). A net takes the width of its
   ports, and wires store none. Each net holds a `u32`, and the delta
   scheduler is unchanged. Gates are bitwise. A wide switch or LED is a
@@ -176,12 +177,12 @@ Progress:
      for all 131,072 inputs. For now that adder is built in
      `tests/examples.rs` from the 4-bit adder's full-adder definition: a
      v5 file in `examples/` would fail the v4 import check, so the file
-     comes with step 3. Until step 2 the wasm adapter keeps its 1-bit
-     contract (`Uint8Array`, boolean `setInput`) and leaves `split` and
-     `merge` out of `catalog()`.
-  2. Boundary: `Uint32Array` net values, `wireWidths` in `loaded`, a
-     numeric `setInput` checked in `sim-wasm`, and `MAX_WIDTH`, `sized` and
-     `fieldPorts` in the catalog.
+     comes with step 3.
+  2. ✅ Boundary: `Uint32Array` net values, `wireWidths` in `loaded`, a
+     numeric `setInput` checked in `sim-wasm`, and `MAX_WIDTH`
+     (`max_width()`), `sized` and `fieldPorts` in the catalog. The editor
+     still projects no widths, so every net it loads is 1 bit; `split` and
+     `merge` are in the catalog but have no layouts until step 4.
   3. Format v5 with import checks (ranges, and props only on the kinds that
      take them); projection of `width` and `fields`; architecture and
      simulation-model docs updated to match.

@@ -440,7 +440,12 @@ impl<'a> Flat<'a> {
                     }
                 }
             } else if pins.contains_key(c.id.as_str()) {
-                self.out.junctions.push(JunctionDesc { id, pin: true });
+                let width = c.widths().ok().map(|(width, _)| width);
+                self.out.junctions.push(JunctionDesc {
+                    id,
+                    pin: true,
+                    width,
+                });
             } else {
                 self.out.components.push(ComponentDesc { id, ..c.clone() });
             }
@@ -453,7 +458,10 @@ impl<'a> Flat<'a> {
             if !self.grow(&id) {
                 return;
             }
-            self.out.junctions.push(JunctionDesc { id, pin: false });
+            self.out.junctions.push(JunctionDesc {
+                id,
+                ..Default::default()
+            });
         }
         for w in connections {
             let id = format!("{prefix}{}", w.id);
