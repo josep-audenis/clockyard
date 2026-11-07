@@ -5,6 +5,7 @@ import {
   MAX_BENDS,
   MAX_LABEL,
   normalizeLabel,
+  normalizeName,
   ROTATIONS,
   sameEnd,
   type CircuitComponent,
@@ -80,6 +81,13 @@ function readProps(props: Record<string, unknown>, where: string): Props {
   return label ? { label } : {};
 }
 
+/** A definition's name, held to what the editor stores (`normalizeName`); too long is refused, like a label. */
+function readName(value: unknown, where: string): string {
+  const name = normalizeLabel(text(value, where));
+  if ([...name].length > MAX_LABEL) throw new Error(`${where} is longer than ${MAX_LABEL} characters.`);
+  return normalizeName(name);
+}
+
 function readDocument(data: unknown): CircuitDocument {
   if (!isObject(data) || data.format !== "clockyard") throw new Error("This is not a Clockyard file.");
   const version = data.version;
@@ -108,7 +116,7 @@ function readDocument(data: unknown): CircuitDocument {
   });
   const definitions = shells.map(({ d, where, id: definitionId }): Definition => ({
     id: definitionId,
-    name: text(d.name, `${where} name`),
+    name: readName(d.name, `${where} name`),
     circuit: readCircuit(object(d.circuit, `${where} circuit`), `${where}: `, definitionIds),
   }));
 

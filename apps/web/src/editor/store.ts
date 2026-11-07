@@ -12,6 +12,7 @@ import {
   MAX_BENDS,
   MAX_LABEL,
   normalizeLabel,
+  normalizeName,
   sameEnd,
   type Circuit,
   type CircuitComponent,
@@ -89,6 +90,13 @@ export type EditorState = {
    * instance in its place, as one edit. Returns why it cannot, or null.
    */
   makeComponent: (name: string) => string | null;
+  /** Renames a definition (`normalizeName`). Outside undo history, like every definition change (ADR 0012). */
+  renameDefinition: (id: string, name: string) => void;
+  /**
+   * Deletes a definition unless `deleteRefusal` says why not; returns that reason, or null.
+   * Not undoable: undo steps that hold an instance of it are dropped, so none can bring one back (ADR 0012).
+   */
+  deleteDefinition: (id: string) => string | null;
   /** The definition open for editing, or null for the main circuit. */
   sheet: string | null;
   /** The main circuit and its history, kept aside while a definition is open. */
@@ -215,6 +223,22 @@ export function liveDefinitions(state: Pick<EditorState, "definitions" | "sheet"
 /** The main circuit, wherever the editor is. */
 export const mainCircuit = (state: Pick<EditorState, "main" | "circuit">) => state.main?.circuit ?? state.circuit;
 
+const uses = (circuit: Circuit, definition: string) => circuit.components.some((c) => c.definition === definition);
+
+/** Why a definition cannot be deleted: it is open, or an instance of it is on the main circuit or in another definition. */
+export function deleteRefusal(state: Pick<EditorState, "definitions" | "sheet" | "circuit" | "main">, id: string): string | null {
+  const definitions = liveDefinitions(state);
+  const target = definitions.find((d) => d.id === id);
+  if (!target) return null;
+  if (state.sheet === id) return `${target.name} is open: go back to the main circuit to delete it.`;
+  const users = [
+    ...(uses(mainCircuit(state), id) ? ["the main circuit"] : []),
+    ...definitions.filter((d) => d.id !== id && uses(d.circuit, id)).map((d) => d.name),
+  ];
+  if (users.length === 0) return null;
+  return `${target.name} is still used in ${new Intl.ListFormat("en").format(users)}. Delete those instances first.`;
+}
+
 const remember = (state: EditorState) => ({ past: [...state.past, state.circuit].slice(-HISTORY_LIMIT), future: [] });
 
 /** A document edit: undoable, and it clears redo. */
@@ -265,7 +289,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
     const shift = (p: Point) => ({ x: p.x - origin.x, y: p.y - origin.y });
     const definition: Definition = {
       id: crypto.randomUUID(),
-      name: [...(normalizeLabel(name) || "Component")].slice(0, MAX_LABEL).join(""),
+      name: normalizeName(name),
       circuit: {
         components: part.components.map((c) => ({ ...c, position: shift(c.position) })),
         junctions: part.junctions.map((j) => ({ ...j, position: shift(j.position) })),
@@ -291,6 +315,37 @@ export const useEditor = create<EditorState>()((set, get) => ({
         wires,
       };
       return { ...edit(s, circuit), definitions: [...s.definitions, definition], selection: [instance.id] };
+    });
+    return null;
+  },
+
+  renameDefinition: (id, name) =>
+    set((s) => {
+      const text = normalizeName(name);
+      if (!s.definitions.some((d) => d.id === id && d.name !== text)) return s;
+      return { definitions: s.definitions.map((d) => (d.id === id ? { ...d, name: text } : d)) };
+    }),
+
+  deleteDefinition: (id) => {
+    const refusal = deleteRefusal(get(), id);
+    if (refusal) return refusal;
+    set((s) => {
+      // Each step is a whole circuit, so dropping one only merges it into its neighbour.
+      const keep = (steps: Circuit[]) => steps.filter((c) => !uses(c, id));
+      const histories = Object.fromEntries(
+        Object.entries(s.histories)
+          .filter(([sheet]) => sheet !== id)
+          .map(([sheet, h]) => [sheet, { past: keep(h.past), future: keep(h.future) }]),
+      );
+      return {
+        definitions: s.definitions.filter((d) => d.id !== id),
+        past: keep(s.past),
+        future: keep(s.future),
+        main: s.main && { ...s.main, past: keep(s.main.past), future: keep(s.main.future) },
+        histories,
+        clipboard: s.clipboard && uses(s.clipboard, id) ? null : s.clipboard,
+        ...(s.armedDefinition === id ? { armed: null, armedDefinition: null } : {}),
+      };
     });
     return null;
   },

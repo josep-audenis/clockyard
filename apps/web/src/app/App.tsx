@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { definitionName } from "../canvas/layout";
 import { mountCanvas } from "../canvas/scene";
-import { contains, MAX_LABEL, normalizeLabel, type CircuitComponent, type ComponentKind, type PartKind } from "../editor/document";
-import { liveDefinitions, mainCircuit, useEditor } from "../editor/store";
+import { contains, MAX_LABEL, type CircuitComponent, type ComponentKind, type PartKind } from "../editor/document";
+import { deleteRefusal, liveDefinitions, mainCircuit, useEditor } from "../editor/store";
 import { connectEngine, useSim } from "../simulation/sync";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
 
@@ -147,6 +147,14 @@ function PartsLibrary() {
   const definitions = useEditor((s) => s.definitions);
   // On a definition's sheet, neither it nor anything containing it may be placed: that would contain itself.
   const chips = definitions.filter((d) => !sheet || !contains(definitions, d.id, sheet));
+  // The chip whose delete was refused; the reason is kept current, and goes once it no longer holds.
+  const [refused, setRefused] = useState<string | null>(null);
+  const error = useEditor((s) => (refused ? deleteRefusal(s, refused) : null));
+  const deleteChip = (id: string, name: string) => {
+    setRefused(id);
+    if (deleteRefusal(useEditor.getState(), id) || !window.confirm(`Delete the component ${name}? This cannot be undone.`)) return;
+    useEditor.getState().deleteDefinition(id);
+  };
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -187,22 +195,37 @@ function PartsLibrary() {
             Select a circuit with labelled switches and LEDs, then use Make component in the inspector.
           </p>
         ) : (
-          <div className="part-grid">
+          <ul className="chip-list">
             {chips.map((d) => {
               const on = armed === "custom" && armedDefinition === d.id;
               return (
-                <button
-                  key={d.id}
-                  type="button"
-                  className="part-tile type-label"
-                  aria-pressed={on}
-                  onClick={() => (on ? arm(null) : armChip(d.id))}
-                >
-                  {d.name}
-                </button>
+                <li key={d.id} className="chip-row">
+                  <button
+                    type="button"
+                    className="part-tile type-label"
+                    aria-pressed={on}
+                    onClick={() => (on ? arm(null) : armChip(d.id))}
+                  >
+                    {d.name}
+                  </button>
+                  <button
+                    type="button"
+                    className="chip-delete type-label"
+                    aria-label={`Delete ${d.name}`}
+                    title={`Delete ${d.name}`}
+                    onClick={() => deleteChip(d.id, d.name)}
+                  >
+                    ×
+                  </button>
+                </li>
               );
             })}
-          </div>
+          </ul>
+        )}
+        {error && (
+          <p className="field-hint field-error" role="alert">
+            {error}
+          </p>
         )}
       </section>
       <p className="type-caption parts-hint">
@@ -330,49 +353,70 @@ const PIN_HINT: Partial<Record<PartKind, string>> = {
   led: "Names this output pin of the circuit.",
 };
 
-function PartProperties({ part }: { part: CircuitComponent }) {
-  const saved = part.props.label ?? "";
+/**
+ * A text field committed on blur (Enter blurs) and cancelled by Escape: the design system's Field rule.
+ * Its parent remounts it (by `key`) when the stored value changes.
+ */
+function CommitField({ label, saved, hint, onCommit }: { label: string; saved: string; hint: string; onCommit: (value: string) => void }) {
   const [draft, setDraft] = useState(saved);
   /** Escape leaves the field without saving. */
   const cancelled = useRef(false);
   const id = useId();
   return (
+    <div className="field">
+      <label className="field-label" htmlFor={`${id}-input`}>
+        {label}
+      </label>
+      <input
+        id={`${id}-input`}
+        aria-describedby={`${id}-hint`}
+        className="input"
+        value={draft}
+        maxLength={MAX_LABEL}
+        spellCheck={false}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (!cancelled.current) onCommit(draft);
+          cancelled.current = false;
+          // Show what was stored: when normalizing leaves the value unchanged, nothing remounts the field.
+          setDraft(saved);
+        }}
+        onKeyDown={(e) => {
+          // Enter and Escape during IME composition pick or dismiss a candidate; they are not ours.
+          if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+          if (e.key !== "Enter" && e.key !== "Escape") return;
+          if (e.key === "Escape") cancelled.current = true;
+          e.currentTarget.blur();
+        }}
+      />
+      <p id={`${id}-hint`} className="field-hint">
+        {hint}
+      </p>
+    </div>
+  );
+}
+
+function PartProperties({ part }: { part: CircuitComponent }) {
+  const name = useEditor((s) => s.definitions.find((d) => d.id === part.definition)?.name);
+  return (
     <div className="inspector-body">
       <p className="type-label inspector-kind">{kindName(part)}</p>
-      <div className="field">
-        <label className="field-label" htmlFor={`${id}-label`}>
-          Label
-        </label>
-        <input
-          id={`${id}-label`}
-          aria-describedby={`${id}-hint`}
-          className="input"
-          value={draft}
-          maxLength={MAX_LABEL}
-          spellCheck={false}
-          onChange={(e) => setDraft(e.target.value)}
-          // Committed on blur (Enter blurs), as one undoable edit: the design system's Field rule.
-          onBlur={() => {
-            if (!cancelled.current) useEditor.getState().setLabel(part.id, draft);
-            cancelled.current = false;
-            // Show what was stored: when trimming leaves the label unchanged, nothing remounts the field.
-            setDraft((value) => (normalizeLabel(value) === saved ? saved : value));
-          }}
-          onKeyDown={(e) => {
-            // Enter and Escape during IME composition pick or dismiss a candidate; they are not ours.
-            if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-            if (e.key !== "Enter" && e.key !== "Escape") return;
-            if (e.key === "Escape") {
-              cancelled.current = true;
-              setDraft(saved);
-            }
-            e.currentTarget.blur();
-          }}
+      <CommitField
+        label="Label"
+        saved={part.props.label ?? ""}
+        hint={PIN_HINT[part.kind] ?? "Shown under the part on the canvas."}
+        // One undoable edit.
+        onCommit={(value) => useEditor.getState().setLabel(part.id, value)}
+      />
+      {part.definition && name !== undefined && (
+        <CommitField
+          key={name}
+          label="Component name"
+          saved={name}
+          hint="Renames the component everywhere it is used."
+          onCommit={(value) => part.definition && useEditor.getState().renameDefinition(part.definition, value)}
         />
-        <p id={`${id}-hint`} className="field-hint">
-          {PIN_HINT[part.kind] ?? "Shown under the part on the canvas."}
-        </p>
-      </div>
+      )}
       {part.kind === "custom" && part.definition && (
         <button
           type="button"
