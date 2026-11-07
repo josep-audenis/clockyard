@@ -324,6 +324,29 @@ fn every_wire_reports_its_net_width() {
 }
 
 #[test]
+fn a_wire_reaching_only_a_wide_pin_reports_the_pin_width() {
+    // Pin x of the instance is 8 bits and unused inside; wire w0 joins it to a bare junction.
+    let mut definition = wide_buffer("buf", 8);
+    definition["components"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({ "id": "x", "kind": "switch", "width": 8 }));
+    definition["inputs"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({ "name": "x", "component": "x" }));
+    let (sim, _) = Simulator::load(&description(json!({
+        "components": [{ "id": "i", "kind": "custom", "definition": "buf" }],
+        "junctions": [{ "id": "j" }],
+        "connections": wires(&[("i.x", "j")]),
+        "definitions": [definition],
+    })))
+    .unwrap();
+    assert_eq!(sim.wire_widths()["w0"], 8);
+    assert_eq!(sim.wire_nets()["w0"], 0, "undriven");
+}
+
+#[test]
 fn a_bus_loop_is_reported_unstable_naming_the_part_once() {
     let parts = json!([{ "id": "n", "kind": "not", "width": 8 }]);
     let (_, warnings) = Simulator::load(&circuit(parts, &[("n.out", "n.in")])).unwrap();

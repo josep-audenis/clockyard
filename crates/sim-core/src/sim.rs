@@ -61,8 +61,8 @@ struct Prim {
 #[derive(Clone, Copy)]
 enum End {
     Port(usize, usize),
-    /// `true` for a custom component's pin.
-    Junction(bool),
+    /// `true` for a custom component's pin, with that pin's width.
+    Junction(bool, Option<u32>),
 }
 
 /// Union-find root of `node`, halving paths on the way.
@@ -113,6 +113,8 @@ struct Group<'a> {
     wires: Vec<&'a str>,
     /// Reaches a custom component's pin: with no output, a pin left unconnected.
     pin: bool,
+    /// The width of a pin it reaches, for a net with no port to take one from.
+    pin_width: Option<u32>,
 }
 
 impl Simulator {
@@ -185,7 +187,7 @@ impl Simulator {
                 ));
             } else {
                 junctions.insert(id, ends.len());
-                ends.push(End::Junction(junction.pin));
+                ends.push(End::Junction(junction.pin, junction.width));
             }
         }
         // Wire errors against unknown components would only repeat these.
@@ -289,7 +291,10 @@ impl Simulator {
                         group.inputs.push((c, slot));
                     }
                 }
-                End::Junction(pin) => group.pin |= pin,
+                End::Junction(pin, width) => {
+                    group.pin |= pin;
+                    group.pin_width = group.pin_width.or(width);
+                }
             }
         }
 
@@ -368,8 +373,13 @@ impl Simulator {
             for &(reader, slot) in &group.inputs {
                 port_net[reader][slot] = net;
             }
-            // A net of junctions only has no port to take a width from: it is 1 bit.
-            let width = group.widths.first().map_or(1, |w| w.0);
+            // A net with no port takes a pin's width, or is 1 bit if it reaches only plain junctions.
+            let width = group
+                .widths
+                .first()
+                .map(|w| w.0)
+                .or(group.pin_width)
+                .unwrap_or(1);
             wire_widths.extend(wires.iter().map(|w| (w.clone(), width)));
             wire_nets.extend(wires.into_iter().map(|w| (w, net)));
         }
@@ -974,7 +984,7 @@ mod tests {
             .iter()
             .map(|id| JunctionDesc {
                 id: (*id).into(),
-                pin: false,
+                ..Default::default()
             })
             .collect();
         description

@@ -83,15 +83,19 @@ test("bus values cross as a Uint32Array; switch values are checked, never wrappe
   };
   const loaded = JSON.parse(engine.load(JSON.stringify(bus))) as Loaded;
   expect(loaded.diagnostics).toEqual([]);
+  const notOut = () => engine.nets()[loaded.portNets.n?.out ?? -1];
   engine.set_input("s", 0);
-  const nets = engine.nets();
-  expect(nets).toBeInstanceOf(Uint32Array);
-  expect(nets[loaded.portNets.n?.out ?? -1]).toBe(0xffffffff);
-  for (const bad of [2 ** 32, -1, 2.5, Number.NaN]) {
+  expect(engine.nets()).toBeInstanceOf(Uint32Array);
+  expect(notOut()).toBe(0xffffffff);
+  engine.set_input("s", 2 ** 32 - 1);
+  expect(notOut()).toBe(0);
+  // From a value no wrapped or truncated refusal could land back on.
+  engine.set_input("s", 0x12345678);
+  for (const bad of [2 ** 32, -1, 2.5, Number.NaN, Infinity]) {
     expect(() => engine.set_input("s", bad), String(bad)).toThrow("not a whole number");
   }
   expect(() => engine.set_input("b", 256)).toThrow("8 bits wide");
-  expect(engine.nets()[loaded.portNets.n?.out ?? -1]).toBe(0xffffffff);
+  expect(notOut()).toBe(0xedcba987);
 });
 
 test("every wire reports its net's width, an undriven bus included", () => {

@@ -116,8 +116,9 @@ impl Engine {
             .as_mut()
             .ok_or_else(|| JsError::new("no circuit loaded"))?;
         if value.fract() != 0.0 || !(0.0..=f64::from(u32::MAX)).contains(&value) {
+            // `{:?}` keeps 1e-300, inf and NaN short.
             let message = format!(
-                "switch value {value} is not a whole number from 0 to {}",
+                "switch value {value:?} is not a whole number from 0 to {}",
                 u32::MAX
             );
             return Err(JsError::new(&message));
