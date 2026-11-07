@@ -125,9 +125,9 @@ Progress:
 - ✅ Junctions and nets (ADR 0010): file format v2 with a v1 migration; the
   engine resolves nets through junctions and checks each net as a whole;
   dropping a wire on a wire splits it with a junction (one undo step);
-  junctions are selected, dragged, copied and deleted like parts, and one left
-  without wires is removed; dragging from an unselected junction draws a wire
-  from it (a selected one drags); a junction never lands on a port or another
+  junctions are selected, copied and deleted like parts, and one left without
+  wires is removed; a selected one drags like a part, and dragging from an
+  unselected one draws a wire from it; a junction never lands on a port or another
   junction: a drop there is refused, a drag shows the blocked cell in danger
   and waits at the last free one, paste or duplicate steps further on, and
   placing a part there is refused (its preview turns to the danger colour);

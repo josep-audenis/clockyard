@@ -2,7 +2,7 @@
 // spec. Reads the editor and engine stores outside React and redraws on change.
 // shortcut: the whole scene is redrawn per change; move to per-object updates when profiling says so.
 import { Application, Container, Graphics, Text } from "pixi.js";
-import { endOwner, type Circuit, type CircuitComponent } from "../editor/document";
+import { endOwner, sameEnd, type Circuit, type CircuitComponent } from "../editor/document";
 import { useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
 import { useSim } from "../simulation/sync";
@@ -524,7 +524,6 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       if (!placementStacks(editor.circuit, { ...part, position })) editor.add(part.kind, position);
     } else if (e.button === 0) {
       const hit = hitTest(editor.circuit, p, pick(), currentRoutes(editor.circuit));
-      // Parts and junctions are selected and dragged alike.
       const item = hit?.type === "component" || hit?.type === "junction" ? hit.id : undefined;
       const position = item && positionOf(editor.circuit, item);
       if (hit?.type === "port") {
@@ -636,7 +635,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const from = gesture.from;
       if (end?.wire) editor.connectToWire(from, end.wire, end.at);
       // Released on the junction it started from: a click, which selects it.
-      else if (end?.end && "junction" in from && "junction" in end.end && end.end.junction === from.junction) editor.select([from.junction]);
+      else if (end?.end && "junction" in from && sameEnd(from, end.end)) editor.select([from.junction]);
       else if (end?.end) editor.connect(from, end.end);
     }
     gesture = null;
