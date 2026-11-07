@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
-import { endOwner } from "./document";
+import { endOwner, type Circuit } from "./document";
 import { contains } from "./document";
 import { liveDefinitions, mainCircuit, useEditor } from "./store";
 import { layoutOf, pinLabel } from "../canvas/layout";
@@ -728,4 +728,111 @@ test("relabelling a pin inside a definition keeps the wires to it on every insta
   expect(useEditor.getState().circuit.wires.map((w) => w.to)).toEqual([port(x, i)]);
   expect(Object.keys(layoutOf(instance as never).inputs)).toEqual([i]);
   expect(pinLabel(id, i)).toBe("Data");
+});
+
+test("renaming a definition normalizes and caps the name like a label, also while its sheet is open", () => {
+  const { i, n, o } = inverter();
+  useEditor.getState().select([i, n, o]);
+  useEditor.getState().makeComponent("Inverter");
+  const id = useEditor.getState().definitions[0]?.id ?? "";
+  const name = () => useEditor.getState().definitions[0]?.name;
+  useEditor.getState().renameDefinition(id, "  Not\ngate ");
+  expect(name()).toBe("Not gate");
+  useEditor.getState().renameDefinition(id, "x".repeat(40));
+  expect(name()).toBe("x".repeat(32));
+  useEditor.getState().renameDefinition(id, "   ");
+  expect(name()).toBe("Component");
+  // Not an undo step: undo still takes back the make component.
+  const before = useEditor.getState().past.length;
+  useEditor.getState().renameDefinition(id, "Inverter");
+  expect(useEditor.getState().past).toHaveLength(before);
+  // On its own sheet, a rename keeps the edits made there.
+  useEditor.getState().openSheet(id);
+  useEditor.getState().add("led", { x: 9, y: 4 });
+  useEditor.getState().renameDefinition(id, "Buffer");
+  expect(liveDefinitions(useEditor.getState())[0]).toMatchObject({ name: "Buffer", circuit: { components: { length: 4 } } });
+});
+
+test("a definition is deleted only when nothing uses it; undo steps holding its instances go with it", () => {
+  const { i, n, o } = inverter();
+  useEditor.getState().select([i, n, o]);
+  useEditor.getState().makeComponent("Inverter");
+  const inner = useEditor.getState().definitions[0]?.id ?? "";
+  const instance = useEditor.getState().selection[0] ?? "";
+  // Placed on the main circuit: refused, and the reason names where.
+  expect(useEditor.getState().deleteDefinition(inner)).toBe("Inverter is still used in the main circuit. Delete those instances first.");
+  // Also placed inside another definition (with a pin of its own, which a component needs).
+  const pin = useEditor.getState().add("switch", { x: 0, y: 20 });
+  useEditor.getState().setLabel(pin, "P");
+  useEditor.getState().select([instance, pin]);
+  useEditor.getState().makeComponent("Outer");
+  const outer = useEditor.getState().definitions[1]?.id ?? "";
+  expect(useEditor.getState().deleteDefinition(inner)).toBe("Inverter is still used in Outer. Delete those instances first.");
+  // Open on its sheet: refused too.
+  useEditor.getState().openSheet(outer);
+  expect(useEditor.getState().deleteDefinition(outer)).toMatch(/is open/);
+  useEditor.getState().closeSheet();
+
+  // Outer's instance is the only use of it; once removed, Outer can go.
+  const outerInstance = useEditor.getState().circuit.components.find((c) => c.definition === outer)?.id ?? "";
+  useEditor.getState().select([outerInstance]);
+  useEditor.getState().copy();
+  useEditor.getState().armChip(outer);
+  useEditor.getState().remove([outerInstance]);
+  expect(useEditor.getState().deleteDefinition(outer)).toBeNull();
+  const state = useEditor.getState();
+  expect(state.definitions.map((d) => d.id)).toEqual([inner]);
+  expect([state.clipboard, state.armed, state.armedDefinition]).toEqual([null, null, null]);
+  expect(state.histories[outer]).toBeUndefined();
+  // No undo step can bring an instance of it back.
+  const all = [...state.past, ...state.future];
+  expect(all.some((c) => c.components.some((p) => p.definition === outer))).toBe(false);
+  while (useEditor.getState().past.length > 0) useEditor.getState().undo();
+  while (useEditor.getState().future.length > 0) useEditor.getState().redo();
+  expect(useEditor.getState().circuit.components.some((p) => p.definition === outer)).toBe(false);
+  // Inverter is free now too.
+  expect(useEditor.getState().deleteDefinition(inner)).toBeNull();
+  expect(useEditor.getState().definitions).toEqual([]);
+});
+
+test("deleting from another sheet drops steps holding its instances from the main circuit's and every sheet's history", () => {
+  const { i, n, o } = inverter();
+  useEditor.getState().select([i, n, o]);
+  useEditor.getState().makeComponent("Inverter");
+  const inner = useEditor.getState().definitions[0]?.id ?? "";
+  const x = useEditor.getState().selection[0] ?? "";
+  // Outer holds the Inverter instance; Other is just somewhere else to stand.
+  const p = useEditor.getState().add("switch", { x: 0, y: 20 });
+  useEditor.getState().setLabel(p, "P");
+  useEditor.getState().select([x, p]);
+  useEditor.getState().makeComponent("Outer");
+  const outer = useEditor.getState().definitions[1]?.id ?? "";
+  const q = useEditor.getState().add("switch", { x: 0, y: 30 });
+  useEditor.getState().setLabel(q, "Q");
+  useEditor.getState().select([q]);
+  useEditor.getState().makeComponent("Other");
+  const other = useEditor.getState().definitions[2]?.id ?? "";
+  // Remove the instance on Outer's sheet: now only undo steps hold one.
+  useEditor.getState().openSheet(outer);
+  useEditor.getState().remove([x]);
+  useEditor.getState().closeSheet();
+  useEditor.getState().openSheet(other);
+
+  const holds = (c: Circuit) => c.components.some((part) => part.definition === inner);
+  const before = useEditor.getState();
+  expect(before.main?.past.some(holds)).toBe(true);
+  expect(before.histories[outer]?.past.some(holds)).toBe(true);
+  expect(useEditor.getState().deleteDefinition(inner)).toBeNull();
+
+  // Every circuit undo or redo can reach, on the main circuit and on Outer's sheet.
+  const reachable = (): Circuit[] => {
+    const seen = [useEditor.getState().circuit];
+    while (useEditor.getState().past.length > 0) seen.push((useEditor.getState().undo(), useEditor.getState().circuit));
+    while (useEditor.getState().future.length > 0) seen.push((useEditor.getState().redo(), useEditor.getState().circuit));
+    return seen;
+  };
+  useEditor.getState().closeSheet();
+  expect(reachable().some(holds)).toBe(false);
+  useEditor.getState().openSheet(outer);
+  expect(reachable().some(holds)).toBe(false);
 });

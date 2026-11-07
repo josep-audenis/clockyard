@@ -17,9 +17,9 @@ as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
 **Phase 2 — 🔨 in progress** (branch `feat/custom-component-hardening`).
 Editing comfort, labels, junctions and nets, routing and rotation merged (PRs
 #8–#14). Custom components and the 4-bit adder target demo merged (PR #16);
-pins renamed safely by part ID (ADR 0013, file format v4). Multi-bit signals,
-buses and splitters are designed in ADR 0014 (proposed); building them is
-next.
+pins renamed safely by part ID (ADR 0013, file format v4); definitions can be
+renamed and deleted (ADR 0012 amendment). Multi-bit signals, buses and
+splitters are designed in ADR 0014 (proposed); building them is next.
 
 ## Phase 0 — Foundation ✅
 
@@ -150,6 +150,12 @@ Progress:
   on its own sheet (simulated on its own, own undo history); the engine
   flattens instances (own state each), refusing unknown or recursive
   definitions, bad pins and oversized expansions
+- ✅ Rename a definition from an instance's inspector; delete one from Chips
+  once nothing uses it (ADR 0012 amendment: not undoable, and undo steps
+  holding its instances are dropped)
+- ✅ Load time linear for logic that cannot reach a loop: it is evaluated in
+  topological order before the first settle (same results), so a
+  95,000-gate NOT chain loads in about 0.25 s instead of 48 s (release)
 - 🔨 Multi-bit signals, buses, splitters: designed in ADR 0014 (proposed),
   not built yet. Widths are 1 to 32 bits and are declared per part
   (`props.width` on switches, LEDs and gates). A net takes the width of its
@@ -225,8 +231,8 @@ analysis, plugin system, full game campaign during the MVP.
 
 Phase 2 multi-bit signals, buses and splitters, built in the steps above
 from ADR 0014, which also widens custom component pins. Named connections
-(net labels) still need their own decision. Custom components cannot yet be renamed or deleted, and Make
-component drops wires that crossed the selection's edge. Pins can be relabelled
+(net labels) still need their own decision. Make component drops wires that
+crossed the selection's edge. Pins can be relabelled
 freely (ADR 0013, format v4); deleting one leaves its wires reported as
 unknown ports. Known limits still
 open: a wire cannot start from a
