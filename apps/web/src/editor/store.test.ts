@@ -874,3 +874,45 @@ test("undo and redo keep a switch's value within the width it gets back", () => 
   redo();
   expect(useEditor.getState().inputs[s]).toBe(200 % 16);
 });
+
+test("a splitter starts with four 1-bit fields; setFields is one undo step and drops wires to fields that go", () => {
+  const { add, connect, setFields, setWidth, undo } = useEditor.getState();
+  const sp = add("split", { x: 0, y: 0 });
+  const l = add("led", { x: 8, y: 0 });
+  const k = add("led", { x: 8, y: 4 });
+  const part = () => useEditor.getState().circuit.components.find((c) => c.id === sp);
+  expect(part()?.props).toEqual({ fields: [1, 1, 1, 1] });
+  connect(port(sp, "f0"), port(l, "in"));
+  const far = connect(port(sp, "f3"), port(k, "in"));
+  const { past } = useEditor.getState();
+  for (const bad of [[], [0, 4], [16, 17], [1, 1, 1, 1]]) setFields(sp, bad);
+  setWidth(sp, 8);
+  expect(useEditor.getState().past).toBe(past);
+  setFields(sp, [4, 4]);
+  expect(part()?.props).toEqual({ fields: [4, 4] });
+  expect(useEditor.getState().circuit.wires.map((w) => w.id)).not.toContain(far);
+  expect(useEditor.getState().circuit.wires).toHaveLength(1);
+  undo();
+  expect(part()?.props).toEqual({ fields: [1, 1, 1, 1] });
+  expect(useEditor.getState().circuit.wires).toHaveLength(2);
+  setFields(l, [4, 4]);
+  expect(useEditor.getState().circuit.components.find((c) => c.id === l)?.props).toEqual({});
+});
+
+test("setFields takes up to 32 fields, keeps the bus wire, and drops a junction left with no wires", () => {
+  const { add, connect, connectToWire, setFields } = useEditor.getState();
+  const sp = add("split", { x: 0, y: 0 });
+  const s = add("switch", { x: -6, y: 0 });
+  const bus = connect(port(s, "out"), port(sp, "in"));
+  // A junction whose three wires all reach fields f1 to f3.
+  const between = connect(port(sp, "f1"), port(sp, "f2"));
+  if (!between) throw new Error("no wire");
+  connectToWire(port(sp, "f3"), between, { x: 5, y: 2 });
+  expect(useEditor.getState().circuit.junctions).toHaveLength(1);
+  setFields(sp, Array<number>(32).fill(1));
+  expect(useEditor.getState().circuit.components.find((c) => c.id === sp)?.props.fields).toHaveLength(32);
+  setFields(sp, [8]);
+  const { wires, junctions } = useEditor.getState().circuit;
+  expect(wires.map((w) => w.id)).toEqual([bus]);
+  expect(junctions).toEqual([]);
+});

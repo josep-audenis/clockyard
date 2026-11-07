@@ -20,8 +20,8 @@ Editing comfort, labels, junctions and nets, routing and rotation merged (PRs
 pins renamed safely by part ID (ADR 0013, file format v4); definitions can be
 renamed and deleted (ADR 0012 amendment). Multi-bit signals, buses and
 splitters are designed in ADR 0014 (proposed); the engine (PR #26),
-boundary (PR #27) and format v5 (PR #28) steps are built; in the editor,
-wide parts are built and splitters and mergers are next.
+boundary (PR #27), format v5 (PR #28) and editor (PR #29 and splitters)
+steps are built; Playwright for the 8-bit adder is next.
 
 ## Phase 0 — Foundation ✅
 
@@ -175,9 +175,8 @@ Progress:
      bitwise gates; the two new errors (per level before flattening, and
      per flat net); and a ranged `set_input`. Native tests
      (`crates/sim-core/tests/widths.rs`), including the 8-bit adder checked
-     for all 131,072 inputs. For now that adder is built in
-     `tests/examples.rs` from the 4-bit adder's full-adder definition; the
-     file in `examples/` comes with step 4, once splitters can be opened.
+     for all 131,072 inputs, now loaded from
+     `examples/8-bit-adder.clockyard.json` (step 4).
   2. ✅ Boundary: `Uint32Array` net values, `wireWidths` in `loaded`, a
      numeric `setInput` checked in `sim-wasm`, and `MAX_WIDTH`
      (`max_width()`), `sized` and `fieldPorts` in the catalog. The editor
@@ -199,10 +198,19 @@ Progress:
        hex tag on hover and "8 bits: 44, 0x2C" in the status bar; layouts
        depend on props, and a width edit that resizes a part re-routes its
        wires (a gate keeps its shape, so its wires keep their routes).
-     - Splitters and mergers: Fields in the inspector, Splitter and Merger
-       in the parts panel, their layouts with bit ranges, import with their
-       `fields` checks, an 8-way fan-out routing test, and the 8-bit adder
-       in `examples/`.
+     - ✅ Splitters and mergers: Splitter and Merger in a Wiring section
+       of the parts panel (four 1-bit fields when placed); Fields in the
+       inspector (a comma list, lowest bits first; one undo step that also
+       deletes wires to fields that go); bars 3 cells wide with each
+       field's bit range beside its port, outlined in `signal-bus`;
+       imported with their `fields` checks. A fields edit that keeps the
+       count keeps the routes, since the ports stay where they are. Fields
+       sit one cell apart: an
+       8-way fan-out routes without wires touching, so the 2-cell fallback
+       in ADR 0014 item 10 is not needed. The 8-bit adder is in
+       `examples/`, checked natively and opened in the browser by hand
+       (A = 200, B = 100 gives Sum 44 (0x2C), Cout on); step 5 makes that a
+       Playwright test.
   5. Playwright: the 8-bit adder in the browser, and a mismatch shown then
      fixed.
 - 🔨 Named connections (net labels): designed in ADR 0015 (proposed), not

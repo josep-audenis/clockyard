@@ -117,9 +117,12 @@ Rules:
   Switch positions and wide switch values are transient and never saved.
 - `props.width` (ADR 0014) is a whole number from 1 to 32, allowed only on
   switches, LEDs and gates; it sets every port's width. 1 is the default and
-  is not stored, so 1-bit circuits read as before. Import refuses a bad
-  width, a width on a custom component, and `fields` (splitters and mergers,
-  which the editor cannot draw yet). It is projected to the engine.
+  is not stored, so 1-bit circuits read as before. `props.fields` is required
+  on splitters (`split`) and mergers (`merge`) and allowed nowhere else: a
+  non-empty list of whole numbers of at least 1, lowest bits first, adding up
+  to at most 32 (a new one has `[1, 1, 1, 1]`). Import refuses a bad width or
+  fields, a width on a custom component, splitter or merger, and fields on
+  any other kind. Both are projected to the engine.
 - The other prop, `label`, is editor-only; the engine never sees it. It is one line of text, at most 32 characters, edited in the inspector
   and drawn under the part. Control characters become spaces, bidi and
   zero-width characters are removed and the ends are trimmed, both in the
@@ -138,7 +141,7 @@ file format evolve (migrations, layout fields) without touching Rust.
 ```ts
 // apps/web/src/simulation/protocol.ts ↔ sim-core `description`
 type CircuitBody = {
-  // width: from props.width (ADR 0014); fields (split, merge) once the editor has them.
+  // width and fields: from props.width and props.fields (ADR 0014).
   components: { id: string; kind: string; definition?: string; width?: number; fields?: number[] }[];
   junctions: { id: string }[];
   connections: { id: string; from: Endpoint; to: Endpoint }[]; // id = document wire ID
@@ -154,7 +157,7 @@ A connection may list its output end in either `from` or `to`. The engine
 joins every port and junction that connections share into nets and checks each
 net as a whole (`docs/simulation-model.md#nets`); `wireNets` reports the net of
 every wire, so the frontend never remaps IDs. Component `props` join the description when a kind needs
-one: today `width`; `label` stays in the editor.
+one: today `width` and `fields`; `label` stays in the editor.
 
 The projection is a pure function with unit tests.
 

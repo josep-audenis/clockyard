@@ -3,7 +3,17 @@
 // shortcut: the whole scene is redrawn per change; move to per-object updates when profiling says so.
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { create } from "zustand";
-import { endOwner, hex, sameEnd, type Circuit, type CircuitComponent } from "../editor/document";
+import {
+  DEFAULT_FIELDS,
+  endOwner,
+  fieldRanges,
+  hex,
+  isFielded,
+  newProps,
+  sameEnd,
+  type Circuit,
+  type CircuitComponent,
+} from "../editor/document";
 import { useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
 import { useSim } from "../simulation/sync";
@@ -280,8 +290,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     if (armed && pointer && !gesture) {
       const rotation = useEditor.getState().armedRotation;
       const definition = useEditor.getState().armedDefinition ?? undefined;
-      const shape = { kind: armed, rotation, definition, props: {} };
-      const ghost = { id: GHOST, ...shape, position: placement(shape, toWorld(pointer)), props: {} };
+      // A splitter or merger previews with the fields it will be placed with.
+      const shape = { kind: armed, rotation, definition, props: newProps(armed) };
+      const ghost = { id: GHOST, ...shape, position: placement(shape, toWorld(pointer)) };
       // Outlined in the danger colour where a click would be refused.
       drawBody(ghost, placementStacks(circuit, ghost), () => null);
       present.add(GHOST);
@@ -356,27 +367,35 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   // a custom component also shows its definition's name (unless labelled) and its pin names inside.
   function drawLabels(components: CircuitComponent[]) {
     const c = cell();
-    const label = (key: string, value: string, x: number, y: number, anchor: Point) => put(key, value, x * c, y * c, anchor);
+    const label = (key: string, value: string, x: number, y: number, anchor: Point, angle = 0) => {
+      put(key, value, x * c, y * c, anchor).angle = angle;
+    };
     for (const component of components) {
       const layout = layoutOf(component);
       const { x, y } = component.position;
       const caption = component.props.label ?? (component.kind === "custom" ? definitionName(component.definition) : undefined);
       if (caption) label(component.id, caption, x + layout.width / 2, y + layout.height + 6 / c, { x: 0.5, y: 0 });
-      if (component.kind !== "custom") continue;
-      // Pin names just inside the body, facing in from the side the port is on.
+      if (component.kind !== "custom" && !isFielded(component.kind)) continue;
+      // A chip's pin names, or a splitter's or merger's bit ranges ("7:4"), just inside the body,
+      // facing in from the side the port is on.
+      const ranges = fieldRanges(component.props.fields ?? DEFAULT_FIELDS);
+      const nameOf = (port: string) =>
+        component.kind === "custom" ? pinLabel(component.definition, port) : /^f\d+$/.test(port) ? ranges[Number(port.slice(1))] : "";
       for (const [port, p] of Object.entries({ ...layout.inputs, ...layout.outputs })) {
-        const name = pinLabel(component.definition, port);
+        const name = nameOf(port);
         if (!name) continue;
         const inset = 0.3;
-        const [dx, dy, anchor] =
+        // Ports on the top or bottom of a turned part sit one cell apart side by side: their
+        // names run up the body, reading inward, so neighbours never overlap.
+        const [dx, dy, anchor, angle] =
           p.x === 0
-            ? [inset, 0, { x: 0, y: 0.5 }]
+            ? [inset, 0, { x: 0, y: 0.5 }, 0]
             : p.x === layout.width
-              ? [-inset, 0, { x: 1, y: 0.5 }]
+              ? [-inset, 0, { x: 1, y: 0.5 }, 0]
               : p.y === 0
-                ? [0, inset, { x: 0.5, y: 0 }]
-                : [0, -inset, { x: 0.5, y: 1 }];
-        label(`${component.id}:${port}`, name, x + p.x + dx, y + p.y + dy, anchor);
+                ? [0, inset, { x: 1, y: 0.5 }, -90]
+                : [0, -inset, { x: 0, y: 0.5 }, -90];
+        label(`${component.id}:${port}`, name, x + p.x + dx, y + p.y + dy, anchor, angle);
       }
     }
   }
@@ -453,6 +472,13 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         }
         break;
       }
+      case "split":
+      case "merge":
+        // A bar outlined in the bus colour (CanvasKit: signal-bus paints buses and splitter bodies).
+        g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"])
+          .fill(body)
+          .stroke({ width: 1.5, color: culprit ? color.danger : color["signal-bus"] });
+        break;
       case "not":
         g.moveTo(x, y).lineTo(x + 2.5 * c, y + c).lineTo(x, y + 2 * c).closePath().fill(body).stroke(outline);
         bubble(x + 2.75 * c, y + c);

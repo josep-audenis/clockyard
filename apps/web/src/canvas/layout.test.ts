@@ -3,14 +3,11 @@ import { expect, test } from "vitest";
 import { catalog, initSync } from "../generated/sim-wasm/sim_wasm.js";
 import { LAYOUTS, layoutOf } from "./layout";
 
-type Part = { kind: string; inputs: string[]; outputs: string[]; fieldPorts?: unknown };
+type Part = { kind: string; inputs: string[]; outputs: string[]; fieldPorts?: { side: "inputs" | "outputs"; prefix: string } };
 
 test("every engine catalog kind has a layout with the same ports", () => {
   initSync({ module: readFileSync(new URL("../generated/sim-wasm/sim_wasm_bg.wasm", import.meta.url)) });
   const all = JSON.parse(catalog()) as Part[];
-  // shortcut: split and merge get layouts with the editor work (ADR 0014 step 4); until then they are
-  // the only kinds allowed to lack one. Step 4 also checks layout field-port names against `fieldPorts`.
-  expect(all.filter((p) => p.fieldPorts).map((p) => p.kind)).toEqual(["split", "merge"]);
   const parts = all.filter((p) => !p.fieldPorts).map(({ kind, inputs, outputs }) => ({ kind, inputs, outputs }));
   const fromLayouts = Object.entries(LAYOUTS).map(([kind, layout]) => ({
     kind,
@@ -18,6 +15,27 @@ test("every engine catalog kind has a layout with the same ports", () => {
     outputs: Object.keys(layout.outputs),
   }));
   expect(fromLayouts).toEqual(parts);
+
+  // Splitters and mergers: the fixed ports plus one per field, named by the catalog's rule (ADR 0014).
+  const fielded = all.filter((p) => p.fieldPorts);
+  expect(fielded.map((p) => p.kind)).toEqual(["split", "merge"]);
+  for (const { kind, inputs, outputs, fieldPorts } of fielded) {
+    for (const fields of [[1], [4, 4], Array<number>(8).fill(1), [32]]) {
+      const layout = layoutOf({ kind: kind as "split", rotation: 0, props: { fields } });
+      const named = fields.map((_, i) => `${fieldPorts?.prefix}${i}`);
+      const expected = fieldPorts?.side === "inputs" ? { inputs: [...inputs, ...named], outputs } : { inputs, outputs: [...outputs, ...named] };
+      expect({ inputs: Object.keys(layout.inputs), outputs: Object.keys(layout.outputs) }, `${kind} ${fields.join()}`).toEqual(expected);
+    }
+  }
+});
+
+test("a splitter or merger is a bar 3 wide and one taller than its fields; its layout follows their count", () => {
+  const split = layoutOf({ kind: "split", rotation: 0, props: { fields: [4, 4] } });
+  expect(split).toEqual({ width: 3, height: 3, inputs: { in: { x: 0, y: 1 } }, outputs: { f0: { x: 3, y: 1 }, f1: { x: 3, y: 2 } } });
+  const merge = layoutOf({ kind: "merge", rotation: 0, props: { fields: Array<number>(8).fill(1) } });
+  expect([merge.width, merge.height, merge.outputs.out, merge.inputs.f7]).toEqual([3, 9, { x: 3, y: 1 }, { x: 0, y: 8 }]);
+  expect(layoutOf({ kind: "split", rotation: 0, props: { fields: [2, 6] } })).toBe(split);
+  expect(layoutOf({ kind: "split", rotation: 0, props: {} }).height).toBe(5);
 });
 
 test("rotation turns a layout clockwise about its box, and four turns come back", () => {

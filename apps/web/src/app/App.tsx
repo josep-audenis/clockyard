@@ -3,7 +3,9 @@ import { definitionName } from "../canvas/layout";
 import { mountCanvas, useCanvasHints } from "../canvas/scene";
 import {
   contains,
+  fieldsProblem,
   hex,
+  isFielded,
   MAX_LABEL,
   MAX_WIDTH,
   maxValue,
@@ -32,6 +34,14 @@ const LIBRARY: { title: string; parts: Part[] }[] = [
       { kind: "nor", name: "NOR" },
       { kind: "xor", name: "XOR", key: "X" },
       { kind: "xnor", name: "XNOR" },
+    ],
+  },
+  {
+    // A bus taken apart into fields, or fields joined into a bus (ADR 0014).
+    title: "Wiring",
+    parts: [
+      { kind: "split", name: "Splitter" },
+      { kind: "merge", name: "Merger" },
     ],
   },
 ];
@@ -368,7 +378,19 @@ const PIN_HINT: Partial<Record<PartKind, string>> = {
  * A text field committed on blur (Enter blurs) and cancelled by Escape: the design system's Field rule.
  * Its parent remounts it (by `key`) when the stored value changes.
  */
-function CommitField({ label, saved, hint, onCommit }: { label: string; saved: string; hint: string; onCommit: (value: string) => void }) {
+function CommitField({
+  label,
+  saved,
+  hint,
+  onCommit,
+  maxLength = MAX_LABEL,
+}: {
+  label: string;
+  saved: string;
+  hint: string;
+  onCommit: (value: string) => void;
+  maxLength?: number;
+}) {
   const [draft, setDraft] = useState(saved);
   /** Escape leaves the field without saving. */
   const cancelled = useRef(false);
@@ -383,7 +405,7 @@ function CommitField({ label, saved, hint, onCommit }: { label: string; saved: s
         aria-describedby={`${id}-hint`}
         className="input"
         value={draft}
-        maxLength={MAX_LABEL}
+        maxLength={maxLength}
         spellCheck={false}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => {
@@ -419,7 +441,24 @@ function PartProperties({ part }: { part: CircuitComponent }) {
         // One undoable edit.
         onCommit={(value) => useEditor.getState().setLabel(part.id, value)}
       />
-      {part.kind !== "custom" && (
+      {isFielded(part.kind) && (
+        <CommitField
+          key={`fields:${part.props.fields?.join()}`}
+          label="Fields"
+          saved={(part.props.fields ?? []).join(", ")}
+          hint={fieldsHint(part.props.fields ?? [])}
+          // One undoable edit; it also removes wires to fields that go. Invalid lists change nothing.
+          // Room for 32 one-bit fields written "1, 1, …".
+          maxLength={4 * MAX_WIDTH}
+          onCommit={(value) => {
+            // Digits only, as in Width: no 0x4, 1e1 or 4.0.
+            const tokens = value.split(/[\s,]+/).filter(Boolean);
+            const fields = tokens.every((t) => /^\d+$/.test(t)) ? tokens.map(Number) : [];
+            if (!fieldsProblem(fields)) useEditor.getState().setFields(part.id, fields);
+          }}
+        />
+      )}
+      {part.kind !== "custom" && !isFielded(part.kind) && (
         <CommitField
           key={`width:${part.props.width ?? 1}`}
           label="Width"
@@ -450,6 +489,12 @@ function PartProperties({ part }: { part: CircuitComponent }) {
       )}
     </div>
   );
+}
+
+/** The Fields field's hint: what the list means and how wide the bus is. */
+function fieldsHint(fields: number[]) {
+  const total = fields.reduce((sum, f) => sum + f, 0);
+  return `Field widths, lowest bits first, separated by commas: ${total} of ${MAX_WIDTH} bits.`;
 }
 
 /**

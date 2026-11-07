@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { hex, parseValue, project, showValue, type Circuit } from "./document";
+import { fieldRanges, fieldsProblem, hex, parseValue, project, showValue, type Circuit } from "./document";
 
 test("projection keeps connectivity and widths, junctions included, and drops geometry and labels", () => {
   const circuit: Circuit = {
@@ -57,4 +57,20 @@ test("a typed value is decimal, 0x or 0b, and must fit the width", () => {
   expect(parseValue("0xFFFFFFFF", 32)).toBe(0xffffffff);
   expect(parseValue("4294967296", 32)).toBeNull();
   expect([hex(44, 8), hex(5, 12), hex(0xffffffff, 32), hex(1, 2)]).toEqual(["0x2C", "0x005", "0xFFFFFFFF", "0x1"]);
+});
+
+test("fields are checked like the engine checks them, and each shows its bit range", () => {
+  expect([[1, 1, 1, 1], [32], Array<number>(32).fill(1)].map(fieldsProblem)).toEqual([null, null, null]);
+  expect([[], [0], [2.5], [16, 17], Array<number>(33).fill(1), "8", null].map((f) => fieldsProblem(f) !== null)).toEqual(Array(7).fill(true));
+  expect(fieldRanges([1, 3, 4])).toEqual(["0", "3:1", "7:4"]);
+  expect(fieldRanges([8, 8, 8, 8])).toEqual(["7:0", "15:8", "23:16", "31:24"]);
+});
+
+test("projection copies a splitter's fields", () => {
+  const circuit: Circuit = {
+    components: [{ id: "sp", kind: "split", position: { x: 0, y: 0 }, rotation: 0, props: { fields: [4, 4] } }],
+    junctions: [],
+    wires: [],
+  };
+  expect(project(circuit).components).toEqual([{ id: "sp", kind: "split", fields: [4, 4] }]);
 });

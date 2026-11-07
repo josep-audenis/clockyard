@@ -2,9 +2,7 @@
 //! the engine. Expected outputs live here, never in the example files.
 
 use serde::Deserialize;
-use sim_core::description::{
-    ComponentDesc, Connection, DefinitionDesc, Endpoint, JunctionDesc, PinDesc, PortRef,
-};
+use sim_core::description::{ComponentDesc, Connection, DefinitionDesc, JunctionDesc, PinDesc};
 use sim_core::{CircuitDescription, Simulator};
 
 /// The parts of a project file the engine needs; geometry only orders pins.
@@ -33,6 +31,15 @@ struct Part {
     #[serde(flatten)]
     desc: ComponentDesc,
     position: Position,
+    #[serde(default)]
+    props: Props,
+}
+
+/// The props the editor projects to the engine (ADR 0014); `label` stays in the editor.
+#[derive(Default, Deserialize)]
+struct Props {
+    width: Option<f64>,
+    fields: Option<Vec<f64>>,
 }
 
 #[derive(Deserialize)]
@@ -64,7 +71,11 @@ fn description(name: &str) -> CircuitDescription {
     let parts = |c: &Circuit| {
         c.components
             .iter()
-            .map(|p| p.desc.clone())
+            .map(|p| ComponentDesc {
+                width: p.props.width,
+                fields: p.props.fields.clone(),
+                ..p.desc.clone()
+            })
             .collect::<Vec<_>>()
     };
     let definitions = document
@@ -157,86 +168,7 @@ fn four_bit_adder() {
 fn eight_bit_adder() {
     // ADR 0014: 8-bit A and B split into bits, eight instances of the 4-bit
     // adder's full-adder definition, the sums merged into one 8-bit LED.
-    // shortcut: built here from that definition until format v5 lets the
-    // editor open `examples/8-bit-adder.clockyard.json` (ADR 0014 step 3).
-    let definitions = description("4-bit-adder").definitions;
-    let part = |id: &str, kind: &str| ComponentDesc {
-        id: id.into(),
-        kind: kind.into(),
-        ..Default::default()
-    };
-    let bus = |id: &str, kind: &str| ComponentDesc {
-        width: Some(8.0),
-        ..part(id, kind)
-    };
-    let bits = |id: &str, kind: &str| ComponentDesc {
-        fields: Some(vec![1.0; 8]),
-        ..part(id, kind)
-    };
-    let mut components = vec![
-        bus("a", "switch"),
-        bus("b", "switch"),
-        part("cin", "switch"),
-        bits("sa", "split"),
-        bits("sb", "split"),
-        bits("ms", "merge"),
-        bus("sum", "led"),
-        part("cout", "led"),
-    ];
-    let mut wires = vec![
-        ("a", "out", "sa", "in"),
-        ("b", "out", "sb", "in"),
-        ("cin", "out", "fa0", "cin"),
-        ("fa7", "cout", "cout", "in"),
-        ("ms", "out", "sum", "in"),
-    ]
-    .into_iter()
-    .map(|(a, ap, b, bp)| {
-        (
-            (a.to_string(), ap.to_string()),
-            (b.to_string(), bp.to_string()),
-        )
-    })
-    .collect::<Vec<_>>();
-    for i in 0..8 {
-        let fa = format!("fa{i}");
-        let field = format!("f{i}");
-        components.push(ComponentDesc {
-            definition: Some("full-adder".into()),
-            ..part(&fa, "custom")
-        });
-        for (from, to) in [
-            (("sa", field.as_str()), (fa.as_str(), "a")),
-            (("sb", field.as_str()), (fa.as_str(), "b")),
-            ((fa.as_str(), "s"), ("ms", field.as_str())),
-        ] {
-            wires.push(((from.0.into(), from.1.into()), (to.0.into(), to.1.into())));
-        }
-        if i < 7 {
-            wires.push((
-                (fa.clone(), "cout".into()),
-                (format!("fa{}", i + 1), "cin".into()),
-            ));
-        }
-    }
-    let port = |(component, port): (String, String)| Endpoint::Port(PortRef { component, port });
-    let connections = wires
-        .into_iter()
-        .enumerate()
-        .map(|(i, (from, to))| Connection {
-            id: format!("w{i}"),
-            from: port(from),
-            to: port(to),
-        })
-        .collect();
-    let adder = CircuitDescription {
-        components,
-        junctions: Vec::new(),
-        connections,
-        definitions,
-    };
-    let (mut sim, warnings) = Simulator::load(&adder).expect("valid circuit");
-    assert_eq!(warnings, vec![]);
+    let mut sim = load("8-bit-adder");
     for a in 0..256 {
         sim.set_input("a", a).unwrap();
         for b in 0..256 {
