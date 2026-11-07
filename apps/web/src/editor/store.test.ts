@@ -874,3 +874,27 @@ test("undo and redo keep a switch's value within the width it gets back", () => 
   redo();
   expect(useEditor.getState().inputs[s]).toBe(200 % 16);
 });
+
+test("a splitter starts with four 1-bit fields; setFields is one undo step and drops wires to fields that go", () => {
+  const { add, connect, setFields, setWidth, undo } = useEditor.getState();
+  const sp = add("split", { x: 0, y: 0 });
+  const l = add("led", { x: 8, y: 0 });
+  const k = add("led", { x: 8, y: 4 });
+  const part = () => useEditor.getState().circuit.components.find((c) => c.id === sp);
+  expect(part()?.props).toEqual({ fields: [1, 1, 1, 1] });
+  connect(port(sp, "f0"), port(l, "in"));
+  const far = connect(port(sp, "f3"), port(k, "in"));
+  const { past } = useEditor.getState();
+  for (const bad of [[], [0, 4], [16, 17], [1, 1, 1, 1]]) setFields(sp, bad);
+  setWidth(sp, 8);
+  expect(useEditor.getState().past).toBe(past);
+  setFields(sp, [4, 4]);
+  expect(part()?.props).toEqual({ fields: [4, 4] });
+  expect(useEditor.getState().circuit.wires.map((w) => w.id)).not.toContain(far);
+  expect(useEditor.getState().circuit.wires).toHaveLength(1);
+  undo();
+  expect(part()?.props).toEqual({ fields: [1, 1, 1, 1] });
+  expect(useEditor.getState().circuit.wires).toHaveLength(2);
+  setFields(l, [4, 4]);
+  expect(useEditor.getState().circuit.components.find((c) => c.id === l)?.props).toEqual({});
+});

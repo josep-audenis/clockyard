@@ -3,7 +3,16 @@
 // Sizes follow the design system's CanvasKit spec; ports sit on grid points.
 // `LAYOUTS` is each kind unrotated; `layoutOf` applies a part's rotation.
 // A custom component's layout comes from its definition's pins (ADR 0012).
-import { pinsOf, type CircuitComponent, type ComponentKind, type Definition, type Props } from "../editor/document";
+import {
+  DEFAULT_FIELDS,
+  isFielded,
+  pinsOf,
+  type CircuitComponent,
+  type ComponentKind,
+  type Definition,
+  type FieldedKind,
+  type Props,
+} from "../editor/document";
 
 export type Point = { x: number; y: number };
 
@@ -16,7 +25,8 @@ export type Layout = {
 
 const gate: Layout = { width: 4, height: 4, inputs: { a: { x: 0, y: 1 }, b: { x: 0, y: 3 } }, outputs: { out: { x: 4, y: 2 } } };
 
-export const LAYOUTS: Record<ComponentKind, Layout> = {
+/** Every built-in kind but splitters and mergers, whose layout follows their fields (`bar`). */
+export const LAYOUTS: Record<Exclude<ComponentKind, FieldedKind>, Layout> = {
   switch: { width: 2, height: 2, inputs: {}, outputs: { out: { x: 2, y: 1 } } },
   led: { width: 2, height: 2, inputs: { in: { x: 0, y: 1 } }, outputs: {} },
   not: { width: 3, height: 2, inputs: { in: { x: 0, y: 1 } }, outputs: { out: { x: 3, y: 1 } } },
@@ -37,6 +47,19 @@ const WIDE: Partial<Record<ComponentKind, Layout>> = {
   switch: { width: 5, height: 2, inputs: {}, outputs: { out: { x: 5, y: 1 } } },
   led: { width: 5, height: 2, inputs: { in: { x: 0, y: 1 } }, outputs: {} },
 };
+
+/**
+ * A splitter or merger: a bar 3 cells wide and one cell taller than it has fields,
+ * the bus at (0, 1) for a split's `in` or (3, 1) for a merge's `out`, and field
+ * `fi` one cell apart on the other side, `f0` (the lowest bits) at the top (ADR 0014).
+ */
+function bar(kind: FieldedKind, count: number): Layout {
+  const side = kind === "split" ? 3 : 0;
+  const fields = Object.fromEntries(Array.from({ length: count }, (_, i) => [`f${i}`, { x: side, y: 1 + i }]));
+  return kind === "split"
+    ? { width: 3, height: count + 1, inputs: { in: { x: 0, y: 1 } }, outputs: fields }
+    : { width: 3, height: count + 1, inputs: fields, outputs: { out: { x: 3, y: 1 } } };
+}
 
 /** A layout turned 90° clockwise about its box: (x, y) in w×h goes to (h - y, x) in h×w. */
 function turned({ width, height, inputs, outputs }: Layout): Layout {
@@ -101,10 +124,21 @@ export function layoutOf({
   props,
 }: Pick<CircuitComponent, "kind" | "rotation" | "definition"> & { props?: Props }): Layout {
   const wide = kind !== "custom" && (props?.width ?? 1) > 1 ? WIDE[kind] : undefined;
-  const key = kind === "custom" ? `custom:${definition}:${rotation}` : `${kind}${wide ? ":wide" : ""}:${rotation}`;
+  const fields = (props?.fields ?? DEFAULT_FIELDS).length;
+  const key =
+    kind === "custom"
+      ? `custom:${definition}:${rotation}`
+      : isFielded(kind)
+        ? `${kind}:${fields}:${rotation}`
+        : `${kind}${wide ? ":wide" : ""}:${rotation}`;
   let layout = rotated.get(key);
   if (!layout) {
-    layout = kind === "custom" ? (custom.get(definition ?? "")?.layout ?? MISSING) : (wide ?? LAYOUTS[kind]);
+    layout =
+      kind === "custom"
+        ? (custom.get(definition ?? "")?.layout ?? MISSING)
+        : isFielded(kind)
+          ? bar(kind, fields)
+          : (wide ?? LAYOUTS[kind]);
     for (let r = 0; r < rotation; r += 90) layout = turned(layout);
     rotated.set(key, layout);
   }

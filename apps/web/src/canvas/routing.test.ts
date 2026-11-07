@@ -235,3 +235,19 @@ test("a width edit that resizes a part routes its wires again; one that does not
   const gate = { ...wide, components: wide.components.map((c) => (c.id === "g" ? widen(c) : c)) };
   expect(routes(gate).get("w")).toBe(route);
 });
+
+test("an 8-way splitter's field wires, one cell apart, route without touching each other", () => {
+  const split: CircuitComponent = { ...part("sp", "split", 0, 0), props: { fields: Array<number>(8).fill(1) } };
+  const leds = Array.from({ length: 8 }, (_, i) => part(`l${i}`, "led", 12, i * 3));
+  const wires = leds.map((l, i) => wire(`w${i}`, `sp.f${i}`, `${l.id}.in`));
+  const all = routes({ components: [split, ...leds], junctions: [], wires });
+  const owner = new Map<string, string>();
+  for (const w of wires) {
+    const points = all.get(w.id) ?? [];
+    expect(points.length, w.id).toBeGreaterThan(1);
+    for (const e of unitEdges(points)) {
+      expect(owner.get(e) ?? w.id, `${w.id} runs along ${owner.get(e)} at ${e}`).toBe(w.id);
+      owner.set(e, w.id);
+    }
+  }
+});

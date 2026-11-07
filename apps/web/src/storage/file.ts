@@ -2,6 +2,8 @@
 // Imported files are untrusted: every field is checked and unknown fields are dropped.
 import {
   COMPONENT_KINDS,
+  fieldsProblem,
+  isFielded,
   MAX_BENDS,
   MAX_LABEL,
   MAX_WIDTH,
@@ -82,9 +84,11 @@ function readProps(props: Record<string, unknown>, kind: PartKind, where: string
     if ([...label].length > MAX_LABEL) throw new Error(`${where} label is longer than ${MAX_LABEL} characters.`);
     if (label) read.label = label;
   }
-  // ADR 0014: a width only where it sets port widths; a custom component's pins set its own.
+  // ADR 0014: a width only where it sets port widths; a custom component's pins set its own,
+  // and a splitter's or merger's fields set its.
   if (props.width !== undefined) {
     if (kind === "custom") throw new Error(`${where} is a custom component, which takes no width.`);
+    if (isFielded(kind)) throw new Error(`${where} is a splitter or merger, which takes fields, not a width.`);
     const width = props.width;
     if (!Number.isInteger(width) || (width as number) < 1 || (width as number) > MAX_WIDTH) {
       throw new Error(`${where} width must be a whole number from 1 to ${MAX_WIDTH}.`);
@@ -92,8 +96,14 @@ function readProps(props: Record<string, unknown>, kind: PartKind, where: string
     // 1 is the default, so it is not stored and exports exactly as before.
     if (width !== 1) read.width = width as number;
   }
-  // shortcut: no kind that takes fields can be imported until splitters and mergers have layouts (ADR 0014 step 4).
-  if (props.fields !== undefined) throw new Error(`${where} has fields, which only splitters and mergers take.`);
+  if (isFielded(kind)) {
+    if (props.fields === undefined) throw new Error(`${where} is a splitter or merger without fields.`);
+    const problem = fieldsProblem(props.fields);
+    if (problem) throw new Error(`${where} fields ${problem}.`);
+    read.fields = [...(props.fields as number[])];
+  } else if (props.fields !== undefined) {
+    throw new Error(`${where} has fields, which only splitters and mergers take.`);
+  }
   return read;
 }
 

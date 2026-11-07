@@ -8,10 +8,13 @@ import type { Endpoint } from "../simulation/protocol";
 import {
   contains,
   endOwner,
+  fieldsProblem,
+  isFielded,
   isJunction,
   MAX_BENDS,
   MAX_LABEL,
   MAX_WIDTH,
+  newProps,
   normalizeLabel,
   normalizeName,
   sameEnd,
@@ -82,6 +85,11 @@ export type EditorState = {
   setLabel: (id: string, label: string) => void;
   /** Sets a switch's, LED's or gate's width (1 to `MAX_WIDTH`) as one edit; 1 removes the prop. A switch keeps the bits that still fit. */
   setWidth: (id: string, width: number) => void;
+  /**
+   * Sets a splitter's or merger's field widths (lowest bits first) as one edit, which also
+   * deletes the wires to field ports that no longer exist (ADR 0014). Invalid fields change nothing.
+   */
+  setFields: (id: string, fields: number[]) => void;
   toggle: (id: string) => void;
   /** Sets a wide switch's value, already checked against its width. Not an edit, like a toggle. */
   setInput: (id: string, value: number) => void;
@@ -277,7 +285,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   add: (kind, position) => {
     const id = crypto.randomUUID();
     set((state) => {
-      const part: CircuitComponent = { id, kind, position, rotation: state.armedRotation, props: {} };
+      const part: CircuitComponent = { id, kind, position, rotation: state.armedRotation, props: newProps(kind) };
       if (kind === "custom" && state.armedDefinition) part.definition = state.armedDefinition;
       return {
         ...edit(state, { ...state.circuit, components: [...state.circuit.components, part] }),
@@ -519,11 +527,22 @@ export const useEditor = create<EditorState>()((set, get) => ({
     set((state) => {
       const part = state.circuit.components.find((c) => c.id === id);
       const valid = Number.isInteger(width) && width >= 1 && width <= MAX_WIDTH;
-      if (!part || part.kind === "custom" || !valid || (part.props.width ?? 1) === width) return state;
+      if (!part || part.kind === "custom" || isFielded(part.kind) || !valid || (part.props.width ?? 1) === width) return state;
       const props = { ...part.props };
       if (width > 1) props.width = width;
       else delete props.width;
       return edit(state, { ...state.circuit, components: state.circuit.components.map((c) => (c === part ? { ...c, props } : c)) });
+    }),
+  setFields: (id, fields) =>
+    set((state) => {
+      const part = state.circuit.components.find((c) => c.id === id);
+      if (!part || !isFielded(part.kind) || fieldsProblem(fields) || part.props.fields?.join() === fields.join()) return state;
+      const gone = (end: Endpoint) => !isJunction(end) && end.component === id && /^f\d+$/.test(end.port) && Number(end.port.slice(1)) >= fields.length;
+      return edit(state, {
+        ...state.circuit,
+        components: state.circuit.components.map((c) => (c === part ? { ...c, props: { ...c.props, fields: [...fields] } } : c)),
+        wires: state.circuit.wires.filter((w) => !gone(w.from) && !gone(w.to)),
+      });
     }),
   rotate: (ids, turn) =>
     set((state) => {

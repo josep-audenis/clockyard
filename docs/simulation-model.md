@@ -24,8 +24,7 @@ Widths are declared on parts (`width` on switches, LEDs and gates, `fields`
 on splits and merges) and never inferred. They are checked when a circuit
 loads: a bad `width` or `fields` is `invalidWidth`, and ports of different
 widths on one net are `widthMismatch`, never a silent truncation. The engine,
-protocol and file format (v5) carry `width`; `fields`, editing widths and
-splitters on the canvas follow in ADR 0014 step 4.
+protocol, file format (v5) and editor all carry them (ADR 0014).
 
 Designed to extend to:
 

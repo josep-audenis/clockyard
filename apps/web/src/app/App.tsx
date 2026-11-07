@@ -3,7 +3,9 @@ import { definitionName } from "../canvas/layout";
 import { mountCanvas, useCanvasHints } from "../canvas/scene";
 import {
   contains,
+  fieldsProblem,
   hex,
+  isFielded,
   MAX_LABEL,
   MAX_WIDTH,
   maxValue,
@@ -32,6 +34,14 @@ const LIBRARY: { title: string; parts: Part[] }[] = [
       { kind: "nor", name: "NOR" },
       { kind: "xor", name: "XOR", key: "X" },
       { kind: "xnor", name: "XNOR" },
+    ],
+  },
+  {
+    // A bus taken apart into fields, or fields joined into a bus (ADR 0014).
+    title: "Wiring",
+    parts: [
+      { kind: "split", name: "Splitter" },
+      { kind: "merge", name: "Merger" },
     ],
   },
 ];
@@ -419,7 +429,20 @@ function PartProperties({ part }: { part: CircuitComponent }) {
         // One undoable edit.
         onCommit={(value) => useEditor.getState().setLabel(part.id, value)}
       />
-      {part.kind !== "custom" && (
+      {isFielded(part.kind) && (
+        <CommitField
+          key={`fields:${part.props.fields?.join()}`}
+          label="Fields"
+          saved={(part.props.fields ?? []).join(", ")}
+          hint={fieldsHint(part.props.fields ?? [])}
+          // One undoable edit; it also removes wires to fields that go. Invalid lists change nothing.
+          onCommit={(value) => {
+            const fields = value.split(/[\s,]+/).filter(Boolean).map(Number);
+            if (!fieldsProblem(fields)) useEditor.getState().setFields(part.id, fields);
+          }}
+        />
+      )}
+      {part.kind !== "custom" && !isFielded(part.kind) && (
         <CommitField
           key={`width:${part.props.width ?? 1}`}
           label="Width"
@@ -450,6 +473,12 @@ function PartProperties({ part }: { part: CircuitComponent }) {
       )}
     </div>
   );
+}
+
+/** The Fields field's hint: what the list means and how wide the bus is. */
+function fieldsHint(fields: number[]) {
+  const total = fields.reduce((sum, f) => sum + f, 0);
+  return `Field widths, lowest bits first, separated by commas: ${total} of ${MAX_WIDTH} bits.`;
 }
 
 /**

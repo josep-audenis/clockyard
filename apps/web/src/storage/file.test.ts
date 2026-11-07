@@ -107,7 +107,13 @@ test.each([
   ["a bad width inside a definition", () => broken((doc) => Object.assign(doc.definitions[0]?.circuit.components[0]?.props ?? {}, { width: 0 })), "Definition 1: Component 1 width must be a whole number from 1 to 32"],
   ["a width on a custom component", () => broken((doc) => Object.assign(doc.circuit.components[2]?.props ?? {}, { width: 8 })), "Component 3 is a custom component, which takes no width"],
   ["fields on a gate", () => broken((doc) => Object.assign(doc.circuit.components[1]?.props ?? {}, { fields: [4, 4] })), "Component 2 has fields"],
-  ["a splitter, until it has a layout", () => broken((_, c) => Object.assign(c, { kind: "split", props: { fields: [4, 4] } })), 'unknown kind "split"'],
+  ["a splitter without fields", () => broken((_, c) => Object.assign(c, { kind: "split", props: {} })), "Component 1 is a splitter or merger without fields"],
+  ["empty fields", () => broken((_, c) => Object.assign(c, { kind: "merge", props: { fields: [] } })), "Component 1 fields must be a list of at least one field width"],
+  ["a field of 0 bits", () => broken((_, c) => Object.assign(c, { kind: "split", props: { fields: [4, 0] } })), "fields must be whole numbers of at least 1"],
+  ["a fractional field", () => broken((_, c) => Object.assign(c, { kind: "split", props: { fields: [2.5] } })), "fields must be whole numbers of at least 1"],
+  ["fields over 32 bits", () => broken((_, c) => Object.assign(c, { kind: "split", props: { fields: [16, 17] } })), "fields add up to 33 bits, more than 32"],
+  ["fields that are not a list", () => broken((_, c) => Object.assign(c, { kind: "split", props: { fields: 8 } })), "fields must be a list"],
+  ["a width on a splitter", () => broken((_, c) => Object.assign(c, { kind: "split", props: { fields: [4, 4], width: 8 } })), "takes fields, not a width"],
 ])("rejects %s", (_name, parse, message) => {
   const result = parse();
   expect(result.ok).toBe(false);
@@ -176,4 +182,9 @@ test("a version 4 file is migrated: only the version changes", () => {
 test("width 1 is the default: dropped on import, so 1-bit circuits export as before", () => {
   const result = broken((_, c) => Object.assign(c.props, { width: 1 }));
   expect(result).toEqual({ ok: true, document });
+});
+
+test("a splitter's fields round-trip through export and import", () => {
+  const result = broken((_, c) => Object.assign(c, { kind: "split", props: { label: "Bus", fields: [3, 5] } }));
+  expect(result.ok && result.document.circuit.components[0]).toMatchObject({ kind: "split", props: { label: "Bus", fields: [3, 5] } });
 });

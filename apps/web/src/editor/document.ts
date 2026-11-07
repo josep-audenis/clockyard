@@ -3,8 +3,11 @@
 import type { CircuitBody, CircuitDescription, Endpoint, JunctionRef, PinDesc } from "../simulation/protocol";
 
 /** The built-in parts (the engine's catalog). */
-export const COMPONENT_KINDS = ["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor"] as const;
+export const COMPONENT_KINDS = ["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "split", "merge"] as const;
 export type ComponentKind = (typeof COMPONENT_KINDS)[number];
+/** A splitter or merger: its `fields` prop adds a port per field (ADR 0014). Every other built-in part takes `width`. */
+export type FieldedKind = "split" | "merge";
+export const isFielded = (kind: PartKind): kind is FieldedKind => kind === "split" || kind === "merge";
 /** A built-in part, or an instance of a custom component (ADR 0012). */
 export type PartKind = ComponentKind | "custom";
 
@@ -18,10 +21,35 @@ export const MAX_WIDTH = 32;
 
 /**
  * `label` is editor-only: a switch's or LED's label names the circuit's input or
- * output pin. `width` (switches, LEDs and gates; absent means 1) is projected to
- * the engine, which owns what it means (ADR 0014).
+ * output pin. `width` (switches, LEDs and gates; absent means 1) and `fields`
+ * (splitters and mergers: field widths, lowest bits first) are projected to the
+ * engine, which owns what they mean (ADR 0014).
  */
-export type Props = { label?: string; width?: number };
+export type Props = { label?: string; width?: number; fields?: number[] };
+
+/** A new splitter or merger has four 1-bit fields (ADR 0014). */
+export const DEFAULT_FIELDS: readonly number[] = [1, 1, 1, 1];
+
+/** Props a newly placed part starts with. */
+export const newProps = (kind: PartKind): Props => (isFielded(kind) ? { fields: [...DEFAULT_FIELDS] } : {});
+
+/** What is wrong with a `fields` value, or null: a non-empty list of whole numbers of at least 1, at most `MAX_WIDTH` bits in all. */
+export function fieldsProblem(fields: unknown): string | null {
+  if (!Array.isArray(fields) || fields.length === 0) return "must be a list of at least one field width";
+  if (!fields.every((f) => Number.isInteger(f) && (f as number) >= 1)) return "must be whole numbers of at least 1";
+  const total = (fields as number[]).reduce((sum, f) => sum + f, 0);
+  return total > MAX_WIDTH ? `add up to ${total} bits, more than ${MAX_WIDTH}` : null;
+}
+
+/** Each field's bits as drawn on its port: "3" for one bit, "7:4" for several. */
+export function fieldRanges(fields: readonly number[]): string[] {
+  let low = 0;
+  return fields.map((width) => {
+    const range = width === 1 ? `${low}` : `${low + width - 1}:${low}`;
+    low += width;
+    return range;
+  });
+}
 
 /** A value in hex, one digit per started 4 bits: an 8-bit 44 is "0x2C". */
 export const hex = (value: number, width: number) =>
@@ -130,6 +158,7 @@ const body = (circuit: Circuit): CircuitBody => ({
     kind,
     ...(definition && { definition }),
     ...(props.width !== undefined && { width: props.width }),
+    ...(props.fields !== undefined && { fields: props.fields }),
   })),
   junctions: circuit.junctions.map(({ id }) => ({ id })),
   connections: circuit.wires.map(({ id, from, to }) => ({ id, from, to })),
