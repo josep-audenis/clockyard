@@ -625,7 +625,7 @@ test("two labels named go join a far switch and LED; renaming one leaves both un
   await expect(status(page)).toContainText("Settled");
 
   // A typo cuts the net, and both halves say so.
-  await click(page, at(16, 12));
+  await click(page, at(15, 12)); // its tag, left of the dot, since the wire leaves right
   await expect(name).toHaveValue("go"); // the label is selected
   await name.fill("stop");
   await name.press("Enter");

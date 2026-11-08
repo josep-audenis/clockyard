@@ -299,13 +299,14 @@ target demo works. Rough edges worth a look before Phase 3 (clocks and
 sequential logic):
 
 - Make component drops wires that crossed the selection's edge.
-- Deleting a pin leaves its wires reported as unknown ports (ADR 0013).
 - No autosave yet (a later IndexedDB item).
-- The inspector does not collapse on narrow screens.
 - Wires kept after an edit can stay longer than needed until the file is
-  opened again.
-- A click on a label's tag does not select it (its dot does), and routing
-  does not yet avoid tags (ADR 0015).
+  opened again (by design, ADR 0011).
+- Routing does not yet avoid label tags (ADR 0015).
+
+Fixed since: deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
+amended); a click on a label's tag selects it; below 900px the inspector
+moves under the canvas.
 
 Out of scope for now: global labels across sheets and the other items ADR
 0015 leaves out; editing several parts' widths at once, signed display and

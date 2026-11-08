@@ -1,6 +1,6 @@
 # 0013. Instance ports are named by their pin part's ID
 
-- Status: Accepted
+- Status: Accepted (amended below)
 - Date: 2026-11-07
 - Amends: ADR 0012 (pins, file format)
 
@@ -37,3 +37,12 @@ definition's sheet is open would mix old and new.
 - Relabelling pins is free and safe; Make component still asks for labelled,
   distinct pins, so chips stay readable.
 - Port names in files are opaque IDs, so a hand-written file must use them.
+
+## Amendment (2026-11-08): wires to a deleted pin
+
+Deleting a pin no longer leaves `unknownPort` errors. The editor keeps wires
+to a deleted pin, so undoing the deletion on the definition's sheet still
+brings them back, but leaves them out of what the engine sees and out of
+exported files. They are not drawn, since their port is gone. The engine
+still reports `unknownPort` for a hand-written file that names a port an
+instance does not have.

@@ -163,6 +163,12 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   let hover: Point | null = null;
   /** A label placed by the current press, whose Name field takes focus when it is released. */
   let placedLabel: string | null = null;
+  /** Each label tag's box as last drawn, in stage pixels, keyed by junction ID: a click on one selects its label. */
+  const tagBoxes = new Map<string, { x: number; y: number; w: number; h: number }>();
+  const tagAt = (p: Point) => {
+    const { x, y } = px(p);
+    return [...tagBoxes].reverse().find(([, b]) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h)?.[0];
+  };
   /** Space held: a left drag pans. */
   let spaceHeld = false;
   /** Pointer position on screen while it is over the canvas: where an armed part would be placed (after pan or zoom too). */
@@ -185,6 +191,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const { loaded, nets, stale, runtime } = useSim.getState();
     const { color, size } = theme;
     const c = cell();
+    tagBoxes.clear();
 
     world.position.set(view.x, view.y);
     world.scale.set(view.zoom);
@@ -286,6 +293,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       text.alpha = unknown ? 0.5 : 1;
       const pad = 3;
       const box = { x: tx - anchor.x * text.width - pad, y: ty - anchor.y * text.height - pad, w: text.width + 2 * pad, h: text.height + 2 * pad };
+      tagBoxes.set(junction.id, box);
       wires
         .roundRect(box.x, box.y, box.w, box.h, size["radius-sm"])
         .fill({ color: color.bench })
@@ -670,7 +678,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       if (!placementStacks(editor.circuit, { ...part, position })) editor.add(part.kind, position);
     } else if (e.button === 0) {
       const hit = hitTest(editor.circuit, p, pick(), currentRoutes(editor.circuit));
-      const item = hit?.type === "component" || hit?.type === "junction" ? hit.id : undefined;
+      // A label's tag selects and drags it; its dot still draws wires (ADR 0015).
+      const tag = hit?.type === "port" || hit?.type === "junction" ? undefined : tagAt(p);
+      const item = tag ?? (hit?.type === "component" || hit?.type === "junction" ? hit.id : undefined);
       const position = item && positionOf(editor.circuit, item);
       if (hit?.type === "port") {
         gesture = { type: "wire", from: hit.ref, at: p };

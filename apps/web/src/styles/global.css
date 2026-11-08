@@ -258,6 +258,21 @@ button:focus-visible {
   border-left: 1px solid var(--line);
 }
 
+/* Narrow screens: the inspector moves under the canvas as a short strip, so the canvas keeps its width. */
+@media (max-width: 900px) {
+  .workspace {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .inspector {
+    grid-column: 1 / -1;
+    max-height: 35vh;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+
 .inspector-empty {
   margin: 0;
   color: var(--ink-muted);
