@@ -50,12 +50,12 @@ The UI never computes a signal value. It renders values received from the worker
 
 The editable design. Owned by the frontend, serialized as JSON, versioned.
 
-Format version 5 (ADRs 0010, 0012, 0013, 0014; exact schema fixed in code with validation):
+Format version 6 (ADRs 0010, 0012, 0013, 0014, 0015; exact schema fixed in code with validation):
 
 ```json
 {
   "format": "clockyard",
-  "version": 5,
+  "version": 6,
   "metadata": { "name": "AND demo", "createdAt": "2026-11-06T12:00:00Z", "modifiedAt": "2026-11-06T12:00:00Z" },
   "circuit": {
     "components": [
@@ -64,7 +64,8 @@ Format version 5 (ADRs 0010, 0012, 0013, 0014; exact schema fixed in code with v
       { "id": "m02de", "kind": "led",    "position": { "x": 12, "y": 1 }, "rotation": 0, "props": { "width": 8 } }
     ],
     "junctions": [
-      { "id": "j4c01", "position": { "x": 4, "y": 1 } }
+      { "id": "j4c01", "position": { "x": 4, "y": 1 } },
+      { "id": "j4c02", "position": { "x": 20, "y": 9 }, "name": "clk" }
     ],
     "wires": [
       { "id": "w7a10", "from": { "component": "k3f9a", "port": "out" }, "to": { "junction": "j4c01" } },
@@ -89,6 +90,12 @@ Rules:
 - A **junction** is a document object, not an overlap. Wires that share a port
   or junction form one net; the engine resolves nets (ADR 0010). Wires and
   junctions carry no width: a net takes its ports' width (ADR 0014).
+- A junction may carry a `name`: a **net label** (ADR 0015). Junctions with the
+  same name on one sheet (the main circuit or one definition) are one net,
+  resolved by the engine; names never join across sheets or instances. Names
+  follow the label rules below and are also normalized to Unicode NFC, then
+  match exactly, case included. Import drops a blank name and refuses one over
+  32 characters. Unlike `props`, a junction's `name` reaches the engine.
 - `rotation` (0, 90, 180, 270, clockwise) turns a part about its box; the
   canvas derives the turned port positions (`canvas/layout.ts`, `layoutOf`).
 - A wire's route is geometry only. It is routed on the grid automatically
@@ -107,8 +114,8 @@ Rules:
 - Loading an older `version` runs explicit migrations in `storage/`
   (v1 → v2 adds an empty `junctions` list, v2 → v3 an empty `definitions`
   list, v3 → v4 renames instance ports from pin labels to pin part IDs, v4 →
-  v5 changes nothing but the version, so a v4 build refuses a file with
-  widths instead of dropping them). Unknown future versions are
+  v5 and v5 → v6 change nothing but the version, so an older build refuses a
+  file with widths or net labels instead of silently dropping them). Unknown future versions are
   rejected with a clear message. Export always writes the current version.
 - Import (`storage/file.ts`) treats the file as untrusted: every field is
   type-checked, unknown fields are dropped, IDs must be unique across parts,
@@ -143,7 +150,7 @@ file format evolve (migrations, layout fields) without touching Rust.
 type CircuitBody = {
   // width and fields: from props.width and props.fields (ADR 0014).
   components: { id: string; kind: string; definition?: string; width?: number; fields?: number[] }[];
-  junctions: { id: string }[];
+  junctions: { id: string; name?: string }[]; // name: a net label (ADR 0015)
   connections: { id: string; from: Endpoint; to: Endpoint }[]; // id = document wire ID
 };
 type CircuitDescription = CircuitBody & {

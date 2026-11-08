@@ -74,3 +74,23 @@ test("projection copies a splitter's fields", () => {
   };
   expect(project(circuit).components).toEqual([{ id: "sp", kind: "split", fields: [4, 4] }]);
 });
+
+test("projection copies a junction's name and leaves plain junctions as they were", () => {
+  const circuit: Circuit = {
+    components: [],
+    junctions: [
+      { id: "a", position: { x: 0, y: 0 }, name: "clk" },
+      { id: "b", position: { x: 2, y: 0 } },
+    ],
+    wires: [],
+  };
+  expect(project(circuit).junctions).toEqual([{ id: "a", name: "clk" }, { id: "b" }]);
+});
+
+test("an empty name is projected as no name; a definition's labels are projected too", () => {
+  const circuit: Circuit = { components: [], junctions: [{ id: "a", position: { x: 0, y: 0 }, name: "" }], wires: [] };
+  const inner: Circuit = { components: [], junctions: [{ id: "b", position: { x: 0, y: 0 }, name: "clk" }], wires: [] };
+  const projected = project(circuit, [{ id: "d", name: "D", circuit: inner }]);
+  expect(projected.junctions).toEqual([{ id: "a" }]);
+  expect(projected.definitions[0]?.junctions).toEqual([{ id: "b", name: "clk" }]);
+});

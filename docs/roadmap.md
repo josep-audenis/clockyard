@@ -222,8 +222,12 @@ Progress:
      junctions are joined in the level check and in the flat circuit (by
      instance path and name); new warning `unmatchedLabel`. Native tests
      (`crates/sim-core/tests/labels.rs`) cover the ADR's list.
-  2. Format v6 (migration only bumps the version), import normalization
-     (label rules plus NFC), projection of `name`.
+  2. ✅ Format v6: `junctions[].name` in the main circuit and in
+     definitions, normalized on import with the label rules plus NFC; a
+     blank one is dropped and one over 32 characters refused. The v5
+     migration only bumps the version; the examples are v6. The
+     projection copies `name` to the engine. Until step 3 a named
+     junction (from a file) is drawn as a plain dot.
   3. Editor: Label in the parts panel, Name in the inspector, tags drawn
      instead of dots, the same-name highlight, unwired labels kept.
   4. Playwright: two labels named `go` join a switch to an LED; renaming

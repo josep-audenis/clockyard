@@ -9,6 +9,7 @@ import {
   MAX_WIDTH,
   normalizeLabel,
   normalizeName,
+  normalizeNetName,
   ROTATIONS,
   sameEnd,
   type CircuitComponent,
@@ -21,7 +22,7 @@ import {
   type Wire,
 } from "../editor/document";
 
-export const FORMAT_VERSION = 5;
+export const FORMAT_VERSION = 6;
 
 export type ParseResult = { ok: true; document: CircuitDocument } | { ok: false; error: string };
 
@@ -121,8 +122,9 @@ function readDocument(data: unknown): CircuitDocument {
   if (version > FORMAT_VERSION) {
     throw new Error(`This file uses format version ${version}, from a newer Clockyard. This version reads up to ${FORMAT_VERSION}.`);
   }
-  if (![1, 2, 3, 4, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
+  if (![1, 2, 3, 4, 5, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
   // Version 4 → 5 (ADR 0014): widths arrive as props; nothing to change.
+  // Version 5 → 6 (ADR 0015): junctions may carry a net label's name; nothing to change.
 
   const metadata = object(data.metadata, "metadata");
   const circuit = object(data.circuit, "circuit");
@@ -227,10 +229,17 @@ function readCircuit(circuit: Record<string, unknown>, where0: string, definitio
     const where = `${where0}Junction ${i + 1}`;
     const j = object(raw, where);
     const position = object(j.position, `${where} position`);
-    return {
+    const junction: Junction = {
       id: unique(elementId(j.id, `${where} id`), where),
       position: { x: integer(position.x, `${where} x`), y: integer(position.y, `${where} y`) },
     };
+    // A net label (ADR 0015): normalized as the editor stores it, so equal-looking names match; blank is none.
+    if (j.name !== undefined) {
+      const name = normalizeNetName(text(j.name, `${where} name`));
+      if ([...name].length > MAX_LABEL) throw new Error(`${where} name is longer than ${MAX_LABEL} characters.`);
+      if (name) junction.name = name;
+    }
+    return junction;
   });
 
   const componentIds = new Set(components.map((c) => c.id));

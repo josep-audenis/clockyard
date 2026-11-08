@@ -79,6 +79,13 @@ export function parseValue(text: string, width: number): number | null {
 export const normalizeLabel = (text: string) =>
   text.replace(/\p{Cc}/gu, " ").replace(/[\p{Bidi_Control}\u200B\uFEFF]/gu, "").trim();
 
+/**
+ * A net label's name as stored (ADR 0015): normalized like a label, then to Unicode NFC so a
+ * combining accent matches the precomposed one. Matching is exact, so this is what makes two
+ * names equal. Length is checked by callers.
+ */
+export const normalizeNetName = (text: string) => normalizeLabel(text).normalize("NFC");
+
 /** A definition's name as stored: normalized like a label, cut (by code point) at `MAX_LABEL`; blank becomes "Component". */
 export const normalizeName = (text: string) => [...(normalizeLabel(text) || "Component")].slice(0, MAX_LABEL).join("");
 
@@ -94,7 +101,8 @@ export type CircuitComponent = {
 };
 
 /** A point joining wires into one net. Grid units. */
-export type Junction = { id: string; position: { x: number; y: number } };
+/** `name`: a net label (ADR 0015); junctions with the same name on one sheet are one net. Projected to the engine. */
+export type Junction = { id: string; position: { x: number; y: number }; name?: string };
 
 /** `bends`: interior route points (grid units) of a wire the user shaped; absent means routed automatically (ADR 0011). */
 export type Wire = { id: string; from: Endpoint; to: Endpoint; bends?: { x: number; y: number }[] };
@@ -117,7 +125,7 @@ export type Definition = { id: string; name: string; circuit: Circuit };
 
 export type CircuitDocument = {
   format: "clockyard";
-  version: 5;
+  version: 6;
   metadata: { name: string; createdAt: string; modifiedAt: string };
   circuit: Circuit;
   definitions: Definition[];
@@ -160,7 +168,7 @@ const body = (circuit: Circuit): CircuitBody => ({
     ...(props.width !== undefined && { width: props.width }),
     ...(props.fields !== undefined && { fields: props.fields }),
   })),
-  junctions: circuit.junctions.map(({ id }) => ({ id })),
+  junctions: circuit.junctions.map(({ id, name }) => (name ? { id, name } : { id })),
   connections: circuit.wires.map(({ id, from, to }) => ({ id, from, to })),
 });
 
