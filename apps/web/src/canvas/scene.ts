@@ -161,6 +161,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   let gesture: Gesture | null = null;
   /** Where a wire being drawn would attach (a port, junction or point on a wire). */
   let hover: Point | null = null;
+  /** A label placed by the current press, whose Name field takes focus when it is released. */
+  let placedLabel: string | null = null;
   /** Space held: a left drag pans. */
   let spaceHeld = false;
   /** Pointer position on screen while it is over the canvas: where an armed part would be placed (after pan or zoom too). */
@@ -255,15 +257,21 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const unmatched = new Set((loaded?.diagnostics ?? []).filter((d) => d.code === "unmatchedLabel").flatMap((d) => d.ids));
     // The selected label's name: its partners on the sheet are outlined too. A display aid only; the engine joins them.
     const chosen = selection.length === 1 ? circuit.junctions.find((j) => j.id === selection[0])?.name : undefined;
-    const drawTag = (junction: Junction, x: number, y: number, tone: string, unknown: boolean) => {
-      const taken = new Set<string>();
-      for (const w of circuit.wires) {
-        const points = paths.get(w.id);
-        const near = !points || points.length < 2 ? undefined : endOwner(w.from) === junction.id ? points[1] : endOwner(w.to) === junction.id ? points.at(-2) : undefined;
-        if (!near) continue;
-        const [dx, dy] = [near.x - junction.position.x, near.y - junction.position.y];
+    // The sides each junction's wires leave from, from their routes, in one pass over the wires.
+    const sides = new Map<string, Set<string>>();
+    for (const w of circuit.wires) {
+      const points = paths.get(w.id);
+      if (!points || points.length < 2) continue;
+      for (const [end, from, near] of [[w.from, points[0], points[1]], [w.to, points.at(-1), points.at(-2)]] as const) {
+        if (!("junction" in end) || !from || !near) continue;
+        const [dx, dy] = [near.x - from.x, near.y - from.y];
+        const taken = sides.get(end.junction) ?? new Set<string>();
         taken.add(dx > 0 ? "right" : dx < 0 ? "left" : dy > 0 ? "below" : "above");
+        sides.set(end.junction, taken);
       }
+    }
+    const drawTag = (junction: Junction, x: number, y: number, tone: string, unknown: boolean) => {
+      const taken = sides.get(junction.id) ?? new Set<string>();
       const side = ["right", "left", "below", "above"].find((s) => !taken.has(s)) ?? "right";
       const gap = 8;
       const [tx, ty, anchor] =
@@ -330,8 +338,10 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     // An armed label: where a click would put it.
     if (armedLabel && pointer && !gesture) {
       const at = toWorld(pointer);
-      const { x, y } = px({ x: Math.round(at.x), y: Math.round(at.y) });
-      overlay.circle(x, y, 4).stroke({ width: 1.5, color: color.accent });
+      const point = { x: Math.round(at.x), y: Math.round(at.y) };
+      const { x, y } = px(point);
+      // On a port or junction a click is refused: shown in danger, as an armed part's preview is.
+      overlay.circle(x, y, 4).stroke({ width: 1.5, color: occupied(circuit, point) ? color.danger : color.accent });
     }
     // The armed part, half see-through, where a click would place it, turned as it would be.
     if (armed && pointer && !gesture) {
@@ -387,13 +397,10 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     for (const [key, text] of texts) {
       if (seen.has(key)) continue;
       texts.delete(key);
-      fills.delete(key);
       text.destroy();
     }
   }
 
-  /** Each text's fill as last set, keyed like `texts`. */
-  const fills = new Map<string, string>();
   /** Texts drawn this frame; the rest are removed once it is drawn. */
   const seen = new Set<string>();
   /** A text at world point (x, y) in the canvas-label style, reused across frames by `key`. */
@@ -408,11 +415,6 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       labels.addChild(text);
     }
     if (text.text !== value) text.text = value;
-    // A tag's text follows its net's state, so the fill is set again when it changes.
-    if (fills.get(key) !== fill) {
-      text.style.fill = fill;
-      fills.set(key, fill);
-    }
     text.anchor.set(anchor.x, anchor.y);
     text.position.set(x, y);
     return text;
@@ -658,11 +660,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     if (e.button === 1 || (e.button === 0 && spaceHeld)) {
       gesture = { type: "pan", last: { x: e.clientX, y: e.clientY } };
     } else if (e.button === 0 && editor.armedLabel) {
-      // A net label (ADR 0015) at the nearest grid point; its Name field takes the keyboard, which the
-      // press's own mousedown would otherwise take back to the page.
-      e.preventDefault();
-      const id = editor.addLabel({ x: Math.round(p.x), y: Math.round(p.y) });
-      if (id) useCanvasHints.setState({ focusValue: id });
+      // A net label (ADR 0015) at the nearest grid point. Its Name field takes the keyboard on release,
+      // after the press has moved focus where it will.
+      placedLabel = editor.addLabel({ x: Math.round(p.x), y: Math.round(p.y) });
     } else if (e.button === 0 && editor.armed) {
       const part = { id: GHOST, kind: editor.armed, rotation: editor.armedRotation, definition: editor.armedDefinition ?? undefined, props: {} };
       const position = placement(part, p);
@@ -772,6 +772,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
 
   const onPointerUp = (e: PointerEvent) => {
     const editor = useEditor.getState();
+    if (placedLabel) useCanvasHints.setState({ focusValue: placedLabel });
+    placedLabel = null;
     if (gesture?.type === "move" && !gesture.moved) {
       const id = gesture.id;
       // A plain click inside a multi-selection narrows it to the clicked part.

@@ -999,3 +999,28 @@ test("deleting the last wire of a named junction keeps it; of a plain one remove
   remove(useEditor.getState().circuit.wires.map((x) => x.id));
   expect(useEditor.getState().circuit.junctions).toHaveLength(before - 1);
 });
+
+test("labels: refused on a junction, kept by setFields, duplicated alone, and disarmed by arming a part or a sheet switch", () => {
+  const { add, connect, connectToWire, addLabel, setName, setFields, select, duplicate, armLabel, arm } = useEditor.getState();
+  const sp = add("split", { x: 0, y: 0 });
+  const l = add("led", { x: 10, y: 0 });
+  const k = add("led", { x: 10, y: 8 });
+  const w = connect(port(sp, "f3"), port(l, "in"));
+  if (!w) throw new Error("no wire");
+  connectToWire(port(k, "in"), w, { x: 6, y: 4 });
+  const [j] = useEditor.getState().circuit.junctions;
+  if (!j) throw new Error("no junction");
+  expect(addLabel(j.position)).toBeNull();
+  setName(j.id, "bit3");
+  // Fields shrink: f3 and its wire go, the label and its other wires stay.
+  setFields(sp, [1, 1]);
+  expect(useEditor.getState().circuit.junctions.map((x) => x.name)).toEqual(["bit3"]);
+  select([j.id]);
+  duplicate();
+  expect(useEditor.getState().circuit.junctions.map((x) => x.name)).toEqual(["bit3", "bit3"]);
+  armLabel(true);
+  arm("and");
+  expect(useEditor.getState()).toMatchObject({ armed: "and", armedLabel: false });
+  armLabel(true);
+  expect(useEditor.getState()).toMatchObject({ armed: null, armedLabel: true });
+});

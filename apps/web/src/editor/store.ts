@@ -173,8 +173,8 @@ function withCircuit(state: EditorState, circuit: Circuit) {
 
 const items = (circuit: Circuit) => [...circuit.components, ...circuit.junctions, ...circuit.wires];
 
-/** Nothing to copy: no parts, and no junction kept (a plain one only comes with its wires; a label alone does). */
-const isEmpty = (part: Circuit) => part.components.length === 0 && part.junctions.length === 0;
+/** Nothing to copy: no parts and no labels. Plain junctions with only wires between them are not worth a copy. */
+const isEmpty = (part: Circuit) => part.components.length === 0 && !part.junctions.some((j) => j.name);
 
 /** The chosen parts and junctions and the wires running between them; wires to anything else are left out. */
 function fragment(circuit: Circuit, ids: string[]): Circuit {
@@ -570,7 +570,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   setName: (id, name) =>
     set((state) => {
       // Cut by code point after NFC, the form import checks, so a stored name always reloads.
-      const text = [...normalizeNetName(name)].slice(0, MAX_LABEL).join("");
+      const text = [...normalizeNetName(name)].slice(0, MAX_LABEL).join("").trim();
       const junction = state.circuit.junctions.find((j) => j.id === id);
       if (!junction || (junction.name ?? "") === text) return state;
       const wired = state.circuit.wires.some((w) => endOwner(w.from) === id || endOwner(w.to) === id);
