@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { fieldRanges, fieldsProblem, hex, parseValue, project, showValue, type Circuit } from "./document";
+import { fieldRanges, fieldsProblem, hex, parseValue, project, showValue, withoutDeletedPins, type Circuit } from "./document";
 
 test("projection keeps connectivity and widths, junctions included, and drops geometry and labels", () => {
   const circuit: Circuit = {
@@ -93,4 +93,32 @@ test("an empty name is projected as no name; a definition's labels are projected
   const projected = project(circuit, [{ id: "d", name: "D", circuit: inner }]);
   expect(projected.junctions).toEqual([{ id: "a" }]);
   expect(projected.definitions[0]?.junctions).toEqual([{ id: "b", name: "clk" }]);
+});
+
+test("wires to a deleted pin are left out of the projection and the file, and kept in the editor for undo", () => {
+  // Definition d had pins a and o; a was deleted. The instance's wire to a goes, its wire to o stays.
+  const inner: Circuit = {
+    components: [{ id: "o", kind: "led", position: { x: 4, y: 0 }, rotation: 0, props: {} }],
+    junctions: [],
+    wires: [],
+  };
+  const definitions = [{ id: "d", name: "Chip", circuit: inner }];
+  const main: Circuit = {
+    components: [
+      { id: "s", kind: "switch", position: { x: 0, y: 0 }, rotation: 0, props: {} },
+      { id: "c", kind: "custom", definition: "d", position: { x: 4, y: 0 }, rotation: 0, props: {} },
+      { id: "l", kind: "led", position: { x: 10, y: 0 }, rotation: 0, props: {} },
+    ],
+    junctions: [],
+    wires: [
+      { id: "gone", from: { component: "s", port: "out" }, to: { component: "c", port: "a" } },
+      { id: "kept", from: { component: "c", port: "o" }, to: { component: "l", port: "in" } },
+    ],
+  };
+  expect(project(main, definitions).connections.map((c) => c.id)).toEqual(["kept"]);
+  // A definition holding the instance is cleaned the same way.
+  const outer = [...definitions, { id: "e", name: "Outer", circuit: main }];
+  expect(project(main, outer).definitions[1]?.connections.map((c) => c.id)).toEqual(["kept"]);
+  expect(withoutDeletedPins(main, []).wires).toHaveLength(2); // an unknown definition is the engine's to report
+  expect(main.wires).toHaveLength(2);
 });

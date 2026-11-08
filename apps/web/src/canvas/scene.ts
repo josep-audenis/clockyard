@@ -163,6 +163,14 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   let hover: Point | null = null;
   /** A label placed by the current press, whose Name field takes focus when it is released. */
   let placedLabel: string | null = null;
+  /** Each label tag's box as last drawn, in world pixels (before pan and zoom), keyed by junction ID. */
+  const tagBoxes = new Map<string, { x: number; y: number; w: number; h: number }>();
+  /** The label whose tag is under `p`; a box from the last frame counts only while its label still has a name. */
+  const tagAt = (p: Point) => {
+    const { x, y } = px(p);
+    const id = [...tagBoxes].reverse().find(([, b]) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h)?.[0];
+    return id && useEditor.getState().circuit.junctions.some((j) => j.id === id && j.name) ? id : undefined;
+  };
   /** Space held: a left drag pans. */
   let spaceHeld = false;
   /** Pointer position on screen while it is over the canvas: where an armed part would be placed (after pan or zoom too). */
@@ -185,6 +193,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const { loaded, nets, stale, runtime } = useSim.getState();
     const { color, size } = theme;
     const c = cell();
+    tagBoxes.clear();
 
     world.position.set(view.x, view.y);
     world.scale.set(view.zoom);
@@ -286,6 +295,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       text.alpha = unknown ? 0.5 : 1;
       const pad = 3;
       const box = { x: tx - anchor.x * text.width - pad, y: ty - anchor.y * text.height - pad, w: text.width + 2 * pad, h: text.height + 2 * pad };
+      tagBoxes.set(junction.id, box);
       wires
         .roundRect(box.x, box.y, box.w, box.h, size["radius-sm"])
         .fill({ color: color.bench })
@@ -296,7 +306,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     };
 
     // CanvasKit: a junction is a 4px dot in its net's state colour, read from any wire on it.
-    const wireAt = new Map(circuit.wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)].map((owner) => [owner, w.id])));
+    // Wires the engine was not sent (to a deleted pin, ADR 0013) carry no state, so they never colour a dot.
+    const live = loaded ? circuit.wires.filter((w) => w.id in loaded.wireNets) : circuit.wires;
+    const wireAt = new Map(live.flatMap((w) => [endOwner(w.from), endOwner(w.to)].map((owner) => [owner, w.id])));
     for (const junction of circuit.junctions) {
       const attached = wireAt.get(junction.id);
       const value = signal(attached === undefined ? undefined : loaded?.wireNets[attached]);
@@ -639,6 +651,10 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const point = endAt(at, end);
       return point ? { at: point, end } : null;
     }
+    // A wire dropped on a label's tag joins the label, not a wire under the tag.
+    const tag = wiring ? tagAt(p) : undefined;
+    const label = tag && at.junctions.get(tag)?.position;
+    if (tag && label) return { at: label, end: { junction: tag } };
     const wire = wiring && hit?.type === "wire" ? circuit.wires.find((w) => w.id === hit.id) : undefined;
     const points = wire && currentRoutes(circuit).get(wire.id);
     const point = points && nearestOnRoute(points, p);
@@ -670,7 +686,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       if (!placementStacks(editor.circuit, { ...part, position })) editor.add(part.kind, position);
     } else if (e.button === 0) {
       const hit = hitTest(editor.circuit, p, pick(), currentRoutes(editor.circuit));
-      const item = hit?.type === "component" || hit?.type === "junction" ? hit.id : undefined;
+      // A label's tag selects and drags it; its dot still draws wires (ADR 0015).
+      const tag = hit?.type === "port" || hit?.type === "junction" ? undefined : tagAt(p);
+      const item = tag ?? (hit?.type === "component" || hit?.type === "junction" ? hit.id : undefined);
       const position = item && positionOf(editor.circuit, item);
       if (hit?.type === "port") {
         gesture = { type: "wire", from: hit.ref, at: p };

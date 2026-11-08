@@ -187,8 +187,8 @@ evaluated once in topological order before the first settle (PR #20,
     width from the pin's part. Instance layout keeps its pin order and
     spacing. A wide port is drawn as a bus stub with its width beside it.
     Changing a pin's width inside a definition can leave wires on the main
-    sheet mismatched. They are reported as `widthMismatch`, just as a
-    deleted pin's wires are reported as `unknownPort` (ADR 0013).
+    sheet mismatched. They are reported as `widthMismatch` (a deleted
+    pin's wires are left out instead, ADR 0013 amended).
 
 ### File format and engine contract
 

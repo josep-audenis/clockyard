@@ -172,10 +172,33 @@ const body = (circuit: Circuit): CircuitBody => ({
   connections: circuit.wires.map(({ id, from, to }) => ({ id, from, to })),
 });
 
+/**
+ * `circuit` without its wires to pins deleted from their definitions (ADR 0013, amended). The editor keeps
+ * such wires, so undo on the definition's sheet brings the pin and its wires back; the engine and files never
+ * see them.
+ */
+export function withoutDeletedPins(circuit: Circuit, definitions: Definition[]): Circuit {
+  const pins = new Map(
+    definitions.map((d) => {
+      const { inputs, outputs } = pinsOf(d.circuit);
+      return [d.id, new Set([...inputs, ...outputs].map((pin) => pin.name))];
+    }),
+  );
+  const parts = new Map(circuit.components.map((c) => [c.id, c]));
+  const gone = (end: Endpoint) => {
+    const part = isJunction(end) ? undefined : parts.get(end.component);
+    const names = part?.kind === "custom" && part.definition ? pins.get(part.definition) : undefined;
+    return !isJunction(end) && names !== undefined && !names.has(end.port);
+  };
+  const wires = circuit.wires.filter((w) => !gone(w.from) && !gone(w.to));
+  return wires.length === circuit.wires.length ? circuit : { ...circuit, wires };
+}
+
 /** Drops geometry and editor-only data (labels); the engine sees connectivity, widths and each definition's pins. */
 export function project(circuit: Circuit, definitions: Definition[] = []): CircuitDescription {
+  const live = (c: Circuit) => body(withoutDeletedPins(c, definitions));
   return {
-    ...body(circuit),
-    definitions: definitions.map((d) => ({ id: d.id, ...body(d.circuit), ...pinsOf(d.circuit) })),
+    ...live(circuit),
+    definitions: definitions.map((d) => ({ id: d.id, ...live(d.circuit), ...pinsOf(d.circuit) })),
   };
 }

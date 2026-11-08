@@ -210,3 +210,14 @@ test("a net label's name inside a definition is normalized too, and one of only 
   const invisible = broken((doc) => Object.assign(doc.circuit.junctions[0] ?? {}, { name: "\u200b\u202e" }));
   expect(invisible.ok && invisible.document.circuit.junctions[0]?.name).toBeUndefined();
 });
+
+test("an export leaves out wires to a deleted pin, on the main circuit and inside definitions", () => {
+  const wire: Wire = { id: "dead", from: { component: "a", port: "out" }, to: { component: "x", port: "gone" } };
+  const doc = { ...document, circuit: { ...document.circuit, wires: [...document.circuit.wires, wire] } };
+  expect(parseDocument(serializeDocument(doc))).toEqual({ ok: true, document });
+  // The same instance and wire inside a second definition.
+  const outer: Definition = { id: "outer", name: "Outer", circuit: doc.circuit };
+  const clean: Definition = { ...outer, circuit: document.circuit };
+  const nested = { ...document, definitions: [...document.definitions, outer] };
+  expect(parseDocument(serializeDocument(nested))).toEqual({ ok: true, document: { ...nested, definitions: [...document.definitions, clean] } });
+});

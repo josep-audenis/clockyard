@@ -654,7 +654,7 @@ const PLAIN: Record<string, string> = {
   unknownDefinition: "A component's definition is missing.",
   recursiveDefinition: "A component contains itself, so it cannot be built.",
   invalidPin: "A component has an invalid pin.",
-  unknownPort: "A wire ends at a port that no longer exists, such as a deleted pin.",
+  unknownPort: "A wire ends at a port its part does not have.",
   tooLarge: "The circuit is too large once its components are expanded.",
   invalidId: "An ID contains a slash, which is kept for parts inside components.",
 };

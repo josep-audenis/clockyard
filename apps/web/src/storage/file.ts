@@ -12,6 +12,7 @@ import {
   normalizeNetName,
   ROTATIONS,
   sameEnd,
+  withoutDeletedPins,
   type CircuitComponent,
   type Circuit,
   type CircuitDocument,
@@ -27,7 +28,14 @@ export const FORMAT_VERSION = 6;
 export type ParseResult = { ok: true; document: CircuitDocument } | { ok: false; error: string };
 
 export function serializeDocument(document: CircuitDocument): string {
-  return JSON.stringify(document, null, 2);
+  // Wires to deleted pins stay in the editor for undo only (ADR 0013, amended).
+  const { circuit, definitions } = document;
+  const clean = (c: Circuit) => withoutDeletedPins(c, definitions);
+  return JSON.stringify(
+    { ...document, circuit: clean(circuit), definitions: definitions.map((d) => ({ ...d, circuit: clean(d.circuit) })) },
+    null,
+    2,
+  );
 }
 
 export function parseDocument(text: string): ParseResult {
