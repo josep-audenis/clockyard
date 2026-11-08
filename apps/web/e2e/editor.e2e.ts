@@ -599,3 +599,38 @@ test("an 8-bit switch wired to a 1-bit LED is a width mismatch until the LED is 
   await value.press("Enter");
   await expect(readout(page, "LED 1")).toHaveText("LED 1: 165 (0xA5)");
 });
+
+test("two labels named go join a far switch and LED; renaming one leaves both unmatched", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  const name = page.getByLabel("Name");
+  const label = page.getByRole("button", { name: "Label", exact: true });
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0), out (2,1)
+  await page.keyboard.press("l");
+  await click(page, at(21, 12)); // LED at (20,11), in (20,12)
+
+  // Each label is placed from the parts panel and named in the inspector, which takes the keyboard.
+  for (const spot of [at(5, 1), at(16, 12)]) {
+    await label.click();
+    await click(page, spot);
+    await expect(name).toBeFocused();
+    await name.fill("go");
+    await name.press("Enter");
+  }
+  await drag(page, at(2, 1), at(5, 1));
+  await drag(page, at(20, 12), at(16, 12));
+  await click(page, at(1, 1));
+  await expectStates(page, { "Switch 1": 1, "LED 1": 1 });
+  await expect(status(page)).toContainText("Settled");
+
+  // A typo cuts the net, and both halves say so.
+  await click(page, at(16, 12));
+  await expect(name).toHaveValue("go"); // the label is selected
+  await name.fill("stop");
+  await name.press("Enter");
+  await expectStates(page, { "Switch 1": 1, "LED 1": 0 });
+  const message = status(page).locator(".status-message");
+  await expect(message).toHaveAttribute("title", /label `go` joins nothing/);
+  await expect(message).toHaveAttribute("title", /label `stop` joins nothing/);
+});
