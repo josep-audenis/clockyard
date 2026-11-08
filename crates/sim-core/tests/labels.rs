@@ -153,7 +153,9 @@ fn a_label_inside_a_definition_is_judged_as_one_net_at_the_level_check() {
     assert_eq!(found(&errors), [(Code::MultipleDrivers, vec!["i1"])]);
     let message = &errors[0].message;
     assert!(
-        message.contains("i1/w1") && message.contains("i1/w2"),
+        ["i1/w1", "i1/w2", "i1/w3"]
+            .iter()
+            .all(|w| message.contains(w)),
         "{message}"
     );
 
@@ -201,4 +203,23 @@ fn an_unmatched_label_in_a_definition_warns_once_per_instance() {
             (Code::UnmatchedLabel, vec!["i2"]),
         ]
     );
+}
+
+#[test]
+fn a_label_between_pins_of_different_widths_is_caught_at_the_level_check() {
+    // Flattened, pins are junctions with no ports between them, so only the level check sees the widths.
+    let errors = Simulator::load(&description(json!({
+        "components": [{ "id": "i1", "kind": "custom", "definition": "d" }],
+        "connections": [],
+        "definitions": [{
+            "id": "d",
+            "components": [{ "id": "p", "kind": "switch", "width": 8 }, { "id": "q", "kind": "led" }],
+            "junctions": [{ "id": "j1", "name": "bus" }, { "id": "j2", "name": "bus" }],
+            "connections": wires(&[("w1", "p.out", "j1"), ("w2", "j2", "q.in")]),
+            "inputs": [{ "name": "p", "component": "p" }],
+            "outputs": [{ "name": "q", "component": "q" }],
+        }],
+    })))
+    .unwrap_err();
+    assert_eq!(found(&errors), [(Code::WidthMismatch, vec!["i1"])]);
 }

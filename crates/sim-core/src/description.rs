@@ -201,7 +201,6 @@ pub enum Code {
     InvalidId,
     WidthMismatch,
     InvalidWidth,
-    // Warnings found while compiling
     UnmatchedLabel,
     // Runtime
     Unstable,
