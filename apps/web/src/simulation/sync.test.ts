@@ -1,3 +1,5 @@
+// sync.ts imports the browser client (Worker), which the mock replaces at run time but tsc still reads.
+/// <reference lib="dom" />
 import { expect, test, vi } from "vitest";
 import type { Command, Result } from "./protocol";
 
