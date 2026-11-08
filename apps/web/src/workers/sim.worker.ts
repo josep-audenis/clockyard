@@ -35,9 +35,9 @@ onmessage = async (event: MessageEvent<Command>) => {
         state(runtime);
         break;
       }
-      case "setInput":
+      case "setInputs":
         // After validation errors there is nothing to set; the client re-sends inputs with the next load.
-        if (hasCircuit) state(JSON.parse(engine.set_input(command.component, command.value)));
+        if (hasCircuit) state(JSON.parse(engine.set_inputs(JSON.stringify(command.values))));
         break;
     }
   } catch (error) {

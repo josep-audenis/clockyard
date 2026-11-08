@@ -1,13 +1,15 @@
-// The editable circuit document, format version 5 (docs/architecture.md#circuit-document, ADRs 0010, 0012, 0014).
+// The editable circuit document, format version 7 (docs/architecture.md#circuit-document, ADRs 0010, 0012, 0014, 0015, 0017).
 // Connectivity is explicit: wires reference ports and junctions by ID, never by geometry.
 import type { CircuitBody, CircuitDescription, Endpoint, JunctionRef, PinDesc } from "../simulation/protocol";
 
 /** The built-in parts (the engine's catalog). */
-export const COMPONENT_KINDS = ["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "split", "merge"] as const;
+export const COMPONENT_KINDS = ["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "split", "merge", "clock", "dff"] as const;
 export type ComponentKind = (typeof COMPONENT_KINDS)[number];
 /** A splitter or merger: its `fields` prop adds a port per field (ADR 0014). Every other built-in part takes `width`. */
 export type FieldedKind = "split" | "merge";
 export const isFielded = (kind: PartKind): kind is FieldedKind => kind === "split" || kind === "merge";
+/** Whether `width` sets the part's ports (ADR 0014): not a chip, splitter, merger or clock (always 1 bit, ADR 0017). */
+export const takesWidth = (kind: PartKind) => kind !== "custom" && kind !== "clock" && !isFielded(kind);
 /** A built-in part, or an instance of a custom component (ADR 0012). */
 export type PartKind = ComponentKind | "custom";
 
@@ -125,7 +127,7 @@ export type Definition = { id: string; name: string; circuit: Circuit };
 
 export type CircuitDocument = {
   format: "clockyard";
-  version: 6;
+  version: 7;
   metadata: { name: string; createdAt: string; modifiedAt: string };
   circuit: Circuit;
   definitions: Definition[];

@@ -32,6 +32,14 @@ pub struct Simulator {
     /// Primitives still dirty when the last settle hit its delta limit; the
     /// next settle resumes them, so a live loop is reported until it resolves.
     unsettled: Vec<u32>,
+    /// Virtual time in ticks, one per half clock period: low at even ticks (ADR 0017).
+    time: u64,
+    /// The clock primitives, set to the clock's level on each tick.
+    clocks: Vec<u32>,
+    /// Whether any primitive holds state (a flip-flop), so settles need a snapshot.
+    stateful: bool,
+    /// Net values as the current settle started: the pre-edge state flip-flops sample.
+    snapshot: Vec<u32>,
 }
 
 /// What a primitive computes. A split compiles to one `Field` per field; an
@@ -40,8 +48,18 @@ pub struct Simulator {
 enum Op {
     Switch,
     Gate(Kind),
-    Field { shift: u32 },
-    Merge { shifts: Vec<u32> },
+    Field {
+        shift: u32,
+    },
+    Merge {
+        shifts: Vec<u32>,
+    },
+    /// The global clock's level, set on each tick.
+    Clock,
+    /// Inputs `d`, `clk`; outputs its state. `clk_was` is the clock value it last saw.
+    Dff {
+        clk_was: bool,
+    },
 }
 
 #[derive(Debug)]
@@ -53,7 +71,7 @@ struct Prim {
     mask: u32,
     /// The part it came from, named in diagnostics.
     part: u32,
-    /// A switch's user-set value.
+    /// A switch's user-set value, a clock's level, or a flip-flop's stored value.
     state: u32,
 }
 
@@ -63,6 +81,11 @@ enum End {
     Port(usize, usize),
     /// `true` for a custom component's pin, with that pin's width.
     Junction(bool, Option<u32>),
+}
+
+/// A runtime diagnostic with its IDs lifted to top-level IDs.
+fn lift_one(diagnostic: Diagnostic) -> Diagnostic {
+    lift(vec![diagnostic]).remove(0)
 }
 
 /// Union-find root of `node`, halving paths on the way.
@@ -454,6 +477,8 @@ impl Simulator {
             match kind {
                 Kind::Led => {}
                 Kind::Switch => add(Op::Switch, &[], 0),
+                Kind::Clock => add(Op::Clock, &[], 0),
+                Kind::Dff => add(Op::Dff { clk_was: false }, &nets[..2], 2),
                 Kind::Split => {
                     let mut shift = 0;
                     for (i, width) in fields[c].iter().enumerate() {
@@ -488,6 +513,10 @@ impl Simulator {
         }
 
         let count = prims.len() as u32;
+        let clocks = (0..count)
+            .filter(|&p| matches!(prims[p as usize].op, Op::Clock))
+            .collect();
+        let stateful = prims.iter().any(|p| matches!(p.op, Op::Dff { .. }));
         let mut sim = Simulator {
             ids,
             kinds,
@@ -498,6 +527,10 @@ impl Simulator {
             wire_widths,
             port_nets,
             unsettled: Vec::new(),
+            time: 0,
+            clocks,
+            stateful,
+            snapshot: Vec::new(),
         };
         sim.presettle();
         warnings.extend(sim.settle((0..count).collect()));
@@ -523,7 +556,11 @@ impl Simulator {
         let mut readers: Vec<usize> = (0..self.prims.len())
             .map(|p| self.fanout[p + 1].len())
             .collect();
-        let mut peeled: Vec<usize> = (0..readers.len()).filter(|&p| readers[p] == 0).collect();
+        // A flip-flop's value changes while settling, so it counts as part of a loop (ADR 0017).
+        let pure = |p: usize| !matches!(self.prims[p].op, Op::Dff { .. });
+        let mut peeled: Vec<usize> = (0..readers.len())
+            .filter(|&p| readers[p] == 0 && pure(p))
+            .collect();
         let mut next = 0;
         while let Some(&p) = peeled.get(next) {
             next += 1;
@@ -536,7 +573,7 @@ impl Simulator {
                 // Every net but ground is the output of primitive `net - 1`.
                 let d = net as usize - 1;
                 readers[d] -= 1;
-                if readers[d] == 0 {
+                if readers[d] == 0 && pure(d) {
                     peeled.push(d);
                 }
             }
@@ -549,6 +586,27 @@ impl Simulator {
     /// Sets a switch to `value` and settles. Refuses a value wider than the
     /// switch. Returns an `Unstable` diagnostic if the circuit did not settle.
     pub fn set_input(&mut self, component: &str, value: u32) -> Result<Option<Diagnostic>, String> {
+        self.set_inputs(&[(component, value)])
+    }
+
+    /// Sets several switches and settles once, as if they changed together:
+    /// a flip-flop clocked by one of them samples the others' old values, in
+    /// whatever order they are given (ADR 0017). Nothing is set if any value
+    /// is refused.
+    pub fn set_inputs(&mut self, values: &[(&str, u32)]) -> Result<Option<Diagnostic>, String> {
+        let targets = values
+            .iter()
+            .map(|&(component, value)| Ok((self.switch_prim(component, value)?, value)))
+            .collect::<Result<Vec<_>, String>>()?;
+        for &(p, value) in &targets {
+            self.prims[p].state = value;
+        }
+        let dirty = targets.iter().map(|&(p, _)| p as u32).collect();
+        Ok(self.settle(dirty).map(lift_one))
+    }
+
+    /// The primitive of switch `component`, if `value` fits it.
+    fn switch_prim(&self, component: &str, value: u32) -> Result<usize, String> {
         let c = self
             .ids
             .binary_search_by(|id| id.as_str().cmp(component))
@@ -560,15 +618,14 @@ impl Simulator {
             ));
         }
         let p = self.port_nets[component]["out"] as usize - 1;
-        let prim = &mut self.prims[p];
-        if value > prim.mask {
-            let width = bits(prim.mask.count_ones());
+        let mask = self.prims[p].mask;
+        if value > mask {
+            let width = bits(mask.count_ones());
             return Err(format!(
                 "{component} is {width} wide, so {value} does not fit"
             ));
         }
-        prim.state = value;
-        Ok(self.settle(vec![p as u32]).map(|d| lift(vec![d]).remove(0)))
+        Ok(p)
     }
 
     /// Current value of every net, cut to its width. Net 0 is ground.
@@ -605,7 +662,7 @@ impl Simulator {
         let prim = &self.prims[p];
         let input = |i: usize| prim.inputs.get(i).map_or(0, |&net| self.nets[net as usize]);
         let value = match &prim.op {
-            Op::Switch => prim.state,
+            Op::Switch | Op::Clock | Op::Dff { .. } => prim.state,
             Op::Gate(kind) => kind.gate(input(0), input(1)),
             Op::Field { shift } => input(0) >> shift,
             Op::Merge { shifts } => shifts
@@ -616,17 +673,91 @@ impl Simulator {
         value & prim.mask
     }
 
+    /// A flip-flop that sees `clk` at 1 after a 0 takes `d` from the net values
+    /// the settle started from, never from this edge's new data (ADR 0017).
+    fn clock_edge(&mut self, p: usize) {
+        let prim = &mut self.prims[p];
+        if let Op::Dff { clk_was } = &mut prim.op {
+            let clk = self.nets[prim.inputs[1] as usize] == 1;
+            if clk && !*clk_was {
+                prim.state = self.snapshot[prim.inputs[0] as usize] & prim.mask;
+            }
+            *clk_was = clk;
+        }
+    }
+
+    /// Advances the clock `count` ticks, settling after each. Stops at the
+    /// first tick that does not settle and returns its diagnostic.
+    pub fn tick(&mut self, count: u64) -> Option<Diagnostic> {
+        if self.clocks.is_empty() {
+            // Nothing changes, but a loop still oscillating is resumed and reported, as any settle does.
+            self.time = self.time.saturating_add(count);
+            return self.settle(Vec::new()).map(lift_one);
+        }
+        for _ in 0..count {
+            self.time = self.time.saturating_add(1);
+            let level = (self.time % 2) as u32;
+            for &p in &self.clocks {
+                self.prims[p as usize].state = level;
+            }
+            if let Some(d) = self.settle(self.clocks.clone()) {
+                return Some(lift_one(d));
+            }
+        }
+        None
+    }
+
+    /// One clock cycle: ticks until the clock has risen once and is low again
+    /// (2 ticks from low, 3 from high).
+    pub fn step_cycle(&mut self) -> Option<Diagnostic> {
+        self.tick(if self.time.is_multiple_of(2) { 2 } else { 3 })
+    }
+
+    /// Flip-flops, the clock and time back to 0, switch values kept; then
+    /// settles from all-zero nets as a load does.
+    pub fn reset(&mut self) -> Option<Diagnostic> {
+        self.time = 0;
+        self.unsettled.clear();
+        self.nets.fill(0);
+        for prim in &mut self.prims {
+            match &mut prim.op {
+                Op::Clock => prim.state = 0,
+                Op::Dff { clk_was } => {
+                    prim.state = 0;
+                    *clk_was = false;
+                }
+                _ => {}
+            }
+        }
+        self.presettle();
+        let all = (0..self.prims.len() as u32).collect();
+        self.settle(all).map(lift_one)
+    }
+
+    /// Virtual time in ticks; the cycle counter is `(time + 1) / 2`.
+    pub fn time(&self) -> u64 {
+        self.time
+    }
+
     /// Runs deltas until no net changes, bounded so oscillation cannot hang.
     fn settle(&mut self, mut dirty: Vec<u32>) -> Option<Diagnostic> {
         // Acyclic circuits settle in at most depth + 1 <= primitives + 1 deltas.
         let limit = self.prims.len() + 64;
         dirty.append(&mut self.unsettled);
+        if self.stateful {
+            self.snapshot.clone_from(&self.nets);
+        }
         let mut changed = Vec::new();
         for _ in 0..limit {
             dirty.sort_unstable();
             dirty.dedup();
             if dirty.is_empty() {
                 return None;
+            }
+            if self.stateful {
+                for &p in &dirty {
+                    self.clock_edge(p as usize);
+                }
             }
             // Every dirty primitive reads the same snapshot; writes apply after.
             let writes: Vec<(usize, u32)> = dirty

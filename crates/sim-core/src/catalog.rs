@@ -1,5 +1,5 @@
 //! Built-in component catalog: kinds, port names, directions and widths
-//! (ADRs 0004, 0014).
+//! (ADRs 0004, 0014, 0017).
 
 use std::borrow::Cow;
 
@@ -26,6 +26,8 @@ pub enum Kind {
     Xnor,
     Split,
     Merge,
+    Clock,
+    Dff,
 }
 
 /// One port of a part, with the width its props give it.
@@ -37,7 +39,7 @@ pub struct Port {
 }
 
 impl Kind {
-    pub const ALL: [Kind; 11] = [
+    pub const ALL: [Kind; 13] = [
         Kind::Switch,
         Kind::Led,
         Kind::Not,
@@ -49,6 +51,8 @@ impl Kind {
         Kind::Xnor,
         Kind::Split,
         Kind::Merge,
+        Kind::Clock,
+        Kind::Dff,
     ];
 
     /// Name used in circuit descriptions.
@@ -65,6 +69,8 @@ impl Kind {
             Kind::Xnor => "xnor",
             Kind::Split => "split",
             Kind::Merge => "merge",
+            Kind::Clock => "clock",
+            Kind::Dff => "dff",
         }
     }
 
@@ -72,9 +78,10 @@ impl Kind {
         Kind::ALL.into_iter().find(|kind| kind.name() == name)
     }
 
-    /// Whether the `width` prop sets every port's width (switch, LED, gates).
+    /// Whether the `width` prop sets its ports' widths (switch, LED, gates,
+    /// and a flip-flop's `d` and `q`). A clock is always 1 bit.
     pub fn sized(self) -> bool {
-        !self.fielded()
+        !self.fielded() && self != Kind::Clock
     }
 
     /// Whether the `fields` prop adds field ports `f0`, `f1`, … (split, merge).
@@ -95,8 +102,9 @@ impl Kind {
     /// Fixed input ports. A merge's field inputs come from `ports`.
     pub fn inputs(self) -> &'static [&'static str] {
         match self {
-            Kind::Switch | Kind::Merge => &[],
+            Kind::Switch | Kind::Merge | Kind::Clock => &[],
             Kind::Led | Kind::Not | Kind::Split => &["in"],
+            Kind::Dff => &["d", "clk"],
             _ => &["a", "b"],
         }
     }
@@ -105,22 +113,26 @@ impl Kind {
     pub fn outputs(self) -> &'static [&'static str] {
         match self {
             Kind::Led | Kind::Split => &[],
+            Kind::Dff => &["q"],
             _ => &["out"],
         }
     }
 
     /// Every port, inputs first, for already validated `width` and `fields`.
-    /// A split's `in` and a merge's `out` are as wide as all fields together.
+    /// A split's `in` and a merge's `out` are as wide as all fields together;
+    /// a flip-flop's `clk` is always 1 bit.
     pub fn ports(self, width: u32, fields: &[u32]) -> Vec<Port> {
         let fixed_width = if self.sized() {
             width
-        } else {
+        } else if self.fielded() {
             fields.iter().sum()
+        } else {
+            1
         };
         let fixed = |names: &'static [&'static str], output| {
             names.iter().map(move |name| Port {
                 name: Cow::Borrowed(*name),
-                width: fixed_width,
+                width: if *name == "clk" { 1 } else { fixed_width },
                 output,
             })
         };
@@ -151,7 +163,7 @@ impl Kind {
             Kind::Nor => !(a | b),
             Kind::Xor => a ^ b,
             Kind::Xnor => !(a ^ b),
-            Kind::Switch | Kind::Led | Kind::Split | Kind::Merge => {
+            Kind::Switch | Kind::Led | Kind::Split | Kind::Merge | Kind::Clock | Kind::Dff => {
                 unreachable!("{} is not a gate", self.name())
             }
         }
@@ -193,6 +205,12 @@ mod tests {
                 .collect()
         };
         let port = |name: &str, width, output| (name.to_string(), width, output);
+        let names_of = |kind: Kind, width| -> Vec<(String, u32, bool)> {
+            kind.ports(width, &[])
+                .into_iter()
+                .map(|p| (p.name.into_owned(), p.width, p.output))
+                .collect()
+        };
         assert_eq!(
             names(Kind::Split),
             [
@@ -211,5 +229,15 @@ mod tests {
         );
         let and: Vec<u32> = Kind::And.ports(8, &[]).iter().map(|p| p.width).collect();
         assert_eq!(and, [8, 8, 8]);
+        assert_eq!(
+            names_of(Kind::Dff, 8),
+            [
+                port("d", 8, false),
+                port("clk", 1, false),
+                port("q", 8, true)
+            ]
+        );
+        assert_eq!(names_of(Kind::Clock, 1), [port("out", 1, true)]);
+        assert!(!Kind::Clock.sized() && Kind::Dff.sized());
     }
 }

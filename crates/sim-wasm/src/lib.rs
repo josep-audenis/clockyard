@@ -68,6 +68,20 @@ struct Loaded<'a> {
     runtime: &'a [Diagnostic],
 }
 
+/// A switch value as a `u32`: anything but a whole number from 0 to `u32::MAX`
+/// is refused rather than wrapped or truncated.
+fn whole(value: f64) -> Result<u32, JsError> {
+    if value.fract() != 0.0 || !(0.0..=f64::from(u32::MAX)).contains(&value) {
+        // `{:?}` keeps 1e-300, inf and NaN short.
+        let message = format!(
+            "switch value {value:?} is not a whole number from 0 to {}",
+            u32::MAX
+        );
+        return Err(JsError::new(&message));
+    }
+    Ok(value as u32)
+}
+
 /// One loaded circuit. `load` replaces it.
 #[wasm_bindgen]
 #[derive(Default)]
@@ -116,24 +130,63 @@ impl Engine {
     /// number from 0 to `u32::MAX` is refused rather than wrapped or truncated;
     /// the engine then refuses values wider than the switch.
     pub fn set_input(&mut self, component: &str, value: f64) -> Result<String, JsError> {
-        let sim = self
-            .sim
+        let value = whole(value)?;
+        let diagnostic = self
+            .loaded()?
+            .set_input(component, value)
+            .map_err(|e| JsError::new(&e))?;
+        Ok(serde_json::to_string(&Vec::from_iter(diagnostic))?)
+    }
+
+    /// Sets several switches, `{ id: value }` as JSON, in one settle, as if they
+    /// changed together (ADR 0017); values are checked as `set_input` checks them,
+    /// and nothing is set if any is refused.
+    pub fn set_inputs(&mut self, values: &str) -> Result<String, JsError> {
+        let values: BTreeMap<String, f64> = serde_json::from_str(values)?;
+        let values = values
+            .iter()
+            .map(|(id, &value)| Ok((id.as_str(), whole(value)?)))
+            .collect::<Result<Vec<_>, JsError>>()?;
+        let diagnostic = self
+            .loaded()?
+            .set_inputs(&values)
+            .map_err(|e| JsError::new(&e))?;
+        Ok(serde_json::to_string(&Vec::from_iter(diagnostic))?)
+    }
+
+    /// Advances the clock `count` ticks (half periods), settling after each;
+    /// stops at the first that does not settle. Returns runtime diagnostics
+    /// as a JSON array (ADR 0017).
+    pub fn tick(&mut self, count: u32) -> Result<String, JsError> {
+        let sim = self.loaded()?;
+        Ok(serde_json::to_string(&Vec::from_iter(
+            sim.tick(u64::from(count)),
+        ))?)
+    }
+
+    /// One clock cycle: until the clock has risen once and is low again.
+    pub fn step_cycle(&mut self) -> Result<String, JsError> {
+        Ok(serde_json::to_string(&Vec::from_iter(
+            self.loaded()?.step_cycle(),
+        ))?)
+    }
+
+    /// Flip-flops, the clock and time back to 0; switch values are kept.
+    pub fn reset(&mut self) -> Result<String, JsError> {
+        Ok(serde_json::to_string(&Vec::from_iter(
+            self.loaded()?.reset(),
+        ))?)
+    }
+
+    /// Virtual time in ticks (exact as a JS number up to 2^53), 0 when nothing is loaded.
+    pub fn time(&self) -> f64 {
+        self.sim.as_ref().map_or(0.0, |sim| sim.time() as f64)
+    }
+
+    fn loaded(&mut self) -> Result<&mut Simulator, JsError> {
+        self.sim
             .as_mut()
-            .ok_or_else(|| JsError::new("no circuit loaded"))?;
-        if value.fract() != 0.0 || !(0.0..=f64::from(u32::MAX)).contains(&value) {
-            // `{:?}` keeps 1e-300, inf and NaN short.
-            let message = format!(
-                "switch value {value:?} is not a whole number from 0 to {}",
-                u32::MAX
-            );
-            return Err(JsError::new(&message));
-        }
-        let diagnostics: Vec<Diagnostic> = sim
-            .set_input(component, value as u32)
-            .map_err(|e| JsError::new(&e))?
-            .into_iter()
-            .collect();
-        Ok(serde_json::to_string(&diagnostics)?)
+            .ok_or_else(|| JsError::new("no circuit loaded"))
     }
 
     /// Current net values, each cut to its width, indexed by net. Empty when

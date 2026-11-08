@@ -9,13 +9,12 @@ import {
   fieldRanges,
   hex,
   isFielded,
-  newProps,
   sameEnd,
   type Circuit,
   type CircuitComponent,
   type Junction,
 } from "../editor/document";
-import { useEditor } from "../editor/store";
+import { armedProps, useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
 import { useSim } from "../simulation/sync";
 import {
@@ -325,9 +324,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const value = (port: string) => signal(ports?.[port]);
       drawBody(component, culprits.has(component.id), value);
       const bits = component.props.width ?? 1;
-      if ((component.kind === "switch" || component.kind === "led") && bits > 1) {
-        // A wide switch or LED shows its value in hex, upright whatever its rotation.
-        const shown = value(component.kind === "switch" ? "out" : "in");
+      if ((component.kind === "switch" || component.kind === "led" || component.kind === "dff") && bits > 1) {
+        // A wide switch, LED or register shows its value in hex, upright whatever its rotation.
+        const shown = value(component.kind === "switch" ? "out" : component.kind === "dff" ? "q" : "in");
         const { width, height } = layoutOf(component);
         const centre = px({ x: component.position.x + width / 2, y: component.position.y + height / 2 });
         const text = shown === null ? "--" : hex(shown, bits);
@@ -360,7 +359,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const rotation = useEditor.getState().armedRotation;
       const definition = useEditor.getState().armedDefinition ?? undefined;
       // A splitter or merger previews with the fields it will be placed with.
-      const shape = { kind: armed, rotation, definition, props: newProps(armed) };
+      const shape = { kind: armed, rotation, definition, props: armedProps(armed, useEditor.getState().armedWidth) };
       const ghost = { id: GHOST, ...shape, position: placement(shape, toWorld(pointer)) };
       // Outlined in the danger colour where a click would be refused.
       drawBody(ghost, placementStacks(circuit, ghost), () => null);
@@ -444,12 +443,19 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const { x, y } = component.position;
       const caption = component.props.label ?? (component.kind === "custom" ? definitionName(component.definition) : undefined);
       if (caption) label(component.id, caption, x + layout.width / 2, y + layout.height + 6 / c, { x: 0.5, y: 0 });
-      if (component.kind !== "custom" && !isFielded(component.kind)) continue;
+      if (component.kind !== "custom" && component.kind !== "dff" && !isFielded(component.kind)) continue;
       // A chip's pin names, or a splitter's or merger's bit ranges ("7:4"), just inside the body,
       // facing in from the side the port is on.
       const ranges = fieldRanges(component.props.fields ?? DEFAULT_FIELDS);
       const nameOf = (port: string) =>
-        component.kind === "custom" ? pinLabel(component.definition, port) : /^f\d+$/.test(port) ? ranges[Number(port.slice(1))] : "";
+        component.kind === "custom"
+          ? pinLabel(component.definition, port)
+          : component.kind === "dff"
+            ? // The clock input is marked by the triangle on the body.
+              ({ d: "D", q: "Q" }[port] ?? "")
+            : /^f\d+$/.test(port)
+              ? ranges[Number(port.slice(1))]
+              : "";
       for (const [port, p] of Object.entries({ ...layout.inputs, ...layout.outputs })) {
         const name = nameOf(port);
         if (!name) continue;
@@ -541,6 +547,26 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         }
         break;
       }
+      case "clock": {
+        // A box with a square wave, drawn in the clock's level (ADR 0017).
+        g.roundRect(x, y, 2 * c, 2 * c, size["radius-sm"]).fill(body).stroke(outline);
+        const level = value("out") === 1 ? color["signal-high"] : color["signal-low"];
+        const [lo, hi] = [y + 1.4 * c, y + 0.6 * c];
+        polyline(g, [
+          { x: x + 0.3 * c, y: lo },
+          { x: x + 0.7 * c, y: lo },
+          { x: x + 0.7 * c, y: hi },
+          { x: x + 1.3 * c, y: hi },
+          { x: x + 1.3 * c, y: lo },
+          { x: x + 1.7 * c, y: lo },
+        ]).stroke({ width: 2, color: level, join: "round" });
+        break;
+      }
+      case "dff":
+        // A box with D and Q as labels, and the clock input marked by a triangle (ADR 0017).
+        g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(outline);
+        g.moveTo(x, y + 3 * c - 6).lineTo(x + 8, y + 3 * c).lineTo(x, y + 3 * c + 6).stroke(outline);
+        break;
       case "split":
       case "merge":
         // A bar outlined in the bus colour (CanvasKit: signal-bus paints buses and splitter bodies).

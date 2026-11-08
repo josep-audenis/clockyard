@@ -19,6 +19,7 @@ import {
   normalizeName,
   normalizeNetName,
   sameEnd,
+  takesWidth,
   withoutDeletedPins,
   type Circuit,
   type CircuitComponent,
@@ -40,6 +41,8 @@ export type EditorState = {
   inputs: Record<string, number>;
   /** Part waiting to be placed by the next canvas click. */
   armed: PartKind | null;
+  /** The width the armed part will be placed with: 1, or 8 for a Register (ADR 0017). */
+  armedWidth: number;
   /** For an armed `custom` part: the definition it will be an instance of. */
   armedDefinition: string | null;
   /** A net label (ADR 0015) waits to be placed by the next canvas click. */
@@ -109,7 +112,8 @@ export type EditorState = {
   toggle: (id: string) => void;
   /** Sets a wide switch's value, already checked against its width. Not an edit, like a toggle. */
   setInput: (id: string, value: number) => void;
-  arm: (kind: PartKind | null) => void;
+  /** Arms a part, width bits wide (1 unless given). */
+  arm: (kind: PartKind | null, width?: number) => void;
   /** Arms an instance of a definition (a chip from the parts panel). */
   armChip: (definition: string) => void;
   /** Arms a net label, or disarms it. */
@@ -261,6 +265,9 @@ function crossingPins(circuit: Circuit, inside: Set<string>, crossing: Wire[], n
   return { pins, inner, outer };
 }
 
+/** A new part's props: its kind's defaults, and `width` where it is wider than 1. */
+export const armedProps = (kind: PartKind, width: number): Props => ({ ...newProps(kind), ...(width > 1 && { width }) });
+
 const now = new Date().toISOString();
 const HISTORY_LIMIT = 200;
 
@@ -403,6 +410,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   selection: [],
   inputs: {},
   armed: null,
+  armedWidth: 1,
   armedDefinition: null,
   armedLabel: false,
   definitions: [],
@@ -417,7 +425,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   add: (kind, position) => {
     const id = crypto.randomUUID();
     set((state) => {
-      const part: CircuitComponent = { id, kind, position, rotation: state.armedRotation, props: newProps(kind) };
+      const part: CircuitComponent = { id, kind, position, rotation: state.armedRotation, props: armedProps(kind, state.armedWidth) };
       if (kind === "custom" && state.armedDefinition) part.definition = state.armedDefinition;
       return {
         ...edit(state, { ...state.circuit, components: [...state.circuit.components, part] }),
@@ -692,7 +700,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
     set((state) => {
       const part = state.circuit.components.find((c) => c.id === id);
       const valid = Number.isInteger(width) && width >= 1 && width <= MAX_WIDTH;
-      if (!part || part.kind === "custom" || isFielded(part.kind) || !valid || (part.props.width ?? 1) === width) return state;
+      if (!part || !takesWidth(part.kind) || !valid || (part.props.width ?? 1) === width) return state;
       const props = { ...part.props };
       if (width > 1) props.width = width;
       else delete props.width;
@@ -795,8 +803,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
   turnArmed: (turn) => set(({ armedRotation }) => ({ armedRotation: ((armedRotation + 90 * turn + 360) % 360) as typeof armedRotation })),
   toggle: (id) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: inputs[id] === 1 ? 0 : 1 } })),
   setInput: (id, value) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: value } })),
-  arm: (kind) => set({ armed: kind, armedDefinition: null, armedRotation: 0, armedLabel: false }),
-  armChip: (definition) => set({ armed: "custom", armedDefinition: definition, armedRotation: 0, armedLabel: false }),
+  arm: (kind, width = 1) => set({ armed: kind, armedWidth: width, armedDefinition: null, armedRotation: 0, armedLabel: false }),
+  armChip: (definition) => set({ armed: "custom", armedWidth: 1, armedDefinition: definition, armedRotation: 0, armedLabel: false }),
   armLabel: (on) => set({ armed: null, armedDefinition: null, armedLabel: on }),
   load: ({ metadata, circuit, definitions }) => {
     // An opened file is routed afresh, never shaped by whatever was on screen before.

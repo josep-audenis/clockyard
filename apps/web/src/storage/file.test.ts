@@ -5,7 +5,7 @@ import { parseDocument, serializeDocument } from "./file";
 
 const document: CircuitDocument = {
   format: "clockyard",
-  version: 6,
+  version: 7,
   metadata: { name: "AND demo", createdAt: "2026-11-06T12:00:00Z", modifiedAt: "2026-11-06T12:30:00Z" },
   circuit: {
     components: [
@@ -77,7 +77,7 @@ test("definition names are normalized like the editor does, and a blank one beco
 test.each([
   ["not JSON", () => parseDocument("{"), "not valid JSON"],
   ["another format", () => broken((doc) => Object.assign(doc, { format: "other" })), "not a Clockyard file"],
-  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 7 })), "newer Clockyard"],
+  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 8 })), "newer Clockyard"],
   ["an instance of a missing definition", () => broken((doc) => Object.assign(doc.circuit.components[2] ?? {}, { definition: "gone" })), "missing definition gone"],
   ["an ID with a slash", () => broken((_, c) => (c.id = "a/b")), 'must not contain "/"'],
   ["a definition ID used twice", () => broken((doc) => doc.definitions.push({ ...(doc.definitions[0] as Definition) })), "ID inv is used more than once"],
@@ -192,6 +192,14 @@ test("a splitter's fields round-trip through export and import", () => {
 test("a version 5 file is migrated: only the version changes", () => {
   const v5 = { ...document, version: 5 };
   expect(parseDocument(JSON.stringify(v5))).toEqual({ ok: true, document });
+});
+
+test("a version 6 file is migrated: only the version changes; clocks and registers round-trip in 7", () => {
+  const v6 = { ...document, version: 6 };
+  expect(parseDocument(JSON.stringify(v6))).toEqual({ ok: true, document });
+  const result = broken((_, c) => Object.assign(c, { kind: "dff", props: { width: 8 } }));
+  expect(result.ok && result.document.circuit.components[0]).toMatchObject({ kind: "dff", props: { width: 8 } });
+  expect(broken((_, c) => Object.assign(c, { kind: "clock", props: { width: 8 } }))).toMatchObject({ ok: false, error: expect.stringMatching(/always 1 bit/) });
 });
 
 test("a net label's name is normalized like the editor's, NFC included; blank is dropped, too long refused", () => {

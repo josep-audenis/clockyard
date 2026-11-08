@@ -197,7 +197,7 @@ Typed discriminated unions over `postMessage`. No RPC library at first.
 // main → worker
 type Command =
   | { type: "load"; circuit: CircuitDescription }
-  | { type: "setInput"; component: string; value: number } // 0 to 2^width − 1
+  | { type: "setInputs"; values: Record<string, number> } // each 0 to 2^width − 1, in one settle
   | { type: "reset" }                  // planned
   | { type: "stepClock" }              // Phase 3
   | { type: "run"; cyclesPerSecond: number } // Phase 3
@@ -219,14 +219,15 @@ type Result =
   and replies with state.
 - `simulation/sync.ts` sends `load` only when the projected description
   changes, so moving a part keeps the engine's state. Switch positions live in
-  the editor store (transient, never saved) and are re-sent after each load.
+  the editor store (transient, never saved) and are re-sent after each load,
+  all in one `setInputs` so they change together (ADR 0017).
   States that arrive while a newer load is pending are dropped.
 - `loaded.diagnostics` holds validation results only. The initial settle's
   runtime result (an unstable loop) arrives with the first `state`, so the
   settles that follow, such as restored switch positions, replace it.
 - `netDrivers` is for *Make component* (ADR 0016): whether a crossing net's
   driver is inside the selection.
-- A `setInput` value is a JS number. `sim-wasm` refuses a non-integer, a
+- A `setInputs` value is a JS number. `sim-wasm` refuses a non-integer, a
   negative number or one above 2^32 − 1 instead of wrapping it, and the engine
   refuses a value wider than the switch; the worker reports either as `error`
   (ADR 0014).

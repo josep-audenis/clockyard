@@ -6,6 +6,7 @@ import {
   fieldsProblem,
   hex,
   isFielded,
+  takesWidth,
   MAX_LABEL,
   MAX_WIDTH,
   maxValue,
@@ -21,10 +22,18 @@ import { connectEngine, useSim } from "../simulation/sync";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
 
 /** `label` is not a part: it places a named junction (ADR 0015). */
-type Part = { kind: ComponentKind | "label"; name: string; key?: string };
+/** A parts-panel tile; `width` arms the part that wide (a Register is an 8-bit D flip-flop). */
+type Part = { kind: ComponentKind | "label"; name: string; key?: string; width?: number };
 // Shortcut letters follow the design system's PartTile spec.
 const LIBRARY: { title: string; parts: Part[] }[] = [
-  { title: "Inputs", parts: [{ kind: "switch", name: "Switch", key: "S" }] },
+  {
+    title: "Inputs",
+    parts: [
+      { kind: "switch", name: "Switch", key: "S" },
+      // The global clock (ADR 0017).
+      { kind: "clock", name: "Clock" },
+    ],
+  },
   { title: "Outputs", parts: [{ kind: "led", name: "LED", key: "L" }] },
   {
     title: "Gates",
@@ -48,11 +57,23 @@ const LIBRARY: { title: string; parts: Part[] }[] = [
       { kind: "label", name: "Label" },
     ],
   },
+  {
+    // One sized flip-flop kind; a register is a wide one (ADR 0017).
+    title: "Memory",
+    parts: [
+      { kind: "dff", name: "D flip-flop" },
+      { kind: "dff", name: "Register", width: 8 },
+    ],
+  },
 ];
-const NAMES = new Map(LIBRARY.flatMap(({ parts }) => parts.map(({ kind, name }) => [kind, name] as const)));
-/** What a part is called: its kind, or for a custom component its definition's name. */
-const kindName = (part: Pick<CircuitComponent, "kind" | "definition">) =>
-  part.kind === "custom" ? (definitionName(part.definition) ?? "Component") : NAMES.get(part.kind);
+const NAMES = new Map(LIBRARY.flatMap(({ parts }) => parts.flatMap(({ kind, name, width }) => (width ? [] : [[kind, name] as const]))));
+/** What a part is called: its kind (a wide D flip-flop is a register), or for a custom component its definition's name. */
+const kindName = (part: Pick<CircuitComponent, "kind" | "definition" | "props">) =>
+  part.kind === "custom"
+    ? (definitionName(part.definition) ?? "Component")
+    : part.kind === "dff" && (part.props.width ?? 1) > 1
+      ? "Register"
+      : NAMES.get(part.kind);
 const SHORTCUTS = new Map(LIBRARY.flatMap(({ parts }) => parts.flatMap(({ kind, key }) => (key ? [[key, kind] as const] : []))));
 /** The platform's name for the shortcut modifier (design system Kbd rule). */
 const MOD = navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl";
@@ -166,6 +187,7 @@ function PartsLibrary() {
   const armed = useEditor((s) => s.armed);
   const arm = useEditor((s) => s.arm);
   const armedLabel = useEditor((s) => s.armedLabel);
+  const armedWidth = useEditor((s) => s.armedWidth);
   const armLabel = useEditor((s) => s.armLabel);
   const armedDefinition = useEditor((s) => s.armedDefinition);
   const armChip = useEditor((s) => s.armChip);
@@ -199,14 +221,16 @@ function PartsLibrary() {
         <section key={title} className="panel">
           <h2 className="type-heading panel-title">{title.toUpperCase()}</h2>
           <div className="part-grid">
-            {parts.map(({ kind, name, key }) => (
+            {parts.map(({ kind, name, key, width = 1 }) => (
               <button
-                key={kind}
+                key={name}
                 type="button"
                 className="part-tile type-label"
-                aria-pressed={kind === "label" ? armedLabel : armed === kind}
+                aria-pressed={kind === "label" ? armedLabel : armed === kind && armedWidth === width}
                 aria-keyshortcuts={key}
-                onClick={() => (kind === "label" ? armLabel(!armedLabel) : arm(armed === kind ? null : kind))}
+                onClick={() =>
+                  kind === "label" ? armLabel(!armedLabel) : arm(armed === kind && armedWidth === width ? null : kind, width)
+                }
               >
                 {name}
                 {key && <kbd className="kbd">{key}</kbd>}
@@ -504,7 +528,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           }}
         />
       )}
-      {part.kind !== "custom" && !isFielded(part.kind) && (
+      {takesWidth(part.kind) && (
         <CommitField
           key={`width:${part.props.width ?? 1}`}
           label="Width"
@@ -620,7 +644,8 @@ function ValueField({ part }: { part: CircuitComponent }) {
 /** A part's label, or its kind and position among parts of that kind ("Switch 2"). */
 function partName(components: CircuitComponent[], part: CircuitComponent) {
   if (part.props.label) return `${kindName(part)} ${part.props.label}`;
-  const same = components.filter((c) => c.kind === part.kind && c.definition === part.definition);
+  // Numbered among parts called the same, so registers and 1-bit flip-flops count apart.
+  const same = components.filter((c) => c.kind === part.kind && c.definition === part.definition && kindName(c) === kindName(part));
   return `${kindName(part)} ${same.indexOf(part) + 1}`;
 }
 

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import { Engine, catalog, initSync, max_width } from "../generated/sim-wasm/sim_wasm.js";
-import { MAX_WIDTH } from "../editor/document";
+import { COMPONENT_KINDS, MAX_WIDTH, takesWidth } from "../editor/document";
 import type { CircuitDescription, Diagnostic, Result } from "../simulation/protocol";
 
 type Loaded = Omit<Extract<Result, { type: "loaded" }>, "type">;
@@ -119,7 +119,7 @@ test("the catalog marks sized kinds and gives split and merge their field-port r
   type Part = { kind: string; sized?: true; fieldPorts?: { side: string; prefix: string } };
   const parts = JSON.parse(catalog()) as Part[];
   expect(max_width()).toBe(MAX_WIDTH);
-  expect(parts.filter((p) => p.sized).map((p) => p.kind)).toEqual(["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor"]);
+  expect(parts.filter((p) => p.sized).map((p) => p.kind)).toEqual(["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "dff"]);
   expect(parts.filter((p) => p.fieldPorts).map((p) => [p.kind, p.fieldPorts])).toEqual([
     ["split", { side: "outputs", prefix: "f" }],
     ["merge", { side: "inputs", prefix: "f" }],
@@ -132,4 +132,37 @@ test("a description that does not parse is an error and leaves no circuit loaded
   expect(() => engine.load("{ not json")).toThrow();
   expect(engine.nets()).toHaveLength(0);
   expect(() => engine.set_input("s", 1)).toThrow("no circuit loaded");
+});
+
+test("ticks, cycles and reset cross the boundary; switches set together settle once (ADR 0017)", () => {
+  const engine = new Engine();
+  const circuit = {
+    components: [
+      { id: "k", kind: "clock" },
+      { id: "d", kind: "switch" },
+      { id: "f", kind: "dff" },
+    ],
+    connections: [
+      { id: "w1", from: { component: "d", port: "out" }, to: { component: "f", port: "d" } },
+      { id: "w2", from: { component: "k", port: "out" }, to: { component: "f", port: "clk" } },
+    ],
+  };
+  const loaded = JSON.parse(engine.load(JSON.stringify(circuit))) as Loaded;
+  const q = () => engine.nets()[loaded.portNets.f?.q ?? -1];
+  expect(JSON.parse(engine.set_inputs(JSON.stringify({ d: 1 })))).toEqual([]);
+  expect(JSON.parse(engine.step_cycle())).toEqual([]);
+  expect([engine.time(), q()]).toEqual([2, 1]);
+  expect(JSON.parse(engine.tick(1))).toEqual([]);
+  expect(engine.time()).toBe(3);
+  expect(JSON.parse(engine.reset())).toEqual([]);
+  expect([engine.time(), q()]).toEqual([0, 0]);
+  expect(() => engine.set_inputs(JSON.stringify({ d: 0.5 }))).toThrow("not a whole number");
+  const empty = new Engine();
+  expect(() => empty.tick(1)).toThrow("no circuit loaded");
+  expect(empty.time()).toBe(0);
+});
+
+test("the editor offers a width exactly where the engine's catalog takes one", () => {
+  const sized = (JSON.parse(catalog()) as { kind: string; sized?: true }[]).filter((p) => p.sized).map((p) => p.kind);
+  expect(COMPONENT_KINDS.filter(takesWidth)).toEqual(sized);
 });
