@@ -17,6 +17,7 @@ import {
   newProps,
   normalizeLabel,
   normalizeName,
+  normalizeNetName,
   sameEnd,
   type Circuit,
   type CircuitComponent,
@@ -38,7 +39,19 @@ export type EditorState = {
   armed: PartKind | null;
   /** For an armed `custom` part: the definition it will be an instance of. */
   armedDefinition: string | null;
+  /** A net label (ADR 0015) waits to be placed by the next canvas click. */
+  armedLabel: boolean;
   add: (kind: PartKind, position: { x: number; y: number }) => string;
+  /**
+   * Places a net label: a junction named with the first unused `n1`, `n2`, … on the sheet, selected,
+   * as one edit. Refused (null) on a port or another junction, as any junction is (ADR 0010).
+   */
+  addLabel: (position: { x: number; y: number }) => string | null;
+  /**
+   * Names a junction as one edit (ADR 0015), normalized as on import; blank clears the name, and
+   * clearing it on a junction with no wires removes the junction.
+   */
+  setName: (id: string, name: string) => void;
   /**
    * Sets positions by component or junction ID in one update; not recorded (see `record`).
    * Bends of shaped wires whose two ends move by the same amount move with them.
@@ -96,6 +109,8 @@ export type EditorState = {
   arm: (kind: PartKind | null) => void;
   /** Arms an instance of a definition (a chip from the parts panel). */
   armChip: (definition: string) => void;
+  /** Arms a net label, or disarms it. */
+  armLabel: (on: boolean) => void;
   /** Custom component definitions (ADR 0012); the one open on a sheet is `circuit`, see `liveDefinitions`. */
   definitions: Definition[];
   /**
@@ -158,6 +173,9 @@ function withCircuit(state: EditorState, circuit: Circuit) {
 
 const items = (circuit: Circuit) => [...circuit.components, ...circuit.junctions, ...circuit.wires];
 
+/** Nothing to copy: no parts, and no junction kept (a plain one only comes with its wires; a label alone does). */
+const isEmpty = (part: Circuit) => part.components.length === 0 && part.junctions.length === 0;
+
 /** The chosen parts and junctions and the wires running between them; wires to anything else are left out. */
 function fragment(circuit: Circuit, ids: string[]): Circuit {
   const chosen = new Set(ids);
@@ -165,9 +183,9 @@ function fragment(circuit: Circuit, ids: string[]): Circuit {
   const junctions = circuit.junctions.filter((j) => chosen.has(j.id));
   const inside = new Set([...components, ...junctions].map((item) => item.id));
   const wires = circuit.wires.filter((w) => inside.has(endOwner(w.from)) && inside.has(endOwner(w.to)));
-  // A junction only joins wires; one with none among them would arrive as a lone dot.
+  // A plain junction only joins wires; one with none among them would arrive as a lone dot. A label is kept.
   const used = new Set(wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
-  return { components, junctions: junctions.filter((j) => used.has(j.id)), wires };
+  return { components, junctions: junctions.filter((j) => used.has(j.id) || !!j.name), wires };
 }
 
 /** A copy of `part` with fresh IDs, shifted down-right by `offset` cells. */
@@ -235,7 +253,7 @@ function canConnect(circuit: Circuit, from: Endpoint, to: Endpoint) {
 }
 
 /** What a sheet starts with: nothing selected, armed or switched on. */
-const fresh = { selection: [], inputs: {}, armed: null, armedDefinition: null };
+const fresh = { selection: [], inputs: {}, armed: null, armedDefinition: null, armedLabel: false };
 
 /** Every definition as it is now: the open one's circuit is the one being edited. */
 export function liveDefinitions(state: Pick<EditorState, "definitions" | "sheet" | "circuit">): Definition[] {
@@ -274,6 +292,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   inputs: {},
   armed: null,
   armedDefinition: null,
+  armedLabel: false,
   definitions: [],
   sheet: null,
   main: null,
@@ -334,7 +353,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
       const used = new Set(wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
       const circuit = {
         components: [...s.circuit.components.filter((c) => !gone.has(c.id)), instance],
-        junctions: s.circuit.junctions.filter((j) => !gone.has(j.id) && used.has(j.id)),
+        junctions: s.circuit.junctions.filter((j) => !gone.has(j.id) && (used.has(j.id) || !!j.name)),
         wires,
       };
       return { ...edit(s, circuit), definitions: [...s.definitions, definition], selection: [instance.id] };
@@ -469,9 +488,9 @@ export const useEditor = create<EditorState>()((set, get) => ({
       const components = circuit.components.filter((c) => !gone.has(c.id));
       // Wires attached to removed parts and junctions go too.
       const wires = circuit.wires.filter((w) => !gone.has(w.id) && !gone.has(endOwner(w.from)) && !gone.has(endOwner(w.to)));
-      // A junction joins wires; with none left it is gone as well.
+      // A plain junction joins wires; with none left it is gone as well. A label stays until deleted (ADR 0015).
       const used = new Set(wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
-      const junctions = circuit.junctions.filter((j) => !gone.has(j.id) && used.has(j.id));
+      const junctions = circuit.junctions.filter((j) => !gone.has(j.id) && (used.has(j.id) || !!j.name));
       // Nothing removed: not an edit, so history (and redo) stays as it is.
       if (items({ components, junctions, wires }).length === items(circuit).length) return state;
       return edit(state, { components, junctions, wires });
@@ -484,12 +503,12 @@ export const useEditor = create<EditorState>()((set, get) => ({
   copy: () =>
     set((state) => {
       const part = fragment(state.circuit, state.selection);
-      return part.components.length > 0 ? { clipboard: part, pastes: 0 } : state;
+      return isEmpty(part) ? state : { clipboard: part, pastes: 0 };
     }),
   cut: () => {
     const { circuit, selection } = get();
-    // Like copy, cut works on parts; without any it does nothing.
-    if (fragment(circuit, selection).components.length === 0) return;
+    // Like copy, cut works on parts and labels; without any it does nothing.
+    if (isEmpty(fragment(circuit, selection))) return;
     get().copy();
     get().remove(selection);
     // The first paste after a cut puts the parts back where they were.
@@ -497,7 +516,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   },
   paste: () =>
     set((state) => {
-      if (!state.clipboard?.components.length) return state;
+      if (!state.clipboard || isEmpty(state.clipboard)) return state;
       // Instances must have their definition here, and a definition's sheet may not come to contain itself.
       const definitions = liveDefinitions(state);
       const placeable = (c: CircuitComponent) =>
@@ -511,7 +530,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   duplicate: () =>
     set((state) => {
       const part = fragment(state.circuit, state.selection);
-      return part.components.length > 0 ? insert(state, placed(state.circuit, part, 2)[0]) : state;
+      return isEmpty(part) ? state : insert(state, placed(state.circuit, part, 2)[0]);
     }),
   setLabel: (id, label) =>
     set((state) => {
@@ -534,6 +553,33 @@ export const useEditor = create<EditorState>()((set, get) => ({
       else delete props.width;
       return edit(state, { ...state.circuit, components: state.circuit.components.map((c) => (c === part ? { ...c, props } : c)) });
     }),
+  addLabel: (position) => {
+    const id = crypto.randomUUID();
+    const { circuit } = get();
+    if (stacksJunction({ ...circuit, junctions: [...circuit.junctions, { id, position }] }, { [id]: position })) return null;
+    const taken = new Set(circuit.junctions.map((j) => j.name));
+    let n = 1;
+    while (taken.has(`n${n}`)) n++;
+    set((state) => ({
+      ...edit(state, { ...state.circuit, junctions: [...state.circuit.junctions, { id, position, name: `n${n}` }] }),
+      selection: [id],
+      armedLabel: false,
+    }));
+    return id;
+  },
+  setName: (id, name) =>
+    set((state) => {
+      // Cut by code point after NFC, the form import checks, so a stored name always reloads.
+      const text = [...normalizeNetName(name)].slice(0, MAX_LABEL).join("");
+      const junction = state.circuit.junctions.find((j) => j.id === id);
+      if (!junction || (junction.name ?? "") === text) return state;
+      const wired = state.circuit.wires.some((w) => endOwner(w.from) === id || endOwner(w.to) === id);
+      const named = { id: junction.id, position: junction.position, ...(text && { name: text }) };
+      const junctions = !text && !wired
+        ? state.circuit.junctions.filter((j) => j !== junction)
+        : state.circuit.junctions.map((j) => (j === junction ? named : j));
+      return edit(state, { ...state.circuit, junctions });
+    }),
   setFields: (id, fields) =>
     set((state) => {
       const part = state.circuit.components.find((c) => c.id === id);
@@ -545,7 +591,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
       const dropped = new Set(state.circuit.wires.filter((w) => !wires.includes(w)).flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
       return edit(state, {
         components: state.circuit.components.map((c) => (c === part ? { ...c, props: { ...c.props, fields: [...fields] } } : c)),
-        junctions: state.circuit.junctions.filter((j) => used.has(j.id) || !dropped.has(j.id)),
+        junctions: state.circuit.junctions.filter((j) => used.has(j.id) || !!j.name || !dropped.has(j.id)),
         wires,
       });
     }),
@@ -604,8 +650,9 @@ export const useEditor = create<EditorState>()((set, get) => ({
   turnArmed: (turn) => set(({ armedRotation }) => ({ armedRotation: ((armedRotation + 90 * turn + 360) % 360) as typeof armedRotation })),
   toggle: (id) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: inputs[id] === 1 ? 0 : 1 } })),
   setInput: (id, value) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: value } })),
-  arm: (kind) => set({ armed: kind, armedDefinition: null, armedRotation: 0 }),
-  armChip: (definition) => set({ armed: "custom", armedDefinition: definition, armedRotation: 0 }),
+  arm: (kind) => set({ armed: kind, armedDefinition: null, armedRotation: 0, armedLabel: false }),
+  armChip: (definition) => set({ armed: "custom", armedDefinition: definition, armedRotation: 0, armedLabel: false }),
+  armLabel: (on) => set({ armed: null, armedDefinition: null, armedLabel: on }),
   load: ({ metadata, circuit, definitions }) => {
     // An opened file is routed afresh, never shaped by whatever was on screen before.
     forgetRoutes();

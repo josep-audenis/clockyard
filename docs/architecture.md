@@ -95,7 +95,9 @@ Rules:
   resolved by the engine; names never join across sheets or instances. Names
   follow the label rules below and are also normalized to Unicode NFC, then
   match exactly, case included. Import drops a blank name and refuses one over
-  32 characters. Unlike `props`, a junction's `name` reaches the engine.
+  32 characters. Unlike `props`, a junction's `name` reaches the engine. A
+  named junction is kept when its last wire goes (a label is placed before it
+  is wired); a plain one is removed, as ADR 0010 says.
 - `rotation` (0, 90, 180, 270, clockwise) turns a part about its box; the
   canvas derives the turned port positions (`canvas/layout.ts`, `layoutOf`).
 - A wire's route is geometry only. It is routed on the grid automatically
