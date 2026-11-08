@@ -178,7 +178,12 @@ const body = (circuit: Circuit): CircuitBody => ({
  * see them.
  */
 export function withoutDeletedPins(circuit: Circuit, definitions: Definition[]): Circuit {
-  const pins = new Map(definitions.map((d) => [d.id, new Set(d.circuit.components.filter((c) => c.kind === "switch" || c.kind === "led").map((c) => c.id))]));
+  const pins = new Map(
+    definitions.map((d) => {
+      const { inputs, outputs } = pinsOf(d.circuit);
+      return [d.id, new Set([...inputs, ...outputs].map((pin) => pin.name))];
+    }),
+  );
   const parts = new Map(circuit.components.map((c) => [c.id, c]));
   const gone = (end: Endpoint) => {
     const part = isJunction(end) ? undefined : parts.get(end.component);

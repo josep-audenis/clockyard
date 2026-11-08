@@ -43,6 +43,9 @@ definition's sheet is open would mix old and new.
 Deleting a pin no longer leaves `unknownPort` errors. The editor keeps wires
 to a deleted pin, so undoing the deletion on the definition's sheet still
 brings them back, but leaves them out of what the engine sees and out of
-exported files. They are not drawn, since their port is gone. The engine
-still reports `unknownPort` for a hand-written file that names a port an
-instance does not have.
+exported files. They are not drawn, since their port is gone. The editor
+cannot tell a deleted pin from a typo, so any wire to a port an instance's
+definition lacks, from a deleted pin or a hand-written file, is treated the
+same way: it does nothing, and the next export leaves it out. The engine
+still reports `unknownPort` for a primitive part's port and an instance of
+an unknown definition reports `unknownDefinition`.

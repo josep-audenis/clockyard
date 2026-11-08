@@ -163,11 +163,13 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   let hover: Point | null = null;
   /** A label placed by the current press, whose Name field takes focus when it is released. */
   let placedLabel: string | null = null;
-  /** Each label tag's box as last drawn, in stage pixels, keyed by junction ID: a click on one selects its label. */
+  /** Each label tag's box as last drawn, in world pixels (before pan and zoom), keyed by junction ID. */
   const tagBoxes = new Map<string, { x: number; y: number; w: number; h: number }>();
+  /** The label whose tag is under `p`; a box from the last frame counts only while its label still has a name. */
   const tagAt = (p: Point) => {
     const { x, y } = px(p);
-    return [...tagBoxes].reverse().find(([, b]) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h)?.[0];
+    const id = [...tagBoxes].reverse().find(([, b]) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h)?.[0];
+    return id && useEditor.getState().circuit.junctions.some((j) => j.id === id && j.name) ? id : undefined;
   };
   /** Space held: a left drag pans. */
   let spaceHeld = false;
@@ -304,7 +306,9 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     };
 
     // CanvasKit: a junction is a 4px dot in its net's state colour, read from any wire on it.
-    const wireAt = new Map(circuit.wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)].map((owner) => [owner, w.id])));
+    // Wires the engine was not sent (to a deleted pin, ADR 0013) carry no state, so they never colour a dot.
+    const live = loaded ? circuit.wires.filter((w) => w.id in loaded.wireNets) : circuit.wires;
+    const wireAt = new Map(live.flatMap((w) => [endOwner(w.from), endOwner(w.to)].map((owner) => [owner, w.id])));
     for (const junction of circuit.junctions) {
       const attached = wireAt.get(junction.id);
       const value = signal(attached === undefined ? undefined : loaded?.wireNets[attached]);
@@ -647,6 +651,10 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const point = endAt(at, end);
       return point ? { at: point, end } : null;
     }
+    // A wire dropped on a label's tag joins the label, not a wire under the tag.
+    const tag = wiring ? tagAt(p) : undefined;
+    const label = tag && at.junctions.get(tag)?.position;
+    if (tag && label) return { at: label, end: { junction: tag } };
     const wire = wiring && hit?.type === "wire" ? circuit.wires.find((w) => w.id === hit.id) : undefined;
     const points = wire && currentRoutes(circuit).get(wire.id);
     const point = points && nearestOnRoute(points, p);
