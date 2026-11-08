@@ -916,3 +916,22 @@ test("setFields takes up to 32 fields, keeps the bus wire, and drops a junction 
   expect(wires.map((w) => w.id)).toEqual([bus]);
   expect(junctions).toEqual([]);
 });
+
+test("a copied net label keeps its name", () => {
+  const { add, connectToWire, connect, select, copy, paste } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const l = add("led", { x: 8, y: 0 });
+  const w = connect(port(s, "out"), port(l, "in"));
+  if (!w) throw new Error("no wire");
+  const k = add("led", { x: 8, y: 6 });
+  connectToWire(port(k, "in"), w, { x: 5, y: 1 });
+  const [j] = useEditor.getState().circuit.junctions;
+  if (!j) throw new Error("no junction");
+  useEditor.setState((state) => ({
+    circuit: { ...state.circuit, junctions: state.circuit.junctions.map((x) => ({ ...x, name: "clk" })) },
+  }));
+  select([s, l, k, j.id, ...useEditor.getState().circuit.wires.map((x) => x.id)]);
+  copy();
+  paste();
+  expect(useEditor.getState().circuit.junctions.map((x) => x.name)).toEqual(["clk", "clk"]);
+});

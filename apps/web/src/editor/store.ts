@@ -182,7 +182,8 @@ function cloned(part: Circuit, offset: number): Circuit {
       position: { x: c.position.x + offset, y: c.position.y + offset },
       props: structuredClone(c.props),
     })),
-    junctions: part.junctions.map((j) => ({ id: id(j.id), position: { x: j.position.x + offset, y: j.position.y + offset } })),
+    // A copied net label keeps its name, so it joins the original's net (ADR 0015).
+    junctions: part.junctions.map((j) => ({ ...j, id: id(j.id), position: { x: j.position.x + offset, y: j.position.y + offset } })),
     wires: part.wires.map((w) => ({
       id: crypto.randomUUID(),
       from: end(w.from),

@@ -203,3 +203,10 @@ test("a net label's name is normalized like the editor's, NFC included; blank is
   expect(name(named("x".repeat(33)))).toContain("Junction 1 name is longer than 32 characters");
   expect(name(named(7))).toContain("Junction 1 name must be text");
 });
+
+test("a net label's name inside a definition is normalized too, and one of only invisible characters is dropped", () => {
+  const inDefinition = broken((doc) => doc.definitions[0]?.circuit.junctions.push({ id: "dj", position: { x: 2, y: 2 }, name: " cafe\u0301 " }));
+  expect(inDefinition.ok && inDefinition.document.definitions[0]?.circuit.junctions[0]?.name).toBe("caf\u00e9");
+  const invisible = broken((doc) => Object.assign(doc.circuit.junctions[0] ?? {}, { name: "\u200b\u202e" }));
+  expect(invisible.ok && invisible.document.circuit.junctions[0]?.name).toBeUndefined();
+});
