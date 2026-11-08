@@ -282,3 +282,21 @@ fn switches_set_together_settle_once_whatever_their_order() {
     assert!(one.set_inputs(&[("d", 0), ("f", 1)]).is_err());
     assert_eq!(value(&one, "d", "out"), 1);
 }
+
+#[test]
+fn without_a_clock_tick_stops_at_the_first_tick_that_reports_a_loop() {
+    // A flip-flop beside an oscillating NOT: nothing to clock, but the loop is still unstable.
+    let description: CircuitDescription = serde_json::from_value(json!({
+        "components": parts(&[("f", "dff"), ("n", "not")]),
+        "connections": wires(&[("n.out", "n.in")]),
+    }))
+    .unwrap();
+    let (mut sim, warnings) = Simulator::load(&description).expect("valid");
+    assert!(warnings.iter().any(|d| d.code == Code::Unstable));
+    assert_eq!(sim.tick(64).map(|d| d.code), Some(Code::Unstable));
+    assert_eq!(
+        sim.time(),
+        1,
+        "stopped at the first tick, whatever the chunk"
+    );
+}

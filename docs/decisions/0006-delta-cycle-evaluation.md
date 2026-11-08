@@ -1,6 +1,6 @@
 # 0006. Change-driven evaluation with synchronous deltas
 
-- Status: Proposed — implemented for combinational logic in Phase 1; sequential part confirmed in Phase 3
+- Status: Accepted — combinational part built in Phase 1; sequential part confirmed and built by ADR 0017 (Phase 3)
 - Date: 2026-11-06
 
 ## Context

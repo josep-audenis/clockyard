@@ -11,7 +11,7 @@ replacement.
 | [0003](0003-wasm-toolchain.md) | WASM toolchain | Proposed |
 | [0004](0004-document-vs-netlist.md) | Separate circuit document and compiled netlist | Accepted |
 | [0005](0005-simulation-in-worker.md) | Host the engine in a Web Worker from the start | Accepted |
-| [0006](0006-delta-cycle-evaluation.md) | Change-driven evaluation with synchronous deltas | Proposed |
+| [0006](0006-delta-cycle-evaluation.md) | Change-driven evaluation with synchronous deltas | Accepted; sequential part by 0017 |
 | [0007](0007-frontend-stack.md) | Frontend stack | Accepted |
 | [0008](0008-visual-identity.md) | Visual identity and design tokens | Accepted |
 | [0009](0009-local-checks-instead-of-ci.md) | Local pre-push checks instead of hosted CI | Accepted |
@@ -22,7 +22,7 @@ replacement.
 | [0014](0014-multi-bit-signals.md) | Multi-bit signals, buses and splitters | Accepted; amended by its own amendment (building it) |
 | [0015](0015-net-labels.md) | Named connections: net labels on junctions | Accepted; amended by its own amendment (building the editor) |
 | [0016](0016-make-component-crossing-wires.md) | Make component keeps wires that cross the selection's edge | Accepted; amended by its own amendment (what stays on the sheet) |
-| [0017](0017-clocks-and-flip-flops.md) | Clocks, flip-flops and virtual time | Proposed |
+| [0017](0017-clocks-and-flip-flops.md) | Clocks, flip-flops and virtual time | Accepted |
 
 ## Template
 

@@ -182,3 +182,25 @@ fn eight_bit_adder() {
         }
     }
 }
+
+#[test]
+fn eight_bit_counter() {
+    // ADR 0017: an 8-bit register fed back through the 8-bit adder as a component.
+    // Count is the carry in; Add (switch `step`) is added each cycle as well.
+    let mut sim = load("8-bit-counter");
+    assert_eq!(value(&sim, "out", "in"), 0);
+    sim.set_input("count", 1).unwrap();
+    for n in 1..=300u32 {
+        assert_eq!(sim.step_cycle(), None);
+        assert_eq!(value(&sim, "out", "in"), n % 256, "after {n} cycles");
+    }
+    sim.set_inputs(&[("count", 0), ("step", 3)]).unwrap();
+    sim.step_cycle();
+    assert_eq!(value(&sim, "out", "in"), (300 + 3) % 256);
+    // Reset clears the register and keeps the switches.
+    sim.reset();
+    assert_eq!(value(&sim, "out", "in"), 0);
+    // Running by ticks gives what the same number of steps gives.
+    sim.tick(2 * 10);
+    assert_eq!((sim.time(), value(&sim, "out", "in")), (20, 30));
+}

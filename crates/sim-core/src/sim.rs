@@ -690,8 +690,13 @@ impl Simulator {
     /// first tick that does not settle and returns its diagnostic.
     pub fn tick(&mut self, count: u64) -> Option<Diagnostic> {
         if self.clocks.is_empty() {
-            // Nothing changes, but a loop still oscillating is resumed and reported, as any settle does.
-            self.time = self.time.saturating_add(count);
+            // Nothing changes, except a loop still oscillating: resumed and reported on the first tick, as
+            // any settle does, so time stops there whatever `count` was.
+            if self.unsettled.is_empty() || count == 0 {
+                self.time = self.time.saturating_add(count);
+                return None;
+            }
+            self.time = self.time.saturating_add(1);
             return self.settle(Vec::new()).map(lift_one);
         }
         for _ in 0..count {

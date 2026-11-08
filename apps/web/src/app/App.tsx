@@ -13,12 +13,13 @@ import {
   parseValue,
   showValue,
   type CircuitComponent,
+  type Definition,
   type Junction,
   type ComponentKind,
   type PartKind,
 } from "../editor/document";
 import { deleteRefusal, liveDefinitions, mainCircuit, useEditor } from "../editor/store";
-import { connectEngine, useSim } from "../simulation/sync";
+import { connectEngine, control, setSpeed, SPEEDS, useSim } from "../simulation/sync";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
 
 /** `label` is not a part: it places a named junction (ADR 0015). */
@@ -95,9 +96,10 @@ export function App() {
             <circle cx="48" cy="16" r="5.5" fill="var(--signal-high)" />
             <circle cx="48" cy="48" r="4.5" fill="var(--bench)" stroke="var(--signal-low)" strokeWidth="3" />
           </svg>
-          Clockyard
+          <span className="wordmark-name">Clockyard</span>
         </span>
         <Breadcrumb />
+        <RunControls />
         <FileActions />
       </header>
       <div className="workspace">
@@ -207,7 +209,8 @@ function PartsLibrary() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
+      if (e.ctrlKey || e.metaKey || e.altKey || typing) return;
       const kind = SHORTCUTS.get(e.key.toUpperCase());
       if (kind && kind !== "label") useEditor.getState().arm(kind);
     };
@@ -692,6 +695,46 @@ const PLAIN: Record<string, string> = {
   invalidId: "An ID contains a slash, which is kept for parts inside components.",
 };
 
+/** Run/Pause, Step, Reset and the run speed (ADR 0017): the worker runs the clock, the editor only asks. */
+function RunControls() {
+  const running = useSim((s) => s.running);
+  const speed = useSim((s) => s.speed);
+  return (
+    <div className="run-controls" role="group" aria-label="Simulation">
+      <button type="button" className="button" onClick={() => control(running ? "pause" : "run")}>
+        {running ? "Pause" : "Run"}
+      </button>
+      <button type="button" className="button" onClick={() => control("step")}>
+        Step
+      </button>
+      <button type="button" className="button" onClick={() => control("reset")}>
+        Reset
+      </button>
+      <label className="run-speed">
+        <span className="visually-hidden">Speed</span>
+        <select className="input" value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
+          {SPEEDS.map((s) => (
+            <option key={s} value={s}>
+              {s.toLocaleString("en")} Hz
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+/** Whether `parts`, or a definition they are instances of (at any depth), hold a clock or flip-flop. */
+function hasClocked(parts: CircuitComponent[], definitions: Definition[], seen = new Set<string>()): boolean {
+  return parts.some((c) => {
+    if (c.kind === "clock" || c.kind === "dff") return true;
+    if (c.kind !== "custom" || !c.definition || seen.has(c.definition)) return false;
+    seen.add(c.definition);
+    const inner = definitions.find((d) => d.id === c.definition)?.circuit.components ?? [];
+    return hasClocked(inner, definitions, seen);
+  });
+}
+
 function StatusBar() {
   const status = useSim((s) => s.status);
   const error = useSim((s) => s.error);
@@ -701,6 +744,11 @@ function StatusBar() {
   const empty = components.length === 0;
   const nets = useSim((s) => s.nets);
   const stale = useSim((s) => s.stale);
+  const running = useSim((s) => s.running);
+  const time = useSim((s) => s.time);
+  const definitions = useEditor((s) => s.definitions);
+  // The cycle counter and clock level, once the sheet has anything clocked, inside components too (ADR 0017).
+  const clocked = hasClocked(components, definitions);
   const hovered = useCanvasHints((s) => s.wire);
   // A bus under the pointer: its value, as "8 bits: 44, 0x2C" (ADR 0014).
   const bits = hovered === null || stale ? 1 : (loaded?.wireWidths[hovered] ?? 1);
@@ -720,7 +768,9 @@ function StatusBar() {
             ? ["Invalid", "danger"]
             : empty
               ? ["No circuit", "muted"]
-              : ["Settled", "ok"];
+              : running
+                ? ["Running", "ok"]
+                : ["Settled", "ok"];
   const first = errors[0] ?? diagnostics[0];
   // Name the labelled parts involved; unlabelled ones are highlighted on the canvas.
   const named = first
@@ -735,14 +785,22 @@ function StatusBar() {
         `${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`;
 
   return (
-    <footer className="statusbar" role="status">
-      <span className={`status-state status-${tone}`}>
-        <span className="status-dot" aria-hidden="true" />
-        {state}
-      </span>
-      <span className="status-message" title={diagnostics.map((d) => d.message).join("\n")}>
-        {message}
-      </span>
+    <footer className="statusbar">
+      {/* Announced on change; the cycle counter, which changes many times a second while running, is not. */}
+      <div className="status-live" role="status">
+        <span className={`status-state status-${tone}`}>
+          <span className="status-dot" aria-hidden="true" />
+          {state}
+        </span>
+        <span className="status-message" title={diagnostics.map((d) => d.message).join("\n")}>
+          {message}
+        </span>
+      </div>
+      {clocked && (
+        <span className="status-cycle">
+          Cycle {Math.floor((time + 1) / 2)}, clock {time % 2 === 1 ? "high" : "low"}
+        </span>
+      )}
     </footer>
   );
 }
