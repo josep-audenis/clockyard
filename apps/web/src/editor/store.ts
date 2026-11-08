@@ -158,7 +158,6 @@ export type EditorState = {
 export type NetView = {
   wireNets: Record<string, number>;
   wireWidths: Record<string, number>;
-  wireGroups: Record<string, number>;
   netDrivers: (string | null)[];
 };
 /** The engine's state for Make component: `nets` is null when the circuit did not load (it has errors). */
@@ -177,9 +176,11 @@ function freeName(base: string, taken: Set<string>): string {
 }
 
 /**
- * New pins for the wires crossing a Make component selection (ADR 0016): one per crossing net, undriven
- * nets told apart by `wireGroups`. An LED when the net's driver is inside, a switch otherwise, as wide as the net, in a column 4 cells clear of the selection. `inner` wires the pins inside
- * the definition; `outer(instance)` wires the instance's ports to where the crossings went.
+ * New pins for the wires crossing a Make component selection (ADR 0016): one per driven crossing net,
+ * an LED when its driver is inside and a switch otherwise, as wide as the net, in a column 4 cells clear
+ * of the selection, in the order of the rows the nets cross on. Undriven crossings (net 0) are dropped:
+ * a pin there could join readers with nothing driving them. `inner` wires the pins inside the
+ * definition; `outer(instance)` wires the instance's ports to where the crossings went.
  */
 function crossingPins(circuit: Circuit, inside: Set<string>, crossing: Wire[], nets: NetView | null, taken: Set<string>) {
   const pins: CircuitComponent[] = [];
@@ -194,8 +195,8 @@ function crossingPins(circuit: Circuit, inside: Set<string>, crossing: Wire[], n
   const within = (end: Endpoint) => inside.has(endOwner(end));
   const groups = new Map<number, Wire[]>();
   for (const w of crossing) {
-    const key = nets.wireGroups[w.id] ?? -1;
-    groups.set(key, [...(groups.get(key) ?? []), w]);
+    const net = nets.wireNets[w.id] ?? 0;
+    if (net !== 0) groups.set(net, [...(groups.get(net) ?? []), w]);
   }
   const parts = new Map(circuit.components.map((c) => [c.id, c]));
   const components = circuit.components.filter((c) => inside.has(c.id));
@@ -208,13 +209,15 @@ function crossingPins(circuit: Circuit, inside: Set<string>, crossing: Wire[], n
     const part = parts.get(end.component);
     return part && portAt(part, end.port);
   };
+  const near = (w: Wire) => (within(w.from) ? w.from : w.to);
+  const far = (w: Wire) => (within(w.from) ? w.to : w.from);
+  const rowOf = (w: Wire) => Math.round(pointOf(near(w))?.y ?? top + 1);
   const counts = { in: 0, out: 0 };
-  for (const group of groups.values()) {
+  const sorted = [...groups].sort(([, a], [, b]) => rowOf(a[0] as Wire) - rowOf(b[0] as Wire));
+  for (const [net, group] of sorted) {
     const [first] = group;
     if (!first) continue;
-    const near = (w: Wire) => (within(w.from) ? w.from : w.to);
-    const far = (w: Wire) => (within(w.from) ? w.to : w.from);
-    const driver = nets.netDrivers[nets.wireNets[first.id] ?? 0] ?? null;
+    const driver = nets.netDrivers[net] ?? null;
     const output = driver !== null && inside.has(driver);
     // Named from where the first crossing went: a labelled switch or LED, or a net label; else in1, out1, …
     const end = far(first);
@@ -239,11 +242,9 @@ function crossingPins(circuit: Circuit, inside: Set<string>, crossing: Wire[], n
     const size = layoutOf({ kind, rotation: 0, props });
     const x = output ? right + 4 : left - 4 - size.width;
     // On the row the first crossing came in on, its port level with it; moved down past other new pins.
-    const pin: CircuitComponent = { id: crypto.randomUUID(), kind, rotation: 0, props, position: { x, y: Math.round(pointOf(near(first))?.y ?? top + 1) - 1 } };
-    const blocked = (y: number) =>
-      pins.some((p) => p.kind === kind && Math.abs(p.position.y - y) < 2) ||
-      stacksJunction({ components: [...components, ...pins, pin], junctions, wires: [] }, { [pin.id]: { x, y } });
-    while (blocked(pin.position.y)) pin.position = { x, y: pin.position.y + 2 };
+    // The column is 4 cells clear of every selected item, so only other new pins can be in the way.
+    const pin: CircuitComponent = { id: crypto.randomUUID(), kind, rotation: 0, props, position: { x, y: rowOf(first) - 1 } };
+    while (pins.some((p) => p.kind === kind && Math.abs(p.position.y - pin.position.y) < 2)) pin.position = { x, y: pin.position.y + 2 };
     pins.push(pin);
     const own: Endpoint = { component: pin.id, port: output ? "in" : "out" };
     const nears: Endpoint[] = [];
@@ -445,6 +446,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
     if (crossing.length > 0 && engine.stale) return "Wait for the simulation to catch up, then try again.";
     if (crossing.length > 0 && !engine.nets) return "Fix the circuit's errors first: wires crossing the selection need a working circuit.";
     const added = crossingPins(circuit, inside, crossing, engine.nets, new Set(names));
+    if (pins.length === 0 && added.pins.length === 0) return "A component needs pins: labelled switches (inputs) and LEDs (outputs).";
     // The definition starts at its own origin, new pins included. The instance takes the selection's top-left
     // corner, so it lands where the selection was and not over parts left of it.
     const own = [...circuit.wires.filter((w) => within(w.from) && within(w.to)), ...added.inner];

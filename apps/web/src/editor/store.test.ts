@@ -606,7 +606,7 @@ test("make component turns the selection into a definition and puts one instance
   const outside = useEditor.getState().add("led", { x: 20, y: 3 });
   // Crosses the selection's edge; the engine says `n`, inside, drives its net (ADR 0016).
   const cross = useEditor.getState().connect(port(n, "out"), port(outside, "in")) ?? "";
-  const nets = { wireNets: { [cross]: 2 }, wireWidths: { [cross]: 1 }, wireGroups: { [cross]: 0 }, netDrivers: [null, i, n] };
+  const nets = { wireNets: { [cross]: 2 }, wireWidths: { [cross]: 1 }, netDrivers: [null, i, n] };
   const { select, makeComponent, undo } = useEditor.getState();
   select([i, n, o]);
   expect(makeComponent("  Inverter ", { stale: false, nets })).toBeNull();
@@ -664,7 +664,6 @@ test("make component: crossings become input pins, one per net, named from outsi
   const nets = {
     wireNets: { [wa]: 1, [wb]: 1, [wn]: 2 },
     wireWidths: { [wa]: 8, [wb]: 8, [wn]: 1 },
-    wireGroups: { [wa]: 0, [wb]: 0, [wn]: 1 },
     netDrivers: [null, a, b, g],
   };
   select([g, n, o]);
@@ -1087,4 +1086,65 @@ test("labels: refused on a junction, kept by setFields, duplicated alone, and di
   expect(useEditor.getState()).toMatchObject({ armed: "and", armedLabel: false });
   armLabel(true);
   expect(useEditor.getState()).toMatchObject({ armed: null, armedLabel: true });
+});
+
+test("make component: pins follow the rows nets cross on, step past each other, take a net label's name, and skip undriven nets", () => {
+  const { add, addLabel, setName, setLabel, connect, select, makeComponent } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const t = add("switch", { x: 0, y: 6 });
+  const g = add("and", { x: 10, y: 0 }); // a (10,1), b (10,3), out (14,2)
+  const y = add("led", { x: 24, y: 1 });
+  setLabel(y, "Y");
+  const u = add("led", { x: 20, y: 6 });
+  const label = (at: { x: number; y: number }, name: string) => {
+    const id = addLabel(at) ?? "";
+    setName(id, name);
+    return id;
+  };
+  const go = label({ x: 4, y: 4 }, "go"); // outside
+  const mid = label({ x: 8, y: 2 }, "mid"); // inside
+  const k = label({ x: 12, y: 6 }, "k"); // inside
+  const j = (id: string) => ({ junction: id });
+  const ws = connect(port(s, "out"), port(g, "a")) ?? "";
+  const wt = connect(port(t, "out"), j(go)) ?? "";
+  const wl = connect(j(go), j(mid)) ?? "";
+  const wb = connect(j(mid), port(g, "b")) ?? "";
+  const wy = connect(port(g, "out"), port(y, "in")) ?? "";
+  const wu = connect(j(k), port(u, "in")) ?? ""; // undriven: a pin here would join readers with nothing driving
+  const nets = {
+    wireNets: { [ws]: 1, [wt]: 2, [wl]: 2, [wb]: 2, [wy]: 3, [wu]: 0 },
+    wireWidths: { [ws]: 1, [wt]: 1, [wl]: 1, [wb]: 1, [wy]: 1, [wu]: 1 },
+    netDrivers: [null, s, t, g],
+  };
+  select([g, mid, k]);
+  expect(makeComponent("x", { stale: false, nets })).toBeNull();
+  const state = useEditor.getState();
+  const definition = state.definitions[0];
+  const added = definition?.circuit.components.filter((c) => c.kind !== "and") ?? [];
+  // in1 on row 1; go on row 2, stepped down past in1; Y on g.out's row, 4 cells right. Origin (2, 0).
+  expect(added.map((c) => [c.kind, c.props.label, c.position])).toEqual([
+    ["switch", "in1", { x: 0, y: 0 }],
+    ["switch", "go", { x: 0, y: 3 }],
+    ["led", "Y", { x: 16, y: 1 }],
+  ]);
+  const instance = state.circuit.components.find((c) => c.kind === "custom")?.id ?? "";
+  const [in1, goPin, yPin] = added.map((c) => c.id);
+  expect(state.circuit.wires.map((w) => [w.from, w.to])).toEqual([
+    [port(t, "out"), j(go)],
+    [port(s, "out"), port(instance, in1 ?? "")],
+    [j(go), port(instance, goPin ?? "")],
+    [port(instance, yPin ?? ""), port(y, "in")],
+  ]);
+  // The undriven crossing is dropped; its label stays inside, as labels do.
+  expect(definition?.circuit.junctions.map((x) => x.name)).toEqual(["mid", "k"]);
+});
+
+test("make component refuses a selection whose only crossings are undriven: no pins", () => {
+  const { add, connect, select, makeComponent } = useEditor.getState();
+  const g = add("not", { x: 10, y: 0 });
+  const u = add("led", { x: 20, y: 0 });
+  const w = connect(port(g, "in"), port(u, "in")) ?? "";
+  select([g]);
+  const nets = { wireNets: { [w]: 0 }, wireWidths: { [w]: 1 }, netDrivers: [null, g] };
+  expect(makeComponent("x", { stale: false, nets })).toMatch(/needs pins/);
 });

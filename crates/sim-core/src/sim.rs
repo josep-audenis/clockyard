@@ -28,8 +28,6 @@ pub struct Simulator {
     nets: Vec<u32>,
     wire_nets: BTreeMap<String, u32>,
     wire_widths: BTreeMap<String, u32>,
-    /// Wire ID → the net it is on, as joined by wires and labels: unlike wire_nets, undriven nets differ.
-    wire_groups: BTreeMap<String, u32>,
     port_nets: PortNets,
     /// Primitives still dirty when the last settle hit its delta limit; the
     /// next settle resumes them, so a live loop is reported until it resolves.
@@ -337,13 +335,10 @@ impl Simulator {
 
         let mut wire_nets = BTreeMap::new();
         let mut wire_widths = BTreeMap::new();
-        let mut wire_groups = BTreeMap::new();
-        for (index, root) in order.into_iter().enumerate() {
+        for root in order {
             let group = &groups[&root];
             let mut wires: Vec<String> = group.wires.iter().map(|w| (*w).to_string()).collect();
             wires.sort();
-            let index = u32::try_from(index).expect("fewer nets than MAX_PARTS");
-            wire_groups.extend(wires.iter().map(|w| (w.clone(), index)));
             if group.widths.len() > 1 {
                 let named: Vec<(String, u32)> = group
                     .widths
@@ -501,7 +496,6 @@ impl Simulator {
             nets: vec![0; net_count as usize],
             wire_nets,
             wire_widths,
-            wire_groups,
             port_nets,
             unsettled: Vec::new(),
         };
@@ -591,12 +585,6 @@ impl Simulator {
     /// wire's width cannot be read from its net index.
     pub fn wire_widths(&self) -> &BTreeMap<String, u32> {
         &self.wire_widths
-    }
-
-    /// Wire ID → index of the net it is on, as joined by wires and labels (ADR 0016).
-    /// Every undriven net is ground in wire_nets; here each keeps its own index.
-    pub fn wire_groups(&self) -> &BTreeMap<String, u32> {
-        &self.wire_groups
     }
 
     pub fn port_nets(&self) -> &PortNets {

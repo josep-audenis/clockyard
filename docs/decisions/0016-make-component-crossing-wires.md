@@ -30,19 +30,19 @@ Constraints from earlier records:
 
 ## Decision
 
-1. **One new pin per crossing net.** A *crossing wire* has exactly one end
-   (a port or a junction) owned by a selected part or junction. Crossing
-   wires are grouped by the net the engine reports for them. Each group
-   becomes one pin, so a net that leaves the selection through several
-   wires gives the chip one port, not several.
+1. **One new pin per driven crossing net.** A *crossing wire* has exactly
+   one end (a port or a junction) owned by a selected part or junction.
+   Crossing wires are grouped by the net the engine reports for them
+   (`wireNets`). Each group becomes one pin, so a net that leaves the
+   selection through several wires gives the chip one port, not several.
 
-   The grouping cannot use `wireNets`. Every undriven net shares ground,
-   net 0 (ADR 0014 item 15), so the net index cannot tell undriven nets
-   apart. `loaded` therefore gains `wireGroups`: for each wire, the index
-   of the net it is on as joined by wires and labels, before any net is
-   given a driver. Undriven nets get different indices. One pin per wire
-   on net 0 was considered and rejected: two such wires joined inside the
-   selection would give one net two switches.
+   Undriven crossings (net 0) are dropped, as every crossing was before
+   this decision. Every undriven net shares ground (ADR 0014 item 15), so
+   the index cannot tell them apart, and a pin cannot be given a
+   direction safely. A switch pin would join an outside reader to the
+   instance's input with nothing driving them (`inputToInput`), or put
+   two drivers on an instance output left undriven inside. Dropping such
+   a wire changes no value: both sides read 0 before and after.
 2. **Direction comes from the net's driver, which the engine reports.**
    - Every net but ground is driven by exactly one primitive: primitive `p`
      drives net `p + 1` (ADR 0014). Two drivers on one net are an error, and
@@ -55,8 +55,11 @@ Constraints from earlier records:
      flattened part IDs, so an instance's ports are not in it, and finding
      the driver is connectivity, which the engine owns.
    - Driver inside the selection: an output pin, an LED.
-   - Driver outside, or no driver (net 0): an input pin, a switch. An
-     undriven input reads 0, as an unconnected pin already does.
+   - Driver outside: an input pin, a switch.
+   - An existing switch in the selection that drives an outside reader
+     becomes the chip's input as well as feeding a new output pin, so the
+     outside reader reads 0 until that input is wired. That is no worse
+     than before, when the wire was dropped.
 3. **Width comes from the engine.** The pin's width is the net's width
    (`wireWidths`). A 1-bit pin keeps the default.
 4. **Wiring.**
@@ -80,13 +83,15 @@ Constraints from earlier records:
    at most 32 characters), and the user can rename pins later (ADR 0013).
 6. **Placement.** New input pins go in a column 4 cells left of the
    selection's leftmost item, and output pins 4 cells right of its rightmost
-   edge. Each pin sits on the row of its group's first inside end, moved
-   down 2 cells at a time while it would overlap another new pin or stack a
-   junction (ADR 0010). Pin order, and so the instance's port order, then
-   follows the rows the wires came in on. The definition's origin is the
+   edge. Pins are placed in the order of their groups' first inside ends,
+   top to bottom. Each sits on that row, moved down 2 cells at a time
+   while it would overlap another new pin; the column is 4 cells clear of
+   every selected item, so nothing else can be in the way. Pin order, and
+   so the instance's port order, follows the rows the wires came in on. The definition's origin is the
    top-left of its parts, new pins included. The instance takes the
    selection's top-left corner, as before, so it lands where the selection
-   was and not on top of parts to its left.
+   was and not on top of parts to its left. Its height grows with its
+   ports, and as before nothing checks that it is clear of parts below.
 7. **The engine's view must be current.** Grouping, direction and width read
    the engine's result for the circuit as it is now. If there are crossing
    wires and that result is not available, Make component is refused:
@@ -101,12 +106,12 @@ Constraints from earlier records:
 8. **Existing rules stay.** Existing switches and LEDs in the selection are
    still pins and must still be labelled and distinct. The refusal "A
    component needs pins" now applies only when the selection has no pins
-   *and* no crossing wires. Make component is still one undo step on the
+   *and* no driven crossing net. Make component is still one undo step on the
    sheet. The new definition is not undone with it (ADR 0012 amendment).
-9. **No format change; two protocol fields.** The new pins are ordinary
+9. **No format change; one protocol field.** The new pins are ordinary
    switches and LEDs, and the new wires are ordinary wires. The only engine
-   changes are `wireGroups` (item 1) and `netDrivers` (item 2) in
-   `loaded`, documented in `architecture.md`.
+   change is `netDrivers` in `loaded` (item 2), documented in
+   `architecture.md`.
 
 ## Alternatives considered
 
@@ -121,6 +126,10 @@ Constraints from earlier records:
 - **One pin per crossing wire.** Simpler grouping, but a net that leaves
   through two wires would give the chip two ports for one signal, and an
   output net would need two LEDs on one driver.
+- **Pins for undriven nets too**, grouped by a per-wire net index from the
+  engine (`wireGroups`, built and then removed in review). Any direction
+  chosen for an undriven net can turn a circuit that loads into one with
+  errors (item 1), and such a pin carries nothing.
 
 ## Consequences
 
@@ -131,16 +140,20 @@ Constraints from earlier records:
   wire crosses, before it can be turned into a component.
 - Auto-named pins (`in1`, `out1`) are readable but generic, so users will
   often rename them.
+- An unfinished stub (an undriven wire across the edge) is still lost.
+- A selected junction that a driven net only passes through becomes a pin
+  wired to a lone junction inside: correct, but a port the chip does not
+  need.
 - Not covered: a net label whose name appears on both sides of the edge with
   no drawn wire crossing. It still becomes two nets, each reported as
   unmatched (ADR 0015, item 9).
 - Tests:
-  - `sim-core` tests: `netDrivers` names each net's driver, an instance
-    for a gate inside it, and nothing for ground; `wireGroups` tells two
-    undriven nets apart and follows a label.
+  - A `sim-core` test: `netDrivers` names each net's driver, an instance
+    for a gate inside it, and nothing for ground.
   - Store tests with a stubbed engine result: grouping by net, each
-    direction, widths, naming
-    and collisions, placement order, and the stale and errored refusals.
+    direction, widths, names (from a part, a net label, or `in1`, with
+    collisions), row order and stepping, undriven crossings dropped, and
+    the stale, errored and no-pins refusals.
   - A Playwright test: switch → NOT → NOT → LED. Make a component of the
     two NOTs (the inspector offers Make component for two or more
     items), and the switch still drives the LED through the new chip.

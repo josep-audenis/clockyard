@@ -483,18 +483,3 @@ fn net_drivers_name_the_top_level_part_and_an_instance_for_a_gate_inside_it() {
     assert_eq!(driver("f-ws"), Some("f"));
     assert_eq!(driver("f-wo"), Some("f"));
 }
-
-#[test]
-fn wire_groups_tell_undriven_nets_apart_and_follow_labels() {
-    let (sim, _) = Simulator::load(&description(json!({
-        "components": [{ "id": "l1", "kind": "led" }, { "id": "l2", "kind": "led" }],
-        "junctions": [{ "id": "j1" }, { "id": "j2", "name": "go" }, { "id": "j3", "name": "go" }, { "id": "j4" }],
-        "connections": wires(&[("a", "j1", "l1.in"), ("b", "j2", "l2.in"), ("c", "j3", "j4")]),
-    })))
-    .expect("valid");
-    let nets = sim.wire_nets();
-    assert_eq!((nets["a"], nets["b"], nets["c"]), (0, 0, 0));
-    let groups = sim.wire_groups();
-    assert_ne!(groups["a"], groups["b"]);
-    assert_eq!(groups["b"], groups["c"]);
-}

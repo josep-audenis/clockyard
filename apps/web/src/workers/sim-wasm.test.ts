@@ -113,8 +113,6 @@ test("every wire reports its net's width, an undriven bus included", () => {
   expect(loaded.wireNets.w1).toBe(0);
   expect(loaded.wireWidths).toEqual({ w1: 8, w2: 1 });
   expect(loaded.netDrivers).toEqual([null, "g"]);
-  // Both nets are undriven (net 0) but are not the same net.
-  expect(loaded.wireGroups.w1).not.toBe(loaded.wireGroups.w2);
 });
 
 test("the catalog marks sized kinds and gives split and merge their field-port rule", () => {
