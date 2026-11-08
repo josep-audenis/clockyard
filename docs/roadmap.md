@@ -21,7 +21,8 @@ pins renamed safely by part ID (ADR 0013, file format v4); definitions can be
 renamed and deleted (ADR 0012 amendment). Multi-bit signals, buses and
 splitters (ADR 0014) are built: engine, boundary,
 format v5, editor and Playwright (PRs #26–#31). Named connections (net
-labels, ADR 0015) are next.
+labels, ADR 0015, still marked proposed) are built too (PRs #33–#35 and
+the Playwright step), so every addition the brief plans for Phase 2 is in.
 
 ## Phase 0 — Foundation ✅
 
@@ -215,7 +216,7 @@ Progress:
      Sum 44 (0x2C), Cout on; ↑ and Cin carry on to 46); and an 8-bit switch
      wired to a 1-bit LED shows the width mismatch until the LED is 8 bits
      too, after which it shows the switch's value.
-- 🔨 Named connections (net labels): designed in ADR 0015 (proposed). A
+- ✅ Named connections (net labels, ADR 0015, built in the four steps below). A
   label is a junction with a `name`; same-named junctions on one sheet are
   one net, never across sheets. Steps, in order:
   1. ✅ Engine: the description's junction takes `name`; same-named
@@ -239,8 +240,11 @@ Progress:
      names; the status bar says "A label has no partner on this sheet."
      A click on the tag itself does not select the label (the dot does),
      and routing does not yet avoid tags (ADR 0015 item 7).
-  4. Playwright: two labels named `go` join a switch to an LED; renaming
-     one reports both as unmatched.
+  4. ✅ Playwright (`apps/web/e2e/editor.e2e.ts`): a switch and an LED far
+     apart, each wired to a Label named `go` (placed from the panel, its
+     Name field focused); the switch lights the LED; renaming one label
+     `stop` turns it off and the status bar's title lists both labels as
+     joining nothing.
 - ✅ 4-bit adder example: one full-adder definition instanced four times,
   checked natively for all 512 inputs and in the browser
 
@@ -290,13 +294,19 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 2 named connections (net labels), as designed in ADR 0015 (proposed),
-on top of format v5 and the width checks from ADR 0014. Multi-bit is done;
-editing several parts' widths at once, signed display and
-widths above 32 stay out of scope (ADR 0014). Make component drops wires that
-crossed the selection's edge. Pins can be relabelled
-freely (ADR 0013, format v4); deleting one leaves its wires reported as
-unknown ports. Known limits still
-open: no autosave, the inspector does
-not collapse on narrow screens yet, and wires kept after an edit can stay
-longer than needed until the file is opened again.
+Every addition the brief plans for Phase 2 is built, and its 4-bit adder
+target demo works. Rough edges worth a look before Phase 3 (clocks and
+sequential logic):
+
+- Make component drops wires that crossed the selection's edge.
+- Deleting a pin leaves its wires reported as unknown ports (ADR 0013).
+- No autosave yet (a later IndexedDB item).
+- The inspector does not collapse on narrow screens.
+- Wires kept after an edit can stay longer than needed until the file is
+  opened again.
+- A click on a label's tag does not select it (its dot does), and routing
+  does not yet avoid tags (ADR 0015).
+
+Out of scope for now: global labels across sheets and the other items ADR
+0015 leaves out; editing several parts' widths at once, signed display and
+widths above 32 (ADR 0014).
