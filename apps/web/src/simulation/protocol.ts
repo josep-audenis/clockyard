@@ -66,4 +66,5 @@ export type Result =
   /** `time`: virtual time in ticks (cycle count `(time + 1) / 2`); `running`: whether a run is under way. */
   | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[]; time: number; running: boolean }
   /** `load`: the failing command was a load, which then gets no `loaded` reply. */
-  | { type: "error"; message: string; load?: true };
+  /** `running`: whether a run is still under way after the failure (ADR 0017). */
+  | { type: "error"; message: string; load?: true; running?: boolean };

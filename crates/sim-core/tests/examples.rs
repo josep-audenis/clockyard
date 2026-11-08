@@ -186,7 +186,7 @@ fn eight_bit_adder() {
 #[test]
 fn eight_bit_counter() {
     // ADR 0017: an 8-bit register fed back through the 8-bit adder as a component.
-    // Count is the carry in; Step is added each cycle as well.
+    // Count is the carry in; Add (switch `step`) is added each cycle as well.
     let mut sim = load("8-bit-counter");
     assert_eq!(value(&sim, "out", "in"), 0);
     sim.set_input("count", 1).unwrap();

@@ -18,13 +18,19 @@ const ready = init().then(
 const SLICE_MS = 16;
 const BUDGET_MS = 8;
 /** Ticks per engine call inside a slice, so the budget is checked often without a call per tick. */
+// shortcut: the budget is checked between chunks, so a chunk on a large circuit can overrun it; grow the chunk adaptively when circuits get that big.
 const CHUNK = 64;
 
 /** While running: the speed, when the last slice ran, and the part of a tick owed since. */
 let run: { cyclesPerSecond: number; last: number; owed: number; timer: ReturnType<typeof setTimeout> } | null = null;
 
-const state = (diagnostics: Diagnostic[]) =>
+/** The last settle's runtime diagnostics, sent again by run and pause so they do not clear an unstable report. */
+let last: Diagnostic[] = [];
+
+const state = (diagnostics: Diagnostic[]) => {
+  last = diagnostics;
   reply({ type: "state", nets: engine?.nets() ?? new Uint32Array(), diagnostics, time: engine?.time() ?? 0, running: run !== null });
+};
 
 const pause = () => {
   if (run) clearTimeout(run.timer);
@@ -56,7 +62,7 @@ function slice() {
     }
   } catch (error) {
     pause();
-    reply({ type: "error", message: String(error) });
+    reply({ type: "error", message: String(error), running: false });
     return;
   }
   if (ran) state(diagnostics);
@@ -81,6 +87,12 @@ onmessage = async (event: MessageEvent<Command>) => {
         reply({ type: "loaded", ...loaded });
         answered = true;
         state(runtime);
+        // The editor sends the switch values next: no slice may tick between the two (ADR 0017 item 4).
+        if (run) {
+          clearTimeout(run.timer);
+          run.last = performance.now();
+          run.timer = setTimeout(slice, SLICE_MS);
+        }
         break;
       }
       case "setInputs":
@@ -90,11 +102,11 @@ onmessage = async (event: MessageEvent<Command>) => {
       case "run":
         pause();
         run = { cyclesPerSecond: command.cyclesPerSecond, last: performance.now(), owed: 0, timer: setTimeout(slice, SLICE_MS) };
-        state([]);
+        state(last);
         break;
       case "pause":
         pause();
-        state([]);
+        state(last);
         break;
       case "step":
         pause();
@@ -106,6 +118,7 @@ onmessage = async (event: MessageEvent<Command>) => {
         break;
     }
   } catch (error) {
-    reply({ type: "error", message: String(error), ...(command.type === "load" && !answered && { load: true as const }) });
+    // `running`: a step or reset that failed has already paused the run.
+    reply({ type: "error", message: String(error), running: run !== null, ...(command.type === "load" && !answered && { load: true as const }) });
   }
 };

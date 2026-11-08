@@ -69,6 +69,7 @@ export function connectEngine(): () => void {
         useSim.setState({
           status: "error",
           error: message.message,
+          ...(message.running !== undefined && { running: message.running }),
           ...(message.load && { loaded: null, nets: null, runtime: [], stale: pending > 0 }),
         });
         break;

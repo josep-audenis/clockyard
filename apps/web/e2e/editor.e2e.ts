@@ -26,6 +26,8 @@ async function drag(page: Page, from: At, to: At) {
 }
 
 const status = (page: Page) => page.getByRole("status");
+/** The cycle counter: outside the status region, which it would flood while running (ADR 0017). */
+const counter = (page: Page) => page.getByText(/^Cycle \d+, clock (high|low)$/);
 const readout = (page: Page, name: string) =>
   page.getByRole("list", { name: "Inputs and outputs" }).getByText(new RegExp(`^${name}:`));
 const onOff = (bit: number) => (bit ? "on" : "off");
@@ -670,10 +672,10 @@ test("two labels named go join a far switch and LED; renaming one leaves both un
 test("the 8-bit counter steps, resets, and after a run holds exactly the cycles it ran (ADR 0017)", async ({ page }) => {
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("8-bit-counter"));
-  await expect(status(page)).toContainText("Cycle 0, clock low");
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
   const at = await grid(page);
   const q = readout(page, "LED Q");
-  const cycle = async () => Number(/Cycle (\d+)/.exec(await status(page).innerText())?.[1]);
+  const cycle = async () => Number(/Cycle (\d+)/.exec(await counter(page).innerText())?.[1]);
   const button = (name: string) => page.getByRole("button", { name, exact: true });
   await expect(q).toHaveText("LED Q: 0 (0x00)");
   await click(page, at(1, 7)); // Count on: the switch at (0,6) is the adder's carry in
@@ -681,10 +683,10 @@ test("the 8-bit counter steps, resets, and after a run holds exactly the cycles 
 
   for (let i = 0; i < 3; i++) await button("Step").click();
   await expect(q).toHaveText("LED Q: 3 (0x03)");
-  await expect(status(page)).toContainText("Cycle 3, clock low");
+  await expect(counter(page)).toHaveText("Cycle 3, clock low");
   await button("Reset").click();
   await expect(q).toHaveText("LED Q: 0 (0x00)");
-  await expect(status(page)).toContainText("Cycle 0, clock low");
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
 
   // Run, then pause: the value is the number of rising edges, however fast it ran or where it paused.
   await page.getByLabel("Speed").selectOption("100");
@@ -698,5 +700,22 @@ test("the 8-bit counter steps, resets, and after a run holds exactly the cycles 
   // Step finishes the cycle under way, if any, and runs one more: it always ends low.
   await button("Step").click();
   await expect(q).toHaveText(new RegExp(`^LED Q: ${(ran + 1) % 256} `));
-  await expect(status(page)).toContainText(`Cycle ${ran + 1}, clock low`);
+  await expect(counter(page)).toHaveText(`Cycle ${ran + 1}, clock low`);
+});
+
+test("a loop that oscillates while the clock is high pauses the run (ADR 0017)", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  await button("Clock").click();
+  await click(page, at(1, 1)); // clock at (0,0), out (2,1)
+  await button("NAND").click();
+  await click(page, at(8, 2)); // NAND at (6,0): a (6,1), b (6,3), out (10,2)
+  await drag(page, at(2, 1), at(6, 1));
+  await drag(page, at(10, 2), at(6, 3)); // its output back to its own input: stable while the clock is low
+  await expect(status(page)).toContainText("Settled");
+  await button("Run").click();
+  await expect(status(page)).toContainText("Unstable");
+  await expect(button("Run")).toBeVisible(); // paused by the worker, not by a click
+  await expect(counter(page)).toHaveText("Cycle 1, clock high");
 });

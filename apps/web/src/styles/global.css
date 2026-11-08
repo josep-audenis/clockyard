@@ -356,13 +356,34 @@ button:focus-visible {
   margin-left: var(--space-4);
 }
 
-.run-controls .button[aria-pressed="true"] {
-  border-color: var(--accent);
-}
-
 .run-speed .input {
   height: var(--control-height);
   width: auto;
+}
+
+/* The status bar's live region: state and message, announced on change. */
+.status-live {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Narrow screens: the toolbar scrolls sideways rather than widening the page, and drops the names. */
+@media (max-width: 700px) {
+  .toolbar {
+    gap: var(--space-2);
+    overflow-x: auto;
+  }
+
+  .run-controls {
+    margin-left: 0;
+  }
+
+  .wordmark-name,
+  .project-name {
+    display: none;
+  }
 }
 
 /* The cycle counter, at the right of the status bar. */

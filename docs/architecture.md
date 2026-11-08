@@ -213,7 +213,7 @@ type Result =
       diagnostics: Diagnostic[] }
   | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[]; // nets each cut to its width
       time: number; running: boolean }   // ticks; whether a run is under way
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; load?: true; running?: boolean }; // load: answers a load; running: after the failure
 ```
 
 - Commands are processed in order. The engine settles after each input change

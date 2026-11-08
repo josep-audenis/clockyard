@@ -233,7 +233,7 @@ and asynchronous reset (asynchronous reset acts like a combinational input).
 
 | Control | Engine meaning |
 |---------|----------------|
-| Run / Pause | The worker ticks in slices of about 16 ms, each as many ticks as the speed calls for since the last (at most about 8 ms of work), until paused or a tick is unstable |
+| Run / Pause | The worker ticks in slices, each 16 ms after the last finished: as many ticks as the speed calls for since then, in chunks of 64, starting no new chunk after 8 ms. Ticks that do not fit are dropped, so a circuit too heavy for the speed runs slower rather than catching up. A tick that is unstable pauses the run |
 | Step | `step_cycle`: ticks until the clock has risen once and is low again (2 ticks from low, 3 from high) |
 | Reset | Flip-flops, the clock and time to 0, switch values kept; nets to 0, then pre-settle and settle as a load does |
 | Speed | Target cycles per wall-clock second (1 to 10,000). Pacing decides only how many ticks run, so the state after *n* ticks is the same at any speed |
