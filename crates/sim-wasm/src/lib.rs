@@ -84,8 +84,10 @@ impl Engine {
 
     /// Compiles a circuit description (JSON). Returns
     /// `{ netCount, wireNets, wireWidths, portNets, netDrivers, diagnostics, runtime }` as JSON;
-    /// on validation errors the maps are empty and no circuit is loaded.
+    /// on validation errors the maps are empty and no circuit is loaded. A
+    /// description that does not parse is an error, and also leaves none loaded.
     pub fn load(&mut self, description: &str) -> Result<String, JsError> {
+        self.sim = None;
         let description: CircuitDescription = serde_json::from_str(description)?;
         let empty = (BTreeMap::new(), PortNets::new());
         let (sim, diagnostics) = match Simulator::load(&description) {

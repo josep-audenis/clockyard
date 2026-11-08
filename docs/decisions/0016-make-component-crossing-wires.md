@@ -166,5 +166,6 @@ Constraints from earlier records:
   junction a net only passes through stays on the sheet with its wires, so
   they do not cross the edge and the chip gets no port for them.
 - **The instance's ports never land on a junction left on the sheet** (ADR
-  0010). It starts at the selection's top-left corner and steps down 2 cells
+  0010). It starts at the top-left corner of what goes inside (pass-through
+  junctions left out) and steps down 2 cells
   until no port is on a junction. Its body can still cover parts below.

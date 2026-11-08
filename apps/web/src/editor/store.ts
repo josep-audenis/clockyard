@@ -436,9 +436,11 @@ export const useEditor = create<EditorState>()((set, get) => ({
     if (components.length === 0) return "Select the parts to make a component from.";
     // A selected plain junction goes inside only if it joins something that does. One a net only passes
     // through stays on the sheet, so its wires do not cross the edge and give the chip a port it does not need.
+    // Wires to a deleted pin are not the engine's (ADR 0013): they neither cross nor pull a junction inside.
+    const live = withoutDeletedPins(circuit, liveDefinitions(state)).wires;
     const inside = new Set(components.map((c) => c.id));
     const touches = (id: string) =>
-      circuit.wires.some((w) => (endOwner(w.from) === id && inside.has(endOwner(w.to))) || (endOwner(w.to) === id && inside.has(endOwner(w.from))));
+      live.some((w) => (endOwner(w.from) === id && inside.has(endOwner(w.to))) || (endOwner(w.to) === id && inside.has(endOwner(w.from))));
     for (let grew = true; grew; ) {
       grew = false;
       for (const j of circuit.junctions) {
@@ -448,8 +450,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
       }
     }
     const within = (end: Endpoint) => inside.has(endOwner(end));
-    // Wires to a deleted pin are not the engine's (ADR 0013): they go, like every wire touching the selection.
-    const crossing = withoutDeletedPins(circuit, liveDefinitions(state)).wires.filter((w) => within(w.from) !== within(w.to));
+    const crossing = live.filter((w) => within(w.from) !== within(w.to));
     const pins = components.filter((c) => c.kind === "switch" || c.kind === "led");
     if (pins.length === 0 && crossing.length === 0) return "A component needs pins: labelled switches (inputs) and LEDs (outputs).";
     const names = pins.map((c) => c.props.label ?? "");
@@ -488,7 +489,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
     // No port of it on a junction left on the sheet (ADR 0010): stepped down 2 cells until clear. Its
     // ports come from the new definition, so its layout is set before the store's own pass does it.
     setDefinitionLayouts([...liveDefinitions(state), definition]);
-    const rest = { components: circuit.components.filter((c) => !inside.has(c.id)), junctions: circuit.junctions.filter((j) => !inside.has(j.id)), wires: [] };
+    const rest = { components: [], junctions: circuit.junctions.filter((j) => !inside.has(j.id)), wires: [] };
     while (placementStacks(rest, instance)) instance.position = { ...instance.position, y: instance.position.y + 2 };
     set((s) => {
       // Wires touching the selection go with it; crossings come back wired to the instance (ADR 0016).

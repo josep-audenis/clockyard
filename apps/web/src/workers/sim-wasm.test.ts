@@ -125,3 +125,11 @@ test("the catalog marks sized kinds and gives split and merge their field-port r
     ["merge", { side: "inputs", prefix: "f" }],
   ]);
 });
+
+test("a description that does not parse is an error and leaves no circuit loaded, not the one before", () => {
+  const engine = new Engine();
+  engine.load(JSON.stringify({ components: [{ id: "s", kind: "switch" }], connections: [] }));
+  expect(() => engine.load("{ not json")).toThrow();
+  expect(engine.nets()).toHaveLength(0);
+  expect(() => engine.set_input("s", 1)).toThrow("no circuit loaded");
+});
