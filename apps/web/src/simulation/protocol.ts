@@ -49,8 +49,12 @@ export type Result =
       wireNets: Record<string, number>;
       /** Wire ID → width of its net in bits (1 for a net of junctions only). */
       wireWidths: Record<string, number>;
+      /** Wire ID → index of its net as joined; unlike `wireNets`, undriven nets differ (ADR 0016). */
+      wireGroups: Record<string, number>;
       /** Component ID → port name → net index. */
       portNets: Record<string, Record<string, number>>;
+      /** Net index → ID of the top-level part driving it, null for ground (ADR 0016). */
+      netDrivers: (string | null)[];
       diagnostics: Diagnostic[];
     }
   /** `nets`: each net's value, cut to its width. */

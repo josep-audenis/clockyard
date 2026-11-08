@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use crate::catalog::{Kind, Port, mask};
 use crate::description::{CircuitDescription, Code, Diagnostic, Endpoint};
-use crate::elaborate::{elaborate, lift};
+use crate::elaborate::{elaborate, lift, top};
 
 /// Net 0 is never driven: unconnected inputs read it as 0.
 const GROUND: u32 = 0;
@@ -28,6 +28,8 @@ pub struct Simulator {
     nets: Vec<u32>,
     wire_nets: BTreeMap<String, u32>,
     wire_widths: BTreeMap<String, u32>,
+    /// Wire ID → the net it is on, as joined by wires and labels: unlike wire_nets, undriven nets differ.
+    wire_groups: BTreeMap<String, u32>,
     port_nets: PortNets,
     /// Primitives still dirty when the last settle hit its delta limit; the
     /// next settle resumes them, so a live loop is reported until it resolves.
@@ -335,10 +337,13 @@ impl Simulator {
 
         let mut wire_nets = BTreeMap::new();
         let mut wire_widths = BTreeMap::new();
-        for root in order {
+        let mut wire_groups = BTreeMap::new();
+        for (index, root) in order.into_iter().enumerate() {
             let group = &groups[&root];
             let mut wires: Vec<String> = group.wires.iter().map(|w| (*w).to_string()).collect();
             wires.sort();
+            let index = u32::try_from(index).expect("fewer nets than MAX_PARTS");
+            wire_groups.extend(wires.iter().map(|w| (w.clone(), index)));
             if group.widths.len() > 1 {
                 let named: Vec<(String, u32)> = group
                     .widths
@@ -496,6 +501,7 @@ impl Simulator {
             nets: vec![0; net_count as usize],
             wire_nets,
             wire_widths,
+            wire_groups,
             port_nets,
             unsettled: Vec::new(),
         };
@@ -587,8 +593,24 @@ impl Simulator {
         &self.wire_widths
     }
 
+    /// Wire ID → index of the net it is on, as joined by wires and labels (ADR 0016).
+    /// Every undriven net is ground in wire_nets; here each keeps its own index.
+    pub fn wire_groups(&self) -> &BTreeMap<String, u32> {
+        &self.wire_groups
+    }
+
     pub fn port_nets(&self) -> &PortNets {
         &self.port_nets
+    }
+
+    /// Net index → the top-level part that drives it, `None` for ground.
+    /// Primitive `p` drives net `p + 1`; a part inside an instance is reported
+    /// as the instance (ADR 0016).
+    pub fn net_drivers(&self) -> Vec<Option<&str>> {
+        let driver = |p: &Prim| Some(top(&self.ids[p.part as usize]));
+        std::iter::once(None)
+            .chain(self.prims.iter().map(driver))
+            .collect()
     }
 
     fn eval(&self, p: usize) -> u32 {

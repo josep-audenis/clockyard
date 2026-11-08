@@ -1,7 +1,7 @@
 // The editor's document store (ADR 0007). The canvas reads it outside React
 // through `useEditor.getState()` / `subscribe`.
 import { create } from "zustand";
-import { simplify, stacksJunction } from "../canvas/geometry";
+import { portAt, simplify, stacksJunction } from "../canvas/geometry";
 import { layoutOf, setDefinitionLayouts } from "../canvas/layout";
 import { forgetRoutes } from "../canvas/routing";
 import type { Endpoint } from "../simulation/protocol";
@@ -19,11 +19,14 @@ import {
   normalizeName,
   normalizeNetName,
   sameEnd,
+  withoutDeletedPins,
   type Circuit,
   type CircuitComponent,
   type CircuitDocument,
   type Definition,
   type PartKind,
+  type Props,
+  type Wire,
 } from "./document";
 
 type Point = { x: number; y: number };
@@ -115,9 +118,11 @@ export type EditorState = {
   definitions: Definition[];
   /**
    * Turns the selection into a new definition named `name` and puts one
-   * instance in its place, as one edit. Returns why it cannot, or null.
+   * instance in its place, as one edit. Wires crossing the selection's edge
+   * become new pins, which needs the engine's current result (ADR 0016); with
+   * none given, such a selection is refused. Returns why it cannot, or null.
    */
-  makeComponent: (name: string) => string | null;
+  makeComponent: (name: string, engine?: EngineView) => string | null;
   /** Renames a definition (`normalizeName`). Outside undo history, like every definition change (ADR 0012). */
   renameDefinition: (id: string, name: string) => void;
   /**
@@ -148,6 +153,112 @@ export type EditorState = {
   /** Like `undo`, but forgets the undone step: for a drag cancelled half-way. */
   revert: () => void;
 };
+
+/** What Make component needs from the engine's result for the circuit being edited (ADR 0016). */
+export type NetView = {
+  wireNets: Record<string, number>;
+  wireWidths: Record<string, number>;
+  wireGroups: Record<string, number>;
+  netDrivers: (string | null)[];
+};
+/** The engine's state for Make component: `nets` is null when the circuit did not load (it has errors). */
+export type EngineView = { stale: boolean; nets: NetView | null };
+
+/** `base`, or `base-2`, `base-3`, … if taken, kept within `MAX_LABEL`; the name returned is added to `taken`. */
+function freeName(base: string, taken: Set<string>): string {
+  for (let n = 1; ; n++) {
+    const suffix = n === 1 ? "" : `-${n}`;
+    const name = [...base].slice(0, MAX_LABEL - suffix.length).join("").trim() + suffix;
+    if (!taken.has(name)) {
+      taken.add(name);
+      return name;
+    }
+  }
+}
+
+/**
+ * New pins for the wires crossing a Make component selection (ADR 0016): one per crossing net, undriven
+ * nets told apart by `wireGroups`. An LED when the net's driver is inside, a switch otherwise, as wide as the net, in a column 4 cells clear of the selection. `inner` wires the pins inside
+ * the definition; `outer(instance)` wires the instance's ports to where the crossings went.
+ */
+function crossingPins(circuit: Circuit, inside: Set<string>, crossing: Wire[], nets: NetView | null, taken: Set<string>) {
+  const pins: CircuitComponent[] = [];
+  const inner: Wire[] = [];
+  const reach: { pin: string; output: boolean; end: Endpoint }[] = [];
+  const outer = (instance: string): Wire[] =>
+    reach.map(({ pin, output, end }) => {
+      const port = { component: instance, port: pin };
+      return { id: crypto.randomUUID(), from: output ? port : end, to: output ? end : port };
+    });
+  if (!nets || crossing.length === 0) return { pins, inner, outer };
+  const within = (end: Endpoint) => inside.has(endOwner(end));
+  const groups = new Map<number, Wire[]>();
+  for (const w of crossing) {
+    const key = nets.wireGroups[w.id] ?? -1;
+    groups.set(key, [...(groups.get(key) ?? []), w]);
+  }
+  const parts = new Map(circuit.components.map((c) => [c.id, c]));
+  const components = circuit.components.filter((c) => inside.has(c.id));
+  const junctions = circuit.junctions.filter((j) => inside.has(j.id));
+  const left = Math.min(...[...components, ...junctions].map((item) => item.position.x));
+  const right = Math.max(...components.map((c) => c.position.x + layoutOf(c).width), ...junctions.map((j) => j.position.x));
+  const top = Math.min(...[...components, ...junctions].map((item) => item.position.y));
+  const pointOf = (end: Endpoint) => {
+    if (isJunction(end)) return junctions.find((j) => j.id === end.junction)?.position;
+    const part = parts.get(end.component);
+    return part && portAt(part, end.port);
+  };
+  const counts = { in: 0, out: 0 };
+  for (const group of groups.values()) {
+    const [first] = group;
+    if (!first) continue;
+    const near = (w: Wire) => (within(w.from) ? w.from : w.to);
+    const far = (w: Wire) => (within(w.from) ? w.to : w.from);
+    const driver = nets.netDrivers[nets.wireNets[first.id] ?? 0] ?? null;
+    const output = driver !== null && inside.has(driver);
+    // Named from where the first crossing went: a labelled switch or LED, or a net label; else in1, out1, …
+    const end = far(first);
+    const farPart = isJunction(end) ? undefined : parts.get(end.component);
+    const given = isJunction(end)
+      ? circuit.junctions.find((j) => j.id === end.junction)?.name
+      : farPart?.kind === "switch" || farPart?.kind === "led"
+        ? farPart.props.label
+        : undefined;
+    const prefix = output ? "out" : "in";
+    let label = given ? normalizeLabel(given) : "";
+    if (label) label = freeName(label, taken);
+    else {
+      do counts[prefix]++;
+      while (taken.has(`${prefix}${counts[prefix]}`));
+      label = `${prefix}${counts[prefix]}`;
+      taken.add(label);
+    }
+    const width = nets.wireWidths[first.id] ?? 1;
+    const kind = output ? "led" : "switch";
+    const props: Props = { label, ...(width > 1 && { width }) };
+    const size = layoutOf({ kind, rotation: 0, props });
+    const x = output ? right + 4 : left - 4 - size.width;
+    // On the row the first crossing came in on, its port level with it; moved down past other new pins.
+    const pin: CircuitComponent = { id: crypto.randomUUID(), kind, rotation: 0, props, position: { x, y: Math.round(pointOf(near(first))?.y ?? top + 1) - 1 } };
+    const blocked = (y: number) =>
+      pins.some((p) => p.kind === kind && Math.abs(p.position.y - y) < 2) ||
+      stacksJunction({ components: [...components, ...pins, pin], junctions, wires: [] }, { [pin.id]: { x, y } });
+    while (blocked(pin.position.y)) pin.position = { x, y: pin.position.y + 2 };
+    pins.push(pin);
+    const own: Endpoint = { component: pin.id, port: output ? "in" : "out" };
+    const nears: Endpoint[] = [];
+    for (const w of group) {
+      const a = near(w);
+      if (!nears.some((e) => sameEnd(e, a))) {
+        nears.push(a);
+        inner.push({ id: crypto.randomUUID(), from: output ? a : own, to: output ? own : a });
+      }
+      const b = far(w);
+      if (!reach.some((r) => r.pin === pin.id && sameEnd(r.end, b))) reach.push({ pin: pin.id, output, end: b });
+    }
+  }
+  return { pins, inner, outer };
+}
 
 const now = new Date().toISOString();
 const HISTORY_LIMIT = 200;
@@ -316,47 +427,61 @@ export const useEditor = create<EditorState>()((set, get) => ({
     return id;
   },
 
-  makeComponent: (name) => {
+  makeComponent: (name, engine = { stale: true, nets: null }) => {
     const state = get();
-    const part = fragment(state.circuit, state.selection);
-    if (part.components.length === 0) return "Select the parts to make a component from.";
-    const pins = part.components.filter((c) => c.kind === "switch" || c.kind === "led");
-    if (pins.length === 0) return "A component needs pins: labelled switches (inputs) and LEDs (outputs).";
+    const { circuit } = state;
+    const chosen = new Set(state.selection);
+    const components = circuit.components.filter((c) => chosen.has(c.id));
+    if (components.length === 0) return "Select the parts to make a component from.";
+    const inside = new Set([...components, ...circuit.junctions.filter((j) => chosen.has(j.id))].map((item) => item.id));
+    const within = (end: Endpoint) => inside.has(endOwner(end));
+    // Wires to a deleted pin are not the engine's (ADR 0013): they go, like every wire touching the selection.
+    const crossing = withoutDeletedPins(circuit, liveDefinitions(state)).wires.filter((w) => within(w.from) !== within(w.to));
+    const pins = components.filter((c) => c.kind === "switch" || c.kind === "led");
+    if (pins.length === 0 && crossing.length === 0) return "A component needs pins: labelled switches (inputs) and LEDs (outputs).";
     const names = pins.map((c) => c.props.label ?? "");
     if (names.some((n) => !n)) return "Label every switch and LED: their labels name the component's pins.";
     if (new Set(names).size !== names.length) return "Two pins share a name: give each switch and LED its own label.";
-    // The definition starts at its own origin; the instance takes the selection's top-left corner.
-    const at = [...part.components, ...part.junctions].map((item) => item.position);
+    if (crossing.length > 0 && engine.stale) return "Wait for the simulation to catch up, then try again.";
+    if (crossing.length > 0 && !engine.nets) return "Fix the circuit's errors first: wires crossing the selection need a working circuit.";
+    const added = crossingPins(circuit, inside, crossing, engine.nets, new Set(names));
+    // The definition starts at its own origin, new pins included. The instance takes the selection's top-left
+    // corner, so it lands where the selection was and not over parts left of it.
+    const own = [...circuit.wires.filter((w) => within(w.from) && within(w.to)), ...added.inner];
+    const used = new Set(own.flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
+    const junctions = circuit.junctions.filter((j) => inside.has(j.id) && (used.has(j.id) || !!j.name));
+    const parts = [...components, ...added.pins];
+    const at = [...parts, ...junctions].map((item) => item.position);
     const origin = { x: Math.min(...at.map((p) => p.x)), y: Math.min(...at.map((p) => p.y)) };
     const shift = (p: Point) => ({ x: p.x - origin.x, y: p.y - origin.y });
     const definition: Definition = {
       id: crypto.randomUUID(),
       name: normalizeName(name),
       circuit: {
-        components: part.components.map((c) => ({ ...c, position: shift(c.position) })),
-        junctions: part.junctions.map((j) => ({ ...j, position: shift(j.position) })),
-        wires: part.wires.map((w) => (w.bends ? { ...w, bends: w.bends.map(shift) } : w)),
+        components: parts.map((c) => ({ ...c, position: shift(c.position) })),
+        junctions: junctions.map((j) => ({ ...j, position: shift(j.position) })),
+        wires: own.map((w) => (w.bends ? { ...w, bends: w.bends.map(shift) } : w)),
       },
     };
     const instance: CircuitComponent = {
       id: crypto.randomUUID(),
       kind: "custom",
       definition: definition.id,
-      position: origin,
+      position: { x: Math.min(...[...components, ...junctions].map((item) => item.position.x)), y: Math.min(...[...components, ...junctions].map((item) => item.position.y)) },
       rotation: 0,
       props: {},
     };
     set((s) => {
-      const gone = new Set([...part.components, ...part.junctions].map((item) => item.id));
-      // Wires leaving the selection go with it; junctions left without wires too.
-      const wires = s.circuit.wires.filter((w) => !gone.has(endOwner(w.from)) && !gone.has(endOwner(w.to)));
+      // Wires touching the selection go with it; crossings come back wired to the instance (ADR 0016).
+      const outer = added.outer(instance.id);
+      const wires = [...s.circuit.wires.filter((w) => !inside.has(endOwner(w.from)) && !inside.has(endOwner(w.to))), ...outer];
       const used = new Set(wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
-      const circuit = {
-        components: [...s.circuit.components.filter((c) => !gone.has(c.id)), instance],
-        junctions: s.circuit.junctions.filter((j) => !gone.has(j.id) && (used.has(j.id) || !!j.name)),
+      const next = {
+        components: [...s.circuit.components.filter((c) => !inside.has(c.id)), instance],
+        junctions: s.circuit.junctions.filter((j) => !inside.has(j.id) && (used.has(j.id) || !!j.name)),
         wires,
       };
-      return { ...edit(s, circuit), definitions: [...s.definitions, definition], selection: [instance.id] };
+      return { ...edit(s, next), definitions: [...s.definitions, definition], selection: [instance.id] };
     });
     return null;
   },

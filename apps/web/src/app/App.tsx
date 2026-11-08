@@ -369,10 +369,18 @@ function MakeComponent({ count }: { count: number }) {
           onChange={(e) => setName(e.target.value)}
         />
         <p id={`${id}-hint`} className={`field-hint${error ? " field-error" : ""}`} role={error ? "alert" : undefined}>
-          {error ?? "Its switches become inputs and its LEDs outputs, named by their labels."}
+          {error ?? "Its switches become inputs and its LEDs outputs, named by their labels. Wires crossing its edge become new pins."}
         </p>
       </div>
-      <button type="button" className="button type-label" onClick={() => setError(useEditor.getState().makeComponent(name))}>
+      <button
+        type="button"
+        className="button type-label"
+        onClick={() => {
+          // Wires crossing the selection become pins from the engine's nets (ADR 0016); no netlist while errors stand.
+          const { stale, loaded } = useSim.getState();
+          setError(useEditor.getState().makeComponent(name, { stale, nets: loaded && loaded.netCount > 0 ? loaded : null }));
+        }}
+      >
         Make component
       </button>
     </div>

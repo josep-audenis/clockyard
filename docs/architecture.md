@@ -208,7 +208,10 @@ type Result =
   | { type: "ready" }
   | { type: "loaded"; netCount: number; wireNets: Record<string, number>;
       wireWidths: Record<string, number>; // per wire: undriven nets all share net 0
-      portNets: Record<string, Record<string, number>>; diagnostics: Diagnostic[] }
+      wireGroups: Record<string, number>; // wire → its net as joined, undriven ones apart
+      portNets: Record<string, Record<string, number>>;
+      netDrivers: (string | null)[];      // net → top-level part driving it, null for net 0
+      diagnostics: Diagnostic[] }
   | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[] } // each cut to its width
   | { type: "error"; message: string };
 ```
@@ -222,6 +225,8 @@ type Result =
 - `loaded.diagnostics` holds validation results only. The initial settle's
   runtime result (an unstable loop) arrives with the first `state`, so the
   settles that follow, such as restored switch positions, replace it.
+- `wireGroups` and `netDrivers` are for *Make component* (ADR 0016): which
+  crossing wires share a net, and whether its driver is inside the selection.
 - A `setInput` value is a JS number. `sim-wasm` refuses a non-integer, a
   negative number or one above 2^32 − 1 instead of wrapping it, and the engine
   refuses a value wider than the switch; the worker reports either as `error`

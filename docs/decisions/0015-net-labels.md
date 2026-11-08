@@ -130,8 +130,8 @@ Constraints from earlier records:
    - Copy, paste and duplicate keep names, so a pasted label joins the
      original's net, as a tunnel should.
    - *Make component* moves labels like other junctions. A name left on
-     both sides of the selection's edge becomes two nets on two sheets,
-     like a wire crossing the edge (ADR 0012), and each side reports
+     both sides of the selection's edge becomes two nets on two sheets
+     (a drawn wire crossing the edge becomes a pin since ADR 0016), and each side reports
      `unmatchedLabel` if it is left alone.
    - The status bar's plain sentences (`PLAIN`) gain `unmatchedLabel`: "A
      label has no partner on this sheet."
