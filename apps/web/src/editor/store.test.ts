@@ -70,7 +70,7 @@ test("load replaces the document and clears transient state", () => {
   toggle(add("switch", { x: 0, y: 0 }));
   const metadata = { name: "Loaded", createdAt: "2026-01-01T00:00:00Z", modifiedAt: "2026-01-02T00:00:00Z" };
   const circuit = { components: [], junctions: [], wires: [] };
-  load({ format: "clockyard", version: 5, metadata, circuit, definitions: [] });
+  load({ format: "clockyard", version: 6, metadata, circuit, definitions: [] });
   const state = useEditor.getState();
   expect([state.metadata, state.circuit, state.selection, state.inputs]).toEqual([metadata, circuit, [], {}]);
 });
@@ -129,7 +129,7 @@ test("loading a document clears history", () => {
   const { add, load, undo } = useEditor.getState();
   add("switch", { x: 0, y: 0 });
   const metadata = { name: "x", createdAt: "", modifiedAt: "" };
-  load({ format: "clockyard", version: 5, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  load({ format: "clockyard", version: 6, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
   undo();
   expect(ids()).toEqual([]);
 });
@@ -707,7 +707,7 @@ test("paste refuses an instance that would make a definition contain itself; ope
   expect(useEditor.getState().circuit.components.filter((c) => c.kind === "custom")).toHaveLength(2);
   // Another file has none of these definitions: nothing is left to paste.
   const metadata = { name: "Other", createdAt: "2026-11-07T00:00:00Z", modifiedAt: "2026-11-07T00:00:00Z" };
-  useEditor.getState().load({ format: "clockyard", version: 5, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  useEditor.getState().load({ format: "clockyard", version: 6, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
   useEditor.getState().paste();
   expect(useEditor.getState().clipboard).toBeNull();
   expect(useEditor.getState().circuit.components).toEqual([]);

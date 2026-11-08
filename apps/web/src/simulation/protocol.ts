@@ -14,7 +14,8 @@ export type CircuitBody = {
    * `width` (switches, LEDs, gates) and `fields` (split, merge): ADR 0014; the engine validates them.
    */
   components: { id: string; kind: string; definition?: string; width?: number; fields?: number[] }[];
-  junctions: { id: string }[];
+  /** `name`: a net label (ADR 0015); the engine joins same-named junctions on one sheet. */
+  junctions: { id: string; name?: string }[];
   connections: { id: string; from: Endpoint; to: Endpoint }[];
 };
 

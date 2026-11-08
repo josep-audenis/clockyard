@@ -5,7 +5,7 @@ import { parseDocument, serializeDocument } from "./file";
 
 const document: CircuitDocument = {
   format: "clockyard",
-  version: 5,
+  version: 6,
   metadata: { name: "AND demo", createdAt: "2026-11-06T12:00:00Z", modifiedAt: "2026-11-06T12:30:00Z" },
   circuit: {
     components: [
@@ -13,7 +13,7 @@ const document: CircuitDocument = {
       { id: "g", kind: "and", position: { x: 6, y: -2 }, rotation: 0, props: { width: 8 } },
       { id: "x", kind: "custom", definition: "inv", position: { x: 6, y: 8 }, rotation: 90, props: {} },
     ],
-    junctions: [{ id: "j", position: { x: 3, y: 1 } }],
+    junctions: [{ id: "j", position: { x: 3, y: 1 }, name: "clk" }],
     wires: [
       { id: "w", from: { component: "a", port: "out" }, to: { component: "g", port: "a" } },
       { id: "v", from: { junction: "j" }, to: { component: "g", port: "b" }, bends: [{ x: 4, y: 1 }] },
@@ -77,7 +77,7 @@ test("definition names are normalized like the editor does, and a blank one beco
 test.each([
   ["not JSON", () => parseDocument("{"), "not valid JSON"],
   ["another format", () => broken((doc) => Object.assign(doc, { format: "other" })), "not a Clockyard file"],
-  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 6 })), "newer Clockyard"],
+  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 7 })), "newer Clockyard"],
   ["an instance of a missing definition", () => broken((doc) => Object.assign(doc.circuit.components[2] ?? {}, { definition: "gone" })), "missing definition gone"],
   ["an ID with a slash", () => broken((_, c) => (c.id = "a/b")), 'must not contain "/"'],
   ["a definition ID used twice", () => broken((doc) => doc.definitions.push({ ...(doc.definitions[0] as Definition) })), "ID inv is used more than once"],
@@ -187,4 +187,19 @@ test("width 1 is the default: dropped on import, so 1-bit circuits export as bef
 test("a splitter's fields round-trip through export and import", () => {
   const result = broken((_, c) => Object.assign(c, { kind: "split", props: { label: "Bus", fields: [3, 5] } }));
   expect(result.ok && result.document.circuit.components[0]).toMatchObject({ kind: "split", props: { label: "Bus", fields: [3, 5] } });
+});
+
+test("a version 5 file is migrated: only the version changes", () => {
+  const v5 = { ...document, version: 5 };
+  expect(parseDocument(JSON.stringify(v5))).toEqual({ ok: true, document });
+});
+
+test("a net label's name is normalized like the editor's, NFC included; blank is dropped, too long refused", () => {
+  const named = (name: unknown) => broken((doc) => Object.assign(doc.circuit.junctions[0] ?? {}, { name }));
+  const name = (result: ReturnType<typeof parseDocument>) => (result.ok ? result.document.circuit.junctions[0]?.name : result.error);
+  // "e" + combining acute becomes the precomposed "é", so both spellings name one net.
+  expect(name(named("  café "))).toBe("café");
+  expect(name(named("   "))).toBeUndefined();
+  expect(name(named("x".repeat(33)))).toContain("Junction 1 name is longer than 32 characters");
+  expect(name(named(7))).toContain("Junction 1 name must be text");
 });
