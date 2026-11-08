@@ -2,7 +2,7 @@ import { expect, test, vi } from "vitest";
 import type { Command, Result } from "./protocol";
 
 // The worker stands in as a callback: the test plays its replies.
-const worker = vi.hoisted(() => ({ reply: (_: Result) => {}, sent: [] as Command[] }));
+const worker = vi.hoisted(() => ({ reply: (() => {}) as (result: Result) => void, sent: [] as Command[] }));
 vi.mock("./client", () => ({
   startSimulation: (onResult: (result: Result) => void) => {
     worker.reply = onResult;
