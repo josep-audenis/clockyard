@@ -935,3 +935,92 @@ test("a copied net label keeps its name", () => {
   paste();
   expect(useEditor.getState().circuit.junctions.map((x) => x.name)).toEqual(["clk", "clk"]);
 });
+
+test("addLabel places a selected junction named n1, n2, … skipping names in use, one undo step; never on a port", () => {
+  const { add, armLabel, addLabel, setName, undo } = useEditor.getState();
+  armLabel(true);
+  const a = addLabel({ x: 10, y: 10 });
+  expect(useEditor.getState()).toMatchObject({ selection: [a], armedLabel: false });
+  if (!a) throw new Error("not placed");
+  setName(a, "n2");
+  const b = addLabel({ x: 14, y: 10 });
+  const names = () => useEditor.getState().circuit.junctions.map((j) => j.name);
+  expect(names()).toEqual(["n2", "n1"]);
+  const s = add("switch", { x: 0, y: 0 });
+  expect(addLabel({ x: 2, y: 1 })).toBeNull(); // the switch's output port
+  expect(useEditor.getState().circuit.components.map((c) => c.id)).toEqual([s]);
+  undo(); // the switch
+  undo(); // label b
+  expect(useEditor.getState().circuit.junctions.map((j) => j.id)).toEqual([a]);
+  expect(b).not.toBeNull();
+});
+
+test("setName normalizes like import, is one undo step, and clearing an unwired label removes it", () => {
+  const { addLabel, setName, undo } = useEditor.getState();
+  const a = addLabel({ x: 4, y: 4 });
+  if (!a) throw new Error("not placed");
+  const name = () => useEditor.getState().circuit.junctions.find((j) => j.id === a)?.name;
+  setName(a, "  café ");
+  expect(name()).toBe("café");
+  const { past } = useEditor.getState();
+  setName(a, "café");
+  expect(useEditor.getState().past).toBe(past);
+  setName(a, "x".repeat(40));
+  expect(name()).toBe("x".repeat(32));
+  setName(a, "   ");
+  expect(useEditor.getState().circuit.junctions).toEqual([]);
+  undo();
+  expect(name()).toBe("x".repeat(32));
+});
+
+test("deleting the last wire of a named junction keeps it; of a plain one removes it; a copied unwired label survives", () => {
+  const { add, connect, connectToWire, setName, remove, select, copy, paste } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const l = add("led", { x: 10, y: 0 });
+  const k = add("led", { x: 10, y: 6 });
+  const w = connect(port(s, "out"), port(l, "in"));
+  if (!w) throw new Error("no wire");
+  connectToWire(port(k, "in"), w, { x: 6, y: 1 });
+  const [j] = useEditor.getState().circuit.junctions;
+  if (!j) throw new Error("no junction");
+  setName(j.id, "go");
+  remove(useEditor.getState().circuit.wires.map((x) => x.id));
+  expect(useEditor.getState().circuit.junctions.map((x) => x.name)).toEqual(["go"]);
+  select([j.id]);
+  copy();
+  paste();
+  expect(useEditor.getState().circuit.junctions.map((x) => x.name)).toEqual(["go", "go"]);
+
+  // A plain junction left with no wires goes.
+  const plain = connect(port(s, "out"), port(l, "in"));
+  if (!plain) throw new Error("no wire");
+  connectToWire(port(k, "in"), plain, { x: 6, y: 1 });
+  const before = useEditor.getState().circuit.junctions.length;
+  remove(useEditor.getState().circuit.wires.map((x) => x.id));
+  expect(useEditor.getState().circuit.junctions).toHaveLength(before - 1);
+});
+
+test("labels: refused on a junction, kept by setFields, duplicated alone, and disarmed by arming a part or a sheet switch", () => {
+  const { add, connect, connectToWire, addLabel, setName, setFields, select, duplicate, armLabel, arm } = useEditor.getState();
+  const sp = add("split", { x: 0, y: 0 });
+  const l = add("led", { x: 10, y: 0 });
+  const k = add("led", { x: 10, y: 8 });
+  const w = connect(port(sp, "f3"), port(l, "in"));
+  if (!w) throw new Error("no wire");
+  connectToWire(port(k, "in"), w, { x: 6, y: 4 });
+  const [j] = useEditor.getState().circuit.junctions;
+  if (!j) throw new Error("no junction");
+  expect(addLabel(j.position)).toBeNull();
+  setName(j.id, "bit3");
+  // Fields shrink: f3 and its wire go, the label and its other wires stay.
+  setFields(sp, [1, 1]);
+  expect(useEditor.getState().circuit.junctions.map((x) => x.name)).toEqual(["bit3"]);
+  select([j.id]);
+  duplicate();
+  expect(useEditor.getState().circuit.junctions.map((x) => x.name)).toEqual(["bit3", "bit3"]);
+  armLabel(true);
+  arm("and");
+  expect(useEditor.getState()).toMatchObject({ armed: "and", armedLabel: false });
+  armLabel(true);
+  expect(useEditor.getState()).toMatchObject({ armed: null, armedLabel: true });
+});

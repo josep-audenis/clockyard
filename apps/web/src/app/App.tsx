@@ -12,6 +12,7 @@ import {
   parseValue,
   showValue,
   type CircuitComponent,
+  type Junction,
   type ComponentKind,
   type PartKind,
 } from "../editor/document";
@@ -19,7 +20,8 @@ import { deleteRefusal, liveDefinitions, mainCircuit, useEditor } from "../edito
 import { connectEngine, useSim } from "../simulation/sync";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
 
-type Part = { kind: ComponentKind; name: string; key?: string };
+/** `label` is not a part: it places a named junction (ADR 0015). */
+type Part = { kind: ComponentKind | "label"; name: string; key?: string };
 // Shortcut letters follow the design system's PartTile spec.
 const LIBRARY: { title: string; parts: Part[] }[] = [
   { title: "Inputs", parts: [{ kind: "switch", name: "Switch", key: "S" }] },
@@ -42,6 +44,8 @@ const LIBRARY: { title: string; parts: Part[] }[] = [
     parts: [
       { kind: "split", name: "Splitter" },
       { kind: "merge", name: "Merger" },
+      // A net label: junctions with the same name on a sheet are one net (ADR 0015).
+      { kind: "label", name: "Label" },
     ],
   },
 ];
@@ -161,6 +165,8 @@ const slug = (name: string) =>
 function PartsLibrary() {
   const armed = useEditor((s) => s.armed);
   const arm = useEditor((s) => s.arm);
+  const armedLabel = useEditor((s) => s.armedLabel);
+  const armLabel = useEditor((s) => s.armLabel);
   const armedDefinition = useEditor((s) => s.armedDefinition);
   const armChip = useEditor((s) => s.armChip);
   const sheet = useEditor((s) => s.sheet);
@@ -181,7 +187,7 @@ function PartsLibrary() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const kind = SHORTCUTS.get(e.key.toUpperCase());
-      if (kind) useEditor.getState().arm(kind);
+      if (kind && kind !== "label") useEditor.getState().arm(kind);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -198,9 +204,9 @@ function PartsLibrary() {
                 key={kind}
                 type="button"
                 className="part-tile type-label"
-                aria-pressed={armed === kind}
+                aria-pressed={kind === "label" ? armedLabel : armed === kind}
                 aria-keyshortcuts={key}
-                onClick={() => arm(armed === kind ? null : kind)}
+                onClick={() => (kind === "label" ? armLabel(!armedLabel) : arm(armed === kind ? null : kind))}
               >
                 {name}
                 {key && <kbd className="kbd">{key}</kbd>}
@@ -287,6 +293,9 @@ function Inspector() {
   const selection = useEditor((s) => s.selection);
   const part = useEditor((s) => (s.selection.length === 1 ? s.circuit.components.find((c) => c.id === s.selection[0]) : undefined));
   const wire = useEditor((s) => (s.selection.length === 1 ? s.circuit.wires.find((w) => w.id === s.selection[0]) : undefined));
+  const junction = useEditor((s) =>
+    s.selection.length === 1 ? s.circuit.junctions.find((j) => j.id === s.selection[0]) : undefined,
+  );
   const resetRoute = useEditor((s) => s.resetRoute);
   return (
     <aside className="inspector" aria-label="Inspector">
@@ -307,15 +316,33 @@ function Inspector() {
               </button>
             )}
           </div>
+        ) : junction ? (
+          <JunctionProperties key={`${junction.id}:${junction.name ?? ""}`} junction={junction} />
         ) : selection.length > 1 ? (
           <MakeComponent count={selection.length} />
         ) : (
-          <p className="type-body inspector-empty">
-            {selection.length === 0 ? "Select a component to edit its properties." : "Junctions have no properties."}
-          </p>
+          <p className="type-body inspector-empty">Select a component to edit its properties.</p>
         )}
       </section>
     </aside>
+  );
+}
+
+/** A junction's name makes it a net label (ADR 0015); a new label's Name field takes focus. */
+function JunctionProperties({ junction }: { junction: Junction }) {
+  const focus = useCanvasHints((s) => s.focusValue === junction.id);
+  return (
+    <div className="inspector-body">
+      <p className="type-label inspector-kind">{junction.name ? "Label" : "Junction"}</p>
+      <CommitField
+        label="Name"
+        saved={junction.name ?? ""}
+        hint="Junctions with the same name on this sheet are one net."
+        focus={focus}
+        // One undoable edit; clearing the name of a junction with no wires removes it.
+        onCommit={(value) => useEditor.getState().setName(junction.id, value)}
+      />
+    </div>
   );
 }
 
@@ -384,23 +411,34 @@ function CommitField({
   hint,
   onCommit,
   maxLength = MAX_LABEL,
+  focus = false,
 }: {
   label: string;
   saved: string;
   hint: string;
   onCommit: (value: string) => void;
   maxLength?: number;
+  /** Takes the keyboard once, when the canvas hands it over (a just-placed label). */
+  focus?: boolean;
 }) {
   const [draft, setDraft] = useState(saved);
   /** Escape leaves the field without saving. */
   const cancelled = useRef(false);
+  const input = useRef<HTMLInputElement>(null);
   const id = useId();
+  useEffect(() => {
+    if (!focus) return;
+    input.current?.focus();
+    input.current?.select();
+    useCanvasHints.setState({ focusValue: null });
+  }, [focus]);
   return (
     <div className="field">
       <label className="field-label" htmlFor={`${id}-input`}>
         {label}
       </label>
       <input
+        ref={input}
         id={`${id}-input`}
         aria-describedby={`${id}-hint`}
         className="input"
@@ -611,6 +649,7 @@ const PLAIN: Record<string, string> = {
   unconnectedInput: "An input is unconnected and reads 0.",
   unstable: "The circuit did not settle: a loop keeps oscillating.",
   widthMismatch: "Ports of different widths are wired together.",
+  unmatchedLabel: "A label has no partner on this sheet.",
   invalidWidth: "A part has a width or fields the engine cannot use.",
   unknownDefinition: "A component's definition is missing.",
   recursiveDefinition: "A component contains itself, so it cannot be built.",

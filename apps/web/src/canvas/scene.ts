@@ -13,6 +13,7 @@ import {
   sameEnd,
   type Circuit,
   type CircuitComponent,
+  type Junction,
 } from "../editor/document";
 import { useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
@@ -53,6 +54,8 @@ const COLORS = [
   "accent",
   "accent-soft",
   "danger",
+  "caution",
+  "ink",
 ] as const;
 const SIZES = ["grid-cell", "wire-width", "wire-width-high", "bus-width", "select-width", "port-size", "hit-slop", "radius-sm"] as const;
 
@@ -158,6 +161,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   let gesture: Gesture | null = null;
   /** Where a wire being drawn would attach (a port, junction or point on a wire). */
   let hover: Point | null = null;
+  /** A label placed by the current press, whose Name field takes focus when it is released. */
+  let placedLabel: string | null = null;
   /** Space held: a left drag pans. */
   let spaceHeld = false;
   /** Pointer position on screen while it is over the canvas: where an armed part would be placed (after pan or zoom too). */
@@ -176,7 +181,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   const px = (p: Point) => ({ x: p.x * cell(), y: p.y * cell() });
 
   function draw() {
-    const { circuit, selection, armed } = useEditor.getState();
+    const { circuit, selection, armed, armedLabel } = useEditor.getState();
     const { loaded, nets, stale, runtime } = useSim.getState();
     const { color, size } = theme;
     const c = cell();
@@ -187,7 +192,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     const step = c * view.zoom * (view.zoom < 0.5 ? 4 : 1);
     host.style.backgroundSize = `${step}px ${step}px`;
     host.style.backgroundPosition = `${view.x - step / 2}px ${view.y - step / 2}px`;
-    canvas.style.cursor = armed ? "crosshair" : gesture?.type === "pan" ? "grabbing" : spaceHeld ? "grab" : "default";
+    canvas.style.cursor = armed || armedLabel ? "crosshair" : gesture?.type === "pan" ? "grabbing" : spaceHeld ? "grab" : "default";
 
     const culprits = new Set(
       [...(loaded?.diagnostics ?? []), ...runtime].filter((d) => d.severity === "error").flatMap((d) => d.ids),
@@ -247,6 +252,49 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     }
     for (const tag of tags) tag();
 
+    // ADR 0015: a named junction is a tag beside its dot, on the first side (right, left, below, above)
+    // that none of its wires leaves from. Its outline is the net's tone, or caution while unmatched.
+    const unmatched = new Set((loaded?.diagnostics ?? []).filter((d) => d.code === "unmatchedLabel").flatMap((d) => d.ids));
+    // The selected label's name: its partners on the sheet are outlined too. A display aid only; the engine joins them.
+    const chosen = selection.length === 1 ? circuit.junctions.find((j) => j.id === selection[0])?.name : undefined;
+    // The sides each junction's wires leave from, from their routes, in one pass over the wires.
+    const sides = new Map<string, Set<string>>();
+    for (const w of circuit.wires) {
+      const points = paths.get(w.id);
+      if (!points || points.length < 2) continue;
+      for (const [end, from, near] of [[w.from, points[0], points[1]], [w.to, points.at(-1), points.at(-2)]] as const) {
+        if (!("junction" in end) || !from || !near) continue;
+        const [dx, dy] = [near.x - from.x, near.y - from.y];
+        const taken = sides.get(end.junction) ?? new Set<string>();
+        taken.add(dx > 0 ? "right" : dx < 0 ? "left" : dy > 0 ? "below" : "above");
+        sides.set(end.junction, taken);
+      }
+    }
+    const drawTag = (junction: Junction, x: number, y: number, tone: string, unknown: boolean) => {
+      const taken = sides.get(junction.id) ?? new Set<string>();
+      const side = ["right", "left", "below", "above"].find((s) => !taken.has(s)) ?? "right";
+      const gap = 8;
+      const [tx, ty, anchor] =
+        side === "right"
+          ? [x + gap, y, { x: 0, y: 0.5 }]
+          : side === "left"
+            ? [x - gap, y, { x: 1, y: 0.5 }]
+            : side === "below"
+              ? [x, y + gap, { x: 0.5, y: 0 }]
+              : [x, y - gap, { x: 0.5, y: 1 }];
+      const text = put(`${junction.id}:name`, junction.name ?? "", tx, ty, anchor, color.ink);
+      text.alpha = unknown ? 0.5 : 1;
+      const pad = 3;
+      const box = { x: tx - anchor.x * text.width - pad, y: ty - anchor.y * text.height - pad, w: text.width + 2 * pad, h: text.height + 2 * pad };
+      wires
+        .roundRect(box.x, box.y, box.w, box.h, size["radius-sm"])
+        .fill({ color: color.bench })
+        .stroke({ width: 1.5, color: unmatched.has(junction.id) ? color.caution : tone });
+      if (chosen !== undefined && junction.name === chosen) {
+        wires.roundRect(box.x - 3, box.y - 3, box.w + 6, box.h + 6, size["radius-sm"]).stroke({ width: 1, color: color.select });
+      }
+    };
+
     // CanvasKit: a junction is a 4px dot in its net's state colour, read from any wire on it.
     const wireAt = new Map(circuit.wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)].map((owner) => [owner, w.id])));
     for (const junction of circuit.junctions) {
@@ -256,7 +304,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const tone = bitsOf(attached) > 1 ? color["signal-bus"] : lit ? color["signal-high"] : color["signal-low"];
       const { x, y } = px(junction.position);
       if (selected.has(junction.id)) wires.circle(x, y, 8).stroke({ width: size["select-width"], color: color.select });
-      wires.circle(x, y, 4).fill({ color: tone, alpha: value === null ? 0.5 : 1 });
+      wires.circle(x, y, junction.name ? 3 : 4).fill({ color: tone, alpha: value === null ? 0.5 : 1 });
+      if (junction.name) drawTag(junction, x, y, tone, value === null);
     }
 
     for (const component of circuit.components) {
@@ -286,6 +335,14 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
 
     drawLabels(circuit.components);
     const present = new Set(circuit.components.map((component) => component.id));
+    // An armed label: where a click would put it.
+    if (armedLabel && pointer && !gesture) {
+      const at = toWorld(pointer);
+      const point = { x: Math.round(at.x), y: Math.round(at.y) };
+      const { x, y } = px(point);
+      // On a port or junction a click is refused: shown in danger, as an armed part's preview is.
+      overlay.circle(x, y, 4).stroke({ width: 1.5, color: occupied(circuit, point) ? color.danger : color.accent });
+    }
     // The armed part, half see-through, where a click would place it, turned as it would be.
     if (armed && pointer && !gesture) {
       const rotation = useEditor.getState().armedRotation;
@@ -602,6 +659,10 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     window.getSelection()?.removeAllRanges();
     if (e.button === 1 || (e.button === 0 && spaceHeld)) {
       gesture = { type: "pan", last: { x: e.clientX, y: e.clientY } };
+    } else if (e.button === 0 && editor.armedLabel) {
+      // A net label (ADR 0015) at the nearest grid point. Its Name field takes the keyboard on release,
+      // after the press has moved focus where it will.
+      placedLabel = editor.addLabel({ x: Math.round(p.x), y: Math.round(p.y) });
     } else if (e.button === 0 && editor.armed) {
       const part = { id: GHOST, kind: editor.armed, rotation: editor.armedRotation, definition: editor.armedDefinition ?? undefined, props: {} };
       const position = placement(part, p);
@@ -711,6 +772,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
 
   const onPointerUp = (e: PointerEvent) => {
     const editor = useEditor.getState();
+    if (placedLabel) useCanvasHints.setState({ focusValue: placedLabel });
+    placedLabel = null;
     if (gesture?.type === "move" && !gesture.moved) {
       const id = gesture.id;
       // A plain click inside a multi-selection narrows it to the clicked part.

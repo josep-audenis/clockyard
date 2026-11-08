@@ -228,8 +228,17 @@ Progress:
      migration only bumps the version; the examples are v6. The
      projection copies `name` to the engine. Until step 3 a named
      junction (from a file) is drawn as a plain dot.
-  3. Editor: Label in the parts panel, Name in the inspector, tags drawn
-     instead of dots, the same-name highlight, unwired labels kept.
+  3. ✅ Editor: Label in the parts panel's Wiring section places a junction
+     named with the first free `n1`, `n2`, … and focuses its Name field;
+     Name in the inspector for any selected junction (one undo step;
+     clearing it on an unwired label removes it); a named junction is a
+     small dot with a tag on the side no wire leaves, outlined in its net's
+     tone, or `caution` while `unmatchedLabel` names it; selecting a label
+     outlines its same-named partners; labels are kept without wires and
+     can be copied, pasted and duplicated on their own, keeping their
+     names; the status bar says "A label has no partner on this sheet."
+     A click on the tag itself does not select the label (the dot does),
+     and routing does not yet avoid tags (ADR 0015 item 7).
   4. Playwright: two labels named `go` join a switch to an LED; renaming
      one reports both as unmatched.
 - ✅ 4-bit adder example: one full-adder definition instanced four times,

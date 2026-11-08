@@ -202,3 +202,14 @@ Browser (Playwright):
 - The editor holds a name lookup for highlighting, alongside the engine's
   rule. If the rule grows (global scope, case folding), both change.
 - A v6 file cannot be opened by a v5 build, as designed.
+
+## Amendment (2026-11-08): building the editor
+
+- **A named junction keeps a small dot beside its tag** (item 7 said the tag
+  is drawn instead of a dot). The dot marks the exact connection point, which
+  is also where a click selects the label and where wires attach; a click on
+  the tag itself does not select it.
+- **Copy, cut, paste and duplicate work on labels alone.** They used to need a
+  part; a label selected on its own now copies, so a pasted label joins the
+  original's net as item 8 intends.
+
