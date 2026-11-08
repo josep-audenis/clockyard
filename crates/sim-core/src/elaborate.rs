@@ -210,6 +210,7 @@ enum Role {
 /// only where it touches a pin, the rest being left to net resolution, which sees nets whole.
 fn check_wiring<'a>(
     components: &[ComponentDesc],
+    junctions: &'a [JunctionDesc],
     connections: &'a [Connection],
     prefix: &str,
     pins: &BTreeMap<&str, &str>,
@@ -281,6 +282,23 @@ fn check_wiring<'a>(
     for &(_, a, b) in &joined {
         let (ra, rb) = (find(&mut parent, a), find(&mut parent, b));
         parent[ra] = rb;
+    }
+    // Same-named junctions on this level are one net (ADR 0015), before drivers and readers are
+    // counted: otherwise a label between pins would be judged as two halves. Unwired labels add nothing.
+    let mut named: BTreeMap<&str, usize> = BTreeMap::new();
+    for j in junctions {
+        let Some(name) = j.name.as_deref().filter(|n| !n.is_empty()) else {
+            continue;
+        };
+        let Some(&node) = nodes.get(&(true, j.id.as_str(), "")) else {
+            continue;
+        };
+        if let Some(&first) = named.get(name) {
+            let (ra, rb) = (find(&mut parent, first), find(&mut parent, node));
+            parent[ra] = rb;
+        } else {
+            named.insert(name, node);
+        }
     }
     // Per net (by root): drivers, readers, whether it touches a pin, and its first port of each width.
     #[derive(Clone, Default)]
@@ -441,10 +459,12 @@ impl<'a> Flat<'a> {
                 }
             } else if pins.contains_key(c.id.as_str()) {
                 let width = c.widths().ok().map(|(width, _)| width);
+                // A pin carries no name: labels never join across a component's boundary.
                 self.out.junctions.push(JunctionDesc {
                     id,
                     pin: true,
                     width,
+                    name: None,
                 });
             } else {
                 self.out.components.push(ComponentDesc { id, ..c.clone() });
@@ -460,6 +480,7 @@ impl<'a> Flat<'a> {
             }
             self.out.junctions.push(JunctionDesc {
                 id,
+                name: j.name.clone(),
                 ..Default::default()
             });
         }
@@ -477,7 +498,14 @@ impl<'a> Flat<'a> {
             }
         }
         if definition.is_none_or(|d| self.wired.insert(d.id.as_str())) {
-            let found = check_wiring(components, connections, prefix, &pins, &instances);
+            let found = check_wiring(
+                components,
+                junctions,
+                connections,
+                prefix,
+                &pins,
+                &instances,
+            );
             self.errors.extend(found);
         }
     }

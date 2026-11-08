@@ -75,6 +75,16 @@ ADR 0010) and checks each resulting net as a whole:
 
 Duplicate wires between the same ends are harmless: they join nothing new.
 
+**Net labels** (ADR 0015): junctions with the same non-empty `name` on one
+sheet are one net, as if a wire joined them, and every rule above applies to
+the whole. A sheet is the main circuit or one definition; inside an instance
+a junction's sheet is its instance path, so labels never join across
+instances or across a component's boundary (pins are the only way in). Names
+match exactly, case included. Labels are joined in both places nets are
+built: each level's check before flattening, and the flat circuit. A name no
+other junction on its sheet carries warns `unmatchedLabel`, naming that
+junction (or, inside a definition, the top-level instance).
+
 ## Compiled netlist
 
 Dense, index-based, built once per load:
@@ -224,7 +234,7 @@ Two distinct categories:
 
 | Category | When | Examples |
 |----------|------|----------|
-| Validation (compile time) | Loading a circuit | Unknown kind, missing port, output-to-output connection, width mismatch, invalid width or fields, multiple drivers, missing or recursive definition, circuit too large |
+| Validation (compile time) | Loading a circuit | Unknown kind, missing port, output-to-output connection, width mismatch, invalid width or fields, multiple drivers, missing or recursive definition, circuit too large; warnings: unconnected input, unmatched label |
 | Runtime | During simulation | Unstable/oscillating loop, delta limit exceeded |
 
 Document-level problems (corrupt JSON, unsupported file version) are caught by
