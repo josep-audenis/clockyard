@@ -37,6 +37,6 @@ onmessage = async (event: MessageEvent<Command>) => {
         break;
     }
   } catch (error) {
-    reply({ type: "error", message: String(error) });
+    reply({ type: "error", message: String(error), ...(command.type === "load" && { load: true as const }) });
   }
 };

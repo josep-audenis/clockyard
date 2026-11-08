@@ -38,6 +38,11 @@ export function connectEngine(): () => void {
         useSim.setState({ status: "ready" });
         break;
       case "error":
+        // A failed load answers that load: nothing describes the circuit now, and nothing is pending for it.
+        if (message.load) {
+          pending--;
+          useSim.setState({ loaded: null, nets: null, stale: pending > 0 });
+        }
         useSim.setState({ status: "error", error: message.message });
         break;
       // A reply means the engine works again, so an earlier command error no longer applies.

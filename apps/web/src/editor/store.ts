@@ -1,7 +1,7 @@
 // The editor's document store (ADR 0007). The canvas reads it outside React
 // through `useEditor.getState()` / `subscribe`.
 import { create } from "zustand";
-import { portAt, simplify, stacksJunction } from "../canvas/geometry";
+import { placementStacks, portAt, simplify, stacksJunction } from "../canvas/geometry";
 import { layoutOf, setDefinitionLayouts } from "../canvas/layout";
 import { forgetRoutes } from "../canvas/routing";
 import type { Endpoint } from "../simulation/protocol";
@@ -434,7 +434,19 @@ export const useEditor = create<EditorState>()((set, get) => ({
     const chosen = new Set(state.selection);
     const components = circuit.components.filter((c) => chosen.has(c.id));
     if (components.length === 0) return "Select the parts to make a component from.";
-    const inside = new Set([...components, ...circuit.junctions.filter((j) => chosen.has(j.id))].map((item) => item.id));
+    // A selected plain junction goes inside only if it joins something that does. One a net only passes
+    // through stays on the sheet, so its wires do not cross the edge and give the chip a port it does not need.
+    const inside = new Set(components.map((c) => c.id));
+    const touches = (id: string) =>
+      circuit.wires.some((w) => (endOwner(w.from) === id && inside.has(endOwner(w.to))) || (endOwner(w.to) === id && inside.has(endOwner(w.from))));
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const j of circuit.junctions) {
+        if (!chosen.has(j.id) || inside.has(j.id) || !(j.name || touches(j.id))) continue;
+        inside.add(j.id);
+        grew = true;
+      }
+    }
     const within = (end: Endpoint) => inside.has(endOwner(end));
     // Wires to a deleted pin are not the engine's (ADR 0013): they go, like every wire touching the selection.
     const crossing = withoutDeletedPins(circuit, liveDefinitions(state)).wires.filter((w) => within(w.from) !== within(w.to));
@@ -473,6 +485,11 @@ export const useEditor = create<EditorState>()((set, get) => ({
       rotation: 0,
       props: {},
     };
+    // No port of it on a junction left on the sheet (ADR 0010): stepped down 2 cells until clear. Its
+    // ports come from the new definition, so its layout is set before the store's own pass does it.
+    setDefinitionLayouts([...liveDefinitions(state), definition]);
+    const rest = { components: circuit.components.filter((c) => !inside.has(c.id)), junctions: circuit.junctions.filter((j) => !inside.has(j.id)), wires: [] };
+    while (placementStacks(rest, instance)) instance.position = { ...instance.position, y: instance.position.y + 2 };
     set((s) => {
       // Wires touching the selection go with it; crossings come back wired to the instance (ADR 0016).
       const outer = added.outer(instance.id);

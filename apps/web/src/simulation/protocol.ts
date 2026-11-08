@@ -57,4 +57,5 @@ export type Result =
     }
   /** `nets`: each net's value, cut to its width. */
   | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[] }
-  | { type: "error"; message: string };
+  /** `load`: the failing command was a load, which then gets no `loaded` reply. */
+  | { type: "error"; message: string; load?: true };
