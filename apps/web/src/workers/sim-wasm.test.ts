@@ -119,7 +119,7 @@ test("the catalog marks sized kinds and gives split and merge their field-port r
   type Part = { kind: string; sized?: true; fieldPorts?: { side: string; prefix: string } };
   const parts = JSON.parse(catalog()) as Part[];
   expect(max_width()).toBe(MAX_WIDTH);
-  expect(parts.filter((p) => p.sized).map((p) => p.kind)).toEqual(["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor"]);
+  expect(parts.filter((p) => p.sized).map((p) => p.kind)).toEqual(["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "dff"]);
   expect(parts.filter((p) => p.fieldPorts).map((p) => [p.kind, p.fieldPorts])).toEqual([
     ["split", { side: "outputs", prefix: "f" }],
     ["merge", { side: "inputs", prefix: "f" }],

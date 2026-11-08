@@ -36,6 +36,9 @@ export const LAYOUTS: Record<Exclude<ComponentKind, FieldedKind>, Layout> = {
   nor: gate,
   xor: gate,
   xnor: gate,
+  // ADR 0017: a clock is a 1-bit source; a flip-flop takes `d` and `clk` on the left, `q` level with `d`.
+  clock: { width: 2, height: 2, inputs: {}, outputs: { out: { x: 2, y: 1 } } },
+  dff: { width: 4, height: 4, inputs: { d: { x: 0, y: 1 }, clk: { x: 0, y: 3 } }, outputs: { q: { x: 4, y: 1 } } },
 };
 
 /**

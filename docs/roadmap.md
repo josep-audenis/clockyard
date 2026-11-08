@@ -260,6 +260,13 @@ types, simple RAM/ROM, waveform inspector, expanded signal states.
 Target demo: an 8-bit counter that can be paused, reset and advanced one cycle
 at a time, identical regardless of frame rate.
 
+Design: ADR 0017 (proposed): one global clock in ticks, a sized `dff` that is
+also the register, edge sampling from each settle's starting snapshot, and a
+worker-paced run loop. Built so far: the engine (clock and `dff` kinds, edge
+sampling, `tick`/`step_cycle`/`reset`), the Clock, D flip-flop and Register
+parts, and file format v7. Next: run/pause/step/reset in the worker and
+toolbar, the cycle counter, the counter demo and its Playwright test.
+
 ## Phase 4 — Programmable 8-bit computer
 
 Goal: the central promise.

@@ -23,7 +23,7 @@ import {
   type Wire,
 } from "../editor/document";
 
-export const FORMAT_VERSION = 6;
+export const FORMAT_VERSION = 7;
 
 export type ParseResult = { ok: true; document: CircuitDocument } | { ok: false; error: string };
 
@@ -98,6 +98,7 @@ function readProps(props: Record<string, unknown>, kind: PartKind, where: string
   if (props.width !== undefined) {
     if (kind === "custom") throw new Error(`${where} is a custom component, which takes no width.`);
     if (isFielded(kind)) throw new Error(`${where} is a splitter or merger, which takes fields, not a width.`);
+    if (kind === "clock") throw new Error(`${where} is a clock, which is always 1 bit wide.`);
     const width = props.width;
     if (!Number.isInteger(width) || (width as number) < 1 || (width as number) > MAX_WIDTH) {
       throw new Error(`${where} width must be a whole number from 1 to ${MAX_WIDTH}.`);
@@ -130,8 +131,9 @@ function readDocument(data: unknown): CircuitDocument {
   if (version > FORMAT_VERSION) {
     throw new Error(`This file uses format version ${version}, from a newer Clockyard. This version reads up to ${FORMAT_VERSION}.`);
   }
-  if (![1, 2, 3, 4, 5, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
+  if (![1, 2, 3, 4, 5, 6, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
   // Version 4 → 5 (ADR 0014): widths arrive as props; nothing to change.
+  // Version 6 → 7 (ADR 0017): clock and dff kinds; nothing to change.
   // Version 5 → 6 (ADR 0015): junctions may carry a net label's name; nothing to change.
 
   const metadata = object(data.metadata, "metadata");

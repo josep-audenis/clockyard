@@ -136,6 +136,41 @@ impl Engine {
         Ok(serde_json::to_string(&diagnostics)?)
     }
 
+    /// Advances the clock `count` ticks (half periods), settling after each;
+    /// stops at the first that does not settle. Returns runtime diagnostics
+    /// as a JSON array (ADR 0017).
+    pub fn tick(&mut self, count: u32) -> Result<String, JsError> {
+        let sim = self.loaded()?;
+        Ok(serde_json::to_string(&Vec::from_iter(
+            sim.tick(u64::from(count)),
+        ))?)
+    }
+
+    /// One clock cycle: until the clock has risen once and is low again.
+    pub fn step_cycle(&mut self) -> Result<String, JsError> {
+        Ok(serde_json::to_string(&Vec::from_iter(
+            self.loaded()?.step_cycle(),
+        ))?)
+    }
+
+    /// Flip-flops, the clock and time back to 0; switch values are kept.
+    pub fn reset(&mut self) -> Result<String, JsError> {
+        Ok(serde_json::to_string(&Vec::from_iter(
+            self.loaded()?.reset(),
+        ))?)
+    }
+
+    /// Virtual time in ticks (exact as a JS number up to 2^53), 0 when nothing is loaded.
+    pub fn time(&self) -> f64 {
+        self.sim.as_ref().map_or(0.0, |sim| sim.time() as f64)
+    }
+
+    fn loaded(&mut self) -> Result<&mut Simulator, JsError> {
+        self.sim
+            .as_mut()
+            .ok_or_else(|| JsError::new("no circuit loaded"))
+    }
+
     /// Current net values, each cut to its width, indexed by net. Empty when
     /// nothing is loaded.
     pub fn nets(&self) -> Vec<u32> {
