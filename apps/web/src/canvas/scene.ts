@@ -8,7 +8,9 @@ import {
   endOwner,
   fieldRanges,
   hex,
+  DEFAULT_ADDRESS,
   isFielded,
+  isMemory,
   sameEnd,
   type Circuit,
   type CircuitComponent,
@@ -334,6 +336,14 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         const along = component.rotation % 180 === 0 ? 0 : -90;
         put(`${component.id}:value`, text, centre.x, centre.y, { x: 0.5, y: 0.5 }, color["signal-bus"]).angle = along;
       }
+      if (isMemory(component.kind)) {
+        // Its size, words × bits, in the middle of the body (ADR 0018).
+        const { width, height } = layoutOf(component);
+        const centre = px({ x: component.position.x + width / 2, y: component.position.y + height / 2 });
+        const words = 2 ** (component.props.addressWidth ?? DEFAULT_ADDRESS);
+        put(`${component.id}:size`, `${words}×${bits}`, centre.x, centre.y, { x: 0.5, y: 0.5 }, color["ink-muted"]).angle =
+          component.rotation % 180 === 0 ? 0 : -90;
+      }
       if (selected.has(component.id)) {
         const { x, y } = px(component.position);
         const { width, height } = layoutOf(component);
@@ -443,7 +453,7 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       const { x, y } = component.position;
       const caption = component.props.label ?? (component.kind === "custom" ? definitionName(component.definition) : undefined);
       if (caption) label(component.id, caption, x + layout.width / 2, y + layout.height + 6 / c, { x: 0.5, y: 0 });
-      if (component.kind !== "custom" && component.kind !== "dff" && !isFielded(component.kind)) continue;
+      if (component.kind !== "custom" && component.kind !== "dff" && !isMemory(component.kind) && !isFielded(component.kind)) continue;
       // A chip's pin names, or a splitter's or merger's bit ranges ("7:4"), just inside the body,
       // facing in from the side the port is on.
       const ranges = fieldRanges(component.props.fields ?? DEFAULT_FIELDS);
@@ -453,6 +463,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
           : component.kind === "dff"
             ? // The clock input is marked by the triangle on the body.
               ({ d: "D", q: "Q" }[port] ?? "")
+            : isMemory(component.kind)
+              ? ({ addr: "A", din: "D", we: "WE", out: "Q" }[port] ?? "")
             : /^f\d+$/.test(port)
               ? ranges[Number(port.slice(1))]
               : "";
@@ -562,6 +574,12 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
         ]).stroke({ width: 2, color: level, join: "round" });
         break;
       }
+      case "rom":
+      case "ram":
+        // A memory (ADR 0018): a box, its size and port names as labels, a RAM's clock input marked.
+        g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(outline);
+        if (component.kind === "ram") g.moveTo(x, y + 7 * c - 6).lineTo(x + 8, y + 7 * c).lineTo(x, y + 7 * c + 6).stroke(outline);
+        break;
       case "dff":
         // A box with D and Q as labels, and the clock input marked by a triangle (ADR 0017).
         g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(outline);

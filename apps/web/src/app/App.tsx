@@ -5,7 +5,10 @@ import {
   contains,
   fieldsProblem,
   hex,
+  DEFAULT_ADDRESS,
   isFielded,
+  isMemory,
+  MAX_ADDRESS,
   takesWidth,
   MAX_LABEL,
   MAX_WIDTH,
@@ -19,7 +22,7 @@ import {
   type PartKind,
 } from "../editor/document";
 import { deleteRefusal, liveDefinitions, mainCircuit, useEditor } from "../editor/store";
-import { connectEngine, control, setSpeed, SPEEDS, useSim } from "../simulation/sync";
+import { connectEngine, control, readMemory, setSpeed, SPEEDS, useSim } from "../simulation/sync";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
 
 /** `label` is not a part: it places a named junction (ADR 0015). */
@@ -64,10 +67,15 @@ const LIBRARY: { title: string; parts: Part[] }[] = [
     parts: [
       { kind: "dff", name: "D flip-flop" },
       { kind: "dff", name: "Register", width: 8 },
+      // ADR 0018: 8-bit words, 8 address bits.
+      { kind: "rom", name: "ROM", width: 8 },
+      { kind: "ram", name: "RAM", width: 8 },
     ],
   },
 ];
-const NAMES = new Map(LIBRARY.flatMap(({ parts }) => parts.flatMap(({ kind, name, width }) => (width ? [] : [[kind, name] as const]))));
+/** Each kind's name: its first tile's (a D flip-flop's, not a Register's). */
+const NAMES = new Map<string, string>();
+for (const { kind, name } of LIBRARY.flatMap(({ parts }) => parts)) if (!NAMES.has(kind)) NAMES.set(kind, name);
 /** What a part is called: its kind (a wide D flip-flop is a register), or for a custom component its definition's name. */
 const kindName = (part: Pick<CircuitComponent, "kind" | "definition" | "props">) =>
   part.kind === "custom"
@@ -542,6 +550,18 @@ function PartProperties({ part }: { part: CircuitComponent }) {
         />
       )}
       {part.kind === "switch" && (part.props.width ?? 1) > 1 && <ValueField part={part} />}
+      {isMemory(part.kind) && (
+        <CommitField
+          key={`address:${part.props.addressWidth ?? DEFAULT_ADDRESS}`}
+          label="Address bits"
+          saved={String(part.props.addressWidth ?? DEFAULT_ADDRESS)}
+          hint={`${2 ** (part.props.addressWidth ?? DEFAULT_ADDRESS)} words; 1 to ${MAX_ADDRESS} address bits.`}
+          // One undoable edit; a ROM keeps the words that still fit.
+          onCommit={(value) => /^\s*\d+\s*$/.test(value) && useEditor.getState().setAddressWidth(part.id, Number(value))}
+        />
+      )}
+      {part.kind === "rom" && <RomContents key={`${part.props.width ?? 1}:${(part.props.data ?? []).join()}`} part={part} />}
+      {part.kind === "ram" && <RamDump part={part} />}
       {part.definition && name !== undefined && (
         <CommitField
           key={name}
@@ -560,6 +580,89 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           Edit component
         </button>
       )}
+    </div>
+  );
+}
+
+/** Words as the inspector shows them: hex, eight to a line. */
+const wordLines = (words: readonly number[], width: number) =>
+  Array.from({ length: Math.ceil(words.length / 8) }, (_, row) =>
+    words
+      .slice(8 * row, 8 * row + 8)
+      .map((w) => hex(w, width))
+      .join(" "),
+  ).join("\n");
+
+/**
+ * A ROM's words (ADR 0018): typed in hex, decimal or binary as a wide switch's value, separated by spaces or
+ * new lines, from address 0. Applied as one edit when the box loses focus; anything that does not parse or fit
+ * changes nothing and says why.
+ */
+function RomContents({ part }: { part: CircuitComponent }) {
+  const width = part.props.width ?? 1;
+  const address = part.props.addressWidth ?? DEFAULT_ADDRESS;
+  const saved = wordLines(part.props.data ?? [], width);
+  const [draft, setDraft] = useState(saved);
+  const [problem, setProblem] = useState<string | null>(null);
+  const id = useId();
+  const apply = () => {
+    const tokens = draft.split(/[\s,]+/).filter(Boolean);
+    const words = tokens.map((t) => parseValue(t, width));
+    const bad = tokens.find((_, i) => words[i] === null);
+    if (bad !== undefined) return setProblem(`${bad} is not a value from 0 to ${maxValue(width)}.`);
+    if (words.length > 2 ** address) return setProblem(`${words.length} words do not fit in ${2 ** address} addresses.`);
+    setProblem(null);
+    useEditor.getState().setData(part.id, words as number[]);
+  };
+  return (
+    <div className="field">
+      <label className="field-label" htmlFor={`${id}-contents`}>
+        Contents
+      </label>
+      <textarea
+        id={`${id}-contents`}
+        aria-describedby={`${id}-hint`}
+        className="input memory-words"
+        rows={6}
+        spellCheck={false}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={apply}
+      />
+      <p id={`${id}-hint`} className={`field-hint${problem ? " field-error" : ""}`} role={problem ? "alert" : undefined}>
+        {problem ?? `Words from address 0, in hex (0x…), decimal or binary (0b…), separated by spaces or commas. Missing words read 0.`}
+      </p>
+    </div>
+  );
+}
+
+/** Most RAM words the inspector lists; a larger RAM shows its first ones. */
+// shortcut: shows only the first 256 words, add paging when programs use more.
+const DUMP_WORDS = 256;
+
+/** A RAM's contents as the engine holds them (ADR 0018), asked for again after every state while shown. */
+function RamDump({ part }: { part: CircuitComponent }) {
+  const width = part.props.width ?? 1;
+  const total = 2 ** (part.props.addressWidth ?? DEFAULT_ADDRESS);
+  const nets = useSim((s) => s.nets);
+  const memory = useSim((s) => s.memory);
+  const id = useId();
+  // On any sheet the open sheet is what is simulated, so the part's own ID names it.
+  // Only the words shown cross from the worker, however large the RAM.
+  useEffect(() => readMemory(part.id, DUMP_WORDS), [part.id, nets]);
+  const words = memory?.component === part.id ? [...memory.words] : null;
+  return (
+    <div className="field">
+      <p className="field-label" id={`${id}-label`}>
+        Contents
+      </p>
+      {/* Focusable, so the list can be scrolled from the keyboard; named for screen readers. */}
+      <pre className="memory-words" role="region" tabIndex={0} aria-label="RAM contents">
+        {words === null ? "…" : words.length === 0 ? "Not simulated: the circuit has errors." : wordLines(words, width)}
+      </pre>
+      <p className="field-hint">
+        {total > DUMP_WORDS ? `The first ${DUMP_WORDS} of ${total} words. ` : ""}Written while the circuit runs; cleared by Reset and by any change to the wiring.
+      </p>
     </div>
   );
 }
@@ -686,6 +789,7 @@ const PLAIN: Record<string, string> = {
   unstable: "The circuit did not settle: a loop keeps oscillating.",
   widthMismatch: "Ports of different widths are wired together.",
   unmatchedLabel: "A label has no partner on this sheet.",
+  invalidContents: "A ROM's words do not fit its width or its address space.",
   invalidWidth: "A part has a width or fields the engine cannot use.",
   unknownDefinition: "A component's definition is missing.",
   recursiveDefinition: "A component contains itself, so it cannot be built.",

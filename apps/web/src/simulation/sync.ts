@@ -23,6 +23,8 @@ export type SimState = {
   running: boolean;
   /** Run speed in cycles per second, the editor's choice. */
   speed: number;
+  /** The memory last asked for with `readMemory`, as the engine reported it (ADR 0018). */
+  memory: { component: string; words: Uint32Array } | null;
 };
 
 /** Run speeds offered, in cycles per second (ADR 0017). */
@@ -38,6 +40,7 @@ export const useSim = create<SimState>()(() => ({
   time: 0,
   running: false,
   speed: 2,
+  memory: null,
 }));
 
 /** Sends a command to the worker, once `connectEngine` has started it. */
@@ -46,6 +49,11 @@ let send: ((command: Command) => void) | null = null;
 /** Run, Pause, Step and Reset (ADR 0017). Run uses the chosen speed. */
 export function control(type: "run" | "pause" | "step" | "reset") {
   send?.(type === "run" ? { type, cyclesPerSecond: useSim.getState().speed } : { type });
+}
+
+/** Asks for a ROM's or RAM's first `count` words; they arrive in `useSim`'s `memory`. */
+export function readMemory(component: string, count: number) {
+  send?.({ type: "readMemory", component, count });
 }
 
 /** Picks the run speed; a run under way continues at it. */
@@ -77,6 +85,9 @@ export function connectEngine(): () => void {
       case "loaded":
         pending--;
         useSim.setState({ loaded: message, status: "ready", error: null });
+        break;
+      case "memory":
+        useSim.setState({ memory: { component: message.component, words: message.words } });
         break;
       case "state":
         // Running or not is the worker's, whatever circuit the state describes.

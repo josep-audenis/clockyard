@@ -3,8 +3,13 @@
 
 use std::borrow::Cow;
 
+use crate::description::Shape;
+
 /// Widest signal a port may carry: one net's value fits a `u32` (ADR 0014).
 pub const MAX_WIDTH: u32 = 32;
+
+/// Widest address a ROM or RAM may have: 2^16 words (ADR 0018).
+pub const MAX_ADDRESS: u32 = 16;
 
 /// The low `width` bits set, for a width from 1 to `MAX_WIDTH`. Never built
 /// by shifting 1, which overflows at 32.
@@ -28,6 +33,8 @@ pub enum Kind {
     Merge,
     Clock,
     Dff,
+    Rom,
+    Ram,
 }
 
 /// One port of a part, with the width its props give it.
@@ -39,7 +46,7 @@ pub struct Port {
 }
 
 impl Kind {
-    pub const ALL: [Kind; 13] = [
+    pub const ALL: [Kind; 15] = [
         Kind::Switch,
         Kind::Led,
         Kind::Not,
@@ -53,6 +60,8 @@ impl Kind {
         Kind::Merge,
         Kind::Clock,
         Kind::Dff,
+        Kind::Rom,
+        Kind::Ram,
     ];
 
     /// Name used in circuit descriptions.
@@ -71,6 +80,8 @@ impl Kind {
             Kind::Merge => "merge",
             Kind::Clock => "clock",
             Kind::Dff => "dff",
+            Kind::Rom => "rom",
+            Kind::Ram => "ram",
         }
     }
 
@@ -82,6 +93,11 @@ impl Kind {
     /// and a flip-flop's `d` and `q`). A clock is always 1 bit.
     pub fn sized(self) -> bool {
         !self.fielded() && self != Kind::Clock
+    }
+
+    /// Whether the part is a memory, with `addressWidth` setting its `addr` port (ADR 0018).
+    pub fn addressed(self) -> bool {
+        matches!(self, Kind::Rom | Kind::Ram)
     }
 
     /// Whether the `fields` prop adds field ports `f0`, `f1`, … (split, merge).
@@ -105,6 +121,8 @@ impl Kind {
             Kind::Switch | Kind::Merge | Kind::Clock => &[],
             Kind::Led | Kind::Not | Kind::Split => &["in"],
             Kind::Dff => &["d", "clk"],
+            Kind::Rom => &["addr"],
+            Kind::Ram => &["addr", "din", "we", "clk"],
             _ => &["a", "b"],
         }
     }
@@ -118,10 +136,11 @@ impl Kind {
         }
     }
 
-    /// Every port, inputs first, for already validated `width` and `fields`.
+    /// Every port, inputs first, for an already validated shape.
     /// A split's `in` and a merge's `out` are as wide as all fields together;
-    /// a flip-flop's `clk` is always 1 bit.
-    pub fn ports(self, width: u32, fields: &[u32]) -> Vec<Port> {
+    /// `clk` and `we` are always 1 bit, and a memory's `addr` is its address width.
+    pub fn ports(self, shape: &Shape) -> Vec<Port> {
+        let (width, fields, address) = (shape.width, shape.fields.as_slice(), shape.address);
         let fixed_width = if self.sized() {
             width
         } else if self.fielded() {
@@ -132,7 +151,11 @@ impl Kind {
         let fixed = |names: &'static [&'static str], output| {
             names.iter().map(move |name| Port {
                 name: Cow::Borrowed(*name),
-                width: if *name == "clk" { 1 } else { fixed_width },
+                width: match *name {
+                    "clk" | "we" => 1,
+                    "addr" => address,
+                    _ => fixed_width,
+                },
                 output,
             })
         };
@@ -163,7 +186,14 @@ impl Kind {
             Kind::Nor => !(a | b),
             Kind::Xor => a ^ b,
             Kind::Xnor => !(a ^ b),
-            Kind::Switch | Kind::Led | Kind::Split | Kind::Merge | Kind::Clock | Kind::Dff => {
+            Kind::Switch
+            | Kind::Led
+            | Kind::Split
+            | Kind::Merge
+            | Kind::Clock
+            | Kind::Dff
+            | Kind::Rom
+            | Kind::Ram => {
                 unreachable!("{} is not a gate", self.name())
             }
         }
@@ -195,18 +225,27 @@ mod tests {
         assert_eq!(table(Kind::Not), [1, 1, 0, 0]);
     }
 
+    fn shape(width: u32, fields: &[u32], address: u32) -> Shape {
+        Shape {
+            width,
+            fields: fields.to_vec(),
+            address,
+            data: Vec::new(),
+        }
+    }
+
     #[test]
     fn masks_and_field_ports() {
         assert_eq!([mask(1), mask(4), mask(32)], [1, 15, u32::MAX]);
         let names = |kind: Kind| -> Vec<(String, u32, bool)> {
-            kind.ports(1, &[3, 5])
+            kind.ports(&shape(1, &[3, 5], 0))
                 .into_iter()
                 .map(|p| (p.name.into_owned(), p.width, p.output))
                 .collect()
         };
         let port = |name: &str, width, output| (name.to_string(), width, output);
         let names_of = |kind: Kind, width| -> Vec<(String, u32, bool)> {
-            kind.ports(width, &[])
+            kind.ports(&shape(width, &[], 0))
                 .into_iter()
                 .map(|p| (p.name.into_owned(), p.width, p.output))
                 .collect()
@@ -227,7 +266,11 @@ mod tests {
                 port("out", 8, true)
             ]
         );
-        let and: Vec<u32> = Kind::And.ports(8, &[]).iter().map(|p| p.width).collect();
+        let and: Vec<u32> = Kind::And
+            .ports(&shape(8, &[], 0))
+            .iter()
+            .map(|p| p.width)
+            .collect();
         assert_eq!(and, [8, 8, 8]);
         assert_eq!(
             names_of(Kind::Dff, 8),

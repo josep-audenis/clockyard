@@ -3,7 +3,12 @@
 import {
   COMPONENT_KINDS,
   fieldsProblem,
+  DEFAULT_ADDRESS,
   isFielded,
+  isMemory,
+  MAX_ADDRESS,
+  MAX_SOURCE,
+  wordsProblem,
   MAX_BENDS,
   MAX_LABEL,
   MAX_WIDTH,
@@ -23,7 +28,7 @@ import {
   type Wire,
 } from "../editor/document";
 
-export const FORMAT_VERSION = 7;
+export const FORMAT_VERSION = 8;
 
 export type ParseResult = { ok: true; document: CircuitDocument } | { ok: false; error: string };
 
@@ -114,6 +119,28 @@ function readProps(props: Record<string, unknown>, kind: PartKind, where: string
   } else if (props.fields !== undefined) {
     throw new Error(`${where} has fields, which only splitters and mergers take.`);
   }
+  // ADR 0018: an address width on a memory, and a ROM's words and assembly source.
+  if (props.addressWidth !== undefined) {
+    if (!isMemory(kind)) throw new Error(`${where} has an address width, which only ROMs and RAMs take.`);
+    const address = props.addressWidth;
+    if (!Number.isInteger(address) || (address as number) < 1 || (address as number) > MAX_ADDRESS) {
+      throw new Error(`${where} address width must be a whole number from 1 to ${MAX_ADDRESS}.`);
+    }
+    // 8 is the default, so it is not stored.
+    if (address !== DEFAULT_ADDRESS) read.addressWidth = address as number;
+  }
+  if (props.data !== undefined) {
+    if (kind !== "rom") throw new Error(`${where} has data, which only ROMs hold.`);
+    const problem = wordsProblem(props.data, read.width ?? 1, read.addressWidth ?? DEFAULT_ADDRESS);
+    if (problem) throw new Error(`${where} data ${problem}.`);
+    read.data = [...(props.data as number[])];
+  }
+  if (props.source !== undefined) {
+    if (kind !== "rom") throw new Error(`${where} has assembly source, which only ROMs keep.`);
+    const source = text(props.source, `${where} source`);
+    if (source.length > MAX_SOURCE) throw new Error(`${where} source is longer than ${MAX_SOURCE} characters.`);
+    if (source) read.source = source;
+  }
   return read;
 }
 
@@ -131,10 +158,11 @@ function readDocument(data: unknown): CircuitDocument {
   if (version > FORMAT_VERSION) {
     throw new Error(`This file uses format version ${version}, from a newer Clockyard. This version reads up to ${FORMAT_VERSION}.`);
   }
-  if (![1, 2, 3, 4, 5, 6, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
+  if (![1, 2, 3, 4, 5, 6, 7, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
   // Version 4 → 5 (ADR 0014): widths arrive as props; nothing to change.
   // Version 5 → 6 (ADR 0015): junctions may carry a net label's name; nothing to change.
   // Version 6 → 7 (ADR 0017): clock and dff kinds; nothing to change.
+  // Version 7 → 8 (ADR 0018): rom and ram kinds, addressWidth, data and source; nothing to change.
 
   const metadata = object(data.metadata, "metadata");
   const circuit = object(data.circuit, "circuit");

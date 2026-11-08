@@ -719,3 +719,33 @@ test("a loop that oscillates while the clock is high pauses the run (ADR 0017)",
   await expect(button("Run")).toBeVisible(); // paused by the worker, not by a click
   await expect(counter(page)).toHaveText("Cycle 1, clock high");
 });
+
+test("a word written to a RAM by hand shows in its inspector, and Reset clears it (ADR 0018)", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  await page.getByRole("button", { name: "RAM", exact: true }).click();
+  await click(page, at(12.5, 4)); // RAM at (10,0): addr (10,1), din (10,3), we (10,5), clk (10,7)
+  await expect(page.getByText("256×8")).toHaveCount(0); // drawn on the canvas, not in the page
+  // we and clk: 1-bit switches; din, placed last so it is the one selected: 8 bits, set to 42.
+  for (const y of [5, 7, 3]) {
+    await page.keyboard.press("s");
+    await click(page, at(1, y)); // switches at (0,4), (0,6) and (0,2): out (2,5), (2,7), (2,3)
+  }
+  const width = inspector.getByRole("textbox", { name: "Width" });
+  await width.fill("8");
+  await width.press("Enter"); // now 5 wide: out (5,3)
+  const value = inspector.getByLabel("Value");
+  await value.fill("42");
+  await value.press("Enter");
+  await drag(page, at(5, 3), at(10, 3));
+  await drag(page, at(2, 5), at(10, 5));
+  await drag(page, at(2, 7), at(10, 7));
+  await click(page, at(1, 5)); // we on
+  await click(page, at(1, 7)); // a rising clk: 42 goes to address 0
+  await click(page, at(12.5, 4)); // select the RAM
+  const contents = inspector.getByLabel("RAM contents");
+  await expect(contents).toContainText(/^0x2A 0x00/);
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await expect(contents).toContainText(/^0x00 0x00/);
+});

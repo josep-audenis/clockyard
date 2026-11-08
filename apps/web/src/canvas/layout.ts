@@ -39,6 +39,14 @@ export const LAYOUTS: Record<Exclude<ComponentKind, FieldedKind>, Layout> = {
   // ADR 0017: a clock is a 1-bit source; a flip-flop takes `d` and `clk` on the left, `q` level with `d`.
   clock: { width: 2, height: 2, inputs: {}, outputs: { out: { x: 2, y: 1 } } },
   dff: { width: 4, height: 4, inputs: { d: { x: 0, y: 1 }, clk: { x: 0, y: 3 } }, outputs: { q: { x: 4, y: 1 } } },
+  // ADR 0018: memories take their inputs down the left, `out` level with `addr`.
+  rom: { width: 5, height: 4, inputs: { addr: { x: 0, y: 1 } }, outputs: { out: { x: 5, y: 1 } } },
+  ram: {
+    width: 5,
+    height: 8,
+    inputs: { addr: { x: 0, y: 1 }, din: { x: 0, y: 3 }, we: { x: 0, y: 5 }, clk: { x: 0, y: 7 } },
+    outputs: { out: { x: 5, y: 1 } },
+  },
 };
 
 /**

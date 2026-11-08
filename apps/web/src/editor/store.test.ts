@@ -70,7 +70,7 @@ test("load replaces the document and clears transient state", () => {
   toggle(add("switch", { x: 0, y: 0 }));
   const metadata = { name: "Loaded", createdAt: "2026-01-01T00:00:00Z", modifiedAt: "2026-01-02T00:00:00Z" };
   const circuit = { components: [], junctions: [], wires: [] };
-  load({ format: "clockyard", version: 7, metadata, circuit, definitions: [] });
+  load({ format: "clockyard", version: 8, metadata, circuit, definitions: [] });
   const state = useEditor.getState();
   expect([state.metadata, state.circuit, state.selection, state.inputs]).toEqual([metadata, circuit, [], {}]);
 });
@@ -129,7 +129,7 @@ test("loading a document clears history", () => {
   const { add, load, undo } = useEditor.getState();
   add("switch", { x: 0, y: 0 });
   const metadata = { name: "x", createdAt: "", modifiedAt: "" };
-  load({ format: "clockyard", version: 7, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  load({ format: "clockyard", version: 8, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
   undo();
   expect(ids()).toEqual([]);
 });
@@ -770,7 +770,7 @@ test("paste refuses an instance that would make a definition contain itself; ope
   expect(useEditor.getState().circuit.components.filter((c) => c.kind === "custom")).toHaveLength(2);
   // Another file has none of these definitions: nothing is left to paste.
   const metadata = { name: "Other", createdAt: "2026-11-07T00:00:00Z", modifiedAt: "2026-11-07T00:00:00Z" };
-  useEditor.getState().load({ format: "clockyard", version: 7, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  useEditor.getState().load({ format: "clockyard", version: 8, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
   useEditor.getState().paste();
   expect(useEditor.getState().clipboard).toBeNull();
   expect(useEditor.getState().circuit.components).toEqual([]);
@@ -1169,4 +1169,23 @@ test("make component leaves a junction a net only passes through on the sheet, a
   expect(state.definitions[0]?.circuit.junctions).toEqual([]);
   // Stepped down 2 cells: (2,4) holds the label.
   expect(state.circuit.components.find((c) => c.kind === "custom")?.position).toEqual({ x: 2, y: 5 });
+});
+
+test("a ROM's address width and contents are edits: words that no longer fit go, and each keeps the bits its width holds", () => {
+  const { add, setData, setAddressWidth, setWidth, undo } = useEditor.getState();
+  const r = add("rom", { x: 0, y: 0 });
+  const props = () => useEditor.getState().circuit.components.find((c) => c.id === r)?.props;
+  setWidth(r, 8);
+  setData(r, [1, 2, 300]); // 300 does not fit 8 bits: nothing changes
+  expect(props()).toEqual({ width: 8 });
+  setData(r, [1, 2, 0xff, 4]);
+  expect(props()).toEqual({ width: 8, data: [1, 2, 0xff, 4] });
+  setAddressWidth(r, 1);
+  expect(props()).toEqual({ width: 8, addressWidth: 1, data: [1, 2] });
+  setWidth(r, 1);
+  expect(props()).toEqual({ addressWidth: 1, data: [1, 0] });
+  undo();
+  expect(props()).toEqual({ width: 8, addressWidth: 1, data: [1, 2] });
+  setAddressWidth(r, 8); // the default is not stored
+  expect(props()).toEqual({ width: 8, data: [1, 2] });
 });

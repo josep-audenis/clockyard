@@ -178,6 +178,13 @@ impl Engine {
         ))?)
     }
 
+    /// The first `count` words of ROM or RAM `component` (elaborated ID, `instance/ram` inside an
+    /// instance), or nothing if it is not a memory or nothing is loaded (ADR 0018).
+    pub fn memory(&self, component: &str, count: u32) -> Option<Vec<u32>> {
+        let words = self.sim.as_ref()?.memory(component)?;
+        Some(words[..words.len().min(count as usize)].to_vec())
+    }
+
     /// Virtual time in ticks (exact as a JS number up to 2^53), 0 when nothing is loaded.
     pub fn time(&self) -> f64 {
         self.sim.as_ref().map_or(0.0, |sim| sim.time() as f64)

@@ -303,6 +303,19 @@ result on an output device. Instructions are checked against an independent
 reference specification in native Rust tests. The CPU runs through the real
 netlist.
 
+Design: ADR 0018 (ROM and RAM parts, format v8; accepted) and ADR 0019 (the
+reference CPU, specified in `docs/reference-cpu.md`: 8-bit accumulator,
+Harvard, 13 instructions, two cycles each; a Rust assembler crate; *Run until
+an LED lights* for instruction steps and breakpoints; proposed). Built in six steps:
+
+1. ✅ ROM and RAM (ADR 0018, accepted): engine, inspection (`readMemory`), the
+   ROM, RAM tiles and inspector (address bits, contents, RAM dump), format v8.
+2. ⬜ `crates/asm` and its tests.
+3. ⬜ The generated CPU circuit and the differential tests.
+4. ⬜ `tick_until` and *Run until*.
+5. ⬜ The program editor and disassembly.
+6. ⬜ Playwright and docs.
+
 ## Phase 5 — Computer-building sandbox
 
 Goal: a complete product.
@@ -323,8 +336,8 @@ analysis, plugin system, full game campaign during the MVP.
 ## Next increment
 
 Phase 3 is built, with its 8-bit counter demo. Phase 4 (a programmable 8-bit
-computer) starts with a design ADR: the instruction set and encoding, and
-how ROM and RAM fit the engine. Rough edges still open:
+computer) is designed in ADRs 0018 and 0019 (proposed); ROM and RAM come
+first. Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).
 - Wires kept after an edit can stay longer than needed until the file is

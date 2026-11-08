@@ -20,6 +20,11 @@ import {
   normalizeNetName,
   sameEnd,
   takesWidth,
+  DEFAULT_ADDRESS,
+  isMemory,
+  MAX_ADDRESS,
+  MAX_SOURCE,
+  wordsProblem,
   withoutDeletedPins,
   type Circuit,
   type CircuitComponent,
@@ -104,6 +109,10 @@ export type EditorState = {
   setLabel: (id: string, label: string) => void;
   /** Sets a switch's, LED's or gate's width (1 to `MAX_WIDTH`) as one edit; 1 removes the prop. A switch keeps the bits that still fit. */
   setWidth: (id: string, width: number) => void;
+  /** Sets a ROM's or RAM's address width (1 to `MAX_ADDRESS`) as one edit; a ROM keeps the words that still fit (ADR 0018). */
+  setAddressWidth: (id: string, address: number) => void;
+  /** Sets a ROM's words as one edit, and its assembly source if given (ADRs 0018, 0019). Invalid words change nothing. */
+  setData: (id: string, words: number[], source?: string) => void;
   /**
    * Sets a splitter's or merger's field widths (lowest bits first) as one edit, which also
    * deletes the wires to field ports that no longer exist (ADR 0014). Invalid fields change nothing.
@@ -704,6 +713,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
       const props = { ...part.props };
       if (width > 1) props.width = width;
       else delete props.width;
+      // A ROM keeps the bits of each word that still fit, as a switch keeps its value's (ADR 0018).
+      if (props.data) props.data = props.data.map((w) => w % 2 ** width);
       return edit(state, { ...state.circuit, components: state.circuit.components.map((c) => (c === part ? { ...c, props } : c)) });
     }),
   addLabel: (position) => {
@@ -733,6 +744,38 @@ export const useEditor = create<EditorState>()((set, get) => ({
         : state.circuit.junctions.map((j) => (j === junction ? named : j));
       return edit(state, { ...state.circuit, junctions });
     }),
+  setAddressWidth: (id, address) =>
+    set((state) => {
+      const part = state.circuit.components.find((c) => c.id === id);
+      const valid = Number.isInteger(address) && address >= 1 && address <= MAX_ADDRESS;
+      if (!part || !isMemory(part.kind) || !valid || (part.props.addressWidth ?? DEFAULT_ADDRESS) === address) return state;
+      const rest = { ...part.props };
+      delete rest.addressWidth;
+      const props = {
+        ...rest,
+        ...(address !== DEFAULT_ADDRESS && { addressWidth: address }),
+        ...(rest.data && { data: rest.data.slice(0, 2 ** address) }),
+      };
+      const components = state.circuit.components.map((c) => (c.id === id ? { ...c, props } : c));
+      return edit(state, { ...state.circuit, components });
+    }),
+
+  setData: (id, words, source) =>
+    set((state) => {
+      const part = state.circuit.components.find((c) => c.id === id);
+      if (!part || part.kind !== "rom") return state;
+      if (wordsProblem(words, part.props.width ?? 1, part.props.addressWidth ?? DEFAULT_ADDRESS)) return state;
+      const rest = { ...part.props };
+      delete rest.data;
+      delete rest.source;
+      const kept = source ?? part.props.source;
+      if (kept && kept.length > MAX_SOURCE) return state;
+      const props = { ...rest, ...(words.length > 0 && { data: [...words] }), ...(kept && { source: kept }) };
+      if (JSON.stringify(props) === JSON.stringify(part.props)) return state;
+      const components = state.circuit.components.map((c) => (c.id === id ? { ...c, props } : c));
+      return edit(state, { ...state.circuit, components });
+    }),
+
   setFields: (id, fields) =>
     set((state) => {
       const part = state.circuit.components.find((c) => c.id === id);
