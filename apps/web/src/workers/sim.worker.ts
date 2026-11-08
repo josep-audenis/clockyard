@@ -117,7 +117,7 @@ onmessage = async (event: MessageEvent<Command>) => {
         state(hasCircuit ? JSON.parse(engine.reset()) : []);
         break;
       case "readMemory":
-        reply({ type: "memory", component: command.component, words: engine.memory(command.component) ?? new Uint32Array() });
+        reply({ type: "memory", component: command.component, words: engine.memory(command.component, command.count) ?? new Uint32Array() });
         break;
     }
   } catch (error) {

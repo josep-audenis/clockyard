@@ -98,25 +98,12 @@ impl ComponentDesc {
     /// ROM's words (ADRs 0014, 0018). Unknown kinds pass: they are reported as
     /// such later.
     pub fn shape(&self) -> Result<Shape, (Code, String)> {
-        let (width, fields) = self.widths().map_err(|e| (Code::InvalidWidth, e))?;
+        let mut shape = self.ports_shape()?;
         let kind = Kind::from_name(&self.kind);
-        let addressed = kind.is_some_and(Kind::addressed);
-        let address = match self.address_width {
-            None if addressed => 8,
-            None => 0,
-            Some(_) if !addressed => {
-                let message = format!("a {} takes no address width", self.kind);
-                return Err((Code::InvalidWidth, message));
-            }
-            Some(a) if a.fract() == 0.0 && (1.0..=MAX_ADDRESS as f64).contains(&a) => a as u32,
-            Some(a) => {
-                let message =
-                    format!("address width {a} is not a whole number from 1 to {MAX_ADDRESS}");
-                return Err((Code::InvalidWidth, message));
-            }
-        };
-        let data = match &self.data {
+        let (width, address) = (shape.width, shape.address);
+        shape.data = match &self.data {
             None => Vec::new(),
+            _ if kind.is_none() => Vec::new(),
             Some(_) if kind != Some(Kind::Rom) => {
                 let message = format!("a {} holds no data", self.kind);
                 return Err((Code::InvalidContents, message));
@@ -141,11 +128,53 @@ impl ComponentDesc {
                     (Code::InvalidContents, message)
                 })?,
         };
+        Ok(shape)
+    }
+
+    /// What sets the part's ports: [`ComponentDesc::shape`] without a ROM's
+    /// words, which are checked once and not again for every wire.
+    pub fn ports_shape(&self) -> Result<Shape, (Code, String)> {
+        let (width, fields) = self.widths().map_err(|e| (Code::InvalidWidth, e))?;
+        let kind = Kind::from_name(&self.kind);
+        if kind.is_none() {
+            return Ok(Shape {
+                width,
+                fields,
+                ..Shape::default()
+            });
+        }
+        let addressed = kind.is_some_and(Kind::addressed);
+        let address = match self.address_width {
+            None if addressed => 8,
+            None => 0,
+            Some(_) if !addressed => {
+                let message = format!("a {} takes no address width", self.kind);
+                return Err((Code::InvalidWidth, message));
+            }
+            Some(a) if a.fract() == 0.0 && (1.0..=MAX_ADDRESS as f64).contains(&a) => a as u32,
+            Some(a) => {
+                let message =
+                    format!("address width {a} is not a whole number from 1 to {MAX_ADDRESS}");
+                return Err((Code::InvalidWidth, message));
+            }
+        };
         Ok(Shape {
             width,
             fields,
             address,
-            data,
+            data: Vec::new(),
+        })
+    }
+
+    /// Memory words the part holds once compiled: `2^addressWidth` for a ROM or
+    /// RAM, 0 for anything else or an invalid one (ADR 0018).
+    pub fn words(&self) -> usize {
+        self.ports_shape().map_or(0, |shape| {
+            if shape.address > 0 {
+                1 << shape.address
+            } else {
+                0
+            }
         })
     }
 

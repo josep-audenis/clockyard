@@ -189,3 +189,52 @@ fn a_memory_inside_an_instance_is_read_by_its_elaborated_id() {
     assert_eq!(sim.memory("g"), None);
     assert_eq!(sim.memory("nothing"), None);
 }
+
+#[test]
+fn memory_words_are_limited_with_nothing_to_expand_too() {
+    // Seventeen top-level 64K-word RAMs: a small file, more than 2^20 words.
+    let rams: Vec<Value> = (0..17)
+        .map(|i| json!({ "id": format!("m{i}"), "kind": "ram", "addressWidth": 16 }))
+        .collect();
+    let found = errors(json!({ "components": rams, "connections": [] }));
+    assert_eq!(
+        found.iter().map(|d| d.code).collect::<Vec<_>>(),
+        [Code::TooLarge]
+    );
+}
+
+#[test]
+fn an_unknown_kind_with_memory_props_is_reported_as_unknown() {
+    let found = errors(json!({
+        "components": [{ "id": "x", "kind": "flux", "addressWidth": 4, "data": [1] }],
+        "connections": [],
+    }));
+    assert_eq!(found[0].code, Code::UnknownKind);
+}
+
+#[test]
+fn a_write_enable_from_a_flip_flop_on_the_same_clock_takes_effect_one_edge_later() {
+    // The CPU's case: control signals come from registers clocked with the RAM.
+    // The flip-flop sets we on the first edge, so the RAM, sampling we as it was
+    // before that edge, writes only on the second.
+    let mut sim = load(json!({
+        "components": [
+            { "id": "k", "kind": "clock" },
+            { "id": "on", "kind": "switch" },
+            { "id": "d", "kind": "switch", "width": 8 },
+            { "id": "f", "kind": "dff" },
+            { "id": "m", "kind": "ram", "width": 8, "addressWidth": 1 },
+        ],
+        "connections": wires(&[
+            ("on.out", "f.d"), ("k.out", "f.clk"), ("f.q", "m.we"), ("d.out", "m.din"), ("k.out", "m.clk"),
+        ]),
+    }));
+    sim.set_inputs(&[("on", 1), ("d", 7)]).unwrap();
+    sim.step_cycle();
+    assert_eq!(
+        (value(&sim, "f", "q"), sim.memory("m")),
+        (1, Some(&[0, 0][..]))
+    );
+    sim.step_cycle();
+    assert_eq!(sim.memory("m"), Some(&[7, 0][..]));
+}

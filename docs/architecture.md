@@ -205,7 +205,7 @@ type Command =
   | { type: "pause" }
   | { type: "step" }                   // pause, then one clock cycle
   | { type: "reset" }                  // pause; flip-flops, RAM, clock and time to 0
-  | { type: "readMemory"; component: string }; // a ROM's or RAM's words, by elaborated ID (ADR 0018)
+  | { type: "readMemory"; component: string; count: number }; // a memory's first count words (ADR 0018)
 
 // worker → main
 type Result =

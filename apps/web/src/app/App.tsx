@@ -560,7 +560,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           onCommit={(value) => /^\s*\d+\s*$/.test(value) && useEditor.getState().setAddressWidth(part.id, Number(value))}
         />
       )}
-      {part.kind === "rom" && <RomContents key={(part.props.data ?? []).join()} part={part} />}
+      {part.kind === "rom" && <RomContents key={`${part.props.width ?? 1}:${(part.props.data ?? []).join()}`} part={part} />}
       {part.kind === "ram" && <RamDump part={part} />}
       {part.definition && name !== undefined && (
         <CommitField
@@ -606,7 +606,7 @@ function RomContents({ part }: { part: CircuitComponent }) {
   const [problem, setProblem] = useState<string | null>(null);
   const id = useId();
   const apply = () => {
-    const tokens = draft.split(/\s+/).filter(Boolean);
+    const tokens = draft.split(/[\s,]+/).filter(Boolean);
     const words = tokens.map((t) => parseValue(t, width));
     const bad = tokens.find((_, i) => words[i] === null);
     if (bad !== undefined) return setProblem(`${bad} is not a value from 0 to ${maxValue(width)}.`);
@@ -630,7 +630,7 @@ function RomContents({ part }: { part: CircuitComponent }) {
         onBlur={apply}
       />
       <p id={`${id}-hint`} className={`field-hint${problem ? " field-error" : ""}`} role={problem ? "alert" : undefined}>
-        {problem ?? `Words from address 0, in hex (0x…), decimal or binary (0b…). Missing words read 0.`}
+        {problem ?? `Words from address 0, in hex (0x…), decimal or binary (0b…), separated by spaces or commas. Missing words read 0.`}
       </p>
     </div>
   );
@@ -646,17 +646,22 @@ function RamDump({ part }: { part: CircuitComponent }) {
   const total = 2 ** (part.props.addressWidth ?? DEFAULT_ADDRESS);
   const nets = useSim((s) => s.nets);
   const memory = useSim((s) => s.memory);
+  const id = useId();
   // On any sheet the open sheet is what is simulated, so the part's own ID names it.
-  useEffect(() => readMemory(part.id), [part.id, nets]);
-  const words = memory?.component === part.id ? [...memory.words.slice(0, DUMP_WORDS)] : null;
+  // Only the words shown cross from the worker, however large the RAM.
+  useEffect(() => readMemory(part.id, DUMP_WORDS), [part.id, nets]);
+  const words = memory?.component === part.id ? [...memory.words] : null;
   return (
     <div className="field">
-      <p className="field-label">Contents</p>
-      <pre className="memory-words" aria-label="RAM contents">
-        {words ? wordLines(words, width) : "…"}
+      <p className="field-label" id={`${id}-label`}>
+        Contents
+      </p>
+      {/* Focusable, so the list can be scrolled from the keyboard; named for screen readers. */}
+      <pre className="memory-words" role="region" tabIndex={0} aria-label="RAM contents">
+        {words === null ? "…" : words.length === 0 ? "Not simulated: the circuit has errors." : wordLines(words, width)}
       </pre>
       <p className="field-hint">
-        {total > DUMP_WORDS ? `The first ${DUMP_WORDS} of ${total} words. ` : ""}Written while the circuit runs; cleared by Reset.
+        {total > DUMP_WORDS ? `The first ${DUMP_WORDS} of ${total} words. ` : ""}Written while the circuit runs; cleared by Reset and by any change to the wiring.
       </p>
     </div>
   );

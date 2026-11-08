@@ -82,7 +82,8 @@ the clock (ADR 0017), and every register changes only on a rising edge.
 
 So after reset and `2k` cycles, exactly `k` instructions have executed
 (fewer if one was `HLT`). This is the *instruction step* the editor
-offers: two cycles, ending at the next fetch.
+offers: two cycles, ending as the next fetch begins, with the clock high
+(ADR 0019 item 6).
 
 ## Status outputs
 

@@ -36,7 +36,7 @@ pub struct Simulator {
     time: u64,
     /// The clock primitives, set to the clock's level on each tick.
     clocks: Vec<u32>,
-    /// Whether any primitive holds state (a flip-flop), so settles need a snapshot.
+    /// Whether any primitive holds state (a flip-flop or RAM), so settles need a snapshot.
     stateful: bool,
     /// Net values as the current settle started: the pre-edge state flip-flops sample.
     snapshot: Vec<u32>,

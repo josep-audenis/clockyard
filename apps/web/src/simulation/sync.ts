@@ -51,9 +51,9 @@ export function control(type: "run" | "pause" | "step" | "reset") {
   send?.(type === "run" ? { type, cyclesPerSecond: useSim.getState().speed } : { type });
 }
 
-/** Asks for a ROM's or RAM's words; they arrive in `useSim`'s `memory`. */
-export function readMemory(component: string) {
-  send?.({ type: "readMemory", component });
+/** Asks for a ROM's or RAM's first `count` words; they arrive in `useSim`'s `memory`. */
+export function readMemory(component: string, count: number) {
+  send?.({ type: "readMemory", component, count });
 }
 
 /** Picks the run speed; a run under way continues at it. */

@@ -23,6 +23,7 @@ import {
   DEFAULT_ADDRESS,
   isMemory,
   MAX_ADDRESS,
+  MAX_SOURCE,
   wordsProblem,
   withoutDeletedPins,
   type Circuit,
@@ -768,6 +769,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
       delete rest.data;
       delete rest.source;
       const kept = source ?? part.props.source;
+      if (kept && kept.length > MAX_SOURCE) return state;
       const props = { ...rest, ...(words.length > 0 && { data: [...words] }), ...(kept && { source: kept }) };
       if (JSON.stringify(props) === JSON.stringify(part.props)) return state;
       const components = state.circuit.components.map((c) => (c.id === id ? { ...c, props } : c));

@@ -47,8 +47,8 @@ export type Command =
   | { type: "step" }
   /** Pauses, then flip-flops, the clock and time back to 0; switch values kept. */
   | { type: "reset" }
-  /** The words of a ROM or RAM, by elaborated ID (`instance/ram` inside an instance), answered with `memory` (ADR 0018). */
-  | { type: "readMemory"; component: string };
+  /** The first `count` words of a ROM or RAM, by elaborated ID (`instance/ram` inside an instance), answered with `memory` (ADR 0018). */
+  | { type: "readMemory"; component: string; count: number };
 
 export type Result =
   | { type: "ready" }
@@ -68,8 +68,10 @@ export type Result =
   /** `nets`: each net's value, cut to its width. */
   /** `time`: virtual time in ticks (cycle count `(time + 1) / 2`); `running`: whether a run is under way. */
   | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[]; time: number; running: boolean }
-  /** `load`: the failing command was a load, which then gets no `loaded` reply. */
   /** `words`: empty when the component is not a memory or nothing is loaded. */
   | { type: "memory"; component: string; words: Uint32Array }
-  /** `running`: whether a run is still under way after the failure (ADR 0017). */
+  /**
+   * `load`: the failing command was a load, which then gets no `loaded` reply.
+   * `running`: whether a run is still under way after the failure (ADR 0017).
+   */
   | { type: "error"; message: string; load?: true; running?: boolean };

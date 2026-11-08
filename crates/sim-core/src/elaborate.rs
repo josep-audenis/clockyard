@@ -22,6 +22,14 @@ pub const CUSTOM: &str = "custom";
 /// expand without bound (ADR 0018).
 pub const MAX_WORDS: usize = 1 << 20;
 
+/// The error for a circuit whose memories hold more than `MAX_WORDS` words.
+fn too_many_words(id: &str) -> Diagnostic {
+    let message = format!(
+        "the circuit's memories hold more than {MAX_WORDS} words once components are expanded"
+    );
+    Diagnostic::error(Code::TooLarge, message, vec![top(id).to_string()])
+}
+
 /// Most items a flattened circuit may hold ("excessive complexity"): parts, junctions,
 /// wires and instance expansions all count, so no small file can expand into a huge one.
 pub const MAX_PARTS: usize = 200_000;
@@ -71,6 +79,20 @@ pub fn elaborate(
     }
     let has_instances = description.components.iter().any(|c| c.kind == CUSTOM);
     if errors.is_empty() && description.definitions.is_empty() && !has_instances {
+        // Nothing to expand, but the memories it holds are still bounded (ADR 0018).
+        let words: usize = description
+            .components
+            .iter()
+            .map(ComponentDesc::words)
+            .sum();
+        if words > MAX_WORDS {
+            let id = description
+                .components
+                .iter()
+                .find(|c| c.words() > 0)
+                .map_or("", |c| c.id.as_str());
+            return Err(vec![too_many_words(id)]);
+        }
         return Ok(Cow::Borrowed(description));
     }
     let mut definitions = BTreeMap::new();
@@ -224,7 +246,7 @@ fn check_wiring<'a>(
     let parts: BTreeMap<&str, &ComponentDesc> =
         components.iter().map(|c| (c.id.as_str(), c)).collect();
     // A switch's or LED's width; widths were checked before any wiring.
-    let width = |c: &ComponentDesc| c.shape().map_or(1, |shape| shape.width);
+    let width = |c: &ComponentDesc| c.ports_shape().map_or(1, |shape| shape.width);
     // Role of a port end, whether it is a pin (an instance's port or a pin part), and its width.
     let role = |port: &PortRef| -> Option<(Role, bool, u32)> {
         let name = port.port.as_str();
@@ -249,7 +271,7 @@ fn check_wiring<'a>(
             return (name == own).then_some((role, true, width(part)));
         }
         let kind = Kind::from_name(&part.kind)?;
-        let shape = part.shape().ok()?;
+        let shape = part.ports_shape().ok()?;
         let port = kind.ports(&shape).into_iter().find(|p| p.name == name)?;
         let role = if port.output {
             Role::Drives
@@ -462,7 +484,7 @@ impl<'a> Flat<'a> {
                     }
                 }
             } else if pins.contains_key(c.id.as_str()) {
-                let width = c.shape().ok().map(|shape| shape.width);
+                let width = c.ports_shape().ok().map(|shape| shape.width);
                 // A pin carries no name: labels never join across a component's boundary.
                 self.out.junctions.push(JunctionDesc {
                     id,
@@ -471,19 +493,10 @@ impl<'a> Flat<'a> {
                     name: None,
                 });
             } else {
-                let words = c.shape().map_or(0, |shape| {
-                    if shape.address > 0 {
-                        1 << shape.address
-                    } else {
-                        0
-                    }
-                });
+                let words = c.words();
                 self.words += words;
                 if words > 0 && self.words > MAX_WORDS {
-                    let message = format!(
-                        "the circuit's memories hold more than {MAX_WORDS} words once components are expanded"
-                    );
-                    self.error(Code::TooLarge, message, &id);
+                    self.errors.push(too_many_words(&id));
                     self.size = MAX_PARTS + 1;
                     return;
                 }

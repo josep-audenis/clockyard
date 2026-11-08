@@ -54,8 +54,8 @@ What the engine has:
      `addr`, `din` and `we` are taken from the settle's starting snapshot,
      so a RAM written in the same cycle that something reads it behaves as
      a register file does.
-   - `out` changes in the delta after the write, as a flip-flop's `q`
-     does.
+   - The write happens in the delta that sees `clk` rise, and `out` shows
+     it at the end of that delta, as a flip-flop's `q` does.
    - Contents start at 0 on load and are set back to 0 by reset. A RAM has
      no `data` prop. Programs set up the data they need.
    - A RAM is stateful: like a flip-flop it counts as part of a loop for
@@ -72,12 +72,16 @@ What the engine has:
    Memory words count towards the engine's size limit, so a definition
    holding a large ROM, placed many times, cannot grow without bound. The
    engine tallies words as it tallies parts, against a separate limit of
-   1,048,576 words after flattening.
+   1,048,576 words after flattening, and checks the same limit on a
+   circuit with nothing to flatten.
+   - Only the words asked for cross from the worker: `readMemory` names a
+     count, and the inspector asks for the 256 it shows.
 6. **Inspection.** `sim-core` gains `memory(component) -> &[u32]`, the
    current words of a ROM or RAM. It takes the component's elaborated ID, so
    a RAM inside an instance is `instance/ram`. `sim-wasm` exposes it, and
    the protocol gains:
-   - a command `readMemory { component }`;
+   - a command `readMemory { component, count }`, for the first `count`
+     words;
    - a result `memory { component, words: Uint32Array }`.
 
    The worker answers it between ticks, like any command. The editor asks

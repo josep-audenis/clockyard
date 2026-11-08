@@ -99,8 +99,8 @@ software CPU, and all simulation semantics live in `sim-core`.
    engine knows nothing about instructions (ADR 0017 item 1), so stepping
    is defined by the circuit.
    - The toolbar gains *Run until*, a choice of any 1-bit LED on the sheet.
-     A run then stops at the first tick after which that LED's net has
-     risen from 0 to 1.
+     A run then stops at the first tick after which that LED's net reads 1
+     having read 0 after the tick before: a rise between settled ticks.
    - `sim-core` gains `tick_until(count, net)`. It stops at that tick and
      reports how many ticks ran, so the stop does not depend on how the
      worker slices the run.
@@ -110,9 +110,12 @@ software CPU, and all simulation semantics live in `sim-core`.
      - *Run until Halted* runs a program to its end;
      - a breakpoint is circuit the user adds: compare `PC` with a switch
        and light an LED on equality, then *Run until* it.
-   - An LED that is already lit, or that never rises, does not stop the
-     run: it runs until paused, like Run. For example, *Run until Fetch*
-     on a halted CPU never stops, because Fetch stays dark once halted.
+   - Being lit is not enough: an LED lit when the run starts must go dark
+     and light again. One that never rises runs until paused, like Run. For
+     example, *Run until Fetch* on a halted CPU never stops, because Fetch
+     stays dark once halted.
+   - Fetch rises on a rising clock edge, so *Run until Fetch* stops with
+     the clock high. From there, a Step takes 3 ticks (ADR 0017).
    - Step (one cycle) and Run are unchanged.
 7. **Memory inspection** is ADR 0018's RAM dump in the inspector. A
    *Disassemble* view of the ROM, listing each word as its mnemonic, comes
@@ -131,7 +134,9 @@ software CPU, and all simulation semantics live in `sim-core`.
      - one per instruction;
      - the two examples on the specification page;
      - 200 random programs from a seeded generator, so the runs are
-       repeatable.
+       repeatable. Each is 256 raw words, so reserved opcodes and bits
+       are exercised too, and runs 64 instructions or until `H`, so a
+       program that loops forever still ends.
    - **Assembler.** `crates/asm` is tested on every syntax rule and error.
    - **Playwright.** Open the example, type `LDI 5 / ADI 3 / OUT / HLT`,
      Assemble, *Run until Halted*, and the output LED reads 8. One *Run

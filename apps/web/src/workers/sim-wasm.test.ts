@@ -177,6 +177,7 @@ test("a memory's words cross the boundary; anything else has none (ADR 0018)", (
     connections: [],
   };
   engine.load(JSON.stringify(circuit));
-  expect(engine.memory("r")).toEqual(new Uint32Array([1, 2, 0, 0]));
-  expect(engine.memory("g")).toBeUndefined();
+  expect(engine.memory("r", 256)).toEqual(new Uint32Array([1, 2, 0, 0]));
+  expect(engine.memory("r", 2)).toEqual(new Uint32Array([1, 2])); // only the words asked for cross
+  expect(engine.memory("g", 256)).toBeUndefined();
 });

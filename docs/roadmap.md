@@ -303,10 +303,10 @@ result on an output device. Instructions are checked against an independent
 reference specification in native Rust tests. The CPU runs through the real
 netlist.
 
-Design (proposed): ADR 0018 (ROM and RAM parts, format v8) and ADR 0019 (the
+Design: ADR 0018 (ROM and RAM parts, format v8; accepted) and ADR 0019 (the
 reference CPU, specified in `docs/reference-cpu.md`: 8-bit accumulator,
 Harvard, 13 instructions, two cycles each; a Rust assembler crate; *Run until
-an LED lights* for instruction steps and breakpoints). Built in six steps:
+an LED lights* for instruction steps and breakpoints; proposed). Built in six steps:
 
 1. ✅ ROM and RAM (ADR 0018, accepted): engine, inspection (`readMemory`), the
    ROM, RAM tiles and inspector (address bits, contents, RAM dump), format v8.
