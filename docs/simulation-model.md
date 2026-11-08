@@ -177,6 +177,13 @@ arrive with tri-state support, with an explicit resolution table (e.g. `0`+`Z`
 
 ## Sequential logic (Phase 3 design target)
 
+Being built as decided in [ADR 0017](decisions/0017-clocks-and-flip-flops.md),
+which refines this section. Where they differ, the ADR holds: one global
+clock counted in ticks (no period yet), a sized `dff` that is also the
+register, a snapshot per settle rather than an undo log, and switches
+that change together set in one settle. The engine part is built; this
+section is rewritten once the run controls are.
+
 ### Edge sampling rule
 
 An edge-triggered element samples its data inputs from the circuit state as it

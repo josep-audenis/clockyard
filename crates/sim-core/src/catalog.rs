@@ -84,11 +84,6 @@ impl Kind {
         !self.fielded() && self != Kind::Clock
     }
 
-    /// Whether the part holds state across settles (a flip-flop, ADR 0017).
-    pub fn stateful(self) -> bool {
-        self == Kind::Dff
-    }
-
     /// Whether the `fields` prop adds field ports `f0`, `f1`, … (split, merge).
     pub fn fielded(self) -> bool {
         self.field_ports().is_some()
@@ -243,6 +238,6 @@ mod tests {
             ]
         );
         assert_eq!(names_of(Kind::Clock, 1), [port("out", 1, true)]);
-        assert!(!Kind::Clock.sized() && Kind::Dff.sized() && Kind::Dff.stateful());
+        assert!(!Kind::Clock.sized() && Kind::Dff.sized());
     }
 }

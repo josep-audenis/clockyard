@@ -38,7 +38,8 @@ export type Diagnostic = {
 export type Command =
   | { type: "load"; circuit: CircuitDescription }
   /** `value`: a whole number from 0 to 2^width − 1; the engine refuses anything else. */
-  | { type: "setInput"; component: string; value: number };
+  /** Switch values by ID, set in one settle (ADR 0017): after a load, all of them at once. */
+  | { type: "setInputs"; values: Record<string, number> };
 
 export type Result =
   | { type: "ready" }

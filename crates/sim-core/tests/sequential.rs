@@ -258,3 +258,27 @@ fn two_instances_of_a_definition_with_a_flip_flop_keep_separate_state() {
     let net = sim.port_nets()["lx"]["in"] as usize;
     assert_eq!(sim.net_drivers()[net], Some("x"));
 }
+
+#[test]
+fn switches_set_together_settle_once_whatever_their_order() {
+    // d on f.d and c on f.clk, both turned on together: f samples d's old 0, in either order.
+    let circuit = || {
+        load(json!({
+            "components": parts(&[("d", "switch"), ("c", "switch"), ("f", "dff")]),
+            "connections": wires(&[("d.out", "f.d"), ("c.out", "f.clk")]),
+        }))
+    };
+    let mut one = circuit();
+    let mut two = circuit();
+    one.set_inputs(&[("d", 1), ("c", 1)]).unwrap();
+    two.set_inputs(&[("c", 1), ("d", 1)]).unwrap();
+    assert_eq!([value(&one, "f", "q"), value(&two, "f", "q")], [0, 0]);
+    // One at a time, d first, the edge sees d = 1.
+    let mut three = circuit();
+    three.set_input("d", 1).unwrap();
+    three.set_input("c", 1).unwrap();
+    assert_eq!(value(&three, "f", "q"), 1);
+    // A refused value sets nothing.
+    assert!(one.set_inputs(&[("d", 0), ("f", 1)]).is_err());
+    assert_eq!(value(&one, "d", "out"), 1);
+}

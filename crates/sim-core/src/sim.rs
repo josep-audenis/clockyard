@@ -83,6 +83,11 @@ enum End {
     Junction(bool, Option<u32>),
 }
 
+/// A runtime diagnostic with its IDs lifted to top-level IDs.
+fn lift_one(diagnostic: Diagnostic) -> Diagnostic {
+    lift(vec![diagnostic]).remove(0)
+}
+
 /// Union-find root of `node`, halving paths on the way.
 pub(crate) fn find(parent: &mut [usize], mut node: usize) -> usize {
     while parent[node] != node {
@@ -581,6 +586,27 @@ impl Simulator {
     /// Sets a switch to `value` and settles. Refuses a value wider than the
     /// switch. Returns an `Unstable` diagnostic if the circuit did not settle.
     pub fn set_input(&mut self, component: &str, value: u32) -> Result<Option<Diagnostic>, String> {
+        self.set_inputs(&[(component, value)])
+    }
+
+    /// Sets several switches and settles once, as if they changed together:
+    /// a flip-flop clocked by one of them samples the others' old values, in
+    /// whatever order they are given (ADR 0017). Nothing is set if any value
+    /// is refused.
+    pub fn set_inputs(&mut self, values: &[(&str, u32)]) -> Result<Option<Diagnostic>, String> {
+        let targets = values
+            .iter()
+            .map(|&(component, value)| Ok((self.switch_prim(component, value)?, value)))
+            .collect::<Result<Vec<_>, String>>()?;
+        for &(p, value) in &targets {
+            self.prims[p].state = value;
+        }
+        let dirty = targets.iter().map(|&(p, _)| p as u32).collect();
+        Ok(self.settle(dirty).map(lift_one))
+    }
+
+    /// The primitive of switch `component`, if `value` fits it.
+    fn switch_prim(&self, component: &str, value: u32) -> Result<usize, String> {
         let c = self
             .ids
             .binary_search_by(|id| id.as_str().cmp(component))
@@ -592,15 +618,14 @@ impl Simulator {
             ));
         }
         let p = self.port_nets[component]["out"] as usize - 1;
-        let prim = &mut self.prims[p];
-        if value > prim.mask {
-            let width = bits(prim.mask.count_ones());
+        let mask = self.prims[p].mask;
+        if value > mask {
+            let width = bits(mask.count_ones());
             return Err(format!(
                 "{component} is {width} wide, so {value} does not fit"
             ));
         }
-        prim.state = value;
-        Ok(self.settle(vec![p as u32]).map(|d| lift(vec![d]).remove(0)))
+        Ok(p)
     }
 
     /// Current value of every net, cut to its width. Net 0 is ground.
@@ -665,17 +690,18 @@ impl Simulator {
     /// first tick that does not settle and returns its diagnostic.
     pub fn tick(&mut self, count: u64) -> Option<Diagnostic> {
         if self.clocks.is_empty() {
-            self.time += count;
-            return None;
+            // Nothing changes, but a loop still oscillating is resumed and reported, as any settle does.
+            self.time = self.time.saturating_add(count);
+            return self.settle(Vec::new()).map(lift_one);
         }
         for _ in 0..count {
-            self.time += 1;
+            self.time = self.time.saturating_add(1);
             let level = (self.time % 2) as u32;
             for &p in &self.clocks {
                 self.prims[p as usize].state = level;
             }
             if let Some(d) = self.settle(self.clocks.clone()) {
-                return Some(lift(vec![d]).remove(0));
+                return Some(lift_one(d));
             }
         }
         None
@@ -705,7 +731,7 @@ impl Simulator {
         }
         self.presettle();
         let all = (0..self.prims.len() as u32).collect();
-        self.settle(all).map(|d| lift(vec![d]).remove(0))
+        self.settle(all).map(lift_one)
     }
 
     /// Virtual time in ticks; the cycle counter is `(time + 1) / 2`.

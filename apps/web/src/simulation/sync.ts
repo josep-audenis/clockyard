@@ -74,9 +74,10 @@ export function connectEngine(): () => void {
       client.send({ type: "load", circuit: projected });
       sent = {};
     }
-    for (const [component, value] of Object.entries(inputs)) {
-      if (sent[component] !== value) client.send({ type: "setInput", component, value });
-    }
+    // One command, so switches restored after a load change together and a flip-flop clocked by one of
+    // them cannot sample the others in the order they were first toggled (ADR 0017).
+    const changed = Object.fromEntries(Object.entries(inputs).filter(([component, value]) => sent[component] !== value));
+    if (Object.keys(changed).length > 0) client.send({ type: "setInputs", values: changed });
     sent = inputs;
   };
   sync(useEditor.getState());

@@ -49,6 +49,8 @@ export const LAYOUTS: Record<Exclude<ComponentKind, FieldedKind>, Layout> = {
 const WIDE: Partial<Record<ComponentKind, Layout>> = {
   switch: { width: 5, height: 2, inputs: {}, outputs: { out: { x: 5, y: 1 } } },
   led: { width: 5, height: 2, inputs: { in: { x: 0, y: 1 } }, outputs: {} },
+  // A register (ADR 0017): wider, so 0x and 8 hex digits fit between D and Q.
+  dff: { width: 6, height: 4, inputs: { d: { x: 0, y: 1 }, clk: { x: 0, y: 3 } }, outputs: { q: { x: 6, y: 1 } } },
 };
 
 /**

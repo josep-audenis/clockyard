@@ -84,6 +84,14 @@ What the engine has today:
      moves by exactly one place per edge.
    - A glitch that raises `clk` twice in one settle samples the same
      snapshot twice, so it changes nothing extra.
+   - After a settle that hit its delta limit (`unstable`), the next settle
+     starts wherever that one stopped, so its snapshot is not a settled
+     state. The circuit has already been reported as unstable.
+   - Switches that change together are set in one settle (`set_inputs`),
+     so a flip-flop clocked by one of them samples the others' old values
+     in whatever order they are given. After a load, the editor restores
+     every switch in one such command. One at a time, the result would
+     depend on the order the user first toggled them.
    - The snapshot is a copy of the net values, taken once per settle. An
      undo log of changed nets is a later optimization, allowed only if
      results stay identical.
@@ -91,7 +99,8 @@ What the engine has today:
      it drives settles delta by delta, as logic feeding a loop already does.
 5. **Engine commands** (`sim-core`, exposed through `sim-wasm`).
    - `tick(count)` advances the clock `count` ticks. Each tick sets every
-     clock primitive and settles.
+     clock primitive and settles. With no clock in the circuit it still
+     settles once, so a loop left oscillating is reported again.
    - `step_cycle()` ticks until the clock has risen once and fallen again,
      leaving it low with the cycle counter one higher: 2 ticks from low,
      3 from high.
@@ -120,8 +129,9 @@ What the engine has today:
      `step` from there finishes that cycle and runs one more (item 5).
    - `step` and `reset` pause first.
    - An `unstable` result pauses the run and is reported as it is today.
-   - Commands keep their order. A `setInput` sent while running is applied
-     between two ticks.
+   - Commands keep their order. A `setInputs` sent while running is
+     applied between two ticks. It replaces `setInput`: one command sets
+     any number of switches in one settle (item 4).
    - A `load` while running keeps running, from time 0.
    - `state` gains `time` (ticks, as a JS number) and `running`, so the
      editor learns of a pause the worker made itself.
@@ -132,8 +142,9 @@ What the engine has today:
    - A Clock part is drawn with a square-wave mark, and its output wire is
      coloured by level like any wire.
    - A D flip-flop or register is a box with `D` and a clock triangle on the
-     left and `Q` on the right. A wide one shows `q` in hex, as a wide
-     switch does.
+     left and `Q` on the right. A D flip-flop is 4×4 cells. A wide one, a
+     register, is 6 cells wide and shows `q` in hex, so `0x` and 8 digits
+     fit between the labels.
    - New parts-panel tiles: Clock (Inputs), and D flip-flop and Register (a
      new Memory section).
    - Run, Step and Reset act on the open sheet, which is what the engine

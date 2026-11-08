@@ -133,8 +133,8 @@ function readDocument(data: unknown): CircuitDocument {
   }
   if (![1, 2, 3, 4, 5, 6, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
   // Version 4 → 5 (ADR 0014): widths arrive as props; nothing to change.
-  // Version 6 → 7 (ADR 0017): clock and dff kinds; nothing to change.
   // Version 5 → 6 (ADR 0015): junctions may carry a net label's name; nothing to change.
+  // Version 6 → 7 (ADR 0017): clock and dff kinds; nothing to change.
 
   const metadata = object(data.metadata, "metadata");
   const circuit = object(data.circuit, "circuit");
