@@ -453,3 +453,33 @@ fn pins_that_drive_one_wire_are_outputs_joined() {
         vec![(Code::MultipleDrivers, ids(&["v", "w"]))]
     );
 }
+
+#[test]
+fn net_drivers_name_the_top_level_part_and_an_instance_for_a_gate_inside_it() {
+    let mut components = vec![json!({ "id": "f", "kind": "custom", "definition": "fa" })];
+    for (id, kind) in [
+        ("fa", "switch"),
+        ("fb", "switch"),
+        ("fc", "switch"),
+        ("fs", "led"),
+        ("fco", "led"),
+    ] {
+        components.push(json!({ "id": id, "kind": kind }));
+    }
+    let list = one_adder("f");
+    let list: Vec<(&str, &str, &str)> = list
+        .iter()
+        .map(|(a, b, c)| (a.as_str(), b.as_str(), c.as_str()))
+        .collect();
+    let (sim, _) = Simulator::load(&description(json!({
+        "components": components, "connections": wires(&list), "definitions": [full_adder()]
+    })))
+    .expect("valid");
+    let drivers = sim.net_drivers();
+    let driver = |wire: &str| drivers[sim.wire_nets()[wire] as usize];
+    assert_eq!(drivers.len(), sim.nets().len());
+    assert_eq!(drivers[0], None);
+    assert_eq!(driver("f-wa"), Some("fa"));
+    assert_eq!(driver("f-ws"), Some("f"));
+    assert_eq!(driver("f-wo"), Some("f"));
+}

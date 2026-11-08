@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
-import { endOwner, type Circuit } from "./document";
+import { endOwner, sameEnd, type Circuit } from "./document";
 import { contains } from "./document";
 import { liveDefinitions, mainCircuit, useEditor } from "./store";
 import { layoutOf, pinLabel } from "../canvas/layout";
@@ -604,32 +604,95 @@ function inverter() {
 test("make component turns the selection into a definition and puts one instance in its place", () => {
   const { i, n, o } = inverter();
   const outside = useEditor.getState().add("led", { x: 20, y: 3 });
-  useEditor.getState().connect(port(n, "out"), port(outside, "in")); // crosses the selection's edge: dropped
+  // Crosses the selection's edge; the engine says `n`, inside, drives its net (ADR 0016).
+  const cross = useEditor.getState().connect(port(n, "out"), port(outside, "in")) ?? "";
+  const nets = { wireNets: { [cross]: 2 }, wireWidths: { [cross]: 1 }, netDrivers: [null, i, n] };
   const { select, makeComponent, undo } = useEditor.getState();
   select([i, n, o]);
-  expect(makeComponent("  Inverter ")).toBeNull();
+  expect(makeComponent("  Inverter ", { stale: false, nets })).toBeNull();
   const state = useEditor.getState();
   const [definition] = state.definitions;
   expect(definition?.name).toBe("Inverter");
-  // Moved to its own origin, wires inside kept.
+  // Moved to its own origin, wires inside kept; the crossing became an LED 4 cells right, on its row.
   expect(definition?.circuit.components.map((c) => c.position)).toEqual([
     { x: 0, y: 0 },
     { x: 4, y: 0 },
     { x: 9, y: 0 },
+    { x: 15, y: 0 },
   ]);
-  expect(definition?.circuit.wires).toHaveLength(2);
+  const pin = definition?.circuit.components[3];
+  expect(pin).toMatchObject({ kind: "led", props: { label: "out1" } });
+  expect(definition?.circuit.wires).toHaveLength(3);
+  expect(definition?.circuit.wires[2]).toMatchObject({ from: port(n, "out"), to: port(pin?.id ?? "", "in") });
   const instance = state.circuit.components.find((c) => c.kind === "custom");
   expect(instance).toMatchObject({ definition: definition?.id, position: { x: 2, y: 3 } });
   expect(state.circuit.components.map((c) => c.id)).toEqual([outside, instance?.id]);
-  expect(state.circuit.wires).toEqual([]);
+  // The outside LED is wired to the instance's new port.
+  expect(state.circuit.wires.map((w) => [w.from, w.to])).toEqual([[port(instance?.id ?? "", pin?.id ?? ""), port(outside, "in")]]);
   expect(state.selection).toEqual([instance?.id]);
-  // Its layout comes from the pins, ports named by pin part ID: input In on the left, output Out on the right.
-  expect(layoutOf(instance as never)).toEqual({ width: 4, height: 2, inputs: { [i]: { x: 0, y: 1 } }, outputs: { [o]: { x: 4, y: 1 } } });
+  // Its layout comes from the pins, ports named by pin part ID: input In on the left, outputs Out and out1 on the right.
+  expect(layoutOf(instance as never)).toEqual({
+    width: 4,
+    height: 4,
+    inputs: { [i]: { x: 0, y: 1 } },
+    outputs: { [o]: { x: 4, y: 1 }, [pin?.id ?? ""]: { x: 4, y: 3 } },
+  });
   expect([pinLabel(definition?.id, i), pinLabel(definition?.id, o)]).toEqual(["In", "Out"]);
   // One undo step for the main circuit; the definition stays available.
   undo();
   expect(useEditor.getState().circuit.components.map((c) => c.id)).toEqual([i, n, o, outside]);
   expect(useEditor.getState().definitions).toHaveLength(1);
+});
+
+test("make component: crossings become input pins, one per net, named from outside and as wide as the net", () => {
+  const { add, connect, setLabel, setWidth, select, makeComponent } = useEditor.getState();
+  const a = add("switch", { x: 0, y: 0 });
+  setLabel(a, "Y");
+  setWidth(a, 8);
+  const b = add("switch", { x: 0, y: 8 });
+  const g = add("and", { x: 10, y: 0 });
+  setWidth(g, 8);
+  const n = add("not", { x: 10, y: 8 });
+  const o = add("led", { x: 20, y: 1 });
+  setLabel(o, "Y");
+  setWidth(o, 8);
+  const wa = connect(port(a, "out"), port(g, "a")) ?? "";
+  const wb = connect(port(a, "out"), port(g, "b")) ?? "";
+  const wn = connect(port(b, "out"), port(n, "in")) ?? "";
+  connect(port(g, "out"), port(o, "in"));
+  // a's two wires are one net; b's is another. Both are driven from outside.
+  const nets = {
+    wireNets: { [wa]: 1, [wb]: 1, [wn]: 2 },
+    wireWidths: { [wa]: 8, [wb]: 8, [wn]: 1 },
+    netDrivers: [null, a, b, g],
+  };
+  select([g, n, o]);
+  // Crossings need the engine's view of the circuit as it is now.
+  expect(makeComponent("x")).toMatch(/Wait for the simulation/);
+  expect(makeComponent("x", { stale: true, nets })).toMatch(/Wait for the simulation/);
+  expect(makeComponent("x", { stale: false, nets: null })).toMatch(/Fix the circuit's errors/);
+  expect(useEditor.getState().definitions).toEqual([]);
+
+  expect(makeComponent("x", { stale: false, nets })).toBeNull();
+  const state = useEditor.getState();
+  const definition = state.definitions[0];
+  const added = definition?.circuit.components.filter((c) => c.kind === "switch") ?? [];
+  // Y is taken by the LED inside, so a's pin is Y-2; b has no label, so in1.
+  expect(added.map((c) => c.props)).toEqual([{ label: "Y-2", width: 8 }, { label: "in1" }]);
+  // 4 cells left of the selection, each on its crossing's row (a wide switch is 5 cells), from the new origin.
+  expect(added.map((c) => c.position)).toEqual([
+    { x: 0, y: 0 },
+    { x: 3, y: 8 },
+  ]);
+  const [y2, in1] = added.map((c) => c.id);
+  const from = (pin: string | undefined) => definition?.circuit.wires.filter((w) => sameEnd(w.from, port(pin ?? "", "out"))).map((w) => w.to);
+  expect(from(y2)).toEqual([port(g, "a"), port(g, "b")]);
+  expect(from(in1)).toEqual([port(n, "in")]);
+  const instance = state.circuit.components.find((c) => c.kind === "custom")?.id ?? "";
+  expect(state.circuit.wires.map((w) => [w.from, w.to])).toEqual([
+    [port(a, "out"), port(instance, y2 ?? "")],
+    [port(b, "out"), port(instance, in1 ?? "")],
+  ]);
 });
 
 test("make component refuses a selection without pins, with an unnamed pin or a repeated name", () => {
@@ -1023,4 +1086,65 @@ test("labels: refused on a junction, kept by setFields, duplicated alone, and di
   expect(useEditor.getState()).toMatchObject({ armed: "and", armedLabel: false });
   armLabel(true);
   expect(useEditor.getState()).toMatchObject({ armed: null, armedLabel: true });
+});
+
+test("make component: pins follow the rows nets cross on, step past each other, take a net label's name, and skip undriven nets", () => {
+  const { add, addLabel, setName, setLabel, connect, select, makeComponent } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  const t = add("switch", { x: 0, y: 6 });
+  const g = add("and", { x: 10, y: 0 }); // a (10,1), b (10,3), out (14,2)
+  const y = add("led", { x: 24, y: 1 });
+  setLabel(y, "Y");
+  const u = add("led", { x: 20, y: 6 });
+  const label = (at: { x: number; y: number }, name: string) => {
+    const id = addLabel(at) ?? "";
+    setName(id, name);
+    return id;
+  };
+  const go = label({ x: 4, y: 4 }, "go"); // outside
+  const mid = label({ x: 8, y: 2 }, "mid"); // inside
+  const k = label({ x: 12, y: 6 }, "k"); // inside
+  const j = (id: string) => ({ junction: id });
+  const ws = connect(port(s, "out"), port(g, "a")) ?? "";
+  const wt = connect(port(t, "out"), j(go)) ?? "";
+  const wl = connect(j(go), j(mid)) ?? "";
+  const wb = connect(j(mid), port(g, "b")) ?? "";
+  const wy = connect(port(g, "out"), port(y, "in")) ?? "";
+  const wu = connect(j(k), port(u, "in")) ?? ""; // undriven: a pin here would join readers with nothing driving
+  const nets = {
+    wireNets: { [ws]: 1, [wt]: 2, [wl]: 2, [wb]: 2, [wy]: 3, [wu]: 0 },
+    wireWidths: { [ws]: 1, [wt]: 1, [wl]: 1, [wb]: 1, [wy]: 1, [wu]: 1 },
+    netDrivers: [null, s, t, g],
+  };
+  select([g, mid, k]);
+  expect(makeComponent("x", { stale: false, nets })).toBeNull();
+  const state = useEditor.getState();
+  const definition = state.definitions[0];
+  const added = definition?.circuit.components.filter((c) => c.kind !== "and") ?? [];
+  // in1 on row 1; go on row 2, stepped down past in1; Y on g.out's row, 4 cells right. Origin (2, 0).
+  expect(added.map((c) => [c.kind, c.props.label, c.position])).toEqual([
+    ["switch", "in1", { x: 0, y: 0 }],
+    ["switch", "go", { x: 0, y: 3 }],
+    ["led", "Y", { x: 16, y: 1 }],
+  ]);
+  const instance = state.circuit.components.find((c) => c.kind === "custom")?.id ?? "";
+  const [in1, goPin, yPin] = added.map((c) => c.id);
+  expect(state.circuit.wires.map((w) => [w.from, w.to])).toEqual([
+    [port(t, "out"), j(go)],
+    [port(s, "out"), port(instance, in1 ?? "")],
+    [j(go), port(instance, goPin ?? "")],
+    [port(instance, yPin ?? ""), port(y, "in")],
+  ]);
+  // The undriven crossing is dropped; its label stays inside, as labels do.
+  expect(definition?.circuit.junctions.map((x) => x.name)).toEqual(["mid", "k"]);
+});
+
+test("make component refuses a selection whose only crossings are undriven: no pins", () => {
+  const { add, connect, select, makeComponent } = useEditor.getState();
+  const g = add("not", { x: 10, y: 0 });
+  const u = add("led", { x: 20, y: 0 });
+  const w = connect(port(g, "in"), port(u, "in")) ?? "";
+  select([g]);
+  const nets = { wireNets: { [w]: 0 }, wireWidths: { [w]: 1 }, netDrivers: [null, g] };
+  expect(makeComponent("x", { stale: false, nets })).toMatch(/needs pins/);
 });

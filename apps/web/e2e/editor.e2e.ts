@@ -501,6 +501,38 @@ test("make a component from a selection, place another from Chips, open it on it
   await expect(readout(page, "Switch In")).toHaveCount(0);
 });
 
+test("make a component of the middle of a circuit: wires across the selection's edge become pins, still wired", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  const label = inspector.getByRole("textbox", { name: "Label" });
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0)
+  await label.fill("A");
+  await label.press("Enter");
+  for (const x of [7.5, 13.5]) {
+    await page.keyboard.press("n");
+    await click(page, at(x, 1)); // NOTs at (6,0) and (12,0)
+  }
+  await page.keyboard.press("l");
+  await click(page, at(19, 1)); // LED at (18,0)
+  await label.fill("Y");
+  await label.press("Enter");
+  await drag(page, at(2, 1), at(6, 1));
+  await drag(page, at(9, 1), at(12, 1));
+  await drag(page, at(15, 1), at(18, 1));
+  await expectStates(page, { "Switch A": 0, "LED Y": 0 });
+
+  // Only the two NOTs: the wires in and out cross the selection's edge (ADR 0016).
+  await drag(page, at(5, -1), at(16, 3));
+  await inspector.getByRole("textbox", { name: "Component name" }).fill("Buffer");
+  await inspector.getByRole("button", { name: "Make component" }).click();
+  await expect(inspector).toContainText("Buffer");
+  await expect(status(page)).toContainText("Settled");
+  await click(page, at(1, 1));
+  await expectStates(page, { "Switch A": 1, "LED Y": 1 });
+});
+
 test("rename a component from an instance's inspector; delete it from Chips only once nothing uses it", async ({ page }) => {
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("4-bit-adder"));

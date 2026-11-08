@@ -51,6 +51,8 @@ export type Result =
       wireWidths: Record<string, number>;
       /** Component ID → port name → net index. */
       portNets: Record<string, Record<string, number>>;
+      /** Net index → ID of the top-level part driving it, null for ground (ADR 0016). */
+      netDrivers: (string | null)[];
       diagnostics: Diagnostic[];
     }
   /** `nets`: each net's value, cut to its width. */

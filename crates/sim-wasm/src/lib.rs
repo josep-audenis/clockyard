@@ -60,6 +60,8 @@ struct Loaded<'a> {
     /// Wire ID → width of its net. Per wire, since every undriven net is net 0.
     wire_widths: &'a BTreeMap<String, u32>,
     port_nets: &'a PortNets,
+    /// Net index → the top-level part driving it, `null` for ground (ADR 0016).
+    net_drivers: Vec<Option<&'a str>>,
     /// Validation results: errors, or warnings such as unconnected inputs.
     diagnostics: &'a [Diagnostic],
     /// Result of the initial settle (an unstable loop), superseded by later settles.
@@ -81,7 +83,7 @@ impl Engine {
     }
 
     /// Compiles a circuit description (JSON). Returns
-    /// `{ netCount, wireNets, wireWidths, portNets, diagnostics, runtime }` as JSON;
+    /// `{ netCount, wireNets, wireWidths, portNets, netDrivers, diagnostics, runtime }` as JSON;
     /// on validation errors the maps are empty and no circuit is loaded.
     pub fn load(&mut self, description: &str) -> Result<String, JsError> {
         let description: CircuitDescription = serde_json::from_str(description)?;
@@ -100,6 +102,7 @@ impl Engine {
             wire_nets: sim.map_or(&empty.0, Simulator::wire_nets),
             wire_widths: sim.map_or(&empty.0, Simulator::wire_widths),
             port_nets: sim.map_or(&empty.1, Simulator::port_nets),
+            net_drivers: sim.map_or_else(Vec::new, Simulator::net_drivers),
             diagnostics: &diagnostics,
             runtime: &runtime,
         };

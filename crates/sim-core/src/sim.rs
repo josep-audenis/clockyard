@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use crate::catalog::{Kind, Port, mask};
 use crate::description::{CircuitDescription, Code, Diagnostic, Endpoint};
-use crate::elaborate::{elaborate, lift};
+use crate::elaborate::{elaborate, lift, top};
 
 /// Net 0 is never driven: unconnected inputs read it as 0.
 const GROUND: u32 = 0;
@@ -589,6 +589,16 @@ impl Simulator {
 
     pub fn port_nets(&self) -> &PortNets {
         &self.port_nets
+    }
+
+    /// Net index → the top-level part that drives it, `None` for ground.
+    /// Primitive `p` drives net `p + 1`; a part inside an instance is reported
+    /// as the instance (ADR 0016).
+    pub fn net_drivers(&self) -> Vec<Option<&str>> {
+        let driver = |p: &Prim| Some(top(&self.ids[p.part as usize]));
+        std::iter::once(None)
+            .chain(self.prims.iter().map(driver))
+            .collect()
     }
 
     fn eval(&self, p: usize) -> u32 {

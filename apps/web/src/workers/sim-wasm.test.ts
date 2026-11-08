@@ -112,6 +112,7 @@ test("every wire reports its net's width, an undriven bus included", () => {
   const loaded = JSON.parse(engine.load(JSON.stringify(circuit))) as Loaded;
   expect(loaded.wireNets.w1).toBe(0);
   expect(loaded.wireWidths).toEqual({ w1: 8, w2: 1 });
+  expect(loaded.netDrivers).toEqual([null, "g"]);
 });
 
 test("the catalog marks sized kinds and gives split and merge their field-port rule", () => {

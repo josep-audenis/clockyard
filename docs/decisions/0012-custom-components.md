@@ -1,7 +1,7 @@
 # 0012. Custom components: definitions, pins and flat elaboration
 
 - Status: Accepted; port naming amended by ADR 0013; renaming and deleting
-  definitions added by the amendment below
+  definitions added by the amendment below; crossing wires by ADR 0016
 - Date: 2026-11-07
 
 ## Context
@@ -52,7 +52,7 @@ four full adders. ADR 0004 already says `sim-core` elaborates hierarchy.
 5. **Editing.**
    - *Make component* (inspector, for a selection) turns the selection into a
      new definition and puts one instance in its place; wires that crossed the
-     selection's edge are dropped. Refused when a pin is unnamed or a name
+     selection's edge are dropped (since ADR 0016, they become new pins). Refused when a pin is unnamed or a name
      repeats.
    - A *Chips* section in the parts panel lists definitions; picking one arms
      an instance. A definition cannot be placed inside itself or anything it
@@ -70,8 +70,8 @@ four full adders. ADR 0004 already says `sim-core` elaborates hierarchy.
   sizes, with a hard limit so a hostile file cannot exhaust memory.
 - Signals inside an instance are not shown on the main sheet; open the
   definition to see its own simulation.
-- Not yet: reconnecting wires that crossed a *Make component* selection, and
-  pins wider than one bit (multi-bit signals come next).
+- Not yet: reconnecting wires that crossed a *Make component* selection (done
+  by ADR 0016), and pins wider than one bit (multi-bit signals come next).
 
 ## Amendment (2026-11-07): renaming and deleting definitions
 
