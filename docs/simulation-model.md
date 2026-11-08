@@ -1,8 +1,8 @@
 # Simulation model
 
-Status: **proposed**. Phase 1 implements combinational evaluation; sequential
-sections are the design target for Phase 3 and are confirmed by ADR before
-implementation.
+Status: **built** for combinational logic (Phase 1, ADR 0006) and sequential
+logic (Phase 3, ADR 0017). Four-state values and multi-driver nets are still
+a design target.
 
 ## Terms
 
@@ -175,14 +175,17 @@ Phase 1–2: two outputs on one net is a validation error. Multi-driver nets
 arrive with tri-state support, with an explicit resolution table (e.g. `0`+`Z`
 → `0`, `0`+`1` → `X`). Resolution never depends on evaluation order.
 
-## Sequential logic (Phase 3 design target)
+## Sequential logic
 
-Being built as decided in [ADR 0017](decisions/0017-clocks-and-flip-flops.md),
-which refines this section. Where they differ, the ADR holds: one global
-clock counted in ticks (no period yet), a sized `dff` that is also the
-register, a snapshot per settle rather than an undo log, and switches
-that change together set in one settle. The engine part is built; this
-section is rewritten once the run controls are.
+As decided in [ADR 0017](decisions/0017-clocks-and-flip-flops.md).
+
+### Parts
+
+- **Clock** (`clock`): no inputs, one 1-bit output. Every clock shows the one
+  global clock's level.
+- **D flip-flop** (`dff`): inputs `d` (width *w*) and `clk` (1 bit), output
+  `q` (width *w*), sized 1 to 32 bits. A wide one is a **register**. `q`
+  starts at 0. An unconnected `clk` reads 0 and never rises.
 
 ### Edge sampling rule
 
@@ -190,43 +193,53 @@ An edge-triggered element samples its data inputs from the circuit state as it
 was **settled before the edge**, and all elements triggered by that edge update
 together.
 
-Steps for a clock edge:
+- Every settle, whatever started it (a tick, a switch change, a load, a
+  reset), first copies the net values it starts from: the **snapshot**.
+- Each flip-flop remembers the last value it saw on `clk`, starting at 0. When
+  a delta evaluates it and finds `clk` at 1 after a 0, it takes `d` from the
+  snapshot, never from the current nets. Its new `q` appears in the following
+  delta, like any primitive's output.
+- So results do not depend on iteration order or on how many deltas a gated
+  clock takes to arrive. A derived clock, a ripple chain (one flip-flop's `q`
+  clocking the next) and a switch on `clk` all sample pre-edge data. A shift
+  register moves by exactly one place per edge, and a glitch that raises
+  `clk` twice in one settle samples the same snapshot twice.
+- Switches that change together are set in one settle (`set_inputs`), so a
+  flip-flop clocked by one of them samples the others' old values in any
+  order. The editor restores every switch in one command after a load.
+- After a settle that hit its delta limit, the next settle starts where it
+  stopped, so its snapshot is not a settled state; the circuit has already
+  been reported as unstable.
+- A flip-flop is stateful, so the topological pre-settle (Initial state)
+  treats it, and everything feeding it, as part of a loop.
 
-1. The circuit is settled.
-2. The engine opens a timestep and remembers pre-edge net values
-   (an undo log of nets changed during the timestep is enough).
-3. The clock net toggles; deltas run.
-4. Any flip-flop that sees a rising edge on its clock input samples `D` from the
-   **pre-edge** values and schedules its `Q` change for the next delta.
-5. Deltas continue until settled.
-
-Because sampling uses pre-edge values, results do not depend on iteration order
-or on how many deltas a gated clock takes to arrive. Gated or derived clocks
-still work; they never see "new" data from the same edge.
-
-Planned variants: falling-edge triggers, clock enable, synchronous and
-asynchronous reset (asynchronous reset acts like a combinational input).
+Planned variants: falling-edge triggers, clock enable, per-part synchronous
+and asynchronous reset (asynchronous reset acts like a combinational input).
 
 ### Clocks and virtual time
 
-- Virtual time is a `u64` tick counter, independent of wall-clock time.
-- A clock source has a period and phase in ticks. Phase 3 starts with one
-  global clock; multiple independent clocks use a time-ordered event queue keyed
-  by `(tick, sequence)` for determinism.
-- A **clock cycle** is one full period (rising + falling edge). An **instruction
-  step** (Phase 4) may span several cycles and is defined by the CPU, not the engine.
-- A simulated 1 MHz clock does not need a million timers. The worker runs
-  batches of cycles per slice of wall time and reports state periodically.
+- Virtual time is a `u64` count of **ticks**, one per half period, independent
+  of wall-clock time. The clock is low at even ticks and high at odd ones.
+- A **cycle** is one rising edge; the cycle counter is `(time + 1) / 2`. An
+  **instruction step** (Phase 4) may span several cycles and is defined by the
+  CPU, not the engine.
+- Phase 3 has one global clock with no period of its own: speed is a run-time
+  setting. Several clocks with their own periods and phases, on a
+  time-ordered event queue keyed by `(tick, sequence)`, come later.
+- A simulated 1 MHz clock does not need a million timers. The worker ticks in
+  slices of wall time and reports state after each.
 
 ### Execution controls
 
 | Control | Engine meaning |
 |---------|----------------|
-| Run / Pause | Worker advances cycles in batches / stops |
-| Reset | All nets and sequential state to initial values, then settle |
-| Step event | Run a single delta |
-| Step cycle | Advance to the end of the next full clock period |
-| Speed | Target cycles per wall-clock second (the worker paces; results identical at any speed) |
+| Run / Pause | The worker ticks in slices of about 16 ms, each as many ticks as the speed calls for since the last (at most about 8 ms of work), until paused or a tick is unstable |
+| Step | `step_cycle`: ticks until the clock has risen once and is low again (2 ticks from low, 3 from high) |
+| Reset | Flip-flops, the clock and time to 0, switch values kept; nets to 0, then pre-settle and settle as a load does |
+| Speed | Target cycles per wall-clock second (1 to 10,000). Pacing decides only how many ticks run, so the state after *n* ticks is the same at any speed |
+
+A load (any connectivity edit) also starts at time 0 with every flip-flop at
+0. A run under way keeps running. Stepping a single delta is planned.
 
 ## Determinism
 
@@ -261,5 +274,7 @@ so the editor can highlight the culprit. Neither category crashes the app.
 - Property tests: `NOT(NOT x) = x`, `XOR(x, x) = 0`, `AND(x, 1) = x`,
   N-bit adder equals modular addition.
 - Phase 3: simultaneous sampling (shift register shifts by exactly one per
-  edge), reset, cycle counting.
+  edge), delayed clocks and ripple chains, reset, cycle counting, switches set
+  together in any order (`crates/sim-core/tests/sequential.rs`), and the 8-bit
+  counter example.
 - Phase 2: multiple instances of a stateful custom component keep separate state.

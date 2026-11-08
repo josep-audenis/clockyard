@@ -1,6 +1,6 @@
 # 0017. Clocks, flip-flops and virtual time
 
-- Status: Proposed; confirms the sequential part of ADR 0006
+- Status: Accepted; confirms the sequential part of ADR 0006
 - Date: 2026-11-08
 - Depends on: ADRs 0006 (synchronous deltas), 0012 (custom components),
   0014 (widths), 0016 (`netDrivers`)

@@ -14,7 +14,11 @@ the browser through WASM in a Web Worker, linting, tests and a pre-push check ho
 PixiJS canvas, simulated by the Rust engine in a worker, exported and imported
 as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
 
-**Phase 2 — ✅ done.** Phase 3 (clocks and sequential logic) is next.
+**Phase 3 — ✅ done.** Clocks, flip-flops and virtual time (ADR 0017): the
+engine and parts (PR #40), then run/pause/step/reset, the cycle counter and
+the 8-bit counter demo. Phase 4 (a programmable 8-bit computer) is next.
+
+**Phase 2 — ✅ done.**
 Editing comfort, labels, junctions and nets, routing and rotation merged (PRs
 #8–#14). Custom components and the 4-bit adder target demo merged (PR #16);
 pins renamed safely by part ID (ADR 0013, file format v4); definitions can be
@@ -248,7 +252,7 @@ Progress:
 - ✅ 4-bit adder example: one full-adder definition instanced four times,
   checked natively for all 512 inputs and in the browser
 
-## Phase 3 — Clocks and sequential logic
+## Phase 3 — Clocks and sequential logic ✅
 
 Goal: hardware with memory and time.
 
@@ -260,12 +264,29 @@ types, simple RAM/ROM, waveform inspector, expanded signal states.
 Target demo: an 8-bit counter that can be paused, reset and advanced one cycle
 at a time, identical regardless of frame rate.
 
-Design: ADR 0017 (proposed): one global clock in ticks, a sized `dff` that is
-also the register, edge sampling from each settle's starting snapshot, and a
-worker-paced run loop. Built so far: the engine (clock and `dff` kinds, edge
-sampling, `tick`/`step_cycle`/`reset`), the Clock, D flip-flop and Register
-parts, and file format v7. Next: run/pause/step/reset in the worker and
-toolbar, the cycle counter, the counter demo and its Playwright test.
+Built as decided in ADR 0017: one global clock in ticks, a sized `dff` that
+is also the register, edge sampling from each settle's starting snapshot,
+and a worker-paced run loop.
+
+- ✅ Deterministic virtual time: ticks, one per half period; the state after
+  *n* ticks is the same at any speed or frame rate.
+- ✅ Clock part; D flip-flop and Register (one sized `dff` kind); format v7.
+- ✅ Edge sampling from the pre-edge state, for gated clocks, ripple chains
+  and hand-made edges; switches that change together settle once.
+- ✅ Run/Pause, Step (one cycle, ending low), Reset (switches kept) and a
+  speed from 1 to 10,000 cycles per second, in the toolbar; an unstable
+  loop pauses the run.
+- ✅ Bounded: every settle keeps its delta limit; a run ticks within a
+  budget per slice.
+- ✅ Clock visualization (the clock's square wave and wire in its level)
+  and a cycle counter with the clock's level in the status bar.
+- ✅ Sequential tests (`crates/sim-core/tests/sequential.rs`) and the 8-bit
+  counter example, checked natively and in Playwright: Step adds one, Reset
+  returns to 0, and after a run the value is exactly the cycles run.
+
+Not yet (ADR 0017 item 11): falling edges, clock enable, per-part reset,
+several clocks, keeping state across edits, stepping one delta, RAM/ROM,
+waveforms.
 
 ## Phase 4 — Programmable 8-bit computer
 
@@ -301,9 +322,9 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Every addition the brief plans for Phase 2 is built, and its 4-bit adder
-target demo works. Rough edges worth a look before Phase 3 (clocks and
-sequential logic):
+Phase 3 is built, with its 8-bit counter demo. Phase 4 (a programmable 8-bit
+computer) starts with a design ADR: the instruction set and encoding, and
+how ROM and RAM fit the engine. Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).
 - Wires kept after an edit can stay longer than needed until the file is
@@ -311,6 +332,9 @@ sequential logic):
 - Routing does not yet avoid label tags (ADR 0015).
 - A component made by Make component can cover parts below it (ADR 0016).
 - Make component is offered only for two or more selected items.
+- Every connectivity edit resets registers and time (ADR 0017).
+- The readout for screen readers lists switches and LEDs only, not
+  registers or the clock.
 
 Fixed since: deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
 amended); a click on a label's tag selects it; below 900px the inspector

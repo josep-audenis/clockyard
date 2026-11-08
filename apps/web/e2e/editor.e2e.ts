@@ -666,3 +666,37 @@ test("two labels named go join a far switch and LED; renaming one leaves both un
   await expect(message).toHaveAttribute("title", /label `go` joins nothing/);
   await expect(message).toHaveAttribute("title", /label `stop` joins nothing/);
 });
+
+test("the 8-bit counter steps, resets, and after a run holds exactly the cycles it ran (ADR 0017)", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("8-bit-counter"));
+  await expect(status(page)).toContainText("Cycle 0, clock low");
+  const at = await grid(page);
+  const q = readout(page, "LED Q");
+  const cycle = async () => Number(/Cycle (\d+)/.exec(await status(page).innerText())?.[1]);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  await expect(q).toHaveText("LED Q: 0 (0x00)");
+  await click(page, at(1, 7)); // Count on: the switch at (0,6) is the adder's carry in
+  await expectStates(page, { "Switch Count": 1 });
+
+  for (let i = 0; i < 3; i++) await button("Step").click();
+  await expect(q).toHaveText("LED Q: 3 (0x03)");
+  await expect(status(page)).toContainText("Cycle 3, clock low");
+  await button("Reset").click();
+  await expect(q).toHaveText("LED Q: 0 (0x00)");
+  await expect(status(page)).toContainText("Cycle 0, clock low");
+
+  // Run, then pause: the value is the number of rising edges, however fast it ran or where it paused.
+  await page.getByLabel("Speed").selectOption("100");
+  await button("Run").click();
+  await expect(status(page)).toContainText("Running");
+  await expect.poll(cycle).toBeGreaterThan(5);
+  await button("Pause").click();
+  await expect(status(page)).toContainText("Settled");
+  const ran = await cycle();
+  await expect(q).toHaveText(new RegExp(`^LED Q: ${ran % 256} `));
+  // Step finishes the cycle under way, if any, and runs one more: it always ends low.
+  await button("Step").click();
+  await expect(q).toHaveText(new RegExp(`^LED Q: ${(ran + 1) % 256} `));
+  await expect(status(page)).toContainText(`Cycle ${ran + 1}, clock low`);
+});

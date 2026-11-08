@@ -198,10 +198,10 @@ Typed discriminated unions over `postMessage`. No RPC library at first.
 type Command =
   | { type: "load"; circuit: CircuitDescription }
   | { type: "setInputs"; values: Record<string, number> } // each 0 to 2^width − 1, in one settle
-  | { type: "reset" }                  // planned
-  | { type: "stepClock" }              // Phase 3
-  | { type: "run"; cyclesPerSecond: number } // Phase 3
-  | { type: "pause" };                 // Phase 3
+  | { type: "run"; cyclesPerSecond: number } // the worker ticks until paused (ADR 0017)
+  | { type: "pause" }
+  | { type: "step" }                   // pause, then one clock cycle
+  | { type: "reset" };                 // pause; flip-flops, clock and time to 0
 
 // worker → main
 type Result =
@@ -211,7 +211,8 @@ type Result =
       portNets: Record<string, Record<string, number>>;
       netDrivers: (string | null)[];      // net → top-level part driving it, null for net 0
       diagnostics: Diagnostic[] }
-  | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[] } // each cut to its width
+  | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[]; // nets each cut to its width
+      time: number; running: boolean }   // ticks; whether a run is under way
   | { type: "error"; message: string };
 ```
 

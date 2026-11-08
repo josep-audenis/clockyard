@@ -37,9 +37,15 @@ export type Diagnostic = {
 
 export type Command =
   | { type: "load"; circuit: CircuitDescription }
-  /** `value`: a whole number from 0 to 2^width − 1; the engine refuses anything else. */
-  /** Switch values by ID, set in one settle (ADR 0017): after a load, all of them at once. */
-  | { type: "setInputs"; values: Record<string, number> };
+  /** Switch values by ID, each a whole number from 0 to 2^width − 1, set in one settle (ADR 0017). */
+  | { type: "setInputs"; values: Record<string, number> }
+  /** The worker ticks the clock in slices of wall time until paused (ADR 0017). */
+  | { type: "run"; cyclesPerSecond: number }
+  | { type: "pause" }
+  /** Pauses, then one clock cycle: until the clock has risen once and is low again. */
+  | { type: "step" }
+  /** Pauses, then flip-flops, the clock and time back to 0; switch values kept. */
+  | { type: "reset" };
 
 export type Result =
   | { type: "ready" }
@@ -57,6 +63,7 @@ export type Result =
       diagnostics: Diagnostic[];
     }
   /** `nets`: each net's value, cut to its width. */
-  | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[] }
+  /** `time`: virtual time in ticks (cycle count `(time + 1) / 2`); `running`: whether a run is under way. */
+  | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[]; time: number; running: boolean }
   /** `load`: the failing command was a load, which then gets no `loaded` reply. */
   | { type: "error"; message: string; load?: true };

@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { project } from "../editor/document";
 import { liveDefinitions, useEditor, type EditorState } from "../editor/store";
 import { startSimulation } from "./client";
-import type { Diagnostic, Result } from "./protocol";
+import type { Command, Diagnostic, Result } from "./protocol";
 
 export type Loaded = Extract<Result, { type: "loaded" }>;
 
@@ -17,7 +17,16 @@ export type SimState = {
   runtime: Diagnostic[];
   /** The document changed and the engine has not reported on it yet. */
   stale: boolean;
+  /** Virtual time in ticks, as last reported; the cycle counter is `(time + 1) / 2` (ADR 0017). */
+  time: number;
+  /** Whether the worker is running the clock (it pauses itself on an unstable loop). */
+  running: boolean;
+  /** Run speed in cycles per second, the editor's choice. */
+  speed: number;
 };
+
+/** Run speeds offered, in cycles per second (ADR 0017). */
+export const SPEEDS = [1, 2, 5, 10, 100, 1000, 10000] as const;
 
 export const useSim = create<SimState>()(() => ({
   status: "loading",
@@ -26,7 +35,24 @@ export const useSim = create<SimState>()(() => ({
   nets: null,
   runtime: [],
   stale: true,
+  time: 0,
+  running: false,
+  speed: 2,
 }));
+
+/** Sends a command to the worker, once `connectEngine` has started it. */
+let send: ((command: Command) => void) | null = null;
+
+/** Run, Pause, Step and Reset (ADR 0017). Run uses the chosen speed. */
+export function control(type: "run" | "pause" | "step" | "reset") {
+  send?.(type === "run" ? { type, cyclesPerSecond: useSim.getState().speed } : { type });
+}
+
+/** Picks the run speed; a run under way continues at it. */
+export function setSpeed(speed: number) {
+  useSim.setState({ speed });
+  if (useSim.getState().running) control("run");
+}
 
 /** Starts the worker and reloads it whenever the circuit's connectivity changes. */
 export function connectEngine(): () => void {
@@ -52,8 +78,11 @@ export function connectEngine(): () => void {
         useSim.setState({ loaded: message, status: "ready", error: null });
         break;
       case "state":
+        // Running or not is the worker's, whatever circuit the state describes.
+        useSim.setState({ running: message.running });
         if (pending === 0) {
-          useSim.setState({ nets: message.nets, runtime: message.diagnostics, stale: false, status: "ready", error: null });
+          const { nets, diagnostics: runtime, time } = message;
+          useSim.setState({ nets, runtime, time, stale: false, status: "ready", error: null });
         }
         break;
     }
@@ -80,10 +109,12 @@ export function connectEngine(): () => void {
     if (Object.keys(changed).length > 0) client.send({ type: "setInputs", values: changed });
     sent = inputs;
   };
+  send = client.send;
   sync(useEditor.getState());
   const unsubscribe = useEditor.subscribe(sync);
   return () => {
     unsubscribe();
+    send = null;
     client.dispose();
   };
 }
