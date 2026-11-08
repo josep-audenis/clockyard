@@ -23,6 +23,8 @@ replacement.
 | [0015](0015-net-labels.md) | Named connections: net labels on junctions | Accepted; amended by its own amendment (building the editor) |
 | [0016](0016-make-component-crossing-wires.md) | Make component keeps wires that cross the selection's edge | Accepted; amended by its own amendment (what stays on the sheet) |
 | [0017](0017-clocks-and-flip-flops.md) | Clocks, flip-flops and virtual time | Accepted |
+| [0018](0018-rom-and-ram.md) | ROM and RAM parts | Accepted |
+| [0019](0019-reference-cpu.md) | The reference CPU, its assembler and instruction stepping | Proposed |
 
 ## Template
 

@@ -50,12 +50,14 @@ The UI never computes a signal value. It renders values received from the worker
 
 The editable design. Owned by the frontend, serialized as JSON, versioned.
 
-Format version 6 (ADRs 0010, 0012, 0013, 0014, 0015; exact schema fixed in code with validation):
+Format version 8 (ADRs 0010, 0012, 0013, 0014, 0015, 0017, 0018; exact schema fixed in code with
+validation). Versions 7 and 8 add part kinds and props only: `clock` and `dff` (v7), `rom` and `ram`
+with `addressWidth`, and a ROM's `data` and editor-only `source` (v8):
 
 ```json
 {
   "format": "clockyard",
-  "version": 6,
+  "version": 8,
   "metadata": { "name": "AND demo", "createdAt": "2026-11-06T12:00:00Z", "modifiedAt": "2026-11-06T12:00:00Z" },
   "circuit": {
     "components": [
@@ -150,8 +152,9 @@ file format evolve (migrations, layout fields) without touching Rust.
 ```ts
 // apps/web/src/simulation/protocol.ts ↔ sim-core `description`
 type CircuitBody = {
-  // width and fields: from props.width and props.fields (ADR 0014).
-  components: { id: string; kind: string; definition?: string; width?: number; fields?: number[] }[];
+  // width and fields: from props.width and props.fields (ADR 0014); addressWidth and a ROM's data (ADR 0018).
+  components: { id: string; kind: string; definition?: string; width?: number; fields?: number[];
+    addressWidth?: number; data?: number[] }[];
   junctions: { id: string; name?: string }[]; // name: a net label (ADR 0015)
   connections: { id: string; from: Endpoint; to: Endpoint }[]; // id = document wire ID
 };
@@ -201,7 +204,8 @@ type Command =
   | { type: "run"; cyclesPerSecond: number } // the worker ticks until paused (ADR 0017)
   | { type: "pause" }
   | { type: "step" }                   // pause, then one clock cycle
-  | { type: "reset" };                 // pause; flip-flops, clock and time to 0
+  | { type: "reset" }                  // pause; flip-flops, RAM, clock and time to 0
+  | { type: "readMemory"; component: string }; // a ROM's or RAM's words, by elaborated ID (ADR 0018)
 
 // worker → main
 type Result =
@@ -213,6 +217,7 @@ type Result =
       diagnostics: Diagnostic[] }
   | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[]; // nets each cut to its width
       time: number; running: boolean }   // ticks; whether a run is under way
+  | { type: "memory"; component: string; words: Uint32Array } // empty when not a memory
   | { type: "error"; message: string; load?: true; running?: boolean }; // load: answers a load; running: after the failure
 ```
 

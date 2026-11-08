@@ -12,8 +12,9 @@ export type CircuitBody = {
   /**
    * `definition`: for `custom` parts, the definition it is an instance of (ADR 0012).
    * `width` (switches, LEDs, gates) and `fields` (split, merge): ADR 0014; the engine validates them.
+   * `addressWidth` (ROM, RAM) and `data` (a ROM's words): ADR 0018.
    */
-  components: { id: string; kind: string; definition?: string; width?: number; fields?: number[] }[];
+  components: { id: string; kind: string; definition?: string; width?: number; fields?: number[]; addressWidth?: number; data?: number[] }[];
   /** `name`: a net label (ADR 0015); the engine joins same-named junctions on one sheet. */
   junctions: { id: string; name?: string }[];
   connections: { id: string; from: Endpoint; to: Endpoint }[];
@@ -45,7 +46,9 @@ export type Command =
   /** Pauses, then one clock cycle: until the clock has risen once and is low again. */
   | { type: "step" }
   /** Pauses, then flip-flops, the clock and time back to 0; switch values kept. */
-  | { type: "reset" };
+  | { type: "reset" }
+  /** The words of a ROM or RAM, by elaborated ID (`instance/ram` inside an instance), answered with `memory` (ADR 0018). */
+  | { type: "readMemory"; component: string };
 
 export type Result =
   | { type: "ready" }
@@ -66,5 +69,7 @@ export type Result =
   /** `time`: virtual time in ticks (cycle count `(time + 1) / 2`); `running`: whether a run is under way. */
   | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[]; time: number; running: boolean }
   /** `load`: the failing command was a load, which then gets no `loaded` reply. */
+  /** `words`: empty when the component is not a memory or nothing is loaded. */
+  | { type: "memory"; component: string; words: Uint32Array }
   /** `running`: whether a run is still under way after the failure (ADR 0017). */
   | { type: "error"; message: string; load?: true; running?: boolean };

@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::catalog::{Kind, MAX_WIDTH};
+use crate::catalog::{Kind, MAX_ADDRESS, MAX_WIDTH, mask};
 use crate::elaborate::CUSTOM;
 
 /// Geometry-free circuit projected from the editable document.
@@ -71,12 +71,87 @@ pub struct ComponentDesc {
     /// Field widths of a split or merge, least significant first.
     #[serde(default)]
     pub fields: Option<Vec<f64>>,
+    /// Address width of a ROM or RAM (ADR 0018): it holds 2^address words; absent means 8.
+    #[serde(default, rename = "addressWidth")]
+    pub address_width: Option<f64>,
+    /// A ROM's words from address 0 (ADR 0018); words past the end read 0.
+    #[serde(default)]
+    pub data: Option<Vec<f64>>,
+}
+
+/// A part's props as checked whole numbers (ADRs 0014, 0018).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Shape {
+    /// Width of its data ports; 1 where it takes none.
+    pub width: u32,
+    /// A split's or merge's field widths.
+    pub fields: Vec<u32>,
+    /// A memory's address width; 0 for other parts.
+    pub address: u32,
+    /// A ROM's words.
+    pub data: Vec<u32>,
 }
 
 impl ComponentDesc {
+    /// The part's width, fields, address width and contents as whole numbers,
+    /// or what is wrong with them: `invalidWidth`, or `invalidContents` for a
+    /// ROM's words (ADRs 0014, 0018). Unknown kinds pass: they are reported as
+    /// such later.
+    pub fn shape(&self) -> Result<Shape, (Code, String)> {
+        let (width, fields) = self.widths().map_err(|e| (Code::InvalidWidth, e))?;
+        let kind = Kind::from_name(&self.kind);
+        let addressed = kind.is_some_and(Kind::addressed);
+        let address = match self.address_width {
+            None if addressed => 8,
+            None => 0,
+            Some(_) if !addressed => {
+                let message = format!("a {} takes no address width", self.kind);
+                return Err((Code::InvalidWidth, message));
+            }
+            Some(a) if a.fract() == 0.0 && (1.0..=MAX_ADDRESS as f64).contains(&a) => a as u32,
+            Some(a) => {
+                let message =
+                    format!("address width {a} is not a whole number from 1 to {MAX_ADDRESS}");
+                return Err((Code::InvalidWidth, message));
+            }
+        };
+        let data = match &self.data {
+            None => Vec::new(),
+            Some(_) if kind != Some(Kind::Rom) => {
+                let message = format!("a {} holds no data", self.kind);
+                return Err((Code::InvalidContents, message));
+            }
+            Some(words) if words.len() > 1 << address => {
+                let message = format!(
+                    "{} words do not fit in {} addresses",
+                    words.len(),
+                    1u32 << address
+                );
+                return Err((Code::InvalidContents, message));
+            }
+            Some(words) => words
+                .iter()
+                .map(|&w| {
+                    (w.fract() == 0.0 && (0.0..=f64::from(mask(width))).contains(&w))
+                        .then_some(w as u32)
+                })
+                .collect::<Option<Vec<u32>>>()
+                .ok_or_else(|| {
+                    let message = format!("words must be whole numbers from 0 to {}", mask(width));
+                    (Code::InvalidContents, message)
+                })?,
+        };
+        Ok(Shape {
+            width,
+            fields,
+            address,
+            data,
+        })
+    }
+
     /// The part's width and fields as whole numbers, or what is wrong with
     /// them (ADR 0014). Unknown kinds pass: they are reported as such later.
-    pub fn widths(&self) -> Result<(u32, Vec<u32>), String> {
+    fn widths(&self) -> Result<(u32, Vec<u32>), String> {
         let kind = Kind::from_name(&self.kind);
         if kind.is_none() && self.kind != CUSTOM {
             return Ok((1, Vec::new()));
@@ -202,6 +277,7 @@ pub enum Code {
     WidthMismatch,
     InvalidWidth,
     UnmatchedLabel,
+    InvalidContents,
     // Runtime
     Unstable,
 }

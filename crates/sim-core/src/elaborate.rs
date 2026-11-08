@@ -18,6 +18,10 @@ use crate::sim::{find, width_mismatch, wires_verb};
 /// Kind of a part that is an instance of a definition.
 pub const CUSTOM: &str = "custom";
 
+/// Most memory words a flattened circuit may hold, so a ROM in a definition placed many times cannot
+/// expand without bound (ADR 0018).
+pub const MAX_WORDS: usize = 1 << 20;
+
 /// Most items a flattened circuit may hold ("excessive complexity"): parts, junctions,
 /// wires and instance expansions all count, so no small file can expand into a huge one.
 pub const MAX_PARTS: usize = 200_000;
@@ -94,6 +98,7 @@ pub fn elaborate(
         pins_ok: BTreeMap::new(),
         wired: BTreeSet::new(),
         size: 0,
+        words: 0,
     };
     flat.level(
         &description.components,
@@ -148,11 +153,11 @@ fn check_widths(
     errors: &mut Vec<Diagnostic>,
 ) {
     for c in components {
-        if let Err(problem) = c.widths() {
+        if let Err((code, problem)) = c.shape() {
             let at = definition.map_or_else(String::new, |d| format!("definition {d}: "));
             let message = format!("{at}{}: {problem}", c.id);
             let id = definition.unwrap_or(&c.id).to_string();
-            errors.push(Diagnostic::error(Code::InvalidWidth, message, vec![id]));
+            errors.push(Diagnostic::error(code, message, vec![id]));
         }
     }
 }
@@ -219,7 +224,7 @@ fn check_wiring<'a>(
     let parts: BTreeMap<&str, &ComponentDesc> =
         components.iter().map(|c| (c.id.as_str(), c)).collect();
     // A switch's or LED's width; widths were checked before any wiring.
-    let width = |c: &ComponentDesc| c.widths().map_or(1, |(width, _)| width);
+    let width = |c: &ComponentDesc| c.shape().map_or(1, |shape| shape.width);
     // Role of a port end, whether it is a pin (an instance's port or a pin part), and its width.
     let role = |port: &PortRef| -> Option<(Role, bool, u32)> {
         let name = port.port.as_str();
@@ -244,11 +249,8 @@ fn check_wiring<'a>(
             return (name == own).then_some((role, true, width(part)));
         }
         let kind = Kind::from_name(&part.kind)?;
-        let (part_width, fields) = part.widths().ok()?;
-        let port = kind
-            .ports(part_width, &fields)
-            .into_iter()
-            .find(|p| p.name == name)?;
+        let shape = part.shape().ok()?;
+        let port = kind.ports(&shape).into_iter().find(|p| p.name == name)?;
         let role = if port.output {
             Role::Drives
         } else {
@@ -403,6 +405,8 @@ struct Flat<'a> {
     wired: BTreeSet<&'a str>,
     /// Items emitted or expanded so far, against `MAX_PARTS`.
     size: usize,
+    /// Memory words emitted so far, against `MAX_WORDS`.
+    words: usize,
 }
 
 impl<'a> Flat<'a> {
@@ -458,7 +462,7 @@ impl<'a> Flat<'a> {
                     }
                 }
             } else if pins.contains_key(c.id.as_str()) {
-                let width = c.widths().ok().map(|(width, _)| width);
+                let width = c.shape().ok().map(|shape| shape.width);
                 // A pin carries no name: labels never join across a component's boundary.
                 self.out.junctions.push(JunctionDesc {
                     id,
@@ -467,6 +471,22 @@ impl<'a> Flat<'a> {
                     name: None,
                 });
             } else {
+                let words = c.shape().map_or(0, |shape| {
+                    if shape.address > 0 {
+                        1 << shape.address
+                    } else {
+                        0
+                    }
+                });
+                self.words += words;
+                if words > 0 && self.words > MAX_WORDS {
+                    let message = format!(
+                        "the circuit's memories hold more than {MAX_WORDS} words once components are expanded"
+                    );
+                    self.error(Code::TooLarge, message, &id);
+                    self.size = MAX_PARTS + 1;
+                    return;
+                }
                 self.out.components.push(ComponentDesc { id, ..c.clone() });
             }
             if self.size > MAX_PARTS {

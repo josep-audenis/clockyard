@@ -1,15 +1,17 @@
-// The editable circuit document, format version 7 (docs/architecture.md#circuit-document, ADRs 0010, 0012, 0014, 0015, 0017).
+// The editable circuit document, format version 8 (docs/architecture.md#circuit-document, ADRs 0010, 0012, 0014, 0015, 0017, 0018).
 // Connectivity is explicit: wires reference ports and junctions by ID, never by geometry.
 import type { CircuitBody, CircuitDescription, Endpoint, JunctionRef, PinDesc } from "../simulation/protocol";
 
 /** The built-in parts (the engine's catalog). */
-export const COMPONENT_KINDS = ["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "split", "merge", "clock", "dff"] as const;
+export const COMPONENT_KINDS = ["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "split", "merge", "clock", "dff", "rom", "ram"] as const;
 export type ComponentKind = (typeof COMPONENT_KINDS)[number];
 /** A splitter or merger: its `fields` prop adds a port per field (ADR 0014). Every other built-in part takes `width`. */
 export type FieldedKind = "split" | "merge";
 export const isFielded = (kind: PartKind): kind is FieldedKind => kind === "split" || kind === "merge";
 /** Whether `width` sets the part's ports (ADR 0014): not a chip, splitter, merger or clock (always 1 bit, ADR 0017). */
 export const takesWidth = (kind: PartKind) => kind !== "custom" && kind !== "clock" && !isFielded(kind);
+/** A ROM or RAM (ADR 0018): `addressWidth` sets its `addr` port and how many words it holds. */
+export const isMemory = (kind: PartKind) => kind === "rom" || kind === "ram";
 /** A built-in part, or an instance of a custom component (ADR 0012). */
 export type PartKind = ComponentKind | "custom";
 
@@ -21,13 +23,30 @@ export const MAX_LABEL = 32;
 /** Widest signal, as sim-core's `MAX_WIDTH`; a test checks the two agree (ADR 0014). */
 export const MAX_WIDTH = 32;
 
+/** Widest memory address, as sim-core's `MAX_ADDRESS`, and the address width a memory has unless set (ADR 0018). */
+export const MAX_ADDRESS = 16;
+export const DEFAULT_ADDRESS = 8;
+
+/** Longest assembly source a ROM keeps (ADR 0019); far more than 256 instructions need. */
+export const MAX_SOURCE = 64 * 1024;
+
 /**
  * `label` is editor-only: a switch's or LED's label names the circuit's input or
  * output pin. `width` (switches, LEDs and gates; absent means 1) and `fields`
  * (splitters and mergers: field widths, lowest bits first) are projected to the
- * engine, which owns what they mean (ADR 0014).
+ * engine, which owns what they mean (ADR 0014). `addressWidth` (ROM, RAM; absent
+ * means 8) and `data` (a ROM's words from address 0) are projected too; `source`, a
+ * ROM's assembly, is editor-only (ADRs 0018, 0019).
  */
-export type Props = { label?: string; width?: number; fields?: number[] };
+export type Props = { label?: string; width?: number; fields?: number[]; addressWidth?: number; data?: number[]; source?: string };
+
+/** What is wrong with a ROM's words, or null: whole numbers that fit `width` bits, no more than `2^address` (ADR 0018). */
+export function wordsProblem(words: unknown, width: number, address: number): string | null {
+  if (!Array.isArray(words)) return "must be a list of words";
+  if (words.length > 2 ** address) return `are ${words.length} words, more than the ${2 ** address} addresses hold`;
+  const max = maxValue(width);
+  return words.every((w) => Number.isInteger(w) && w >= 0 && w <= max) ? null : `must be whole numbers from 0 to ${max}`;
+}
 
 /** A new splitter or merger has four 1-bit fields (ADR 0014). */
 export const DEFAULT_FIELDS: readonly number[] = [1, 1, 1, 1];
@@ -127,7 +146,7 @@ export type Definition = { id: string; name: string; circuit: Circuit };
 
 export type CircuitDocument = {
   format: "clockyard";
-  version: 7;
+  version: 8;
   metadata: { name: string; createdAt: string; modifiedAt: string };
   circuit: Circuit;
   definitions: Definition[];
@@ -169,6 +188,8 @@ const body = (circuit: Circuit): CircuitBody => ({
     ...(definition && { definition }),
     ...(props.width !== undefined && { width: props.width }),
     ...(props.fields !== undefined && { fields: props.fields }),
+    ...(props.addressWidth !== undefined && { addressWidth: props.addressWidth }),
+    ...(props.data !== undefined && { data: props.data }),
   })),
   junctions: circuit.junctions.map(({ id, name }) => (name ? { id, name } : { id })),
   connections: circuit.wires.map(({ id, from, to }) => ({ id, from, to })),

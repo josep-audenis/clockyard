@@ -394,3 +394,23 @@ button:focus-visible {
   font-family: var(--font-mono);
   white-space: nowrap;
 }
+
+/* A memory's words in the inspector (ADR 0018): monospace, eight to a line. */
+.memory-words {
+  height: auto;
+  margin: 0;
+  padding: var(--space-2);
+  font: 400 12px/16px var(--font-mono);
+  white-space: pre;
+  overflow-x: auto;
+  resize: vertical;
+}
+
+pre.memory-words {
+  max-height: 16rem;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-raised);
+  color: var(--ink);
+}

@@ -5,7 +5,7 @@ import { parseDocument, serializeDocument } from "./file";
 
 const document: CircuitDocument = {
   format: "clockyard",
-  version: 7,
+  version: 8,
   metadata: { name: "AND demo", createdAt: "2026-11-06T12:00:00Z", modifiedAt: "2026-11-06T12:30:00Z" },
   circuit: {
     components: [
@@ -77,7 +77,7 @@ test("definition names are normalized like the editor does, and a blank one beco
 test.each([
   ["not JSON", () => parseDocument("{"), "not valid JSON"],
   ["another format", () => broken((doc) => Object.assign(doc, { format: "other" })), "not a Clockyard file"],
-  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 8 })), "newer Clockyard"],
+  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 9 })), "newer Clockyard"],
   ["an instance of a missing definition", () => broken((doc) => Object.assign(doc.circuit.components[2] ?? {}, { definition: "gone" })), "missing definition gone"],
   ["an ID with a slash", () => broken((_, c) => (c.id = "a/b")), 'must not contain "/"'],
   ["a definition ID used twice", () => broken((doc) => doc.definitions.push({ ...(doc.definitions[0] as Definition) })), "ID inv is used more than once"],
@@ -228,4 +228,25 @@ test("an export leaves out wires to a deleted pin, on the main circuit and insid
   const clean: Definition = { ...outer, circuit: document.circuit };
   const nested = { ...document, definitions: [...document.definitions, outer] };
   expect(parseDocument(serializeDocument(nested))).toEqual({ ok: true, document: { ...nested, definitions: [...document.definitions, clean] } });
+});
+
+test("a version 7 file is migrated: only the version changes; memories round-trip in 8 (ADR 0018)", () => {
+  const v7 = { ...document, version: 7 };
+  expect(parseDocument(JSON.stringify(v7))).toEqual({ ok: true, document });
+  const rom = broken((_, c) => Object.assign(c, { kind: "rom", props: { width: 16, addressWidth: 4, data: [0x1005, 0xc000], source: "LDI 5\nHLT" } }));
+  expect(rom.ok && rom.document.circuit.components[0]).toMatchObject({ kind: "rom", props: { width: 16, addressWidth: 4, data: [0x1005, 0xc000], source: "LDI 5\nHLT" } });
+  // 8 address bits is the default, so it is not stored.
+  const ram = broken((_, c) => Object.assign(c, { kind: "ram", props: { width: 8, addressWidth: 8 } }));
+  expect(ram.ok && ram.document.circuit.components[0]?.props).toEqual({ width: 8 });
+});
+
+test.each([
+  ["an address width on a gate", { kind: "and", props: { addressWidth: 4 } }, "only ROMs and RAMs"],
+  ["an address width out of range", { kind: "rom", props: { addressWidth: 17 } }, "address width must be"],
+  ["data on a RAM", { kind: "ram", props: { data: [1] } }, "only ROMs hold"],
+  ["a word too wide", { kind: "rom", props: { width: 8, data: [256] } }, "from 0 to 255"],
+  ["more words than addresses", { kind: "rom", props: { addressWidth: 1, data: [1, 2, 3] } }, "more than the 2 addresses"],
+  ["source on a RAM", { kind: "ram", props: { source: "HLT" } }, "only ROMs keep"],
+])("refuses %s", (_, part, message) => {
+  expect(broken((__, c) => Object.assign(c, part))).toMatchObject({ ok: false, error: expect.stringContaining(message) });
 });

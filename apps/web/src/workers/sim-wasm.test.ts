@@ -119,7 +119,7 @@ test("the catalog marks sized kinds and gives split and merge their field-port r
   type Part = { kind: string; sized?: true; fieldPorts?: { side: string; prefix: string } };
   const parts = JSON.parse(catalog()) as Part[];
   expect(max_width()).toBe(MAX_WIDTH);
-  expect(parts.filter((p) => p.sized).map((p) => p.kind)).toEqual(["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "dff"]);
+  expect(parts.filter((p) => p.sized).map((p) => p.kind)).toEqual(["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "dff", "rom", "ram"]);
   expect(parts.filter((p) => p.fieldPorts).map((p) => [p.kind, p.fieldPorts])).toEqual([
     ["split", { side: "outputs", prefix: "f" }],
     ["merge", { side: "inputs", prefix: "f" }],
@@ -165,4 +165,18 @@ test("ticks, cycles and reset cross the boundary; switches set together settle o
 test("the editor offers a width exactly where the engine's catalog takes one", () => {
   const sized = (JSON.parse(catalog()) as { kind: string; sized?: true }[]).filter((p) => p.sized).map((p) => p.kind);
   expect(COMPONENT_KINDS.filter(takesWidth)).toEqual(sized);
+});
+
+test("a memory's words cross the boundary; anything else has none (ADR 0018)", () => {
+  const engine = new Engine();
+  const circuit = {
+    components: [
+      { id: "r", kind: "rom", width: 8, addressWidth: 2, data: [1, 2] },
+      { id: "g", kind: "not" },
+    ],
+    connections: [],
+  };
+  engine.load(JSON.stringify(circuit));
+  expect(engine.memory("r")).toEqual(new Uint32Array([1, 2, 0, 0]));
+  expect(engine.memory("g")).toBeUndefined();
 });

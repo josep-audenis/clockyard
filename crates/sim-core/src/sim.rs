@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use crate::catalog::{Kind, Port, mask};
-use crate::description::{CircuitDescription, Code, Diagnostic, Endpoint};
+use crate::description::{CircuitDescription, Code, Diagnostic, Endpoint, Shape};
 use crate::elaborate::{elaborate, lift, top};
 
 /// Net 0 is never driven: unconnected inputs read it as 0.
@@ -58,6 +58,15 @@ enum Op {
     Clock,
     /// Inputs `d`, `clk`; outputs its state. `clk_was` is the clock value it last saw.
     Dff {
+        clk_was: bool,
+    },
+    /// Input `addr`; outputs the word there (ADR 0018).
+    Rom {
+        words: Vec<u32>,
+    },
+    /// Inputs `addr`, `din`, `we`, `clk`; outputs the cell at `addr`, written on a rising `clk`.
+    Ram {
+        cells: Vec<u32>,
         clk_was: bool,
     },
 }
@@ -165,7 +174,7 @@ impl Simulator {
         let mut ids = Vec::new();
         let mut kinds = Vec::new();
         let mut ports: Vec<Vec<Port>> = Vec::new();
-        let mut fields = Vec::new();
+        let mut shapes: Vec<Shape> = Vec::new();
         for (i, component) in sorted.iter().enumerate() {
             if i > 0 && sorted[i - 1].id == component.id {
                 let message = format!("component ID {} is used more than once", component.id);
@@ -175,13 +184,13 @@ impl Simulator {
                     vec![component.id.clone()],
                 ));
             } else if let Some(kind) = Kind::from_name(&component.kind) {
-                let (width, part_fields) = component
-                    .widths()
-                    .expect("widths are checked level by level before compiling");
+                let shape = component
+                    .shape()
+                    .expect("shapes are checked level by level before compiling");
                 ids.push(component.id.clone());
                 kinds.push(kind);
-                ports.push(kind.ports(width, &part_fields));
-                fields.push(part_fields);
+                ports.push(kind.ports(&shape));
+                shapes.push(shape);
             } else {
                 let message = format!("{} has unknown kind '{}'", component.id, component.kind);
                 errors.push(Diagnostic::error(
@@ -479,16 +488,34 @@ impl Simulator {
                 Kind::Switch => add(Op::Switch, &[], 0),
                 Kind::Clock => add(Op::Clock, &[], 0),
                 Kind::Dff => add(Op::Dff { clk_was: false }, &nets[..2], 2),
+                // ADR 0018: a ROM's words padded to its size; a RAM's cells start at 0.
+                Kind::Rom => {
+                    let mut words = shapes[c].data.clone();
+                    words.resize(1 << shapes[c].address, 0);
+                    add(Op::Rom { words }, &nets[..1], 1);
+                }
+                Kind::Ram => {
+                    let cells = vec![0; 1 << shapes[c].address];
+                    add(
+                        Op::Ram {
+                            cells,
+                            clk_was: false,
+                        },
+                        &nets[..4],
+                        4,
+                    );
+                }
                 Kind::Split => {
                     let mut shift = 0;
-                    for (i, width) in fields[c].iter().enumerate() {
+                    for (i, width) in shapes[c].fields.iter().enumerate() {
                         add(Op::Field { shift }, &nets[..1], 1 + i);
                         shift += width;
                     }
                 }
                 Kind::Merge => {
-                    let n = fields[c].len();
-                    let shifts = fields[c]
+                    let n = shapes[c].fields.len();
+                    let shifts = shapes[c]
+                        .fields
                         .iter()
                         .scan(0, |shift, width| {
                             *shift += width;
@@ -516,7 +543,9 @@ impl Simulator {
         let clocks = (0..count)
             .filter(|&p| matches!(prims[p as usize].op, Op::Clock))
             .collect();
-        let stateful = prims.iter().any(|p| matches!(p.op, Op::Dff { .. }));
+        let stateful = prims
+            .iter()
+            .any(|p| matches!(p.op, Op::Dff { .. } | Op::Ram { .. }));
         let mut sim = Simulator {
             ids,
             kinds,
@@ -557,7 +586,7 @@ impl Simulator {
             .map(|p| self.fanout[p + 1].len())
             .collect();
         // A flip-flop's value changes while settling, so it counts as part of a loop (ADR 0017).
-        let pure = |p: usize| !matches!(self.prims[p].op, Op::Dff { .. });
+        let pure = |p: usize| !matches!(self.prims[p].op, Op::Dff { .. } | Op::Ram { .. });
         let mut peeled: Vec<usize> = (0..readers.len())
             .filter(|&p| readers[p] == 0 && pure(p))
             .collect();
@@ -663,6 +692,8 @@ impl Simulator {
         let input = |i: usize| prim.inputs.get(i).map_or(0, |&net| self.nets[net as usize]);
         let value = match &prim.op {
             Op::Switch | Op::Clock | Op::Dff { .. } => prim.state,
+            Op::Rom { words } => words.get(input(0) as usize).copied().unwrap_or(0),
+            Op::Ram { cells, .. } => cells.get(input(0) as usize).copied().unwrap_or(0),
             Op::Gate(kind) => kind.gate(input(0), input(1)),
             Op::Field { shift } => input(0) >> shift,
             Op::Merge { shifts } => shifts
@@ -677,13 +708,46 @@ impl Simulator {
     /// the settle started from, never from this edge's new data (ADR 0017).
     fn clock_edge(&mut self, p: usize) {
         let prim = &mut self.prims[p];
-        if let Op::Dff { clk_was } = &mut prim.op {
-            let clk = self.nets[prim.inputs[1] as usize] == 1;
-            if clk && !*clk_was {
-                prim.state = self.snapshot[prim.inputs[0] as usize] & prim.mask;
+        let before = |slot: usize| self.snapshot[prim.inputs[slot] as usize];
+        match &mut prim.op {
+            Op::Dff { clk_was } => {
+                let clk = self.nets[prim.inputs[1] as usize] == 1;
+                if clk && !*clk_was {
+                    prim.state = before(0) & prim.mask;
+                }
+                *clk_was = clk;
             }
-            *clk_was = clk;
+            // A RAM writes `din` at `addr` when `we` was set, all three as the settle started (ADR 0018).
+            Op::Ram { cells, clk_was } => {
+                let clk = self.nets[prim.inputs[3] as usize] == 1;
+                if clk
+                    && !*clk_was
+                    && before(2) == 1
+                    && let Some(cell) = cells.get_mut(before(0) as usize)
+                {
+                    *cell = before(1) & prim.mask;
+                }
+                *clk_was = clk;
+            }
+            _ => {}
         }
+    }
+
+    /// The words of ROM or RAM `component`, by elaborated ID (`instance/ram`
+    /// inside an instance), or `None` if it is not a memory (ADR 0018).
+    pub fn memory(&self, component: &str) -> Option<&[u32]> {
+        let c = self
+            .ids
+            .binary_search_by(|id| id.as_str().cmp(component))
+            .ok()?;
+        self.prims
+            .iter()
+            .find(|p| p.part as usize == c)
+            .and_then(|p| match &p.op {
+                Op::Rom { words } => Some(words.as_slice()),
+                Op::Ram { cells, .. } => Some(cells.as_slice()),
+                _ => None,
+            })
     }
 
     /// Advances the clock `count` ticks, settling after each. Stops at the
@@ -729,6 +793,10 @@ impl Simulator {
                 Op::Clock => prim.state = 0,
                 Op::Dff { clk_was } => {
                     prim.state = 0;
+                    *clk_was = false;
+                }
+                Op::Ram { cells, clk_was } => {
+                    cells.fill(0);
                     *clk_was = false;
                 }
                 _ => {}
