@@ -302,11 +302,16 @@ sequential logic):
 - Wires kept after an edit can stay longer than needed until the file is
   opened again (by design, ADR 0011).
 - Routing does not yet avoid label tags (ADR 0015).
+- A component made by Make component can cover parts below it (ADR 0016).
+- Make component is offered only for two or more selected items.
 
 Fixed since: deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
 amended); a click on a label's tag selects it; below 900px the inspector
 moves under the canvas; Make component turns each net crossing the
-selection's edge into a new pin, still wired (ADR 0016).
+selection's edge into a new pin, still wired (ADR 0016), leaves junctions
+a net only passes through on the sheet, and keeps the chip's ports off
+junctions; a load the engine fails on no longer leaves the editor waiting
+for it.
 
 Out of scope for now: global labels across sheets and the other items ADR
 0015 leaves out; editing several parts' widths at once, signed display and

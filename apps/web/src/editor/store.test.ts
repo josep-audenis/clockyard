@@ -1148,3 +1148,25 @@ test("make component refuses a selection whose only crossings are undriven: no p
   const nets = { wireNets: { [w]: 0 }, wireWidths: { [w]: 1 }, netDrivers: [null, g] };
   expect(makeComponent("x", { stale: false, nets })).toMatch(/needs pins/);
 });
+
+test("make component leaves a junction a net only passes through on the sheet, and keeps the instance's ports off junctions", () => {
+  const { add, connect, connectToWire, addLabel, setLabel, select, makeComponent } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 10 });
+  const y = add("led", { x: 20, y: 10 });
+  const z = add("led", { x: 20, y: 14 });
+  const w = connect(port(s, "out"), port(y, "in")) ?? "";
+  connectToWire(port(z, "in"), w, { x: 8, y: 11 });
+  const [through] = useEditor.getState().circuit.junctions;
+  const { i, n, o } = inverter(); // instance would sit at (2,3), its input port at (2,4)
+  const label = addLabel({ x: 2, y: 4 }) ?? "";
+  setLabel(i, "In");
+  select([i, n, o, through?.id ?? ""]);
+  // No wire crosses: the passing net stays outside, so no engine result is needed.
+  expect(makeComponent("Inverter")).toBeNull();
+  const state = useEditor.getState();
+  expect(state.circuit.junctions.map((j) => j.id)).toEqual([through?.id, label]);
+  expect(state.circuit.wires.filter((x) => endOwner(x.from) === through?.id || endOwner(x.to) === through?.id)).toHaveLength(3);
+  expect(state.definitions[0]?.circuit.junctions).toEqual([]);
+  // Stepped down 2 cells: (2,4) holds the label.
+  expect(state.circuit.components.find((c) => c.kind === "custom")?.position).toEqual({ x: 2, y: 5 });
+});

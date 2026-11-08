@@ -1,6 +1,6 @@
 # 0016. Make component keeps wires that cross the selection's edge
 
-- Status: Accepted; amends ADR 0012 (item 5)
+- Status: Accepted (amended below); amends ADR 0012 (item 5)
 - Date: 2026-11-08
 - Depends on: ADRs 0010 (nets resolved in the engine), 0013 (ports by pin
   ID), 0014 (widths)
@@ -141,9 +141,9 @@ Constraints from earlier records:
 - Auto-named pins (`in1`, `out1`) are readable but generic, so users will
   often rename them.
 - An unfinished stub (an undriven wire across the edge) is still lost.
-- A selected junction that a driven net only passes through becomes a pin
+- A selected junction that a driven net only passes through became a pin
   wired to a lone junction inside: correct, but a port the chip does not
-  need.
+  need (changed by the amendment below).
 - Not covered: a net label whose name appears on both sides of the edge with
   no drawn wire crossing. It still becomes two nets, each reported as
   unmatched (ADR 0015, item 9).
@@ -157,3 +157,15 @@ Constraints from earlier records:
   - A Playwright test: switch → NOT → NOT → LED. Make a component of the
     two NOTs (the inspector offers Make component for two or more
     items), and the switch still drives the LED through the new chip.
+
+## Amendment (2026-11-08): what stays on the sheet, and where the chip goes
+
+- **A selected plain junction goes inside only if it joins something that
+  does:** a selected part, or a selected junction that is inside itself. A
+  named junction (a label) always goes inside, as ADR 0015 says. A
+  junction a net only passes through stays on the sheet with its wires, so
+  they do not cross the edge and the chip gets no port for them.
+- **The instance's ports never land on a junction left on the sheet** (ADR
+  0010). It starts at the top-left corner of what goes inside (pass-through
+  junctions left out) and steps down 2 cells
+  until no port is on a junction. Its body can still cover parts below.

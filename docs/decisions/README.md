@@ -21,7 +21,7 @@ replacement.
 | [0013](0013-instance-ports-by-pin-id.md) | Instance ports are named by their pin part's ID | Accepted; amended by its own amendment (wires to a deleted pin) |
 | [0014](0014-multi-bit-signals.md) | Multi-bit signals, buses and splitters | Accepted; amended by its own amendment (building it) |
 | [0015](0015-net-labels.md) | Named connections: net labels on junctions | Accepted; amended by its own amendment (building the editor) |
-| [0016](0016-make-component-crossing-wires.md) | Make component keeps wires that cross the selection's edge | Accepted |
+| [0016](0016-make-component-crossing-wires.md) | Make component keeps wires that cross the selection's edge | Accepted; amended by its own amendment (what stays on the sheet) |
 
 ## Template
 

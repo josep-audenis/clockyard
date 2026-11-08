@@ -21,13 +21,17 @@ onmessage = async (event: MessageEvent<Command>) => {
   // Load failure was already reported; calling into the uninitialised module would replace that message.
   if (!engine) return;
   const command = event.data;
+  // Set once a load has been answered, so a later failure is not taken for the load's.
+  let answered = false;
   try {
     switch (command.type) {
       case "load": {
         // The initial settle's result goes with the state, so the next settle (e.g. restored switch positions) replaces it.
+        hasCircuit = false;
         const { runtime, ...loaded } = JSON.parse(engine.load(JSON.stringify(command.circuit)));
         hasCircuit = loaded.netCount > 0;
         reply({ type: "loaded", ...loaded });
+        answered = true;
         state(runtime);
         break;
       }
@@ -37,6 +41,6 @@ onmessage = async (event: MessageEvent<Command>) => {
         break;
     }
   } catch (error) {
-    reply({ type: "error", message: String(error) });
+    reply({ type: "error", message: String(error), ...(command.type === "load" && !answered && { load: true as const }) });
   }
 };
