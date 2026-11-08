@@ -14,15 +14,15 @@ the browser through WASM in a Web Worker, linting, tests and a pre-push check ho
 PixiJS canvas, simulated by the Rust engine in a worker, exported and imported
 as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
 
-**Phase 2 — 🔨 in progress.**
+**Phase 2 — ✅ done.** Phase 3 (clocks and sequential logic) is next.
 Editing comfort, labels, junctions and nets, routing and rotation merged (PRs
 #8–#14). Custom components and the 4-bit adder target demo merged (PR #16);
 pins renamed safely by part ID (ADR 0013, file format v4); definitions can be
 renamed and deleted (ADR 0012 amendment). Multi-bit signals, buses and
 splitters (ADR 0014) are built: engine, boundary,
 format v5, editor and Playwright (PRs #26–#31). Named connections (net
-labels, ADR 0015, still marked proposed) are built too (PRs #33–#35 and
-the Playwright step), so every addition the brief plans for Phase 2 is in.
+labels, ADR 0015) are built too (PRs #33–#36), so every addition the brief
+plans for Phase 2 is in.
 
 ## Phase 0 — Foundation ✅
 
@@ -91,7 +91,7 @@ Acceptance — a user can:
 - [x] Reload it successfully
 - [x] A cascaded circuit with fan-out also evaluates correctly
 
-## Phase 2 — Proper circuit construction
+## Phase 2 — Proper circuit construction ✅
 
 Goal: larger combinational circuits are pleasant to build.
 

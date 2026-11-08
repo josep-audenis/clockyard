@@ -1,6 +1,6 @@
 # 0015. Named connections: net labels on junctions
 
-- Status: Proposed
+- Status: Accepted (amended below); amends ADR 0010
 - Date: 2026-11-07
 - Depends on: ADR 0014 (format v5, `widthMismatch`)
 

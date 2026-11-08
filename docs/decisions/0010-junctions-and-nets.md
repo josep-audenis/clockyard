@@ -1,6 +1,6 @@
 # 0010. Junctions, nets resolved in the engine, file format v2
 
-- Status: Accepted
+- Status: Accepted; amended by ADR 0015 (net labels)
 - Date: 2026-11-07
 
 ## Context
@@ -45,7 +45,8 @@ connection.
    dropping it on a wire splits that wire with a new junction at the nearest
    grid point and connects there, as one undo step. Junctions are selected,
    moved, copied and deleted like parts; deleting one deletes its wires, and a
-   junction left with no wires is removed. Dragging from an unselected
+   junction left with no wires is removed (a named junction, a net label, is
+   kept: amended by ADR 0015). Dragging from an unselected
    junction draws a new wire from it, as from a port; a click selects it, and
    a selected junction drags like a part. A drop, drag, paste, duplicate,
    rotation or placement never puts a junction on a port or another junction (or a port on a
