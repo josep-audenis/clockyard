@@ -260,6 +260,24 @@ impl Simulator {
         if !errors.is_empty() {
             return Err(errors);
         }
+        // Same-named junctions on one sheet are one net (ADR 0015). A flattened junction's sheet is
+        // its instance path; keyed as a pair, a main-sheet "i1/x" never meets instance i1's "x".
+        let mut labels: BTreeMap<(&str, &str), Vec<&str>> = BTreeMap::new();
+        for junction in &description.junctions {
+            if let Some(name) = junction.name.as_deref().filter(|n| !n.is_empty()) {
+                let sheet = junction.id.rsplit_once('/').map_or("", |(path, _)| path);
+                labels.entry((sheet, name)).or_default().push(&junction.id);
+            }
+        }
+        for same in labels.values() {
+            for id in &same[1..] {
+                let (ra, rb) = (
+                    find(&mut parent, junctions[same[0]]),
+                    find(&mut parent, junctions[id]),
+                );
+                parent[ra] = rb;
+            }
+        }
 
         let mut groups: BTreeMap<usize, Group> = BTreeMap::new();
         for (wire, node) in &joined {
@@ -405,6 +423,18 @@ impl Simulator {
                 named.insert(port.name.to_string(), net);
             }
             port_nets.insert(ids[c].clone(), named);
+        }
+
+        // A name no other junction on its sheet carries: probably a typo that leaves a net cut.
+        for ((_, name), same) in &labels {
+            if let [id] = same.as_slice() {
+                let message = format!("label `{name}` joins nothing else on this sheet");
+                warnings.push(Diagnostic::warning(
+                    Code::UnmatchedLabel,
+                    message,
+                    vec![(*id).to_string()],
+                ));
+            }
         }
 
         // Primitives in the order their output nets were numbered above.

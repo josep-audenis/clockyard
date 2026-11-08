@@ -41,6 +41,10 @@ pub struct PinDesc {
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct JunctionDesc {
     pub id: String,
+    /// A net label (ADR 0015): junctions with the same name on one sheet are one
+    /// net. Empty or absent means a plain junction.
+    #[serde(default)]
+    pub name: Option<String>,
     /// Set by elaboration for a custom component's pin: a net reaching one but
     /// no output is a pin left unconnected (reads 0), not an error, since each
     /// level's own wiring was checked before flattening (ADR 0012).
@@ -197,6 +201,8 @@ pub enum Code {
     InvalidId,
     WidthMismatch,
     InvalidWidth,
+    // Warnings found while compiling
+    UnmatchedLabel,
     // Runtime
     Unstable,
 }

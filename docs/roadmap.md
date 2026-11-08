@@ -215,12 +215,19 @@ Progress:
      Sum 44 (0x2C), Cout on; ↑ and Cin carry on to 46); and an 8-bit switch
      wired to a 1-bit LED shows the width mismatch until the LED is 8 bits
      too, after which it shows the switch's value.
-- 🔨 Named connections (net labels): designed in ADR 0015 (proposed), not
-  built yet. A label is a junction with a `name`; same-named junctions on one
-  sheet are one net, resolved by the engine in the level check and the flat
-  circuit, never across sheets. New warning `unmatchedLabel`. Format v6
-  (migration only bumps the version). Label tool in the parts panel, Name
-  in the inspector, tags drawn instead of dots.
+- 🔨 Named connections (net labels): designed in ADR 0015 (proposed). A
+  label is a junction with a `name`; same-named junctions on one sheet are
+  one net, never across sheets. Steps, in order:
+  1. ✅ Engine: the description's junction takes `name`; same-named
+     junctions are joined in the level check and in the flat circuit (by
+     instance path and name); new warning `unmatchedLabel`. Native tests
+     (`crates/sim-core/tests/labels.rs`) cover the ADR's list.
+  2. Format v6 (migration only bumps the version), import normalization
+     (label rules plus NFC), projection of `name`.
+  3. Editor: Label in the parts panel, Name in the inspector, tags drawn
+     instead of dots, the same-name highlight, unwired labels kept.
+  4. Playwright: two labels named `go` join a switch to an LED; renaming
+     one reports both as unmatched.
 - ✅ 4-bit adder example: one full-adder definition instanced four times,
   checked natively for all 512 inputs and in the browser
 
