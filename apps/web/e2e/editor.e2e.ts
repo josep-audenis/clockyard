@@ -220,11 +220,13 @@ test("an empty sheet says how to start; placing is explained; Fit frames the she
   await click(page, at(1, 1));
   await expectStates(page, { "Switch 1": 1, "LED 1": 1 });
 
-  // A field being typed in commits when a zoom button is clicked; the next key is not typed into it.
+  // A field being typed in commits when a zoom button is clicked, and the keyboard goes to the canvas: F fits.
   const label = page.getByRole("complementary", { name: "Inspector" }).getByRole("textbox", { name: "Label" });
   await label.fill("A");
   await zoom.getByRole("button", { name: "Zoom out" }).click();
+  await expect(zoom).toContainText("80%");
   await page.keyboard.press("f");
+  await expect(zoom).toContainText("200%");
   await expect(label).toHaveValue("A");
   await expect(readout(page, "Switch A")).toHaveCount(1);
 });

@@ -377,13 +377,16 @@ function EmptyHint() {
 function ZoomControls() {
   const zoom = useCanvasHints((s) => s.zoom);
   return (
-    // A click leaves focus where it was, so Space still pans and F still fits; Tab still reaches the buttons.
-    // A field being typed in still loses focus (and commits), so the next key is not typed into it.
+    // A click hands the keyboard to the canvas, as a press on the canvas does: a field being typed in commits,
+    // and Space pans and F fits next. Tab still reaches the buttons.
     <div
       className="zoom-controls"
       role="group"
       aria-label="Zoom"
-      onMouseDown={(e) => document.activeElement?.matches("input, textarea, select") || e.preventDefault()}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      }}
     >
       <button type="button" className="button" aria-label="Zoom out" title="Zoom out" onClick={() => viewControls.zoomBy?.(1 / 1.25)}>
         −
