@@ -1,6 +1,6 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { definitionName } from "../canvas/layout";
-import { mountCanvas, useCanvasHints } from "../canvas/scene";
+import { mountCanvas, useCanvasHints, viewControls } from "../canvas/scene";
 import {
   contains,
   fieldsProblem,
@@ -107,6 +107,7 @@ export function App() {
           <span className="wordmark-name">Clockyard</span>
         </span>
         <Breadcrumb />
+        <HistoryControls />
         <RunControls />
         <FileActions />
       </header>
@@ -290,19 +291,47 @@ function PartsLibrary() {
           </p>
         )}
       </section>
-      <p className="type-caption parts-hint">
-        Pick a part or press its key, then click the canvas to place it. Esc cancels. Drag from a port or junction to wire it (click a junction, then drag, to move it);
-        drop on a wire to branch it; drag a wire to reshape it. <kbd className="kbd">R</kbd> rotates, <kbd className="kbd">Shift</kbd>{" "}
-        <kbd className="kbd">R</kbd> back. Drag empty space to select, Shift
-        to add; hold Space and drag to pan. <kbd className="kbd">{MOD}</kbd> <kbd className="kbd">C</kbd>{" "}
-        <kbd className="kbd">X</kbd> <kbd className="kbd">V</kbd> <kbd className="kbd">D</kbd> <kbd className="kbd">A</kbd>{" "}
-        copy, cut, paste, duplicate and select all. <kbd className="kbd">{MOD}</kbd>{" "}
-        <kbd className="kbd">Z</kbd> undoes, <kbd className="kbd">{MOD}</kbd> <kbd className="kbd">Shift</kbd>{" "}
-        <kbd className="kbd">Z</kbd> redoes.
-      </p>
+      <div className="type-caption parts-hint">
+        <p>Pick a part or press its key, then click the canvas to place it. Esc cancels.</p>
+        <details>
+          <summary>Shortcuts and gestures</summary>
+          <dl className="shortcut-list">
+            {HELP.map(([keys, action]) => (
+              <div key={action}>
+                <dt>{keys}</dt>
+                <dd>{action}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+      </div>
     </aside>
   );
 }
+
+const keys = (...names: string[]) =>
+  names.map((name, i) => (
+    <kbd key={i} className="kbd">
+      {name}
+    </kbd>
+  ));
+/** The shortcuts-and-gestures list: what to do, and what it does. */
+const HELP: [ReactNode, string][] = [
+  ["Drag from a port or junction", "Wire it"],
+  ["Drop a wire on a wire", "Branch it"],
+  ["Drag a wire", "Reshape it"],
+  ["Click a junction, then drag", "Move it"],
+  ["Drag empty space", "Select; Shift adds"],
+  [keys("R"), "Rotate; Shift turns back"],
+  [keys("Del"), "Delete the selection"],
+  [<>{keys("Space")} + drag</>, "Pan"],
+  ["Wheel", "Zoom"],
+  [keys("F"), "Fit the sheet in view"],
+  [keys(MOD, "C", "X", "V"), "Copy, cut, paste"],
+  [keys(MOD, "D", "A"), "Duplicate, select all"],
+  [keys(MOD, "Z"), "Undo"],
+  [keys(MOD, "Shift", "Z"), "Redo"],
+];
 
 function Canvas() {
   const host = useRef<HTMLDivElement>(null);
@@ -313,7 +342,11 @@ function Canvas() {
     let dispose: (() => void) | undefined;
     // React may unmount before Pixi finishes its async start-up.
     mountCanvas(element).then(
-      (stop) => (disposed ? stop() : (dispose = stop)),
+      ({ stop, bind }) => {
+        if (disposed) return stop();
+        dispose = stop;
+        bind();
+      },
       (error: unknown) => (element.textContent = `Canvas failed to start: ${String(error)}`),
     );
     return () => {
@@ -321,7 +354,44 @@ function Canvas() {
       dispose?.();
     };
   }, []);
-  return <main ref={host} className="canvas-host" aria-label="Circuit canvas" />;
+  return (
+    <div className="canvas-area">
+      <main ref={host} className="canvas-host" aria-label="Circuit canvas" />
+      <EmptyHint />
+      <ZoomControls />
+    </div>
+  );
+}
+
+/** On an empty sheet with nothing armed: how to start. */
+function EmptyHint() {
+  const show = useEditor((s) => s.circuit.components.length === 0 && s.circuit.junctions.length === 0 && !s.armed && !s.armedLabel);
+  if (!show) return null;
+  return (
+    <p className="canvas-empty type-body">
+      Empty sheet. Choose a part on the left, or press <kbd className="kbd">S</kbd> for a switch, then click here to place it.
+    </p>
+  );
+}
+
+function ZoomControls() {
+  const zoom = useCanvasHints((s) => s.zoom);
+  return (
+    <div className="zoom-controls" role="group" aria-label="Zoom">
+      <button type="button" className="button" aria-label="Zoom out" title="Zoom out" onClick={() => viewControls.zoomBy?.(1 / 1.25)}>
+        −
+      </button>
+      <button type="button" className="button zoom-level" title="Zoom to 100%" onClick={() => viewControls.zoomBy?.(1 / zoom)}>
+        {Math.round(zoom * 100)}%
+      </button>
+      <button type="button" className="button" aria-label="Zoom in" title="Zoom in" onClick={() => viewControls.zoomBy?.(1.25)}>
+        +
+      </button>
+      <button type="button" className="button" title="Fit the sheet in view (F)" aria-keyshortcuts="F" onClick={() => viewControls.fit?.()}>
+        Fit
+      </button>
+    </div>
+  );
 }
 
 function Inspector() {
@@ -799,13 +869,30 @@ const PLAIN: Record<string, string> = {
   invalidId: "An ID contains a slash, which is kept for parts inside components.",
 };
 
+/** Undo and Redo, for those who do not know the shortcuts. */
+function HistoryControls() {
+  const canUndo = useEditor((s) => s.past.length > 0);
+  const canRedo = useEditor((s) => s.future.length > 0);
+  return (
+    <div className="run-controls" role="group" aria-label="History">
+      <button type="button" className="button" title={`Undo (${MOD}+Z)`} disabled={!canUndo} onClick={() => useEditor.getState().undo()}>
+        Undo
+      </button>
+      <button type="button" className="button" title={`Redo (${MOD}+Shift+Z)`} disabled={!canRedo} onClick={() => useEditor.getState().redo()}>
+        Redo
+      </button>
+    </div>
+  );
+}
+
 /** Run/Pause, Step, Reset and the run speed (ADR 0017): the worker runs the clock, the editor only asks. */
 function RunControls() {
   const running = useSim((s) => s.running);
   const speed = useSim((s) => s.speed);
   return (
     <div className="run-controls" role="group" aria-label="Simulation">
-      <button type="button" className="button" onClick={() => control(running ? "pause" : "run")}>
+      {/* As wide for Pause as for Run, so the toolbar does not shift. */}
+      <button type="button" className="button run-toggle" onClick={() => control(running ? "pause" : "run")}>
         {running ? "Pause" : "Run"}
       </button>
       <button type="button" className="button" onClick={() => control("step")}>
@@ -858,6 +945,13 @@ function StatusBar() {
   const bits = hovered === null || stale ? 1 : (loaded?.wireWidths[hovered] ?? 1);
   const net = hovered === null ? undefined : loaded?.wireNets[hovered];
   const probed = bits > 1 && net !== undefined ? nets?.[net] : undefined;
+  // While a part is armed, how to place it.
+  const placing = useEditor((s) =>
+    s.armedLabel
+      ? "Placing a label: click a grid point. Esc cancels."
+      : s.armed &&
+        `Placing ${kindName({ kind: s.armed, definition: s.armedDefinition ?? undefined, props: { width: s.armedWidth } })}: click to place it, R turns it. Esc cancels.`,
+  );
 
   const diagnostics = [...(loaded?.diagnostics ?? []), ...runtime];
   const errors = diagnostics.filter((d) => d.severity === "error");
@@ -885,8 +979,9 @@ function StatusBar() {
       ? error
       : probed !== undefined
         ? `${bits} bits: ${probed}, ${hex(probed, bits)}`
-        : first &&
-        `${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`;
+        : placing ||
+          (first &&
+        `${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`);
 
   return (
     <footer className="statusbar">

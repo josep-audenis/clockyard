@@ -175,6 +175,36 @@ test("undo and redo edits; a drag undoes in one step", async ({ page }) => {
   await expect(readout(page, "LED 1")).toHaveCount(0);
 });
 
+test("an empty sheet says how to start; placing is explained; Fit frames the sheet; the Undo button undoes", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  const hint = page.getByText("Empty sheet.");
+  const undo = page.getByRole("button", { name: "Undo" });
+  const zoom = page.getByRole("group", { name: "Zoom" });
+  await expect(hint).toBeVisible();
+  await expect(undo).toBeDisabled();
+
+  await page.keyboard.press("s");
+  await expect(status(page)).toContainText("Placing Switch");
+  await expect(hint).toHaveCount(0);
+  await click(page, at(1, 1));
+  await expect(status(page)).not.toContainText("Placing");
+
+  // One small part fits at the 2x cap, by key and by button.
+  await expect(zoom).toContainText("100%");
+  await page.keyboard.press("f");
+  await expect(zoom).toContainText("200%");
+  await zoom.getByRole("button", { name: "Zoom out" }).click();
+  await expect(zoom).toContainText("160%");
+  await zoom.getByRole("button", { name: "Fit" }).click();
+  await expect(zoom).toContainText("200%");
+
+  await undo.click();
+  await expect(readout(page, "Switch 1")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Redo" })).toBeEnabled();
+  await expect(hint).toBeVisible();
+});
+
 test("box-select, duplicate, drag the copy as a group, select all and delete", async ({ page }) => {
   await page.goto("/");
   const at = await grid(page);

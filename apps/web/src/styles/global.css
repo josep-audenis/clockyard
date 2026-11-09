@@ -9,6 +9,19 @@ body,
   margin: 0;
 }
 
+/* Native scrollbars and form controls follow the theme the tokens pick. */
+:root {
+  color-scheme: light dark;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+}
+
 body {
   background: var(--bench);
   color: var(--ink);
@@ -38,6 +51,8 @@ button:focus-visible {
 .toolbar {
   display: flex;
   align-items: center;
+  /* Scrolls sideways rather than widening the page when the controls outgrow it. */
+  overflow-x: auto;
   padding: 0 var(--space-4);
   background: var(--panel);
   border-bottom: 1px solid var(--line);
@@ -49,6 +64,7 @@ button:focus-visible {
   gap: var(--space-2);
   min-width: 0;
   margin-left: auto;
+  padding-left: var(--space-4);
 }
 
 .project-name {
@@ -74,8 +90,18 @@ button:focus-visible {
   cursor: pointer;
 }
 
-.button:hover {
+.button:hover:not(:disabled) {
   background: var(--panel-raised);
+}
+
+.button:disabled {
+  color: var(--ink-faint);
+  border-color: var(--line);
+  cursor: default;
+}
+
+.run-toggle {
+  min-width: 5em;
 }
 
 .wordmark {
@@ -186,7 +212,75 @@ button:focus-visible {
 
 .parts-hint {
   margin: var(--space-3);
-  color: var(--ink-faint);
+  color: var(--ink-muted);
+}
+
+.parts-hint p {
+  margin: 0 0 var(--space-2);
+}
+
+.parts-hint summary {
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.shortcut-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+}
+
+.shortcut-list dt {
+  color: var(--ink);
+}
+
+.shortcut-list dd {
+  margin: 0;
+}
+
+/* The canvas and what floats over it: the empty-sheet hint and the zoom controls. */
+.canvas-area {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+}
+
+.canvas-empty {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  width: min(360px, 80%);
+  margin: 0;
+  transform: translate(-50%, -50%);
+  color: var(--ink-muted);
+  text-align: center;
+  pointer-events: none;
+}
+
+.zoom-controls {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lift);
+}
+
+.zoom-controls .button {
+  min-width: var(--control-height);
+  padding: 0 var(--space-2);
+  border-color: transparent;
+  font: 500 12px/16px var(--font-sans);
+}
+
+.zoom-level {
+  min-width: 4.5em;
+  font-variant-numeric: tabular-nums;
 }
 
 .canvas-host {
@@ -369,11 +463,10 @@ button:focus-visible {
   min-width: 0;
 }
 
-/* Narrow screens: the toolbar scrolls sideways rather than widening the page, and drops the names. */
+/* Narrow screens: the toolbar drops the names. */
 @media (max-width: 700px) {
   .toolbar {
     gap: var(--space-2);
-    overflow-x: auto;
   }
 
   .run-controls {

@@ -64,7 +64,14 @@ const SIZES = ["grid-cell", "wire-width", "wire-width-high", "bus-width", "selec
  * What the canvas tells the rest of the editor: the wire under the pointer (the status
  * bar shows a bus's value), and a wide switch just clicked, whose Value field takes focus.
  */
-export const useCanvasHints = create<{ wire: string | null; focusValue: string | null }>(() => ({ wire: null, focusValue: null }));
+export const useCanvasHints = create<{ wire: string | null; focusValue: string | null; zoom: number }>(() => ({
+  wire: null,
+  focusValue: null,
+  zoom: 1,
+}));
+
+/** The zoom controls' commands, bound while a canvas is mounted. */
+export const viewControls: { zoomBy?: (factor: number) => void; fit?: () => void } = {};
 
 type Theme = { color: Record<(typeof COLORS)[number], string>; size: Record<(typeof SIZES)[number], number>; mono: string };
 
@@ -127,7 +134,8 @@ const samePoint = (a: Point | undefined, b: Point) => a !== undefined && a.x ===
 
 const toggled = (ids: string[], id: string) => (ids.includes(id) ? ids.filter((other) => other !== id) : [...ids, id]);
 
-export async function mountCanvas(host: HTMLElement): Promise<() => void> {
+/** Starts the canvas in `host`; `bind` makes it the one the zoom controls drive. Resolves to its stop function. */
+export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void; bind: () => void }> {
   const app = new Application();
   await app.init({
     autoStart: false,
@@ -861,18 +869,50 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     schedule();
   };
 
-  const onWheel = (e: WheelEvent) => {
-    e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
-    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.zoom * Math.exp(-e.deltaY * 0.0015)));
-    // Keep the point under the cursor fixed.
+  /** Zooms to `wanted` (clamped), keeping screen point (sx, sy) over the same world point. */
+  const zoomAt = (sx: number, sy: number, wanted: number) => {
+    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, wanted));
     view.x = sx - ((sx - view.x) * zoom) / view.zoom;
     view.y = sy - ((sy - view.y) * zoom) / view.zoom;
     view.zoom = zoom;
+    useCanvasHints.setState({ zoom });
     schedule();
   };
+
+  const onWheel = (e: WheelEvent) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    zoomAt(e.clientX - rect.left, e.clientY - rect.top, view.zoom * Math.exp(-e.deltaY * 0.0015));
+  };
+
+  /** Frames the whole sheet in the canvas, at most at 2x (labels soften beyond); an empty sheet goes back to the start view. */
+  const fit = () => {
+    const circuit = useEditor.getState().circuit;
+    const points = [
+      ...circuit.components.flatMap((part) => {
+        const { width, height } = layoutOf(part);
+        return [part.position, { x: part.position.x + width, y: part.position.y + height }];
+      }),
+      ...circuit.junctions.map((j) => j.position),
+      ...[...currentRoutes(circuit).values()].flat(),
+    ];
+    if (points.length === 0) {
+      Object.assign(view, { x: 48, y: 48 });
+      return zoomAt(0, 0, 1);
+    }
+    // A margin of two cells round the parts (and room for labels below them).
+    const xs = points.map((p) => p.x);
+    const ys = points.map((p) => p.y);
+    const [left, top] = [Math.min(...xs) - 2, Math.min(...ys) - 2];
+    const [w, h] = [Math.max(...xs) + 2 - left, Math.max(...ys) + 3 - top];
+    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(2, host.clientWidth / (w * cell()), host.clientHeight / (h * cell()))));
+    view.zoom = zoom;
+    view.x = (host.clientWidth - w * cell() * zoom) / 2 - left * cell() * zoom;
+    view.y = (host.clientHeight - h * cell() * zoom) / 2 - top * cell() * zoom;
+    useCanvasHints.setState({ zoom });
+    schedule();
+  };
+  const zoomBy = (factor: number) => zoomAt(host.clientWidth / 2, host.clientHeight / 2, view.zoom * factor);
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -925,6 +965,8 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
       // While placing, R turns the part about to be placed; otherwise the selection.
       if (editor.armed) editor.turnArmed(e.shiftKey ? -1 : 1);
       else editor.rotate(editor.selection, e.shiftKey ? -1 : 1);
+    } else if (onCanvas && !e.ctrlKey && !e.metaKey && !e.altKey && key === "f" && !gesture) {
+      fit();
     } else if (e.key === "Escape") {
       // During a drag, Escape puts things back where the drag started; otherwise it clears.
       if (gesture?.type === "move" || gesture?.type === "segment") return endGesture(true);
@@ -975,8 +1017,14 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
   const unsubscribe = [useEditor.subscribe(schedule), useSim.subscribe(schedule)];
   schedule();
 
-  return () => {
+  const bind = () => Object.assign(viewControls, { fit, zoomBy });
+  const stop = () => {
     unsubscribe.forEach((stop) => stop());
+    // Only this canvas's: one discarded during start-up never bound its own (see the caller).
+    if (viewControls.fit === fit) {
+      delete viewControls.fit;
+      delete viewControls.zoomBy;
+    }
     cancelAnimationFrame(frame);
     resize.disconnect();
     scheme.removeEventListener("change", onScheme);
@@ -985,4 +1033,5 @@ export async function mountCanvas(host: HTMLElement): Promise<() => void> {
     window.removeEventListener("blur", releaseSpace);
     app.destroy(true, { children: true });
   };
+  return { stop, bind };
 }
