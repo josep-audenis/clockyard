@@ -897,7 +897,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       ...[...currentRoutes(circuit).values()].flat(),
     ];
     if (points.length === 0) {
-      Object.assign(view, { x: 48, y: 48 });
+      // Zoom too, so zoomAt has nothing left to scale the offset by.
+      Object.assign(view, { x: 48, y: 48, zoom: 1 });
       return zoomAt(0, 0, 1);
     }
     // A margin of two cells round the parts (and room for labels below them).

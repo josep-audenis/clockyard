@@ -196,6 +196,10 @@ test("an empty sheet says how to start; placing is explained; Fit frames the she
   await expect(zoom).toContainText("200%");
   await zoom.getByRole("button", { name: "Zoom out" }).click();
   await expect(zoom).toContainText("160%");
+  // The zoom buttons do not take the keyboard: F still fits after one.
+  await page.keyboard.press("f");
+  await expect(zoom).toContainText("200%");
+  await zoom.getByRole("button", { name: "Zoom out" }).click();
   await zoom.getByRole("button", { name: "Fit" }).click();
   await expect(zoom).toContainText("200%");
 
@@ -203,6 +207,18 @@ test("an empty sheet says how to start; placing is explained; Fit frames the she
   await expect(readout(page, "Switch 1")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Redo" })).toBeEnabled();
   await expect(hint).toBeVisible();
+
+  // Fit on an empty sheet goes back to the start view: parts wired by the default grid work again.
+  await click(page, at(20, 20)); // focus back on the canvas
+  await page.keyboard.press("f");
+  await expect(zoom).toContainText("100%");
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0), out (2,1)
+  await page.keyboard.press("l");
+  await click(page, at(6, 1)); // LED at (5,0), in (5,1)
+  await drag(page, at(2, 1), at(5, 1));
+  await click(page, at(1, 1));
+  await expectStates(page, { "Switch 1": 1, "LED 1": 1 });
 });
 
 test("box-select, duplicate, drag the copy as a group, select all and delete", async ({ page }) => {
