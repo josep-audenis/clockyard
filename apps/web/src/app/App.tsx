@@ -377,7 +377,8 @@ function EmptyHint() {
 function ZoomControls() {
   const zoom = useCanvasHints((s) => s.zoom);
   return (
-    <div className="zoom-controls" role="group" aria-label="Zoom">
+    // A click leaves focus where it was, so Space still pans and F still fits; Tab still reaches the buttons.
+    <div className="zoom-controls" role="group" aria-label="Zoom" onMouseDown={(e) => e.preventDefault()}>
       <button type="button" className="button" aria-label="Zoom out" title="Zoom out" onClick={() => viewControls.zoomBy?.(1 / 1.25)}>
         −
       </button>
