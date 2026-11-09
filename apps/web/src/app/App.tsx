@@ -378,7 +378,13 @@ function ZoomControls() {
   const zoom = useCanvasHints((s) => s.zoom);
   return (
     // A click leaves focus where it was, so Space still pans and F still fits; Tab still reaches the buttons.
-    <div className="zoom-controls" role="group" aria-label="Zoom" onMouseDown={(e) => e.preventDefault()}>
+    // A field being typed in still loses focus (and commits), so the next key is not typed into it.
+    <div
+      className="zoom-controls"
+      role="group"
+      aria-label="Zoom"
+      onMouseDown={(e) => document.activeElement?.matches("input, textarea, select") || e.preventDefault()}
+    >
       <button type="button" className="button" aria-label="Zoom out" title="Zoom out" onClick={() => viewControls.zoomBy?.(1 / 1.25)}>
         −
       </button>

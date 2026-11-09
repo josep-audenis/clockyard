@@ -219,6 +219,14 @@ test("an empty sheet says how to start; placing is explained; Fit frames the she
   await drag(page, at(2, 1), at(5, 1));
   await click(page, at(1, 1));
   await expectStates(page, { "Switch 1": 1, "LED 1": 1 });
+
+  // A field being typed in commits when a zoom button is clicked; the next key is not typed into it.
+  const label = page.getByRole("complementary", { name: "Inspector" }).getByRole("textbox", { name: "Label" });
+  await label.fill("A");
+  await zoom.getByRole("button", { name: "Zoom out" }).click();
+  await page.keyboard.press("f");
+  await expect(label).toHaveValue("A");
+  await expect(readout(page, "Switch A")).toHaveCount(1);
 });
 
 test("box-select, duplicate, drag the copy as a group, select all and delete", async ({ page }) => {
