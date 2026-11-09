@@ -348,6 +348,8 @@ first. Rough edges still open:
 - Every connectivity edit resets registers and time (ADR 0017).
 - The readout for screen readers lists switches and LEDs only, not
   registers or the clock.
+- An imported file or opened sheet keeps the current view; Fit (F) frames
+  it. Fitting on open would move the grid the Playwright tests click by.
 
 Fixed since: deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
 amended); a click on a label's tag selects it; below 900px the inspector
@@ -355,7 +357,11 @@ moves under the canvas; Make component turns each net crossing the
 selection's edge into a new pin, still wired (ADR 0016), leaves junctions
 a net only passes through on the sheet, and keeps the chip's ports off
 junctions; a load the engine fails on no longer leaves the editor waiting
-for it.
+for it. UI polish: zoom controls over the canvas (−, level, +, Fit; F fits
+the sheet, at most 2x), Undo and Redo in the toolbar, a hint on an empty
+sheet and in the status bar while a part is armed, the shortcuts as a
+folding list in the parts panel, a Run/Pause button that keeps its width,
+and native scrollbars that follow the theme.
 
 Out of scope for now: global labels across sheets and the other items ADR
 0015 leaves out; editing several parts' widths at once, signed display and
