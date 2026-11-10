@@ -74,10 +74,21 @@ software CPU, and all simulation semantics live in `sim-core`.
      - the `A` source (operand, RAM or ALU);
      - the ALU's B source (RAM or operand) and its subtract signal;
      - the RAM's `we`.
+
+     As built, the decoding is a **control ROM**: the 4-bit opcode
+     addresses a 16 × 12-bit ROM whose word holds these signals, one bit
+     each, then gates gate them with the phase (`T ∧ ¬H`) and, for the
+     jumps, the flags. A ROM is combinational, so this is the decision
+     above; the script writes its words from the instruction table.
+   - **Constants.** There is no constant part, so the circuit makes 1 and
+     0 as XNOR and XOR of the clock with itself, and an 8-bit 0 by merging
+     eight copies of that 0. The incrementer adds 0 with a carry in of 1.
    - **On the sheet** the parts are laid out in labelled groups. The output
      register drives an 8-bit LED. The status LEDs "Fetch" (`¬T ∧ ¬H`)
-     and "Halted" (`H`) are defined in the specification. Every register
-     shows its value in hex, so register inspection needs nothing new.
+     and "Halted" (`H`) are defined in the specification. Registers are
+     instances of a register component, whose values a chip does not
+     show, so `PC`, `IR`, `A`, `Z`, `C` and `OUT` each drive an LED on the
+     sheet, and register inspection needs nothing new.
 4. **The assembler is Rust, in a new crate `crates/asm`.**
    - It has no dependencies and is not part of `sim-core`: it turns text
      into ROM words and simulates nothing.
