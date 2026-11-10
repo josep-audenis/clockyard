@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
-import { Engine, catalog, initSync, max_width } from "../generated/sim-wasm/sim_wasm.js";
+import { Engine, assemble, catalog, disassemble, initSync, max_width } from "../generated/sim-wasm/sim_wasm.js";
 import { COMPONENT_KINDS, MAX_WIDTH, takesWidth } from "../editor/document";
 import type { CircuitDescription, Diagnostic, Result } from "../simulation/protocol";
 
@@ -180,4 +180,18 @@ test("a memory's words cross the boundary; anything else has none (ADR 0018)", (
   expect(engine.memory("r", 256)).toEqual(new Uint32Array([1, 2, 0, 0]));
   expect(engine.memory("r", 2)).toEqual(new Uint32Array([1, 2])); // only the words asked for cross
   expect(engine.memory("g", 256)).toBeUndefined();
+});
+
+test("the assembler crosses the boundary: words, or every error with its line (ADR 0019)", () => {
+  expect(JSON.parse(assemble("LDI 5\nADI 3\nOUT\nHLT"))).toEqual({ words: [0x1005, 0x6003, 0xb000, 0xc000], errors: [] });
+  expect(JSON.parse(assemble("LDI\nJMP away"))).toEqual({
+    words: [],
+    errors: [
+      { line: 1, message: "LDI needs an operand" },
+      { line: 2, message: "unknown label away" },
+    ],
+  });
+  expect(disassemble(0x9005)).toBe("JZ 5");
+  // Not a 16-bit word: refused rather than wrapped.
+  for (const bad of [0x10005, -1, 1.5]) expect(() => disassemble(bad), String(bad)).toThrow("not a 16-bit ROM word");
 });

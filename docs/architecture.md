@@ -43,6 +43,7 @@ updated as code lands; anything not yet built is marked *planned*.
 | Validation of connectivity, elaboration of custom components | `sim-core` |
 | Signal state, propagation, scheduling, clocks, sequential state, virtual time | `sim-core` |
 | Stability/oscillation detection, runtime diagnostics | `sim-core` |
+| Reference-CPU assembly ↔ ROM words (simulates nothing; ADR 0019) | `asm` (exported via `sim-wasm`) |
 
 The UI never computes a signal value. It renders values received from the worker.
 
@@ -277,6 +278,7 @@ to any static host.
 | Layer | Tool | Covers |
 |-------|------|--------|
 | `sim-core` | `cargo test`, property tests | Truth tables, propagation, fan-out, order independence, oscillation, clocking, elaboration |
+| `asm` | `cargo test` | Every assembly syntax rule and error; disassembly of every word assembles back |
 | `sim-wasm` | `cargo test` + a small Vitest smoke test loading the built module | Boundary conversions |
 | `apps/web` | Vitest | Document edits, projection, serialization, import validation, worker protocol |
 | Browser | Playwright | Switch → gate → LED workflow; later save/load and clock stepping |

@@ -98,7 +98,9 @@ The circuit shows two 1-bit LEDs, which *Run until* uses (ADR 0019):
 - One instruction per line: a mnemonic, then its operand if it takes one.
   Mnemonics are case-insensitive.
 - `name:` at the start of a line defines a label, the address of the next
-  instruction. A label may stand on its own line. Names are letters,
+  instruction. A label may stand on its own line, and may touch its
+  instruction (`loop:OUT`). A label after the last instruction of a full
+  ROM would be address 256, so using it is an error. Names are letters,
   digits and `_`, not starting with a digit, and are case-sensitive.
 - Operands are numbers from 0 to 255, in decimal, `0x` hex or `0b` binary,
   or a label.
@@ -108,6 +110,8 @@ The circuit shows two 1-bit LEDs, which *Run until* uses (ADR 0019):
   - a missing, extra or out-of-range operand;
   - an unknown or repeated label;
   - more than 256 instructions.
+- Every error is reported, not only the first. Several labels may stand
+  before one instruction, each naming its address.
 
 Example: add 5 and 3, show the result and stop.
 

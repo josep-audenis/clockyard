@@ -11,6 +11,7 @@ publish.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+asm = { path = "../asm" }
 sim-core = { path = "../sim-core" }
 # Must match the wasm-bindgen CLI version exactly (ADR 0003). Bump both together:
 # scripts/build-wasm.mjs reads this line and checks the installed CLI.
