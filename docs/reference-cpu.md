@@ -108,6 +108,8 @@ The circuit shows two 1-bit LEDs, which *Run until* uses (ADR 0019):
   - a missing, extra or out-of-range operand;
   - an unknown or repeated label;
   - more than 256 instructions.
+- Every error is reported, not only the first. Several labels may stand
+  before one instruction, each naming its address.
 
 Example: add 5 and 3, show the result and stop.
 

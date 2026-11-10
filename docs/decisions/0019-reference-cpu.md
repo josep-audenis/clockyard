@@ -120,7 +120,10 @@ software CPU, and all simulation semantics live in `sim-core`.
 7. **Memory inspection** is ADR 0018's RAM dump in the inspector. A
    *Disassemble* view of the ROM, listing each word as its mnemonic, comes
    with the program editor. It is computed by `crates/asm`, not by the
-   engine.
+   engine. A word the assembler would not write (a reserved opcode,
+   reserved bits, or an operand on an instruction without one) shows what
+   it executes as, with the raw word in a comment (`NOP ; 0xD012`), so the
+   listing always assembles to a program that behaves the same.
 8. **Tests.**
    - **Reference model.** `crates/sim-core/tests/cpu.rs` holds a model of
      the specification, about 60 lines written from the page alone. It

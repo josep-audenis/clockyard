@@ -310,7 +310,8 @@ an LED lights* for instruction steps and breakpoints; proposed). Built in six st
 
 1. ✅ ROM and RAM (ADR 0018, accepted): engine, inspection (`readMemory`), the
    ROM, RAM tiles and inspector (address bits, contents, RAM dump), format v8.
-2. ⬜ `crates/asm` and its tests.
+2. ✅ `crates/asm`: assembler and disassembler with every syntax rule and
+   error tested, and `assemble`/`disassemble` in `sim-wasm`.
 3. ⬜ The generated CPU circuit and the differential tests.
 4. ⬜ `tick_until` and *Run until*.
 5. ⬜ The program editor and disassembly.

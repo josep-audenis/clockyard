@@ -3,6 +3,10 @@
 version = 4
 
 [[package]]
+name = "asm"
+version = "0.0.0"
+
+[[package]]
 name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -105,6 +109,7 @@ dependencies = [
 name = "sim-wasm"
 version = "0.0.0"
 dependencies = [
+ "asm",
  "serde",
  "serde_json",
  "sim-core",

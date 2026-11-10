@@ -53,6 +53,47 @@ pub fn max_width() -> u32 {
 }
 
 #[derive(Serialize)]
+struct Assembled {
+    words: Vec<u16>,
+    errors: Vec<AsmError>,
+}
+
+#[derive(Serialize)]
+struct AsmError {
+    line: usize,
+    message: String,
+}
+
+/// Assembles reference-CPU source (ADR 0019) as JSON `{ words, errors }`:
+/// the ROM words when it assembles, else every error with its 1-based line.
+#[wasm_bindgen]
+pub fn assemble(source: &str) -> String {
+    let assembled = match asm::assemble(source) {
+        Ok(words) => Assembled {
+            words,
+            errors: Vec::new(),
+        },
+        Err(errors) => Assembled {
+            words: Vec::new(),
+            errors: errors
+                .into_iter()
+                .map(|e| AsmError {
+                    line: e.line,
+                    message: e.message,
+                })
+                .collect(),
+        },
+    };
+    serde_json::to_string(&assembled).expect("plain data serializes")
+}
+
+/// One ROM word as reference-CPU assembly (ADR 0019).
+#[wasm_bindgen]
+pub fn disassemble(word: u16) -> String {
+    asm::disassemble(word)
+}
+
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Loaded<'a> {
     net_count: usize,
