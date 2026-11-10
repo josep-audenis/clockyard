@@ -101,6 +101,7 @@ dependencies = [
 name = "sim-core"
 version = "0.0.0"
 dependencies = [
+ "asm",
  "serde",
  "serde_json",
 ]
