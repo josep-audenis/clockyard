@@ -277,7 +277,14 @@ fn run_until_stops_where_the_specification_says_and_never_depends_on_how_the_run
     // Once halted, Fetch never rises: the run goes on until its count runs out.
     let never = sim.tick_until(10, fetch);
     assert_eq!((never.ticks, never.rose), (10, false));
-    // The same run split into calls of any size stops at the same tick.
+    // The same run split into calls of any size stops at the same tick: Fetch, lit at the start, and
+    // Halted, dark at the start.
+    for size in [1, 2, 3] {
+        let mut split = cpu(&text, &program);
+        let fetch = net(&split, "fetchled");
+        while !split.tick_until(size, fetch).rose {}
+        assert_eq!(split.time(), 3, "Fetch in calls of {size} ticks");
+    }
     for size in [1, 2, 3, 5] {
         let mut split = cpu(&text, &program);
         let halt = net(&split, "haltled");

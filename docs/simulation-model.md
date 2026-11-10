@@ -242,7 +242,7 @@ and asynchronous reset (asynchronous reset acts like a combinational input).
 | Control | Engine meaning |
 |---------|----------------|
 | Run / Pause | The worker ticks in slices, each 16 ms after the last finished: as many ticks as the speed calls for since then, in chunks of 64, starting no new chunk after 8 ms. Ticks that do not fit are dropped, so a circuit too heavy for the speed runs slower rather than catching up. A tick that is unstable pauses the run |
-| Run until | Run, stopping at the tick where a chosen LED's net rises: 0 before the tick, not 0 after it, so an LED lit at the start must go dark first (`tick_until`, ADR 0019). Where it stops does not depend on how the run is split into slices |
+| Run until | Run, stopping at the tick where a chosen LED's net rises: 0 just before the tick (after any switch change), not 0 after it, so an LED lit at the start must go dark first (`tick_until`, ADR 0019). Where it stops does not depend on how the run is split into slices |
 | Step | `step_cycle`: ticks until the clock has risen once and is low again (2 ticks from low, 3 from high) |
 | Reset | Flip-flops, RAM, the clock and time to 0, switch values and ROM kept; nets to 0, then pre-settle and settle as a load does |
 | Speed | Target cycles per wall-clock second (1 to 10,000). Pacing decides only how many ticks run, so the state after *n* ticks is the same at any speed |

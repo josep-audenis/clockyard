@@ -99,7 +99,8 @@ pub struct Until {
     pub ticks: u64,
     /// Whether it stopped because the watched net rose.
     pub rose: bool,
-    /// The tick that did not settle, if it stopped at one.
+    /// The tick that did not settle, if it stopped at one. `rose` can be true
+    /// as well, if the net rose on that same tick.
     pub unstable: Option<Diagnostic>,
 }
 
@@ -787,13 +788,22 @@ impl Simulator {
         None
     }
 
-    /// Ticks as `tick` does until net `net` rises: it read 0 before a tick and
-    /// not 0 after it, so a net lit when the run starts must go dark and light
-    /// again (ADR 0019 item 6). Stops there, after `count` ticks, or at a tick
+    /// Ticks as `tick` does until net `net` rises: it read 0 just before a tick
+    /// (after any switch change since) and not 0 after it, so a net lit when
+    /// the run starts must go dark and light again (ADR 0019 item 6). Stops there, after `count` ticks, or at a tick
     /// that does not settle, so where it stops never depends on how the caller
     /// splits a long run into calls.
     pub fn tick_until(&mut self, count: u64, net: u32) -> Until {
         let start = self.time;
+        if self.clocks.is_empty() && self.unsettled.is_empty() {
+            // Nothing changes without a clock or a loop still settling, so nothing can rise.
+            self.tick(count);
+            return Until {
+                ticks: self.time - start,
+                rose: false,
+                unstable: None,
+            };
+        }
         let level = |sim: &Simulator| sim.nets.get(net as usize).copied().unwrap_or(0);
         let mut was = level(self);
         for _ in 0..count {

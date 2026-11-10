@@ -930,7 +930,7 @@ function RunControls() {
           ))}
         </select>
       </label>
-      <label className="run-speed">
+      <label className="run-select">
         <span className="visually-hidden">Run until</span>
         <select className="input" value={chosen ?? ""} onChange={(e) => setUntil(e.target.value || null)}>
           <option value="">Until paused</option>

@@ -30,6 +30,9 @@ let run: {
   timer: ReturnType<typeof setTimeout>;
 } | null = null;
 
+/** Port nets of the circuit loaded now (empty when it failed validation): whether a run's LED exists. */
+let ports: Record<string, unknown> = {};
+
 /** The last settle's runtime diagnostics, sent again by run and pause so they do not clear an unstable report. */
 let last: Diagnostic[] = [];
 
@@ -61,9 +64,12 @@ function slice() {
     while (hasCircuit && ticks > 0 && performance.now() - now < BUDGET_MS) {
       const count = Math.min(ticks, CHUNK);
       ticks -= count;
-      if (run.until) {
+      // While the loaded circuit lacks the LED (an edit removed it, or the circuit has errors for now), the run goes on
+      // plainly; it waits for the LED again as soon as a load has it, so the choice is never lost.
+      const until = run.until && ports[run.until] ? run.until : null;
+      if (until) {
         // Stops at the exact tick the LED lights, wherever the chunks fall (ADR 0019).
-        const result = JSON.parse(engine.tick_until(count, run.until)) as { rose: boolean; diagnostics: Diagnostic[] };
+        const result = JSON.parse(engine.tick_until(count, until)) as { rose: boolean; diagnostics: Diagnostic[] };
         diagnostics = result.diagnostics;
         if (result.rose) pause();
       } else {
@@ -99,8 +105,7 @@ onmessage = async (event: MessageEvent<Command>) => {
         hasCircuit = loaded.netCount > 0;
         reply({ type: "loaded", ...loaded });
         answered = true;
-        // An edit that removed the LED a run waits for leaves a plain run.
-        if (run?.until && !loaded.portNets[run.until]) run.until = null;
+        ports = loaded.portNets;
         state(runtime);
         // The editor sends the switch values next: no slice may tick between the two (ADR 0017 item 4).
         if (run) {

@@ -113,7 +113,9 @@ software CPU, and all simulation semantics live in `sim-core`.
    is defined by the circuit.
    - The toolbar gains *Run until*, a choice of any 1-bit LED on the sheet.
      A run then stops at the first tick after which that LED's net reads 1
-     having read 0 after the tick before: a rise between settled ticks.
+     having read 0 just before it, after any switch change since the tick
+     before: a rise caused by a tick. An LED lit by a switch during a run
+     therefore has to go dark and light again too.
    - `sim-core` gains `tick_until(count, net)`. It stops at that tick and
      reports how many ticks ran, so the stop does not depend on how the
      worker slices the run.

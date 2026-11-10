@@ -218,5 +218,5 @@ test("run until an LED lights stops at that tick, through the boundary (ADR 0019
   // Lit now: it must go dark (third tick) and light again (fifth).
   expect(JSON.parse(engine.tick_until(100, "l"))).toEqual({ ticks: 4, rose: true, diagnostics: [] });
   expect(JSON.parse(engine.tick_until(2, "l"))).toEqual({ ticks: 2, rose: false, diagnostics: [] });
-  expect(() => engine.tick_until(1, "nothing")).toThrow("not an LED");
+  expect(() => engine.tick_until(1, "nothing")).toThrow("no `in` port");
 });

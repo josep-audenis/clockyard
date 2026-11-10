@@ -309,8 +309,18 @@ fn tick_until_stops_at_a_tick_that_does_not_settle() {
     }));
     let led = sim.port_nets()["l"]["in"];
     let run = sim.tick_until(10, led);
+    // The LED rises on the very tick that does not settle: both are reported.
     assert_eq!(
-        (run.ticks, run.unstable.map(|d| d.code)),
-        (1, Some(Code::Unstable))
+        (run.ticks, run.rose, run.unstable.map(|d| d.code)),
+        (1, true, Some(Code::Unstable))
     );
+    // Without a clock nothing rises, however long the run, and it costs no tick-by-tick loop.
+    let mut still = load(json!({
+        "components": parts(&[("s", "switch"), ("l", "led")]),
+        "connections": wires(&[("s.out", "l.in")]),
+    }));
+    let led = still.port_nets()["l"]["in"];
+    let long = u64::from(u32::MAX);
+    let run = still.tick_until(long, led);
+    assert_eq!((run.ticks, run.rose, still.time()), (long, false, long));
 }

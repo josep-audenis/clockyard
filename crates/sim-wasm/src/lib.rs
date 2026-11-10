@@ -212,7 +212,8 @@ impl Engine {
     }
 
     /// Ticks like `tick` until LED `led` lights from dark (ADR 0019 item 6), at
-    /// most `count` ticks. Returns `{ ticks, rose, diagnostics }` as JSON.
+    /// most `count` ticks. Returns `{ ticks, rose, diagnostics }` as JSON. Any
+    /// part with an `in` port is accepted; the editor offers only LEDs.
     pub fn tick_until(&mut self, count: u32, led: &str) -> Result<String, JsError> {
         let sim = self.loaded()?;
         let net = sim
@@ -220,7 +221,7 @@ impl Engine {
             .get(led)
             .and_then(|ports| ports.get("in"))
             .copied()
-            .ok_or_else(|| JsError::new(&format!("{led} is not an LED on this sheet")))?;
+            .ok_or_else(|| JsError::new(&format!("{led} has no `in` port on this sheet")))?;
         let run = sim.tick_until(u64::from(count), net);
         let result = serde_json::json!({
             "ticks": run.ticks,
