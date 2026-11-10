@@ -40,8 +40,11 @@ export type Command =
   | { type: "load"; circuit: CircuitDescription }
   /** Switch values by ID, each a whole number from 0 to 2^width − 1, set in one settle (ADR 0017). */
   | { type: "setInputs"; values: Record<string, number> }
-  /** The worker ticks the clock in slices of wall time until paused (ADR 0017). */
-  | { type: "run"; cyclesPerSecond: number }
+  /**
+   * The worker ticks the clock in slices of wall time until paused (ADR 0017). `until`: an LED's ID;
+   * the run also stops at the tick where it lights from dark (ADR 0019).
+   */
+  | { type: "run"; cyclesPerSecond: number; until?: string }
   | { type: "pause" }
   /** Pauses, then one clock cycle: until the clock has risen once and is low again. */
   | { type: "step" }

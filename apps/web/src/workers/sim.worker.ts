@@ -21,8 +21,17 @@ const BUDGET_MS = 8;
 // shortcut: the budget is checked between chunks, so a chunk on a large circuit can overrun it; grow the chunk adaptively when circuits get that big.
 const CHUNK = 64;
 
-/** While running: the speed, when the last slice ran, and the part of a tick owed since. */
-let run: { cyclesPerSecond: number; last: number; owed: number; timer: ReturnType<typeof setTimeout> } | null = null;
+/** While running: the speed, the LED it runs until (if any), when the last slice ran, and the part of a tick owed since. */
+let run: {
+  cyclesPerSecond: number;
+  until: string | null;
+  last: number;
+  owed: number;
+  timer: ReturnType<typeof setTimeout>;
+} | null = null;
+
+/** Port nets of the circuit loaded now (empty when it failed validation): whether a run's LED exists. */
+let ports: Record<string, unknown> = {};
 
 /** The last settle's runtime diagnostics, sent again by run and pause so they do not clear an unstable report. */
 let last: Diagnostic[] = [];
@@ -55,7 +64,17 @@ function slice() {
     while (hasCircuit && ticks > 0 && performance.now() - now < BUDGET_MS) {
       const count = Math.min(ticks, CHUNK);
       ticks -= count;
-      diagnostics = JSON.parse(engine.tick(count)) as Diagnostic[];
+      // While the loaded circuit lacks the LED (an edit removed it, or the circuit has errors for now), the run goes on
+      // plainly; it waits for the LED again as soon as a load has it, so the choice is never lost.
+      const until = run.until && ports[run.until] ? run.until : null;
+      if (until) {
+        // Stops at the exact tick the LED lights, wherever the chunks fall (ADR 0019).
+        const result = JSON.parse(engine.tick_until(count, until)) as { rose: boolean; diagnostics: Diagnostic[] };
+        diagnostics = result.diagnostics;
+        if (result.rose) pause();
+      } else {
+        diagnostics = JSON.parse(engine.tick(count)) as Diagnostic[];
+      }
       // A loop that does not settle pauses the run (ADR 0017).
       if (diagnostics.length > 0) pause();
       if (!run) break;
@@ -86,6 +105,7 @@ onmessage = async (event: MessageEvent<Command>) => {
         hasCircuit = loaded.netCount > 0;
         reply({ type: "loaded", ...loaded });
         answered = true;
+        ports = loaded.portNets;
         state(runtime);
         // The editor sends the switch values next: no slice may tick between the two (ADR 0017 item 4).
         if (run) {
@@ -101,7 +121,13 @@ onmessage = async (event: MessageEvent<Command>) => {
         break;
       case "run":
         pause();
-        run = { cyclesPerSecond: command.cyclesPerSecond, last: performance.now(), owed: 0, timer: setTimeout(slice, SLICE_MS) };
+        run = {
+          cyclesPerSecond: command.cyclesPerSecond,
+          until: command.until ?? null,
+          last: performance.now(),
+          owed: 0,
+          timer: setTimeout(slice, SLICE_MS),
+        };
         state(last);
         break;
       case "pause":

@@ -195,3 +195,28 @@ test("the assembler crosses the boundary: words, or every error with its line (A
   // Not a 16-bit word: refused rather than wrapped.
   for (const bad of [0x10005, -1, 1.5]) expect(() => disassemble(bad), String(bad)).toThrow("not a 16-bit ROM word");
 });
+
+test("run until an LED lights stops at that tick, through the boundary (ADR 0019)", () => {
+  const engine = new Engine();
+  // A flip-flop toggling on every rising edge, shown on an LED: it lights on the first edge.
+  const circuit = {
+    components: [
+      { id: "k", kind: "clock" },
+      { id: "f", kind: "dff" },
+      { id: "n", kind: "not" },
+      { id: "l", kind: "led" },
+    ],
+    connections: [
+      { id: "w1", from: { component: "k", port: "out" }, to: { component: "f", port: "clk" } },
+      { id: "w2", from: { component: "f", port: "q" }, to: { component: "n", port: "in" } },
+      { id: "w3", from: { component: "n", port: "out" }, to: { component: "f", port: "d" } },
+      { id: "w4", from: { component: "f", port: "q" }, to: { component: "l", port: "in" } },
+    ],
+  };
+  engine.load(JSON.stringify(circuit));
+  expect(JSON.parse(engine.tick_until(100, "l"))).toEqual({ ticks: 1, rose: true, diagnostics: [] });
+  // Lit now: it must go dark (third tick) and light again (fifth).
+  expect(JSON.parse(engine.tick_until(100, "l"))).toEqual({ ticks: 4, rose: true, diagnostics: [] });
+  expect(JSON.parse(engine.tick_until(2, "l"))).toEqual({ ticks: 2, rose: false, diagnostics: [] });
+  expect(() => engine.tick_until(1, "nothing")).toThrow("no `in` port");
+});

@@ -211,6 +211,26 @@ impl Engine {
         ))?)
     }
 
+    /// Ticks like `tick` until LED `led` lights from dark (ADR 0019 item 6), at
+    /// most `count` ticks. Returns `{ ticks, rose, diagnostics }` as JSON. Any
+    /// part with an `in` port is accepted; the editor offers only LEDs.
+    pub fn tick_until(&mut self, count: u32, led: &str) -> Result<String, JsError> {
+        let sim = self.loaded()?;
+        let net = sim
+            .port_nets()
+            .get(led)
+            .and_then(|ports| ports.get("in"))
+            .copied()
+            .ok_or_else(|| JsError::new(&format!("{led} has no `in` port on this sheet")))?;
+        let run = sim.tick_until(u64::from(count), net);
+        let result = serde_json::json!({
+            "ticks": run.ticks,
+            "rose": run.rose,
+            "diagnostics": Vec::from_iter(run.unstable),
+        });
+        Ok(result.to_string())
+    }
+
     /// One clock cycle: until the clock has risen once and is low again.
     pub fn step_cycle(&mut self) -> Result<String, JsError> {
         Ok(serde_json::to_string(&Vec::from_iter(

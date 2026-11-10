@@ -450,7 +450,8 @@ button:focus-visible {
   margin-left: var(--space-4);
 }
 
-.run-speed .input {
+.run-speed .input,
+.run-select .input {
   height: var(--control-height);
   width: auto;
 }

@@ -202,7 +202,7 @@ Typed discriminated unions over `postMessage`. No RPC library at first.
 type Command =
   | { type: "load"; circuit: CircuitDescription }
   | { type: "setInputs"; values: Record<string, number> } // each 0 to 2^width − 1, in one settle
-  | { type: "run"; cyclesPerSecond: number } // the worker ticks until paused (ADR 0017)
+  | { type: "run"; cyclesPerSecond: number; until?: string } // ticks until paused, or until LED `until` lights (ADRs 0017, 0019)
   | { type: "pause" }
   | { type: "step" }                   // pause, then one clock cycle
   | { type: "reset" }                  // pause; flip-flops, RAM, clock and time to 0
