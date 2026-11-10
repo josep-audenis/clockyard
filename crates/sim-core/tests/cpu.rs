@@ -256,3 +256,32 @@ fn the_shipped_program_is_its_source_and_shows_8_after_eight_steps() {
         (8, 1)
     );
 }
+
+#[test]
+fn run_until_stops_where_the_specification_says_and_never_depends_on_how_the_run_is_split() {
+    let text = example("reference-cpu");
+    let program = assemble("LDI 5\nADI 3\nOUT\nHLT");
+    let mut sim = cpu(&text, &program);
+    let net = |sim: &Simulator, id: &str| sim.port_nets()[id]["in"];
+    let fetch = net(&sim, "fetchled");
+    // Fetch is lit at reset, so it must go dark and light again: one instruction, stopping with the
+    // clock high as the next fetch begins (ADR 0019 item 6).
+    let first = sim.tick_until(100, fetch);
+    assert_eq!((first.ticks, first.rose, sim.time()), (3, true, 3));
+    let second = sim.tick_until(100, fetch);
+    assert_eq!((second.ticks, second.rose, sim.time()), (4, true, 7));
+    // Run until Halted ends the program: HLT executes on the eighth rising edge.
+    let halted = sim.tick_until(100, net(&sim, "haltled"));
+    assert_eq!((halted.rose, sim.time()), (true, 15));
+    assert_eq!(value(&sim, "outled", "in"), 8);
+    // Once halted, Fetch never rises: the run goes on until its count runs out.
+    let never = sim.tick_until(10, fetch);
+    assert_eq!((never.ticks, never.rose), (10, false));
+    // The same run split into calls of any size stops at the same tick.
+    for size in [1, 2, 3, 5] {
+        let mut split = cpu(&text, &program);
+        let halt = net(&split, "haltled");
+        while !split.tick_until(size, halt).rose {}
+        assert_eq!(split.time(), 15, "calls of {size} ticks");
+    }
+}

@@ -92,6 +92,17 @@ enum End {
     Junction(bool, Option<u32>),
 }
 
+/// What [`Simulator::tick_until`] did.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Until {
+    /// Ticks it ran.
+    pub ticks: u64,
+    /// Whether it stopped because the watched net rose.
+    pub rose: bool,
+    /// The tick that did not settle, if it stopped at one.
+    pub unstable: Option<Diagnostic>,
+}
+
 /// A runtime diagnostic with its IDs lifted to top-level IDs.
 fn lift_one(diagnostic: Diagnostic) -> Diagnostic {
     lift(vec![diagnostic]).remove(0)
@@ -774,6 +785,35 @@ impl Simulator {
             }
         }
         None
+    }
+
+    /// Ticks as `tick` does until net `net` rises: it read 0 before a tick and
+    /// not 0 after it, so a net lit when the run starts must go dark and light
+    /// again (ADR 0019 item 6). Stops there, after `count` ticks, or at a tick
+    /// that does not settle, so where it stops never depends on how the caller
+    /// splits a long run into calls.
+    pub fn tick_until(&mut self, count: u64, net: u32) -> Until {
+        let start = self.time;
+        let level = |sim: &Simulator| sim.nets.get(net as usize).copied().unwrap_or(0);
+        let mut was = level(self);
+        for _ in 0..count {
+            let unstable = self.tick(1);
+            let now = level(self);
+            let rose = was == 0 && now != 0;
+            if rose || unstable.is_some() {
+                return Until {
+                    ticks: self.time - start,
+                    rose,
+                    unstable,
+                };
+            }
+            was = now;
+        }
+        Until {
+            ticks: self.time - start,
+            rose: false,
+            unstable: None,
+        }
     }
 
     /// One clock cycle: ticks until the clock has risen once and is low again

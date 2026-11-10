@@ -805,3 +805,25 @@ test("a word written to a RAM by hand shows in its inspector, and Reset clears i
   await page.getByRole("button", { name: "Reset", exact: true }).click();
   await expect(contents).toContainText(/^0x00 0x00/);
 });
+
+test("run until an LED lights: an instruction step on the reference CPU, then run to halt (ADR 0019)", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const until = page.getByLabel("Run until");
+  await page.getByLabel("Speed").selectOption("100");
+  // Fetch is lit at reset: it goes dark and lights again as the next fetch begins, the clock high.
+  await until.selectOption({ label: "Until LED Fetch lights" });
+  await button("Run").click();
+  await expect(counter(page)).toHaveText("Cycle 2, clock high");
+  await expect(button("Run")).toBeVisible(); // stopped by the LED, not a click
+  await button("Run").click();
+  await expect(counter(page)).toHaveText("Cycle 4, clock high");
+  // Run to the end of the program: LDI 5 / ADI 3 / OUT / HLT.
+  await until.selectOption({ label: "Until LED Halted lights" });
+  await button("Run").click();
+  await expect(readout(page, "LED Halted")).toHaveText("LED Halted: on");
+  await expect(readout(page, "LED Output")).toHaveText("LED Output: 8 (0x08)");
+  await expect(counter(page)).toHaveText("Cycle 8, clock high");
+});

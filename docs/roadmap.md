@@ -320,7 +320,9 @@ an LED lights* for instruction steps and breakpoints; proposed). Built in six st
    (half with operands near 0, so RAM and jumps meet). `pnpm verify` checks
    the committed file is the generator's output. Runs at the full 10,000 cycles
    per second in the browser.
-4. ⬜ `tick_until` and *Run until*.
+4. ✅ `tick_until` in `sim-core` and *Run until* in the toolbar: any 1-bit LED on
+   the sheet; on the reference CPU, Fetch is the instruction step and Halted
+   runs a program to its end.
 5. ⬜ The program editor and disassembly.
 6. ⬜ Playwright and docs.
 

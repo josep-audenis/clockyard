@@ -300,3 +300,17 @@ fn without_a_clock_tick_stops_at_the_first_tick_that_reports_a_loop() {
         "stopped at the first tick, whatever the chunk"
     );
 }
+
+#[test]
+fn tick_until_stops_at_a_tick_that_does_not_settle() {
+    let mut sim = load(json!({
+        "components": parts(&[("k", "clock"), ("g", "nand"), ("l", "led")]),
+        "connections": wires(&[("k.out", "g.a"), ("g.out", "g.b"), ("k.out", "l.in")]),
+    }));
+    let led = sim.port_nets()["l"]["in"];
+    let run = sim.tick_until(10, led);
+    assert_eq!(
+        (run.ticks, run.unstable.map(|d| d.code)),
+        (1, Some(Code::Unstable))
+    );
+}

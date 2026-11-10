@@ -22,7 +22,7 @@ import {
   type PartKind,
 } from "../editor/document";
 import { deleteRefusal, liveDefinitions, mainCircuit, useEditor } from "../editor/store";
-import { connectEngine, control, readMemory, setSpeed, SPEEDS, useSim } from "../simulation/sync";
+import { connectEngine, control, readMemory, setSpeed, setUntil, SPEEDS, useSim } from "../simulation/sync";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
 
 /** `label` is not a part: it places a named junction (ADR 0015). */
@@ -899,6 +899,15 @@ function HistoryControls() {
 function RunControls() {
   const running = useSim((s) => s.running);
   const speed = useSim((s) => s.speed);
+  const until = useSim((s) => s.until);
+  const components = useEditor((s) => s.circuit.components);
+  // Any 1-bit LED on the open sheet can stop a run: an instruction step, a breakpoint, run to halt (ADR 0019).
+  const leds = components.filter((c) => c.kind === "led" && (c.props.width ?? 1) === 1);
+  // A choice whose LED is gone (deleted, or another sheet opened) goes back to a plain run.
+  const chosen = leds.some((c) => c.id === until) ? until : null;
+  useEffect(() => {
+    if (chosen !== until) setUntil(chosen);
+  }, [chosen, until]);
   return (
     <div className="run-controls" role="group" aria-label="Simulation">
       {/* As wide for Pause as for Run, so the toolbar does not shift. */}
@@ -917,6 +926,17 @@ function RunControls() {
           {SPEEDS.map((s) => (
             <option key={s} value={s}>
               {s.toLocaleString("en")} Hz
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="run-speed">
+        <span className="visually-hidden">Run until</span>
+        <select className="input" value={chosen ?? ""} onChange={(e) => setUntil(e.target.value || null)}>
+          <option value="">Until paused</option>
+          {leds.map((c) => (
+            <option key={c.id} value={c.id}>
+              Until {partName(components, c)} lights
             </option>
           ))}
         </select>
