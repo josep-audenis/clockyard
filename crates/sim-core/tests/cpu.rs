@@ -2,8 +2,9 @@
 //!
 //! `Model` below is written from that page alone and lives only here, as the
 //! independent reference. Each test loads `examples/reference-cpu.clockyard.json`
-//! with a program in its ROM, runs the netlist two cycles at a time, and after
-//! every instruction compares its registers and RAM with the model's.
+//! with a program in its ROM, runs the netlist one cycle at a time, and after
+//! every cycle compares what the sheet shows (its register LEDs, the status
+//! LEDs, the phase and the RAM) with the model's state.
 
 mod common;
 
@@ -11,19 +12,21 @@ use common::{description, example, value};
 use serde_json::{Value, json};
 use sim_core::Simulator;
 
-/// The machine state the specification defines, after each whole instruction.
+/// The machine state the specification defines.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct State {
     pc: u8,
+    ir: u16,
     a: u8,
     out: u8,
     z: bool,
     c: bool,
+    t: bool,
     h: bool,
     ram: Vec<u8>,
 }
 
-/// The specification as code: one call is one instruction (two cycles).
+/// The specification as code: one call is one clock cycle (Timing section).
 struct Model {
     rom: Vec<u16>,
     state: State,
@@ -35,24 +38,33 @@ impl Model {
             rom: program.to_vec(),
             state: State {
                 pc: 0,
+                ir: 0,
                 a: 0,
                 out: 0,
                 z: false,
                 c: false,
+                t: false,
                 h: false,
                 ram: vec![0; 256],
             },
         }
     }
 
-    fn step(&mut self) {
+    fn cycle(&mut self) {
         let s = &mut self.state;
         if s.h {
             return;
         }
-        let word = self.rom.get(usize::from(s.pc)).copied().unwrap_or(0);
-        s.pc = s.pc.wrapping_add(1);
-        let n = (word & 0xFF) as u8;
+        if !s.t {
+            // Fetch.
+            s.ir = self.rom.get(usize::from(s.pc)).copied().unwrap_or(0);
+            s.pc = s.pc.wrapping_add(1);
+            s.t = true;
+            return;
+        }
+        // Execute.
+        s.t = false;
+        let n = (s.ir & 0xFF) as u8;
         let load = |s: &mut State, value: u8| {
             s.a = value;
             s.z = value == 0;
@@ -66,7 +78,7 @@ impl Model {
             s.c = s.a >= b;
             load(s, s.a.wrapping_sub(b));
         };
-        match word >> 12 {
+        match s.ir >> 12 {
             0x1 => load(s, n),
             0x2 => load(s, s.ram[usize::from(n)]),
             0x3 => s.ram[usize::from(n)] = s.a,
@@ -100,16 +112,25 @@ fn cpu(text: &str, program: &[u16]) -> Simulator {
     sim
 }
 
-/// The state as the netlist holds it: each register's flip-flop, by elaborated ID.
+/// What the sheet shows: its LEDs (stable top-level IDs, so this also checks the display wiring),
+/// the phase register's flip-flop, and the data RAM. The Fetch LED must agree with T and H.
 fn read(sim: &Simulator) -> State {
-    let register = |id: &str| value(sim, &format!("{id}/r"), "q");
+    let led = |id: &str| {
+        assert!(sim.port_nets().contains_key(id), "the sheet has {id}");
+        value(sim, id, "in")
+    };
+    let t = value(sim, "t/r", "q") == 1;
+    let h = led("haltled") == 1;
+    assert_eq!(led("fetchled") == 1, !t && !h, "Fetch = ¬T ∧ ¬H");
     State {
-        pc: register("pc") as u8,
-        a: register("a") as u8,
-        out: register("outr") as u8,
-        z: register("z") == 1,
-        c: register("c") == 1,
-        h: register("h") == 1,
+        pc: led("pcled") as u8,
+        ir: led("irled") as u16,
+        a: led("aled") as u8,
+        out: led("outled") as u8,
+        z: led("zled") == 1,
+        c: led("cled") == 1,
+        t,
+        h,
         ram: sim
             .memory("ram")
             .expect("the data RAM")
@@ -119,25 +140,26 @@ fn read(sim: &Simulator) -> State {
     }
 }
 
-/// Runs `program` for up to `limit` instructions, or until it halts, checking the
-/// netlist against the model after each one. Returns the final state.
+/// Runs `program` for up to `limit` instructions, or until it halts and three more cycles pass,
+/// checking the netlist against the model after every cycle. Returns the final state.
 fn check(text: &str, program: &[u16], limit: usize) -> State {
     let mut sim = cpu(text, program);
     let mut model = Model::new(program);
     assert_eq!(read(&sim), model.state, "after reset");
-    for k in 1..=limit {
-        for _ in 0..2 {
-            assert_eq!(sim.step_cycle(), None, "settles");
-        }
-        let halted = model.state.h;
-        model.step();
+    let mut after_halt = 0;
+    for cycle in 1..=2 * limit {
+        assert_eq!(sim.step_cycle(), None, "settles");
+        model.cycle();
         assert_eq!(
             read(&sim),
             model.state,
-            "after {k} instructions of {program:04X?}"
+            "after cycle {cycle} of {program:04X?}"
         );
-        if halted {
-            break;
+        if model.state.h {
+            after_halt += 1;
+            if after_halt > 3 {
+                break;
+            }
         }
     }
     model.state
@@ -169,7 +191,7 @@ fn every_instruction_and_flag_case_runs_as_specified() {
         "LDI 5\nSBI 5\nSBI 1\nLDI 9\nSTA 2\nLDI 4\nSUB 2\nLDI 20\nSUB 2\nOUT\nHLT",
         // Jumps taken and not taken.
         "LDI 1\nJZ 9\nSBI 1\nJZ 5\nHLT\nJC 7\nHLT\nJMP 8\nHLT\nNOP\nOUT\nHLT",
-        // A jump to itself until a carry: the PC holds while looping.
+        // A loop that adds until a carry, then jumps out.
         "LDI 250\nloop: ADI 1\nJC end\nJMP loop\nend: OUT\nHLT",
         // Reserved opcodes and bits run as NOP; HLT stops everything after it.
         "LDI 3\nNOP\nHLT\nLDI 9\nOUT",
@@ -178,11 +200,17 @@ fn every_instruction_and_flag_case_runs_as_specified() {
         let mut words = assemble(source);
         // Reserved opcodes and set reserved bits, appended after the HLT where they must not run.
         words.extend([0xD123, 0x1F05, 0xB0FF]);
-        check(&text, &words, 64);
+        assert!(check(&text, &words, 64).h, "{source} halts");
     }
     // The same reserved words where they do run: as NOP, and as LDI and OUT with bits 11-8 ignored.
     let state = check(&text, &[0xD123, 0x1F05, 0xB0FF, 0xC000], 10);
     assert_eq!((state.a, state.out, state.h), (5, 5, true));
+    // The PC wraps from 255 to 0: 255 NOPs, then an OUT at 255, and the LDI at 0 runs again.
+    let mut wrap = vec![0x1009];
+    wrap.resize(255, 0);
+    wrap.push(0xB000);
+    let state = check(&text, &wrap, 258);
+    assert_eq!((state.pc, state.out), (2, 9));
 }
 
 #[test]
@@ -196,9 +224,35 @@ fn random_programs_run_as_specified() {
         seed ^= seed << 17;
         seed
     };
-    for _ in 0..200 {
-        // 256 raw words, reserved opcodes and bits included; HLT is as likely as any opcode.
-        let program: Vec<u16> = (0..256).map(|_| next() as u16).collect();
+    for i in 0..200 {
+        // 256 raw words, reserved opcodes and bits included. In half the programs operands stay
+        // within 0-15, so stores and loads meet the same RAM bytes and jumps stay near the start.
+        let window = if i % 2 == 0 { 0xFFFF } else { 0xF00F };
+        let program: Vec<u16> = (0..256).map(|_| next() as u16 & window).collect();
         check(&text, &program, 64);
     }
+}
+
+#[test]
+fn the_shipped_program_is_its_source_and_shows_8_after_eight_steps() {
+    let text = example("reference-cpu");
+    let document: Value = serde_json::from_str(&text).expect("valid project file");
+    let rom = document["circuit"]["components"]
+        .as_array()
+        .expect("components")
+        .iter()
+        .find(|c| c["id"] == "rom")
+        .expect("the program ROM");
+    let source = rom["props"]["source"].as_str().expect("source");
+    let data: Vec<u16> =
+        serde_json::from_value(rom["props"]["data"].clone()).expect("the ROM's words");
+    assert_eq!(assemble(source), data);
+    let (mut sim, _) = Simulator::load(&description(&text)).expect("valid circuit");
+    for _ in 0..8 {
+        sim.step_cycle();
+    }
+    assert_eq!(
+        (value(&sim, "outled", "in"), value(&sim, "haltled", "in")),
+        (8, 1)
+    );
 }

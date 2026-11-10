@@ -51,15 +51,17 @@ software CPU, and all simulation semantics live in `sim-core`.
 3. **The CPU is a circuit, generated from a script.**
    `examples/reference-cpu.clockyard.json` is written by
    `scripts/reference-cpu.mjs` (Node, no dependencies), so it is
-   reproducible and reviewable as code.
+   reproducible and reviewable as code. `pnpm verify` runs the script
+   with `--check`, which fails if the committed file is not what it
+   writes now, for instance after a change to the 8-bit adder example it
+   copies.
    - **Built from existing parts only:**
      - D flip-flops and registers;
      - gates;
      - splitters and mergers;
      - the ROM and RAM of ADR 0018;
      - custom components for the repeated pieces: an 8-bit 2-to-1
-       multiplexer, a register with load enable, the ALU and the control
-       decoder.
+       multiplexer, a register with load enable, and the 8-bit adder.
    - **Register enable.** A register with load enable feeds its own `q`
      back through a multiplexer, since `dff` has no enable. A 1-bit select
      drives every bit of an 8-bit multiplexer through a merger whose fields
@@ -77,7 +79,7 @@ software CPU, and all simulation semantics live in `sim-core`.
 
      As built, the decoding is a **control ROM**: the 4-bit opcode
      addresses a 16 × 12-bit ROM whose word holds these signals, one bit
-     each, then gates gate them with the phase (`T ∧ ¬H`) and, for the
+     each, then AND gates combine them with the phase (`T ∧ ¬H`) and, for the
      jumps, the flags. A ROM is combinational, so this is the decision
      above; the script writes its words from the instruction table.
    - **Constants.** There is no constant part, so the circuit makes 1 and
@@ -142,9 +144,11 @@ software CPU, and all simulation semantics live in `sim-core`.
    - **Differential runs.** The tests assemble programs and load the
      example circuit with each program in its ROM. After every two cycles
      they compare `PC`, `A`, `OUT`, `Z`, `C`, `H` and the RAM with the
-     model. Registers are read from their flip-flops' `q` nets, by
-     elaborated ID (`pc/r` inside the `pc` register instance), and the RAM
-     through `memory()` (ADR 0018). The programs are:
+     model, after every cycle rather than every instruction. Registers are
+     read from the LEDs on the sheet, so the display wiring is checked
+     too, `T` from its flip-flop by elaborated ID (`t/r`), and the RAM
+     through `memory()` (ADR 0018). The Fetch LED must equal `¬T ∧ ¬H`.
+     The programs are:
      - one per instruction;
      - the two examples on the specification page;
      - 200 random programs from a seeded generator, so the runs are

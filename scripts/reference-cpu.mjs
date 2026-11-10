@@ -1,7 +1,8 @@
 // Writes examples/reference-cpu.clockyard.json: the reference CPU of ADR 0019,
 // built from Clockyard parts, as specified in docs/reference-cpu.md.
 //
-//   node scripts/reference-cpu.mjs
+//   node scripts/reference-cpu.mjs           writes the file
+//   node scripts/reference-cpu.mjs --check   fails if the file is not what it would write
 //
 // The circuit is generated so it can be regenerated, diffed and kept in step
 // with the specification. The 8-bit adder and its full adder are copied from
@@ -335,5 +336,15 @@ const document = {
     ...adder.definitions,
   ],
 };
-writeFileSync(root("examples/reference-cpu.clockyard.json"), `${JSON.stringify(document, null, 2)}\n`);
-console.log(`examples/reference-cpu.clockyard.json: ${components.length} parts, ${main.length} wires on the main sheet`);
+const target = root("examples/reference-cpu.clockyard.json");
+const text = `${JSON.stringify(document, null, 2)}\n`;
+if (process.argv.includes("--check")) {
+  // Line endings may follow the checkout's settings; the content may not differ.
+  if (readFileSync(target, "utf8").replaceAll("\r\n", "\n") !== text) {
+    console.error("examples/reference-cpu.clockyard.json is out of date: run node scripts/reference-cpu.mjs");
+    process.exit(1);
+  }
+} else {
+  writeFileSync(target, text);
+  console.log(`examples/reference-cpu.clockyard.json: ${components.length} parts, ${main.length} wires on the main sheet`);
+}
