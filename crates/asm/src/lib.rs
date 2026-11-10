@@ -63,13 +63,12 @@ fn number(token: &str) -> Option<Result<u16, String>> {
         t if t.starts_with(|c: char| c.is_ascii_digit()) => (t, 10),
         _ => return None,
     };
-    let parsed = (!digits.is_empty())
-        .then(|| u32::from_str_radix(digits, radix).ok())
-        .flatten();
-    Some(match parsed {
-        Some(value) if value <= 255 => Ok(value as u16),
-        Some(_) => Err(format!("{token} is out of range: operands are 0 to 255")),
-        None => Err(format!("{token} is not a number")),
+    if digits.is_empty() || !digits.chars().all(|c| c.is_digit(radix)) {
+        return Some(Err(format!("{token} is not a number")));
+    }
+    Some(match u32::from_str_radix(digits, radix) {
+        Ok(value) if value <= 255 => Ok(value as u16),
+        _ => Err(format!("{token} is out of range: operands are 0 to 255")),
     })
 }
 
@@ -77,15 +76,20 @@ fn number(token: &str) -> Option<Result<u16, String>> {
 /// Every error is reported, each with its line, not only the first.
 pub fn assemble(source: &str) -> Result<Vec<u16>, Vec<Error>> {
     let mut errors = Vec::new();
-    let mut labels: BTreeMap<&str, (u16, usize)> = BTreeMap::new();
+    // Each label's address and the line it is defined on.
+    let mut labels: BTreeMap<&str, (usize, usize)> = BTreeMap::new();
     let mut lines = Vec::new();
     for (index, text) in source.lines().enumerate() {
         let number = index + 1;
         let code = text.split(';').next().unwrap_or("");
         let mut tokens: Vec<&str> = code.split_whitespace().collect();
         // Labels come first: `name:`, possibly with the instruction on the same line.
-        while let Some(label) = tokens.first().and_then(|t| t.strip_suffix(':')) {
-            tokens.remove(0);
+        while let Some((label, rest)) = tokens.first().and_then(|t| t.split_once(':')) {
+            if rest.is_empty() {
+                tokens.remove(0);
+            } else {
+                tokens[0] = rest;
+            }
             if !valid_label(label) {
                 let message = format!(
                     "{label}: is not a label: names are letters, digits and _, not starting with a digit"
@@ -101,7 +105,7 @@ pub fn assemble(source: &str) -> Result<Vec<u16>, Vec<Error>> {
                     message,
                 });
             } else {
-                labels.insert(label, (lines.len() as u16, number));
+                labels.insert(label, (lines.len(), number));
             }
         }
         let Some((&mnemonic, operands)) = tokens.split_first() else {
@@ -114,7 +118,6 @@ pub fn assemble(source: &str) -> Result<Vec<u16>, Vec<Error>> {
                 line: number,
                 message,
             });
-            break;
         }
         lines.push(Line {
             number,
@@ -155,7 +158,14 @@ pub fn assemble(source: &str) -> Result<Vec<u16>, Vec<Error>> {
                     continue;
                 }
                 None if valid_label(token) => match labels.get(token) {
-                    Some(&(address, _)) => address,
+                    // A label after the last instruction of a full ROM names address 256.
+                    Some(&(address, _)) if address >= MAX_WORDS => {
+                        errors.push(error(format!(
+                            "label {token} is past the end of the program ROM"
+                        )));
+                        continue;
+                    }
+                    Some(&(address, _)) => address as u16,
                     None => {
                         errors.push(error(format!("unknown label {token}")));
                         continue;
@@ -279,6 +289,25 @@ mod tests {
     }
 
     #[test]
+    fn numbers_take_only_digits_of_their_base_and_labels_may_touch_their_instruction() {
+        assert_eq!(
+            errors("LDI 0x+5\nLDI 0b+1"),
+            [
+                (1, "0x+5 is not a number".to_string()),
+                (2, "0b+1 is not a number".to_string()),
+            ]
+        );
+        assert_eq!(
+            errors("LDI 99999999999"),
+            [(
+                1,
+                "99999999999 is out of range: operands are 0 to 255".to_string()
+            )]
+        );
+        assert_eq!(assemble("loop:OUT\na:b:JMP loop"), Ok(vec![0xB000, 0x8000]));
+    }
+
+    #[test]
     fn a_program_holds_at_most_256_instructions() {
         assert_eq!(assemble(&"NOP\n".repeat(256)).map(|w| w.len()), Ok(256));
         assert_eq!(
@@ -287,6 +316,31 @@ mod tests {
                 257,
                 "more than 256 instructions: the program ROM holds 256".to_string()
             )]
+        );
+        // A label after a full ROM's last instruction would be address 256, outside the operand.
+        let full = format!("JMP end\n{}end:\n", "NOP\n".repeat(255));
+        assert_eq!(
+            errors(&full),
+            [(
+                1,
+                "label end is past the end of the program ROM".to_string()
+            )]
+        );
+        // Past the limit every line is still read: later errors are reported, later labels known.
+        let over = format!("JMP end\n{}end: HLT\nLDX\n", "NOP\n".repeat(256));
+        assert_eq!(
+            errors(&over),
+            [
+                (
+                    1,
+                    "label end is past the end of the program ROM".to_string()
+                ),
+                (
+                    257,
+                    "more than 256 instructions: the program ROM holds 256".to_string()
+                ),
+                (259, "unknown instruction LDX".to_string()),
+            ]
         );
     }
 
@@ -298,19 +352,22 @@ mod tests {
         assert_eq!(disassemble(0xD012), "NOP ; 0xD012");
         assert_eq!(disassemble(0x1305), "LDI 5 ; 0x1305");
         assert_eq!(disassemble(0xB007), "OUT ; 0xB007");
-        // Every word disassembles to text that assembles; exact words come back unchanged.
+        // Every word disassembles to text that assembles to one word with the same effect: its opcode (a
+        // reserved one runs as NOP) and, where the instruction takes one, its operand. Bits 11-8 are ignored.
         for word in 0..=u16::MAX {
-            let back = assemble(&disassemble(word)).expect("assembles")[0];
-            let exact = word >> 12 <= 0xC
-                && word & 0x0F00 == 0
-                && (INSTRUCTIONS[usize::from(word >> 12)].2 || word & 0xFF == 0);
-            if exact {
-                assert_eq!(back, word);
+            let op = word >> 12;
+            let expected = if op > 0xC {
+                0
+            } else if INSTRUCTIONS[usize::from(op)].2 {
+                op << 12 | word & 0xFF
             } else {
-                // The same opcode and operand where they mean something; a reserved opcode is a NOP.
-                let opcode = if word >> 12 > 0xC { 0 } else { word >> 12 };
-                assert_eq!(back >> 12, opcode, "{word:04X}");
-            }
+                op << 12
+            };
+            assert_eq!(
+                assemble(&disassemble(word)),
+                Ok(vec![expected]),
+                "{word:04X}"
+            );
         }
     }
 }

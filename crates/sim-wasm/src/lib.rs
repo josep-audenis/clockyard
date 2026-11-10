@@ -52,6 +52,8 @@ pub fn max_width() -> u32 {
     MAX_WIDTH
 }
 
+/// What `assemble` returns: an empty program and a failed one both have no
+/// words, so the editor tells them apart by `errors`.
 #[derive(Serialize)]
 struct Assembled {
     words: Vec<u16>,
@@ -87,10 +89,14 @@ pub fn assemble(source: &str) -> String {
     serde_json::to_string(&assembled).expect("plain data serializes")
 }
 
-/// One ROM word as reference-CPU assembly (ADR 0019).
+/// One ROM word as reference-CPU assembly (ADR 0019). A JS number that is
+/// not a whole number from 0 to 0xFFFF is refused, not wrapped.
 #[wasm_bindgen]
-pub fn disassemble(word: u16) -> String {
-    asm::disassemble(word)
+pub fn disassemble(word: f64) -> Result<String, JsError> {
+    if word.fract() != 0.0 || !(0.0..=f64::from(u16::MAX)).contains(&word) {
+        return Err(JsError::new(&format!("{word:?} is not a 16-bit ROM word")));
+    }
+    Ok(asm::disassemble(word as u16))
 }
 
 #[derive(Serialize)]

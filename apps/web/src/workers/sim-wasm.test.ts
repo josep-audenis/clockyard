@@ -192,4 +192,6 @@ test("the assembler crosses the boundary: words, or every error with its line (A
     ],
   });
   expect(disassemble(0x9005)).toBe("JZ 5");
+  // Not a 16-bit word: refused rather than wrapped.
+  for (const bad of [0x10005, -1, 1.5]) expect(() => disassemble(bad), String(bad)).toThrow("not a 16-bit ROM word");
 });
