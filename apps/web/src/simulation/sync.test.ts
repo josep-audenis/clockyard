@@ -25,3 +25,34 @@ test("a load the engine fails on answers that load: the error shows, nothing sta
   expect(useSim.getState()).toMatchObject({ error: "switch value", stale: false });
   stop();
 });
+test("assembler requests resolve from the replies carrying their request numbers, in any order (ADR 0019)", async () => {
+  const { assemble, disassemble } = await import("./sync");
+  const stop = connectEngine();
+  worker.sent.length = 0;
+  const words = assemble("LDI 5");
+  const lines = disassemble([0x1005]);
+  const [first, second] = worker.sent as { request: number }[];
+  // Answered out of order: each promise still gets its own reply.
+  worker.reply({ type: "disassembled", request: second?.request ?? -1, lines: ["LDI 5"] });
+  worker.reply({ type: "assembled", request: first?.request ?? -1, words: [0x1005], errors: [] });
+  await expect(words).resolves.toEqual({ type: "assembled", request: first?.request, words: [0x1005], errors: [] });
+  await expect(lines).resolves.toEqual(["LDI 5"]);
+  stop();
+});
+
+test("an assembler request never waits forever: no engine, a failed request, or the engine stopping", async () => {
+  const { assemble, disassemble } = await import("./sync");
+  // Before the engine starts: answered at once, as an error with no line.
+  await expect(assemble("NOP")).resolves.toEqual({ words: [], errors: [{ line: 0, message: "Could not assemble: the engine is not running." }] });
+  const stop = connectEngine();
+  worker.sent.length = 0;
+  const failed = disassemble([1]);
+  const { request } = worker.sent[0] as { request: number };
+  worker.reply({ type: "error", message: "boom", request });
+  await expect(failed).resolves.toBeNull();
+  // A failed request is that request's business: the simulation's status is untouched.
+  expect(useSim.getState().error).not.toBe("boom");
+  const pending = assemble("NOP");
+  stop();
+  await expect(pending).resolves.toMatchObject({ words: [], errors: [{ line: 0 }] });
+});

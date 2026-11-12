@@ -508,3 +508,9 @@ pre.memory-words {
   background: var(--panel-raised);
   color: var(--ink);
 }
+
+/* Assembly errors (ADR 0019): one per line, under the source. */
+.asm-errors {
+  margin: 0;
+  padding-left: var(--space-4);
+}

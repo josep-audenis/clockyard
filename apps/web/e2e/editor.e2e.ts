@@ -827,3 +827,61 @@ test("run until an LED lights: an instruction step on the reference CPU, then ru
   await expect(readout(page, "LED Output")).toHaveText("LED Output: 8 (0x08)");
   await expect(counter(page)).toHaveText("Cycle 8, clock high");
 });
+
+test("the program editor assembles into the ROM, lists errors by line, and the CPU runs the new program (ADR 0019)", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  const at = await grid(page);
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  await click(page, at(24.5, 16)); // the program ROM at (22,14)
+  const source = inspector.getByLabel("Assembly", { exact: true });
+  const listing = inspector.getByRole("region", { name: "Disassembly" });
+  await expect(source).toHaveValue(/LDI 5/);
+  await expect(listing).toContainText("00  LDI 5");
+  // An error is listed by line and changes nothing.
+  await source.fill("LDX 1");
+  await button("Assemble").click();
+  await expect(inspector.getByRole("alert")).toHaveText("Line 1: unknown instruction LDX");
+  // The Contents box changes in the same render as the ROM's words: the error wrote nothing.
+  const contents = inspector.getByLabel("Contents", { exact: true });
+  await expect(contents).toHaveValue(/^0x1005 0x6003/);
+  // A new program: 7 + 2.
+  await source.fill("LDI 7\nADI 2\nOUT\nHLT");
+  await button("Assemble").click();
+  await expect(inspector.getByRole("status")).toHaveText("Assembled 4 words.");
+  await expect(listing).toContainText("00  LDI 7");
+  await expect(listing).toContainText("01  ADI 2");
+  // Undo brings back the old program, in the box as well as in the ROM.
+  await button("Undo").click();
+  await expect(source).toHaveValue(/LDI 5/);
+  await expect(listing).toContainText("00  LDI 5");
+  // Words edited directly no longer match the kept source, and the editor says so. 7 + 2 again, by hand.
+  await contents.fill("0x1007 0x6002 0xB000 0xC000");
+  await contents.blur();
+  await expect(inspector.getByText(/no longer match this source/)).toBeVisible();
+  await expect(listing).toContainText("00  LDI 7");
+  await page.getByLabel("Speed").selectOption("100");
+  await page.getByLabel("Run until").selectOption({ label: "Until LED Halted lights" });
+  await button("Run").click();
+  await expect(readout(page, "LED Output")).toHaveText("LED Output: 9 (0x09)");
+});
+
+test("a program longer than its ROM holds is refused with the reason (ADR 0019)", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  await page.getByRole("button", { name: "ROM", exact: true }).click();
+  await click(page, at(4.5, 3)); // a ROM at (2,1), selected
+  for (const [name, value] of [["Width", "16"], ["Address bits", "1"]] as const) {
+    const field = inspector.getByRole("textbox", { name, exact: true });
+    await field.fill(value);
+    await field.press("Enter");
+  }
+  const source = inspector.getByLabel("Assembly", { exact: true });
+  await source.fill("NOP\nNOP\nNOP");
+  await page.getByRole("button", { name: "Assemble", exact: true }).click();
+  await expect(inspector.getByRole("alert")).toHaveText("3 words do not fit in 2 addresses: give the ROM more address bits.");
+  await expect(inspector.getByRole("region", { name: "Disassembly" })).toContainText("Empty");
+});

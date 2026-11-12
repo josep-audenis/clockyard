@@ -1,4 +1,4 @@
-import init, { Engine } from "../generated/sim-wasm/sim_wasm.js";
+import init, { assemble, disassemble, Engine } from "../generated/sim-wasm/sim_wasm.js";
 import type { Command, Diagnostic, Result } from "../simulation/protocol";
 
 const reply = (result: Result) => postMessage(result);
@@ -90,9 +90,13 @@ function slice() {
 
 onmessage = async (event: MessageEvent<Command>) => {
   await ready;
-  // Load failure was already reported; calling into the uninitialised module would replace that message.
-  if (!engine) return;
   const command = event.data;
+  // Load failure was already reported; calling into the uninitialised module would replace that message. An
+  // assembler request still gets its answer, so nothing waits for it forever.
+  if (!engine) {
+    if ("request" in command) reply({ type: "error", message: "the engine failed to load", request: command.request });
+    return;
+  }
   // Set once a load has been answered, so a later failure is not taken for the load's.
   let answered = false;
   try {
@@ -145,9 +149,22 @@ onmessage = async (event: MessageEvent<Command>) => {
       case "readMemory":
         reply({ type: "memory", component: command.component, words: engine.memory(command.component, command.count) ?? new Uint32Array() });
         break;
+      // The assembler lives in the same module (crates/asm through sim-wasm, ADR 0019); it simulates nothing.
+      case "assemble":
+        reply({ type: "assembled", request: command.request, ...JSON.parse(assemble(command.source)) });
+        break;
+      case "disassemble":
+        reply({ type: "disassembled", request: command.request, lines: command.words.map((w) => disassemble(w)) });
+        break;
     }
   } catch (error) {
     // `running`: a step or reset that failed has already paused the run.
-    reply({ type: "error", message: String(error), running: run !== null, ...(command.type === "load" && !answered && { load: true as const }) });
+    reply({
+      type: "error",
+      message: String(error),
+      running: run !== null,
+      ...(command.type === "load" && !answered && { load: true as const }),
+      ...("request" in command && { request: command.request }),
+    });
   }
 };

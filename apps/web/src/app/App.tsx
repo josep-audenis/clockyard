@@ -9,6 +9,7 @@ import {
   isFielded,
   isMemory,
   MAX_ADDRESS,
+  MAX_SOURCE,
   takesWidth,
   MAX_LABEL,
   MAX_WIDTH,
@@ -22,7 +23,8 @@ import {
   type PartKind,
 } from "../editor/document";
 import { deleteRefusal, liveDefinitions, mainCircuit, useEditor } from "../editor/store";
-import { connectEngine, control, readMemory, setSpeed, setUntil, SPEEDS, useSim } from "../simulation/sync";
+import { assemble, connectEngine, control, disassemble, readMemory, setSpeed, setUntil, SPEEDS, useSim } from "../simulation/sync";
+import type { AsmError } from "../simulation/protocol";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
 
 /** `label` is not a part: it places a named junction (ADR 0015). */
@@ -641,6 +643,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
         />
       )}
       {part.kind === "rom" && <RomContents key={`${part.props.width ?? 1}:${(part.props.data ?? []).join()}`} part={part} />}
+      {part.kind === "rom" && (part.props.width ?? 1) === 16 && <ProgramEditor key={part.id} part={part} />}
       {part.kind === "ram" && <RamDump part={part} />}
       {part.definition && name !== undefined && (
         <CommitField
@@ -712,6 +715,123 @@ function RomContents({ part }: { part: CircuitComponent }) {
       <p id={`${id}-hint`} className={`field-hint${problem ? " field-error" : ""}`} role={problem ? "alert" : undefined}>
         {problem ?? `Words from address 0, in hex (0x…), decimal or binary (0b…), separated by spaces or commas. Missing words read 0.`}
       </p>
+    </div>
+  );
+}
+
+/**
+ * A 16-bit ROM's program as reference-CPU assembly (ADR 0019): Assemble writes the words and keeps the source,
+ * as one undoable edit, which reloads and resets the circuit. Errors are listed by line and change nothing. Below,
+ * the ROM's words as assembly, and a note when they are no longer what the kept source assembles to.
+ */
+function ProgramEditor({ part }: { part: CircuitComponent }) {
+  const saved = part.props.source ?? "";
+  const data = part.props.data;
+  const address = part.props.addressWidth ?? DEFAULT_ADDRESS;
+  const [draft, setDraft] = useState(saved);
+  const [errors, setErrors] = useState<AsmError[]>([]);
+  /** The last Assemble's result, shown while the ROM still holds the words and source it wrote. */
+  const [status, setStatus] = useState<{ text: string; words: string; source: string } | null>(null);
+  /** The listing; null while it is on its way, "unavailable" when the engine cannot answer. */
+  const [listing, setListing] = useState<string[] | null | "unavailable">(null);
+  /** Whether the words are what the kept source assembles to; "broken" when that source no longer assembles. */
+  const [check, setCheck] = useState<"ok" | "edited" | "broken">("ok");
+  const id = useId();
+  // Undo, redo or an import that changes the kept source shows that source, not what was typed before
+  // (state adjusted while rendering, as React recommends over an effect).
+  const [shown, setShown] = useState(saved);
+  if (shown !== saved) {
+    setShown(saved);
+    setDraft(saved);
+    setErrors([]);
+  }
+  // The listing and the source check follow the ROM's words, whatever changed them.
+  useEffect(() => {
+    let current = true;
+    const words = data ?? [];
+    void disassemble(words.slice(0, DUMP_WORDS)).then((lines) => current && setListing(lines ?? "unavailable"));
+    void assemble(saved).then((result) => {
+      if (!current) return;
+      setCheck(saved === "" ? "ok" : result.errors.length > 0 ? "broken" : result.words.join() !== words.join() ? "edited" : "ok");
+    });
+    return () => {
+      current = false;
+    };
+  }, [data, saved]);
+  const run = async () => {
+    // Cleared first, so the same errors twice are announced twice.
+    setErrors([]);
+    setStatus(null);
+    const result = await assemble(draft);
+    const room = 2 ** address;
+    const problems =
+      result.errors.length > 0
+        ? result.errors
+        : result.words.length > room
+          ? [{ line: 0, message: `${result.words.length} words do not fit in ${room} addresses: give the ROM more address bits.` }]
+          : [];
+    setErrors(problems);
+    if (problems.length > 0) return;
+    useEditor.getState().setData(part.id, result.words, draft);
+    setStatus({ text: `Assembled ${result.words.length} ${result.words.length === 1 ? "word" : "words"}.`, words: result.words.join(), source: draft });
+  };
+  const note =
+    (status?.words === (data ?? []).join() && status.source === saved && status.text) ||
+    (check === "edited"
+      ? "The words no longer match this source: they were edited directly. Assemble to write them again."
+      : check === "broken"
+        ? "This source no longer assembles; the words are as they were. Fix it and Assemble."
+        : "Reference-CPU assembly (docs/reference-cpu.md). Assemble writes the program and resets the circuit.");
+  const digits = Math.ceil(address / 4);
+  const total = data?.length ?? 0;
+  return (
+    <div className="field">
+      <label className="field-label" htmlFor={`${id}-source`}>
+        Assembly
+      </label>
+      <textarea
+        id={`${id}-source`}
+        aria-describedby={`${id}-hint`}
+        className="input memory-words"
+        rows={8}
+        spellCheck={false}
+        maxLength={MAX_SOURCE}
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setErrors([]);
+          setStatus(null);
+        }}
+      />
+      {errors.length > 0 ? (
+        <div id={`${id}-hint`} className="field-hint field-error" role="alert">
+          <ul className="asm-errors">
+            {errors.map((e) => (
+              <li key={`${e.line}:${e.message}`}>{e.line > 0 ? `Line ${e.line}: ${e.message}` : e.message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p id={`${id}-hint`} className="field-hint" role="status">
+          {note}
+        </p>
+      )}
+      <button type="button" className="button type-label" onClick={() => void run()}>
+        Assemble
+      </button>
+      <p className="field-label" id={`${id}-listing`}>
+        Disassembly
+      </p>
+      <pre className="memory-words" role="region" tabIndex={0} aria-labelledby={`${id}-listing`}>
+        {listing === null
+          ? "…"
+          : listing === "unavailable"
+            ? "Not available: the engine is not running."
+            : listing.length === 0
+              ? "Empty: every word reads 0, which runs as NOP."
+              : listing.map((line, a) => `${a.toString(16).toUpperCase().padStart(digits, "0")}  ${line}`).join("\n") +
+                (total > DUMP_WORDS ? `\n… ${total - DUMP_WORDS} more words` : "")}
+      </pre>
     </div>
   );
 }

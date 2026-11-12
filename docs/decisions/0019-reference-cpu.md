@@ -99,15 +99,22 @@ software CPU, and all simulation semantics live in `sim-core`.
    - The native tests use the same crate to assemble their programs.
    - The syntax is in the specification page.
 5. **Program editor.**
-   - A ROM's inspector gains an *Assembly* box and an *Assemble* button. A
+   - A 16-bit ROM's inspector gains an *Assembly* box and an *Assemble*
+     button; 16 bits is the reference CPU's instruction width, and a
+     narrower ROM could not hold its words. A
      program that assembles is written into the ROM's `data` as one
      undoable edit. That reloads and resets the circuit (ADRs 0017 and
-     0018). Errors are listed by line, and the ROM is left unchanged.
+     0018). Errors are listed by line, and the ROM is left unchanged. So is a
+     program with more words than the ROM's address bits hold, which says
+     so. The listing shows the first 256 words, the assembler's maximum.
    - The source is kept with the ROM as an editor-only prop `source`. It is
      saved in the file but never sent to the engine. It joins format v8
      (ADR 0018 item 8), so there is one bump for both.
    - Editing *Contents* directly still works. The two can then disagree,
      and the inspector says so when the words no longer match the source.
+   - The assembler runs in the worker, in the same WebAssembly module as
+     the engine: the editor sends `assemble` and `disassemble` requests
+     and awaits the reply carrying the same request number.
 6. **Instruction step and breakpoints: Run until an LED lights.** The
    engine knows nothing about instructions (ADR 0017 item 1), so stepping
    is defined by the circuit.
@@ -133,8 +140,8 @@ software CPU, and all simulation semantics live in `sim-core`.
      the clock high. From there, a Step takes 3 ticks (ADR 0017).
    - Step (one cycle) and Run are unchanged.
 7. **Memory inspection** is ADR 0018's RAM dump in the inspector. A
-   *Disassemble* view of the ROM, listing each word as its mnemonic, comes
-   with the program editor. It is computed by `crates/asm`, not by the
+   *Disassembly* view of the ROM, listing each word with its address,
+   sits under the program editor. It is computed by `crates/asm`, not by the
    engine. A word the assembler would not write (a reserved opcode,
    reserved bits, or an operand on an instruction without one) shows what
    it executes as, with the raw word in a comment (`NOP ; 0xD012`), so the
