@@ -1,4 +1,4 @@
-import init, { Engine } from "../generated/sim-wasm/sim_wasm.js";
+import init, { assemble, disassemble, Engine } from "../generated/sim-wasm/sim_wasm.js";
 import type { Command, Diagnostic, Result } from "../simulation/protocol";
 
 const reply = (result: Result) => postMessage(result);
@@ -144,6 +144,13 @@ onmessage = async (event: MessageEvent<Command>) => {
         break;
       case "readMemory":
         reply({ type: "memory", component: command.component, words: engine.memory(command.component, command.count) ?? new Uint32Array() });
+        break;
+      // The assembler lives in the same module (crates/asm through sim-wasm, ADR 0019); it simulates nothing.
+      case "assemble":
+        reply({ type: "assembled", request: command.request, ...JSON.parse(assemble(command.source)) });
+        break;
+      case "disassemble":
+        reply({ type: "disassembled", request: command.request, lines: command.words.map((w) => disassemble(w)) });
         break;
     }
   } catch (error) {

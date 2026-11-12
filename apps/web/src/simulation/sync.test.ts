@@ -25,3 +25,17 @@ test("a load the engine fails on answers that load: the error shows, nothing sta
   expect(useSim.getState()).toMatchObject({ error: "switch value", stale: false });
   stop();
 });
+test("assembler requests resolve from the replies carrying their request numbers, in any order (ADR 0019)", async () => {
+  const { assemble, disassemble } = await import("./sync");
+  const stop = connectEngine();
+  worker.sent.length = 0;
+  const words = assemble("LDI 5");
+  const lines = disassemble([0x1005]);
+  const [first, second] = worker.sent as { request: number }[];
+  // Answered out of order: each promise still gets its own reply.
+  worker.reply({ type: "disassembled", request: second?.request ?? -1, lines: ["LDI 5"] });
+  worker.reply({ type: "assembled", request: first?.request ?? -1, words: [0x1005], errors: [] });
+  await expect(words).resolves.toEqual({ type: "assembled", request: first?.request, words: [0x1005], errors: [] });
+  await expect(lines).resolves.toEqual(["LDI 5"]);
+  stop();
+});

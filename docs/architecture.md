@@ -206,7 +206,9 @@ type Command =
   | { type: "pause" }
   | { type: "step" }                   // pause, then one clock cycle
   | { type: "reset" }                  // pause; flip-flops, RAM, clock and time to 0
-  | { type: "readMemory"; component: string; count: number }; // a memory's first count words (ADR 0018)
+  | { type: "readMemory"; component: string; count: number } // a memory's first count words (ADR 0018)
+  | { type: "assemble"; request: number; source: string }    // reference-CPU assembly (ADR 0019)
+  | { type: "disassemble"; request: number; words: number[] };
 
 // worker → main
 type Result =
@@ -219,6 +221,8 @@ type Result =
   | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[]; // nets each cut to its width
       time: number; running: boolean }   // ticks; whether a run is under way
   | { type: "memory"; component: string; words: Uint32Array } // empty when not a memory
+  | { type: "assembled"; request: number; words: number[]; errors: { line: number; message: string }[] }
+  | { type: "disassembled"; request: number; lines: string[] }
   | { type: "error"; message: string; load?: true; running?: boolean }; // load: answers a load; running: after the failure
 ```
 

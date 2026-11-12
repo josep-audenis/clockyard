@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { project } from "../editor/document";
 import { liveDefinitions, useEditor, type EditorState } from "../editor/store";
 import { startSimulation } from "./client";
-import type { Command, Diagnostic, Result } from "./protocol";
+import type { AsmError, Command, Diagnostic, Result } from "./protocol";
 
 export type Loaded = Extract<Result, { type: "loaded" }>;
 
@@ -66,6 +66,30 @@ export function readMemory(component: string, count: number) {
   send?.({ type: "readMemory", component, count });
 }
 
+/** Replies awaited by request number: the assembler's answers come back in any order with other results. */
+let requests = 0;
+const awaiting = new Map<number, (result: Result) => void>();
+
+function ask(command: (request: number) => Command): Promise<Result> {
+  const request = ++requests;
+  return new Promise((resolve) => {
+    awaiting.set(request, resolve);
+    send?.(command(request));
+  });
+}
+
+/** Assembles reference-CPU source in the worker (ADR 0019): the ROM words, or every error with its line. */
+export async function assemble(source: string): Promise<{ words: number[]; errors: AsmError[] }> {
+  const result = await ask((request) => ({ type: "assemble", request, source }));
+  return result.type === "assembled" ? result : { words: [], errors: [] };
+}
+
+/** ROM words as reference-CPU assembly, one line each. */
+export async function disassemble(words: number[]): Promise<string[]> {
+  const result = await ask((request) => ({ type: "disassemble", request, words }));
+  return result.type === "disassembled" ? result.lines : [];
+}
+
 /** Picks the run speed; a run under way continues at it. */
 export function setSpeed(speed: number) {
   useSim.setState({ speed });
@@ -95,6 +119,11 @@ export function connectEngine(): () => void {
       case "loaded":
         pending--;
         useSim.setState({ loaded: message, status: "ready", error: null });
+        break;
+      case "assembled":
+      case "disassembled":
+        awaiting.get(message.request)?.(message);
+        awaiting.delete(message.request);
         break;
       case "memory":
         useSim.setState({ memory: { component: message.component, words: message.words } });

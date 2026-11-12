@@ -9,6 +9,7 @@ import {
   isFielded,
   isMemory,
   MAX_ADDRESS,
+  MAX_SOURCE,
   takesWidth,
   MAX_LABEL,
   MAX_WIDTH,
@@ -22,7 +23,8 @@ import {
   type PartKind,
 } from "../editor/document";
 import { deleteRefusal, liveDefinitions, mainCircuit, useEditor } from "../editor/store";
-import { connectEngine, control, readMemory, setSpeed, setUntil, SPEEDS, useSim } from "../simulation/sync";
+import { assemble, connectEngine, control, disassemble, readMemory, setSpeed, setUntil, SPEEDS, useSim } from "../simulation/sync";
+import type { AsmError } from "../simulation/protocol";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
 
 /** `label` is not a part: it places a named junction (ADR 0015). */
@@ -641,6 +643,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
         />
       )}
       {part.kind === "rom" && <RomContents key={`${part.props.width ?? 1}:${(part.props.data ?? []).join()}`} part={part} />}
+      {part.kind === "rom" && (part.props.width ?? 1) === 16 && <ProgramEditor key={part.id} part={part} />}
       {part.kind === "ram" && <RamDump part={part} />}
       {part.definition && name !== undefined && (
         <CommitField
@@ -712,6 +715,83 @@ function RomContents({ part }: { part: CircuitComponent }) {
       <p id={`${id}-hint`} className={`field-hint${problem ? " field-error" : ""}`} role={problem ? "alert" : undefined}>
         {problem ?? `Words from address 0, in hex (0x…), decimal or binary (0b…), separated by spaces or commas. Missing words read 0.`}
       </p>
+    </div>
+  );
+}
+
+/**
+ * A 16-bit ROM's program as reference-CPU assembly (ADR 0019): Assemble writes the words and keeps the source,
+ * as one undoable edit, which reloads and resets the circuit. Errors are listed by line and change nothing. Below,
+ * the ROM's words as assembly, and a note when they are no longer what the kept source assembles to.
+ */
+function ProgramEditor({ part }: { part: CircuitComponent }) {
+  const saved = part.props.source ?? "";
+  const data = part.props.data;
+  const [draft, setDraft] = useState(saved);
+  const [errors, setErrors] = useState<AsmError[]>([]);
+  const [listing, setListing] = useState<string[] | null>(null);
+  const [edited, setEdited] = useState(false);
+  const id = useId();
+  // The listing and the source check follow the ROM's words, whatever changed them.
+  useEffect(() => {
+    let current = true;
+    const words = data ?? [];
+    void disassemble(words).then((lines) => current && setListing(lines));
+    void assemble(saved).then(
+      (result) => current && setEdited(saved !== "" && (result.errors.length > 0 || result.words.join() !== words.join())),
+    );
+    return () => {
+      current = false;
+    };
+  }, [data, saved]);
+  const run = async () => {
+    const result = await assemble(draft);
+    setErrors(result.errors);
+    if (result.errors.length === 0) useEditor.getState().setData(part.id, result.words, draft);
+  };
+  return (
+    <div className="field">
+      <label className="field-label" htmlFor={`${id}-source`}>
+        Assembly
+      </label>
+      <textarea
+        id={`${id}-source`}
+        aria-describedby={`${id}-hint`}
+        className="input memory-words"
+        rows={8}
+        spellCheck={false}
+        maxLength={MAX_SOURCE}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+      />
+      {errors.length > 0 ? (
+        <ul id={`${id}-hint`} className="field-hint field-error asm-errors" role="alert">
+          {errors.map((e) => (
+            <li key={`${e.line}:${e.message}`}>
+              Line {e.line}: {e.message}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p id={`${id}-hint`} className="field-hint">
+          {edited
+            ? "The words no longer match this source: they were edited directly. Assemble to write them again."
+            : "Reference-CPU assembly (docs/reference-cpu.md). Assemble writes the program and resets the circuit."}
+        </p>
+      )}
+      <button type="button" className="button type-label" onClick={() => void run()}>
+        Assemble
+      </button>
+      <p className="field-label" id={`${id}-listing`}>
+        Disassembly
+      </p>
+      <pre className="memory-words" role="region" tabIndex={0} aria-labelledby={`${id}-listing`}>
+        {listing === null
+          ? "…"
+          : listing.length === 0
+            ? "Empty: every word reads 0, which runs as NOP."
+            : listing.map((line, address) => `${address.toString(16).toUpperCase().padStart(2, "0")}  ${line}`).join("\n")}
+      </pre>
     </div>
   );
 }

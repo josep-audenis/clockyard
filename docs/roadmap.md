@@ -323,7 +323,9 @@ an LED lights* for instruction steps and breakpoints; proposed). Built in six st
 4. ✅ `tick_until` in `sim-core` and *Run until* in the toolbar: any 1-bit LED on
    the sheet; on the reference CPU, Fetch is the instruction step and Halted
    runs a program to its end.
-5. ⬜ The program editor and disassembly.
+5. ✅ The program editor: a 16-bit ROM's inspector has an Assembly box and an
+   Assemble button (errors listed by line, the ROM unchanged on error), a note
+   when the words no longer match the source, and a disassembly listing.
 6. ⬜ Playwright and docs.
 
 ## Phase 5 — Computer-building sandbox

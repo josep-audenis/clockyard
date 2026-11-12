@@ -827,3 +827,31 @@ test("run until an LED lights: an instruction step on the reference CPU, then ru
   await expect(readout(page, "LED Output")).toHaveText("LED Output: 8 (0x08)");
   await expect(counter(page)).toHaveText("Cycle 8, clock high");
 });
+
+test("the program editor assembles into the ROM, lists errors by line, and the CPU runs the new program (ADR 0019)", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  const at = await grid(page);
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  await click(page, at(24.5, 16)); // the program ROM at (22,14)
+  const source = inspector.getByLabel("Assembly", { exact: true });
+  const listing = inspector.getByRole("region", { name: "Disassembly" });
+  await expect(source).toHaveValue(/LDI 5/);
+  await expect(listing).toContainText("00  LDI 5");
+  // An error is listed by line and changes nothing.
+  await source.fill("LDX 1");
+  await button("Assemble").click();
+  await expect(inspector.getByRole("alert")).toHaveText("Line 1: unknown instruction LDX");
+  await expect(listing).toContainText("00  LDI 5");
+  // A new program: 7 + 2, run to its end.
+  await source.fill("LDI 7\nADI 2\nOUT\nHLT");
+  await button("Assemble").click();
+  await expect(listing).toContainText("00  LDI 7");
+  await expect(listing).toContainText("01  ADI 2");
+  await page.getByLabel("Speed").selectOption("100");
+  await page.getByLabel("Run until").selectOption({ label: "Until LED Halted lights" });
+  await button("Run").click();
+  await expect(readout(page, "LED Output")).toHaveText("LED Output: 9 (0x09)");
+});
