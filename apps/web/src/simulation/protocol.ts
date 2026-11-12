@@ -86,5 +86,6 @@ export type Result =
   /**
    * `load`: the failing command was a load, which then gets no `loaded` reply.
    * `running`: whether a run is still under way after the failure (ADR 0017).
+   * `request`: the failing command was that assembler request, which gets no other reply.
    */
-  | { type: "error"; message: string; load?: true; running?: boolean };
+  | { type: "error"; message: string; load?: true; running?: boolean; request?: number };

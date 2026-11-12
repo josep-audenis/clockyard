@@ -104,7 +104,9 @@ software CPU, and all simulation semantics live in `sim-core`.
      narrower ROM could not hold its words. A
      program that assembles is written into the ROM's `data` as one
      undoable edit. That reloads and resets the circuit (ADRs 0017 and
-     0018). Errors are listed by line, and the ROM is left unchanged.
+     0018). Errors are listed by line, and the ROM is left unchanged. So is a
+     program with more words than the ROM's address bits hold, which says
+     so. The listing shows the first 256 words, the assembler's maximum.
    - The source is kept with the ROM as an editor-only prop `source`. It is
      saved in the file but never sent to the engine. It joins format v8
      (ADR 0018 item 8), so there is one bump for both.

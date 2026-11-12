@@ -727,28 +727,63 @@ function RomContents({ part }: { part: CircuitComponent }) {
 function ProgramEditor({ part }: { part: CircuitComponent }) {
   const saved = part.props.source ?? "";
   const data = part.props.data;
+  const address = part.props.addressWidth ?? DEFAULT_ADDRESS;
   const [draft, setDraft] = useState(saved);
   const [errors, setErrors] = useState<AsmError[]>([]);
-  const [listing, setListing] = useState<string[] | null>(null);
-  const [edited, setEdited] = useState(false);
+  /** The last Assemble's result, shown while the ROM still holds the words and source it wrote. */
+  const [status, setStatus] = useState<{ text: string; words: string; source: string } | null>(null);
+  /** The listing; null while it is on its way, "unavailable" when the engine cannot answer. */
+  const [listing, setListing] = useState<string[] | null | "unavailable">(null);
+  /** Whether the words are what the kept source assembles to; "broken" when that source no longer assembles. */
+  const [check, setCheck] = useState<"ok" | "edited" | "broken">("ok");
   const id = useId();
+  // Undo, redo or an import that changes the kept source shows that source, not what was typed before
+  // (state adjusted while rendering, as React recommends over an effect).
+  const [shown, setShown] = useState(saved);
+  if (shown !== saved) {
+    setShown(saved);
+    setDraft(saved);
+    setErrors([]);
+  }
   // The listing and the source check follow the ROM's words, whatever changed them.
   useEffect(() => {
     let current = true;
     const words = data ?? [];
-    void disassemble(words).then((lines) => current && setListing(lines));
-    void assemble(saved).then(
-      (result) => current && setEdited(saved !== "" && (result.errors.length > 0 || result.words.join() !== words.join())),
-    );
+    void disassemble(words.slice(0, DUMP_WORDS)).then((lines) => current && setListing(lines ?? "unavailable"));
+    void assemble(saved).then((result) => {
+      if (!current) return;
+      setCheck(saved === "" ? "ok" : result.errors.length > 0 ? "broken" : result.words.join() !== words.join() ? "edited" : "ok");
+    });
     return () => {
       current = false;
     };
   }, [data, saved]);
   const run = async () => {
+    // Cleared first, so the same errors twice are announced twice.
+    setErrors([]);
+    setStatus(null);
     const result = await assemble(draft);
-    setErrors(result.errors);
-    if (result.errors.length === 0) useEditor.getState().setData(part.id, result.words, draft);
+    const room = 2 ** address;
+    const problems =
+      result.errors.length > 0
+        ? result.errors
+        : result.words.length > room
+          ? [{ line: 0, message: `${result.words.length} words do not fit in ${room} addresses: give the ROM more address bits.` }]
+          : [];
+    setErrors(problems);
+    if (problems.length > 0) return;
+    useEditor.getState().setData(part.id, result.words, draft);
+    setStatus({ text: `Assembled ${result.words.length} ${result.words.length === 1 ? "word" : "words"}.`, words: result.words.join(), source: draft });
   };
+  const note =
+    (status?.words === (data ?? []).join() && status.source === saved && status.text) ||
+    (check === "edited"
+      ? "The words no longer match this source: they were edited directly. Assemble to write them again."
+      : check === "broken"
+        ? "This source no longer assembles; the words are as they were. Fix it and Assemble."
+        : "Reference-CPU assembly (docs/reference-cpu.md). Assemble writes the program and resets the circuit.");
+  const digits = Math.ceil(address / 4);
+  const total = data?.length ?? 0;
   return (
     <div className="field">
       <label className="field-label" htmlFor={`${id}-source`}>
@@ -762,21 +797,23 @@ function ProgramEditor({ part }: { part: CircuitComponent }) {
         spellCheck={false}
         maxLength={MAX_SOURCE}
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setErrors([]);
+          setStatus(null);
+        }}
       />
       {errors.length > 0 ? (
-        <ul id={`${id}-hint`} className="field-hint field-error asm-errors" role="alert">
-          {errors.map((e) => (
-            <li key={`${e.line}:${e.message}`}>
-              Line {e.line}: {e.message}
-            </li>
-          ))}
-        </ul>
+        <div id={`${id}-hint`} className="field-hint field-error" role="alert">
+          <ul className="asm-errors">
+            {errors.map((e) => (
+              <li key={`${e.line}:${e.message}`}>{e.line > 0 ? `Line ${e.line}: ${e.message}` : e.message}</li>
+            ))}
+          </ul>
+        </div>
       ) : (
-        <p id={`${id}-hint`} className="field-hint">
-          {edited
-            ? "The words no longer match this source: they were edited directly. Assemble to write them again."
-            : "Reference-CPU assembly (docs/reference-cpu.md). Assemble writes the program and resets the circuit."}
+        <p id={`${id}-hint`} className="field-hint" role="status">
+          {note}
         </p>
       )}
       <button type="button" className="button type-label" onClick={() => void run()}>
@@ -788,9 +825,12 @@ function ProgramEditor({ part }: { part: CircuitComponent }) {
       <pre className="memory-words" role="region" tabIndex={0} aria-labelledby={`${id}-listing`}>
         {listing === null
           ? "…"
-          : listing.length === 0
-            ? "Empty: every word reads 0, which runs as NOP."
-            : listing.map((line, address) => `${address.toString(16).toUpperCase().padStart(2, "0")}  ${line}`).join("\n")}
+          : listing === "unavailable"
+            ? "Not available: the engine is not running."
+            : listing.length === 0
+              ? "Empty: every word reads 0, which runs as NOP."
+              : listing.map((line, a) => `${a.toString(16).toUpperCase().padStart(digits, "0")}  ${line}`).join("\n") +
+                (total > DUMP_WORDS ? `\n… ${total - DUMP_WORDS} more words` : "")}
       </pre>
     </div>
   );

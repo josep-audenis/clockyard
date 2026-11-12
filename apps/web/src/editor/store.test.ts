@@ -1189,3 +1189,16 @@ test("a ROM's address width and contents are edits: words that no longer fit go,
   setAddressWidth(r, 8); // the default is not stored
   expect(props()).toEqual({ width: 8, data: [1, 2] });
 });
+
+test("a ROM's program: an empty one clears words and source, and unchanged words and source are no edit whatever the key order", () => {
+  const { add, setWidth, setData, setLabel } = useEditor.getState();
+  const r = add("rom", { x: 0, y: 0 });
+  setWidth(r, 16);
+  setData(r, [0x1005, 0xc000], "LDI 5\nHLT");
+  setLabel(r, "Program"); // the label now comes after data and source
+  const steps = useEditor.getState().past.length;
+  setData(r, [0x1005, 0xc000], "LDI 5\nHLT");
+  expect(useEditor.getState().past.length).toBe(steps);
+  setData(r, [], "");
+  expect(useEditor.getState().circuit.components.find((c) => c.id === r)?.props).toEqual({ width: 16, label: "Program" });
+});

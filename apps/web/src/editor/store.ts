@@ -771,7 +771,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
       const kept = source ?? part.props.source;
       if (kept && kept.length > MAX_SOURCE) return state;
       const props = { ...rest, ...(words.length > 0 && { data: [...words] }), ...(kept && { source: kept }) };
-      if (JSON.stringify(props) === JSON.stringify(part.props)) return state;
+      // Unchanged words and source are no edit (key order varies with the edits that made the props).
+      if ((part.props.data ?? []).join() === words.join() && (part.props.source ?? "") === (kept ?? "")) return state;
       const components = state.circuit.components.map((c) => (c.id === id ? { ...c, props } : c));
       return edit(state, { ...state.circuit, components });
     }),
