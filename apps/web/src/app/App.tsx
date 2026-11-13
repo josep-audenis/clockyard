@@ -13,6 +13,7 @@ import {
   screenSize,
   MAX_SOURCE,
   takesWidth,
+  widthOf,
   MAX_LABEL,
   MAX_WIDTH,
   maxValue,
@@ -985,7 +986,7 @@ function partName(components: CircuitComponent[], part: CircuitComponent) {
   return `${kindName(part)} ${same.indexOf(part) + 1}`;
 }
 
-/** The canvas is pixels only; this lists switch and LED states for screen readers (and browser tests). */
+/** The canvas is pixels only; this lists switch, keyboard, LED and seven-segment states for screen readers (and browser tests). */
 function Readout() {
   const components = useEditor((s) => s.circuit.components);
   const loaded = useSim((s) => s.loaded);
@@ -994,17 +995,18 @@ function Readout() {
   const value = (part: CircuitComponent, port: string) => {
     const net = loaded?.portNets[part.id]?.[port];
     const bits = net === undefined ? undefined : nets?.[net];
-    return stale || bits === undefined ? "unknown" : showValue(bits, part.props.width ?? 1);
+    return stale || bits === undefined ? "unknown" : showValue(bits, widthOf(part));
   };
-  const switches = components.filter((c) => c.kind === "switch");
-  const leds = components.filter((c) => c.kind === "led");
+  // Inputs first, then outputs (ADR 0021: a keyboard is read as a switch, a seven-segment display as an LED).
+  const switches = components.filter((c) => c.kind === "switch" || c.kind === "keyboard");
+  const leds = components.filter((c) => c.kind === "led" || c.kind === "seg7");
   return (
     <ul className="visually-hidden" aria-label="Inputs and outputs">
       {switches.map((c) => (
         <li key={c.id}>{`${partName(components, c)}: ${value(c, "out")}`}</li>
       ))}
       {leds.map((c) => (
-        <li key={c.id}>{`${partName(components, c)}: ${value(c, "in")}`}</li>
+        <li key={c.id}>{`${partName(components, c)}: ${value(c, c.kind === "seg7" ? "seg" : "in")}`}</li>
       ))}
     </ul>
   );
@@ -1126,6 +1128,8 @@ function StatusBar() {
   const net = hovered === null ? undefined : loaded?.wireNets[hovered];
   const probed = bits > 1 && net !== undefined ? nets?.[net] : undefined;
   // While a part is armed, how to place it.
+  // A keyboard part with the keys says so, and how to give them back (ADR 0021).
+  const keyboard = useCanvasHints((s) => s.keyboard);
   const placing = useEditor((s) =>
     s.armedLabel
       ? "Placing a label: click a grid point. Esc cancels."
@@ -1157,9 +1161,11 @@ function StatusBar() {
   const message =
     status === "error"
       ? error
-      : probed !== undefined
-        ? `${bits} bits: ${probed}, ${hex(probed, bits)}`
-        : placing ||
+      : keyboard
+        ? "The keyboard has the keys: what you type goes to the circuit. Esc, Tab or a click elsewhere gives them back."
+        : probed !== undefined
+          ? `${bits} bits: ${probed}, ${hex(probed, bits)}`
+          : placing ||
           (first &&
         `${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`);
 
