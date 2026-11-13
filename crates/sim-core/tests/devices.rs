@@ -103,3 +103,34 @@ fn a_screen_is_a_ram_whose_words_are_the_picture() {
     sim.reset();
     assert!(sim.memory("m").unwrap().iter().all(|&w| w == 0));
 }
+
+#[test]
+fn reset_keeps_the_key_held_and_a_keyboard_inside_a_chip_is_set_by_its_elaborated_id() {
+    // A chip holding a keyboard wired to its output pin.
+    let chip = json!({
+        "id": "kb",
+        "components": [
+            { "id": "k", "kind": "keyboard" },
+            { "id": "o", "kind": "led", "width": 8 },
+        ],
+        "connections": [wire("w", ("k", "out"), ("o", "in"))],
+        "inputs": [],
+        "outputs": [{ "name": "o", "component": "o" }],
+    });
+    let mut sim = load(json!({
+        "components": [
+            { "id": "c", "kind": "custom", "definition": "kb" },
+            { "id": "s", "kind": "seg7" },
+        ],
+        "connections": [wire("w", ("c", "o"), ("s", "seg"))],
+        "definitions": [chip],
+    }));
+    sim.set_input("c/k", 0x0d).unwrap();
+    assert_eq!(value(&sim, "s", "seg"), 0x0d, "Enter reaches the display");
+    sim.reset();
+    assert_eq!(
+        value(&sim, "s", "seg"),
+        0x0d,
+        "reset keeps inputs, as a switch's"
+    );
+}

@@ -254,6 +254,7 @@ test("a version 8 file is migrated: only the version changes; devices round-trip
 
 test.each([
   ["an address width on a gate", { kind: "and", props: { addressWidth: 4 } }, "only ROMs, RAMs and screens"],
+  ["an address width on a seven-segment display", { kind: "seg7", props: { addressWidth: 4 } }, "only ROMs, RAMs and screens"],
   ["an address width out of range", { kind: "rom", props: { addressWidth: 17 } }, "address width must be"],
   ["data on a RAM", { kind: "ram", props: { data: [1] } }, "only ROMs hold"],
   ["a word too wide", { kind: "rom", props: { width: 8, data: [256] } }, "from 0 to 255"],

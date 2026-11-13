@@ -82,7 +82,9 @@ What the engine and editor already have:
 
    This fixes a Phase 4 rough edge, as ADR 0020 item 4 intends.
 7. **File format v9.** It adds the three kinds and the editor-only
-   `columns`. A v8 file opens unchanged.
+   `columns`. A v8 file opens unchanged. `columns` joins v9 in step 2
+   without a new version: nothing between the steps is released, so no
+   v9 file lacks it in the wild.
 8. **Order of work.** Each step is one pull request:
    1. Engine and catalog entries, format v9, tiles, and the bodies for
       `seg7` and `keyboard`.

@@ -10,6 +10,8 @@ export type FieldedKind = "split" | "merge";
 export const isFielded = (kind: PartKind): kind is FieldedKind => kind === "split" || kind === "merge";
 /** Parts whose ports have one width whatever their props: a clock (ADR 0017), a seven-segment display and a keyboard (ADR 0021). */
 export const FIXED_WIDTH: Partial<Record<PartKind, number>> = { clock: 1, seg7: 8, keyboard: 8 };
+/** The width of a part's ports: fixed for its kind, else its `width` prop (custom parts and splitters: 1, unused). */
+export const widthOf = (part: { kind: PartKind; props: { width?: number } }) => FIXED_WIDTH[part.kind] ?? part.props.width ?? 1;
 /** Whether `width` sets the part's ports (ADR 0014): not a chip, splitter, merger, or a part of fixed width. */
 export const takesWidth = (kind: PartKind) => kind !== "custom" && FIXED_WIDTH[kind] === undefined && !isFielded(kind);
 /** A ROM, RAM or screen (ADRs 0018, 0021): `addressWidth` sets its `addr` port and how many words it holds. */

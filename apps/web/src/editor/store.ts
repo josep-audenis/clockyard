@@ -15,6 +15,7 @@ import {
   MAX_LABEL,
   MAX_WIDTH,
   newProps,
+  widthOf,
   normalizeLabel,
   normalizeName,
   normalizeNetName,
@@ -286,7 +287,7 @@ const HISTORY_LIMIT = 200;
  */
 function withCircuit(state: EditorState, circuit: Circuit) {
   const kept = new Set(items(circuit).map((item) => item.id));
-  const width = new Map(circuit.components.map((c) => [c.id, c.props.width ?? 1]));
+  const width = new Map(circuit.components.map((c) => [c.id, widthOf(c)]));
   return {
     circuit,
     selection: state.selection.filter((id) => kept.has(id)),
