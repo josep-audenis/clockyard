@@ -1,9 +1,10 @@
 # Reference CPU: specification
 
-Status: **proposed** (ADR 0019). This is the reference specification that the
-CPU built from Clockyard parts is tested against: native Rust tests run the
-same programs on the netlist and on a model written from this page, and the
-results must match after every instruction.
+Status: **built** (ADR 0019, accepted). This is the reference specification
+that the CPU built from Clockyard parts is tested against: native Rust tests
+run the same programs on the netlist and on a model written from this page,
+and the results must match after every clock cycle. Change this page first
+to change the instruction set.
 
 ## Machine
 

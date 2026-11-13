@@ -1,6 +1,6 @@
 # 0019. The reference CPU, its assembler and instruction stepping
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-08
 - Depends on: ADRs 0012 (custom components), 0014 (widths and splitters),
   0017 (clocks, run controls), 0018 (ROM and RAM)
