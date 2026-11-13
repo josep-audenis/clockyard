@@ -1161,10 +1161,11 @@ function StatusBar() {
   const message =
     status === "error"
       ? error
-      : probed !== undefined
-        ? `${bits} bits: ${probed}, ${hex(probed, bits)}`
-        : placing ||
-          (keyboard && "The keyboard has the keys: what you type goes to the circuit. Esc, Tab or a click elsewhere gives them back.") ||
+      : keyboard
+        ? "The keyboard has the keys: what you type goes to the circuit. Esc, Tab or a click elsewhere gives them back."
+        : probed !== undefined
+          ? `${bits} bits: ${probed}, ${hex(probed, bits)}`
+          : placing ||
           (first &&
         `${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`);
 

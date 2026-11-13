@@ -20,7 +20,7 @@ import {
   type Junction,
   type Props,
 } from "../editor/document";
-import { heldCode, keyCode, press, release, type Held } from "../editor/keyboard";
+import { heldCode, keyStep, type Held } from "../editor/keyboard";
 import { armedProps, useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
 import { useSim, watchMemory } from "../simulation/sync";
@@ -1012,29 +1012,21 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   };
   /**
    * While a keyboard part has the keys, a key held sends its code (ADR 0021) and no shortcut
-   * hears it. Ctrl, Cmd and Alt combinations stay the editor's (undo, copy); Tab moves on and
-   * gives the keys back; Escape is a key too, and gives them back once released.
+   * hears it; `keyStep` says what each event does.
    */
   const onKeyboardKey = (e: KeyboardEvent) => {
     const id = useCanvasHints.getState().keyboard;
     if (!id) return;
     const editor = useEditor.getState();
     if (!editor.circuit.components.some((c) => c.id === id && c.kind === "keyboard")) return focusKeyboard(null);
-    const down = e.type === "keydown";
-    if (down && (e.ctrlKey || e.metaKey || e.altKey)) return;
-    if (down && e.key === "Tab") return focusKeyboard(null);
-    e.stopImmediatePropagation();
-    const code = keyCode(e.key);
-    if (down) {
-      if (code === null) return;
-      e.preventDefault();
-      held = press(held, e.code, code);
-    } else {
-      held = release(held, e.code);
-    }
+    const { type, key, code, ctrlKey, metaKey, altKey } = e;
+    const step = keyStep(held, { type, key, code, ctrlKey, metaKey, altKey, altGraph: e.getModifierState("AltGraph") });
+    if (!step.pass) e.stopImmediatePropagation();
+    if (step.prevent) e.preventDefault();
+    held = step.held;
     const value = heldCode(held);
     if ((editor.inputs[id] ?? 0) !== value) editor.setInput(id, value);
-    if (!down && e.key === "Escape") focusKeyboard(null);
+    if (step.release) focusKeyboard(null);
   };
 
   const onKeyDown = (e: KeyboardEvent) => {

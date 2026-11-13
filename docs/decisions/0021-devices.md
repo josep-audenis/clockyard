@@ -85,11 +85,16 @@ What the engine and editor already have:
      reaches the circuit with code 27 before the focus is released.
    - *As built (step 3):* the focus is released when Escape is let go, so
      the circuit sees 27 for as long as it is held. Tab and leaving the
-     window give the keys back too, so the keyboard never traps them; Ctrl,
-     ⌘ and Alt combinations stay the editor's (undo, copy). Keys are
-     tracked by physical key, so letting go of Shift before A still
-     releases the "A". The status bar says the keyboard has the keys, and
-     the body shows the code it drives.
+     window give the keys back too, so the keyboard never traps them. Ctrl
+     and ⌘ combinations without Alt or AltGr stay the editor's (undo,
+     copy) and let go of any key held, since macOS sends no keyup for a
+     key released under ⌘; AltGr and Option combinations type characters
+     (`@` on many layouts). Keys are tracked by physical key, so letting go
+     of Shift before A still releases the "A". The status bar says the
+     keyboard has the keys, and the body shows the code it drives. A click
+     on the keyboard that has the keys gives them back on the press and
+     takes them again on release, so a key held through that click reads
+     0 until it repeats.
    - The value is an editor input like a switch's: transient, never saved,
      and restored after a load with the other inputs (ADR 0017).
 6. **Why a run stopped.** Games and programs often run until an LED

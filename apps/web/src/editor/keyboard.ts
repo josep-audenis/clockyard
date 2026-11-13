@@ -33,3 +33,31 @@ export const release = (held: Held, key: string): Held => held.filter((h) => h.k
 
 /** The value the keyboard drives: the last key still held, or 0. */
 export const heldCode = (held: Held) => held.at(-1)?.code ?? 0;
+
+/** What a key event needs from the browser: AltGr as its own flag (`getModifierState("AltGraph")`). */
+export type KeyEvent = { type: string; key: string; code: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; altGraph: boolean };
+
+/**
+ * One key event while a keyboard part has the keys: the keys held after it, whether the
+ * editor still hears it (`pass`), whether the browser's own action is stopped (`prevent`),
+ * and whether the keys go back to the editor (`release`).
+ *
+ * - Ctrl or Cmd without Alt or AltGr is the editor's (undo, copy). Keys held then are let go:
+ *   macOS sends no keyup for a key released while Cmd is down.
+ * - AltGr (Ctrl+Alt on Windows) and Option combinations type characters (`@` on many layouts): keys.
+ * - Tab moves on and gives the keys back; Escape gives them back once released.
+ * - Releasing Meta lets go of every key, for the same macOS reason.
+ */
+export function keyStep(held: Held, e: KeyEvent): { held: Held; pass: boolean; prevent: boolean; release: boolean } {
+  const down = e.type === "keydown";
+  // Some events carry no physical key; the character keeps them apart.
+  const physical = e.code || e.key;
+  if (down && (e.ctrlKey || e.metaKey) && !e.altKey && !e.altGraph) return { held: [], pass: true, prevent: false, release: false };
+  if (down && e.key === "Tab") return { held: [], pass: true, prevent: false, release: true };
+  if (!down && e.key === "Meta") return { held: [], pass: false, prevent: false, release: false };
+  if (!down) return { held: release(held, physical), pass: false, prevent: false, release: e.key === "Escape" };
+  const code = keyCode(e.key);
+  return code === null
+    ? { held, pass: false, prevent: false, release: false }
+    : { held: press(held, physical, code), pass: false, prevent: true, release: false };
+}
