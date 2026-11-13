@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { fieldRanges, fieldsProblem, hex, parseValue, project, showValue, withoutDeletedPins, type Circuit } from "./document";
+import { fieldRanges, fieldsProblem, hex, litPixels, parseValue, project, screenSize, showValue, withoutDeletedPins, type Circuit } from "./document";
 
 test("projection keeps connectivity and widths, junctions included, and drops geometry and labels", () => {
   const circuit: Circuit = {
@@ -121,4 +121,24 @@ test("wires to a deleted pin are left out of the projection and the file, and ke
   expect(project(main, outer).definitions[1]?.connections.map((c) => c.id)).toEqual(["kept"]);
   expect(withoutDeletedPins(main, []).wires).toHaveLength(2); // an unknown definition is the engine's to report
   expect(main.wires).toHaveLength(2);
+});
+
+test("a screen's picture: words fill rows of `columns` pixels, at most 256 rows, and only the words shown are read (ADR 0021)", () => {
+  expect(screenSize({ width: 8, addressWidth: 7 })).toEqual({ columns: 32, rows: 32, words: 128 });
+  // A last row the words do not fill is drawn short: 12 pixels in rows of 5.
+  expect(screenSize({ width: 3, addressWidth: 2, columns: 5 })).toEqual({ columns: 5, rows: 3, words: 4 });
+  // 2^16 one-bit words in rows of 256 are exactly 256 rows; in rows of 1 only the first 256 pixels show.
+  expect(screenSize({ addressWidth: 16, columns: 256 })).toEqual({ columns: 256, rows: 256, words: 65536 });
+  expect(screenSize({ width: 32, addressWidth: 16, columns: 1 })).toEqual({ columns: 1, rows: 256, words: 8 });
+});
+
+test("a screen's lit pixels: most significant bit leftmost, rows filled in order, nothing past the words read or the rows shown (ADR 0021)", () => {
+  // 0xA5 = 1010 0101 in an 8-pixel row.
+  expect(litPixels([0xa5], { width: 8, columns: 8 })).toEqual([0, 2, 5, 7]);
+  // 3-bit words in rows of 5: word 1 (0b100) starts at pixel 3, word 3 (0b001) ends the 3-pixel last row at 11.
+  expect(litPixels([0, 0b100, 0, 0b001], { width: 3, addressWidth: 2, columns: 5 })).toEqual([3, 11]);
+  // Fewer words than the picture holds: only theirs are drawn.
+  expect(litPixels([1], { width: 8, columns: 4 })).toEqual([7]);
+  // One column of 32-bit words: 256 rows shown, so word 8 is past the picture.
+  expect(litPixels(Array<number>(9).fill(0xffffffff), { width: 32, addressWidth: 16, columns: 1 })).toHaveLength(256);
 });

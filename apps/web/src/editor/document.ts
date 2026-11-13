@@ -38,11 +38,43 @@ export const MAX_SOURCE = 64 * 1024;
  * `label` is editor-only: a switch's or LED's label names the circuit's input or
  * output pin. `width` (switches, LEDs and gates; absent means 1) and `fields`
  * (splitters and mergers: field widths, lowest bits first) are projected to the
- * engine, which owns what they mean (ADR 0014). `addressWidth` (ROM, RAM; absent
+ * engine, which owns what they mean (ADR 0014). `addressWidth` (ROM, RAM, screen; absent
  * means 8) and `data` (a ROM's words from address 0) are projected too; `source`, a
- * ROM's assembly, is editor-only (ADRs 0018, 0019).
+ * ROM's assembly, is editor-only (ADRs 0018, 0019), as is `columns`, a screen's
+ * pixels per row (ADR 0021).
  */
-export type Props = { label?: string; width?: number; fields?: number[]; addressWidth?: number; data?: number[]; source?: string };
+export type Props = { label?: string; width?: number; fields?: number[]; addressWidth?: number; data?: number[]; source?: string; columns?: number };
+
+/** A screen's pixels per row (ADR 0021): 1 to `MAX_COLUMNS`, 32 unless set. Editor-only: the engine sees a RAM. */
+export const MAX_COLUMNS = 256;
+export const DEFAULT_COLUMNS = 32;
+/** Most rows a screen shows; pixels past them are not drawn, so a picture is at most 256 × 256. */
+export const MAX_ROWS = 256;
+
+/**
+ * A screen's picture: its columns, the rows it shows, and how many of its words those
+ * rows hold, the only words read from the engine. Words fill rows left to right, top to
+ * bottom, most significant bit leftmost; a last row the words do not fill is drawn short.
+ */
+export function screenSize(props: Props) {
+  const columns = props.columns ?? DEFAULT_COLUMNS;
+  const width = props.width ?? 1;
+  const words = 2 ** (props.addressWidth ?? DEFAULT_ADDRESS);
+  const rows = Math.min(MAX_ROWS, Math.ceil((words * width) / columns));
+  return { columns, rows, words: Math.min(words, Math.ceil((rows * columns) / width)) };
+}
+
+/** The lit pixels of a screen's picture, as indexes `row × columns + column`, from the words read for it. */
+export function litPixels(words: ArrayLike<number>, props: Props): number[] {
+  const { columns, rows } = screenSize(props);
+  const width = props.width ?? 1;
+  const lit = [];
+  for (let n = 0; n < Math.min(words.length * width, columns * rows); n++) {
+    // Pixel n is bit (width - 1 - n % width) of word n / width: the most significant bit leftmost.
+    if (((words[Math.floor(n / width)] ?? 0) >>> (width - 1 - (n % width))) & 1) lit.push(n);
+  }
+  return lit;
+}
 
 /** What is wrong with a ROM's words, or null: whole numbers that fit `width` bits, no more than `2^address` (ADR 0018). */
 export function wordsProblem(words: unknown, width: number, address: number): string | null {

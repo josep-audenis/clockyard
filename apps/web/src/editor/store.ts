@@ -15,6 +15,8 @@ import {
   MAX_LABEL,
   MAX_WIDTH,
   newProps,
+  DEFAULT_COLUMNS,
+  MAX_COLUMNS,
   widthOf,
   normalizeLabel,
   normalizeName,
@@ -112,6 +114,8 @@ export type EditorState = {
   setWidth: (id: string, width: number) => void;
   /** Sets a ROM's or RAM's address width (1 to `MAX_ADDRESS`) as one edit; a ROM keeps the words that still fit (ADR 0018). */
   setAddressWidth: (id: string, address: number) => void;
+  /** Sets a screen's pixels per row as one edit (ADR 0021); anything but 1 to `MAX_COLUMNS` changes nothing. */
+  setColumns: (id: string, columns: number) => void;
   /** Sets a ROM's words as one edit, and its assembly source if given (ADRs 0018, 0019). Invalid words change nothing. */
   setData: (id: string, words: number[], source?: string) => void;
   /**
@@ -277,6 +281,17 @@ function crossingPins(circuit: Circuit, inside: Set<string>, crossing: Wire[], n
 
 /** A new part's props: its kind's defaults, and `width` where it is wider than 1. */
 export const armedProps = (kind: PartKind, width: number): Props => ({ ...newProps(kind), ...(width > 1 && { width }) });
+
+/**
+ * A part's new props as one edit, unless the size they give it puts a port on a junction:
+ * refused, as placing or turning it there is (a wide switch or LED, a screen, ADRs 0014, 0021).
+ */
+function withProps(state: EditorState, id: string, props: Props) {
+  const circuit = { ...state.circuit, components: state.circuit.components.map((c) => (c.id === id ? { ...c, props } : c)) };
+  const part = circuit.components.find((c) => c.id === id);
+  if (part && stacksJunction(circuit, { [id]: part.position })) return state;
+  return edit(state, circuit);
+}
 
 const now = new Date().toISOString();
 const HISTORY_LIMIT = 200;
@@ -716,7 +731,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
       else delete props.width;
       // A ROM keeps the bits of each word that still fit, as a switch keeps its value's (ADR 0018).
       if (props.data) props.data = props.data.map((w) => w % 2 ** width);
-      return edit(state, { ...state.circuit, components: state.circuit.components.map((c) => (c === part ? { ...c, props } : c)) });
+      return withProps(state, id, props);
     }),
   addLabel: (position) => {
     const id = crypto.randomUUID();
@@ -757,8 +772,19 @@ export const useEditor = create<EditorState>()((set, get) => ({
         ...(address !== DEFAULT_ADDRESS && { addressWidth: address }),
         ...(rest.data && { data: rest.data.slice(0, 2 ** address) }),
       };
-      const components = state.circuit.components.map((c) => (c.id === id ? { ...c, props } : c));
-      return edit(state, { ...state.circuit, components });
+      return withProps(state, id, props);
+    }),
+
+  setColumns: (id, columns) =>
+    set((state) => {
+      const part = state.circuit.components.find((c) => c.id === id);
+      const valid = Number.isInteger(columns) && columns >= 1 && columns <= MAX_COLUMNS;
+      if (part?.kind !== "screen" || !valid || (part.props.columns ?? DEFAULT_COLUMNS) === columns) return state;
+      const props = { ...part.props };
+      // 32 is the default, so it is not stored.
+      if (columns !== DEFAULT_COLUMNS) props.columns = columns;
+      else delete props.columns;
+      return withProps(state, id, props);
     }),
 
   setData: (id, words, source) =>

@@ -243,8 +243,11 @@ test("a version 7 file is migrated: only the version changes; memories round-tri
 test("a version 8 file is migrated: only the version changes; devices round-trip in 9 (ADR 0021)", () => {
   const v8 = { ...document, version: 8 };
   expect(parseDocument(JSON.stringify(v8))).toEqual({ ok: true, document });
-  const screen = broken((_, c) => Object.assign(c, { kind: "screen", props: { width: 8, addressWidth: 7 } }));
-  expect(screen.ok && screen.document.circuit.components[0]?.props).toEqual({ width: 8, addressWidth: 7 });
+  const screen = broken((_, c) => Object.assign(c, { kind: "screen", props: { width: 8, addressWidth: 7, columns: 16 } }));
+  expect(screen.ok && screen.document.circuit.components[0]?.props).toEqual({ width: 8, addressWidth: 7, columns: 16 });
+  // 32 columns is the default, so it is not stored.
+  const square = broken((_, c) => Object.assign(c, { kind: "screen", props: { columns: 32 } }));
+  expect(square.ok && square.document.circuit.components[0]?.props).toEqual({});
   for (const kind of ["seg7", "keyboard"]) {
     const part = broken((_, c) => Object.assign(c, { kind, props: {} }));
     expect(part.ok && part.document.circuit.components[0]?.kind).toBe(kind);
@@ -254,6 +257,8 @@ test("a version 8 file is migrated: only the version changes; devices round-trip
 
 test.each([
   ["an address width on a gate", { kind: "and", props: { addressWidth: 4 } }, "only ROMs, RAMs and screens"],
+  ["columns on a RAM", { kind: "ram", props: { columns: 8 } }, "only screens take"],
+  ["columns out of range", { kind: "screen", props: { columns: 257 } }, "columns must be a whole number from 1 to 256"],
   ["an address width on a seven-segment display", { kind: "seg7", props: { addressWidth: 4 } }, "only ROMs, RAMs and screens"],
   ["an address width out of range", { kind: "rom", props: { addressWidth: 17 } }, "address width must be"],
   ["data on a RAM", { kind: "ram", props: { data: [1] } }, "only ROMs hold"],
