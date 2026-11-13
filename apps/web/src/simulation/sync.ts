@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { project } from "../editor/document";
 import { liveDefinitions, useEditor, type EditorState } from "../editor/store";
 import { startSimulation } from "./client";
-import type { AsmError, Command, Diagnostic, Result } from "./protocol";
+import type { AsmError, Command, Diagnostic, Result, Stopped } from "./protocol";
 
 export type Loaded = Extract<Result, { type: "loaded" }>;
 
@@ -21,6 +21,8 @@ export type SimState = {
   time: number;
   /** Whether the worker is running the clock (it pauses itself on an unstable loop). */
   running: boolean;
+  /** Why the last run ended by itself, as the worker last said; null when it was paused or since changed (ADR 0021). */
+  stopped: Stopped | null;
   /** Run speed in cycles per second, the editor's choice. */
   speed: number;
   /** The LED a run stops at when it lights, or null to run until paused (ADR 0019). */
@@ -41,6 +43,7 @@ export const useSim = create<SimState>()(() => ({
   stale: true,
   time: 0,
   running: false,
+  stopped: null,
   speed: 2,
   until: null,
   memory: {},
@@ -167,7 +170,7 @@ export function connectEngine(): () => void {
       }
       case "state":
         // Running or not is the worker's, whatever circuit the state describes.
-        useSim.setState({ running: message.running });
+        useSim.setState({ running: message.running, stopped: message.stopped ?? null });
         if (pending === 0) {
           const { nets, diagnostics: runtime, time } = message;
           useSim.setState({ nets, runtime, time, stale: false, status: "ready", error: null });

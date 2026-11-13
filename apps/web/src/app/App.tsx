@@ -658,7 +658,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
       {part.kind === "screen" && <ColumnsField part={part} />}
       {part.kind === "rom" && <RomContents key={`${part.props.width ?? 1}:${(part.props.data ?? []).join()}`} part={part} />}
       {part.kind === "rom" && (part.props.width ?? 1) === 16 && <ProgramEditor key={part.id} part={part} />}
-      {part.kind === "ram" && <RamDump part={part} />}
+      {(part.kind === "ram" || part.kind === "screen") && <RamDump part={part} />}
       {part.definition && name !== undefined && (
         <CommitField
           key={name}
@@ -863,15 +863,17 @@ function RamDump({ part }: { part: CircuitComponent }) {
   const id = useId();
   // On any sheet the open sheet is what is simulated, so the part's own ID names it.
   // Only the words shown cross from the worker, however large the RAM.
-  useEffect(() => readMemory(part.id, DUMP_WORDS), [part.id, nets]);
-  const words = own ? [...own] : null;
+  // A screen's canvas reads its shown words into the same slot (ADR 0021): asking for as many keeps the two from alternating.
+  const count = part.kind === "screen" ? screenSize(part.props).words : DUMP_WORDS;
+  useEffect(() => readMemory(part.id, count), [part.id, count, nets]);
+  const words = own ? [...own.slice(0, DUMP_WORDS)] : null;
   return (
     <div className="field">
       <p className="field-label" id={`${id}-label`}>
         Contents
       </p>
       {/* Focusable, so the list can be scrolled from the keyboard; named for screen readers. */}
-      <pre className="memory-words" role="region" tabIndex={0} aria-label="RAM contents">
+      <pre className="memory-words" role="region" tabIndex={0} aria-label={part.kind === "screen" ? "Screen contents" : "RAM contents"}>
         {words === null ? "…" : words.length === 0 ? "Not simulated: the circuit has errors." : wordLines(words, width)}
       </pre>
       <p className="field-hint">
@@ -1118,6 +1120,7 @@ function StatusBar() {
   const nets = useSim((s) => s.nets);
   const stale = useSim((s) => s.stale);
   const running = useSim((s) => s.running);
+  const stopped = useSim((s) => s.stopped);
   const time = useSim((s) => s.time);
   const definitions = useEditor((s) => s.definitions);
   // The cycle counter and clock level, once the sheet has anything clocked, inside components too (ADR 0017).
@@ -1139,12 +1142,18 @@ function StatusBar() {
 
   const diagnostics = [...(loaded?.diagnostics ?? []), ...runtime];
   const errors = diagnostics.filter((d) => d.severity === "error");
+  const unstable = errors.some((d) => d.code === "unstable");
+  // Why the last run ended by itself (ADR 0021): its LED, while the sheet still has it, or the loop that did not settle,
+  // which keeps the unstable diagnostic and its part names after "Stopped: ".
+  const lit = stopped?.reason === "lit" ? components.find((c) => c.id === stopped.led) : undefined;
+  const why = !running && lit && errors.length === 0 ? `Stopped: ${partName(components, lit)} lit.` : null;
+  const stoppedUnstable = !running && stopped?.reason === "unstable" && unstable ? "Stopped: " : "";
   const [state, tone] =
     status === "error"
       ? ["Engine error", "danger"]
       : status === "loading"
         ? ["Starting", "muted"]
-        : errors.some((d) => d.code === "unstable")
+        : unstable
           ? ["Unstable", "danger"]
           : errors.length > 0
             ? ["Invalid", "danger"]
@@ -1152,7 +1161,9 @@ function StatusBar() {
               ? ["No circuit", "muted"]
               : running
                 ? ["Running", "ok"]
-                : ["Settled", "ok"];
+                : why
+                  ? ["Stopped", "ok"]
+                  : ["Settled", "ok"];
   const first = errors[0] ?? diagnostics[0];
   // Name the labelled parts involved; unlabelled ones are highlighted on the canvas.
   const named = first
@@ -1166,8 +1177,9 @@ function StatusBar() {
         : probed !== undefined
           ? `${bits} bits: ${probed}, ${hex(probed, bits)}`
           : placing ||
+          why ||
           (first &&
-        `${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`);
+        `${first.code === "unstable" ? stoppedUnstable : ""}${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`);
 
   return (
     <footer className="statusbar">

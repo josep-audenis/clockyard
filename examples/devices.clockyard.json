@@ -1,0 +1,343 @@
+{
+  "format": "clockyard",
+  "version": 9,
+  "metadata": {
+    "name": "Devices",
+    "createdAt": "2026-11-13T12:00:00.000Z",
+    "modifiedAt": "2026-11-13T12:00:00.000Z"
+  },
+  "circuit": {
+    "components": [
+      {
+        "id": "key",
+        "kind": "keyboard",
+        "position": {
+          "x": 0,
+          "y": 14
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Keys"
+        }
+      },
+      {
+        "id": "nib",
+        "kind": "split",
+        "position": {
+          "x": 8,
+          "y": 4
+        },
+        "rotation": 0,
+        "props": {
+          "fields": [
+            4,
+            4
+          ]
+        }
+      },
+      {
+        "id": "hi",
+        "kind": "rom",
+        "position": {
+          "x": 14,
+          "y": 0
+        },
+        "rotation": 0,
+        "props": {
+          "label": "High decoder",
+          "width": 8,
+          "addressWidth": 4,
+          "data": [
+            63,
+            6,
+            91,
+            79,
+            102,
+            109,
+            125,
+            7,
+            127,
+            111,
+            119,
+            124,
+            57,
+            94,
+            121,
+            113
+          ]
+        }
+      },
+      {
+        "id": "lo",
+        "kind": "rom",
+        "position": {
+          "x": 14,
+          "y": 8
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Low decoder",
+          "width": 8,
+          "addressWidth": 4,
+          "data": [
+            63,
+            6,
+            91,
+            79,
+            102,
+            109,
+            125,
+            7,
+            127,
+            111,
+            119,
+            124,
+            57,
+            94,
+            121,
+            113
+          ]
+        }
+      },
+      {
+        "id": "d1",
+        "kind": "seg7",
+        "position": {
+          "x": 22,
+          "y": 2
+        },
+        "rotation": 0,
+        "props": {
+          "label": "High"
+        }
+      },
+      {
+        "id": "d0",
+        "kind": "seg7",
+        "position": {
+          "x": 26,
+          "y": 2
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Low"
+        }
+      },
+      {
+        "id": "addr",
+        "kind": "split",
+        "position": {
+          "x": 8,
+          "y": 18
+        },
+        "rotation": 0,
+        "props": {
+          "fields": [
+            7,
+            1
+          ]
+        }
+      },
+      {
+        "id": "bits",
+        "kind": "split",
+        "position": {
+          "x": 8,
+          "y": 23
+        },
+        "rotation": 0,
+        "props": {
+          "fields": [
+            5,
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      {
+        "id": "draw",
+        "kind": "or",
+        "position": {
+          "x": 14,
+          "y": 24
+        },
+        "rotation": 0,
+        "props": {}
+      },
+      {
+        "id": "clk",
+        "kind": "clock",
+        "position": {
+          "x": 14,
+          "y": 30
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Clock"
+        }
+      },
+      {
+        "id": "scr",
+        "kind": "screen",
+        "position": {
+          "x": 20,
+          "y": 17
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Screen",
+          "width": 8,
+          "addressWidth": 7
+        }
+      }
+    ],
+    "junctions": [],
+    "wires": [
+      {
+        "id": "w0",
+        "from": {
+          "component": "key",
+          "port": "out"
+        },
+        "to": {
+          "component": "nib",
+          "port": "in"
+        }
+      },
+      {
+        "id": "w1",
+        "from": {
+          "component": "nib",
+          "port": "f1"
+        },
+        "to": {
+          "component": "hi",
+          "port": "addr"
+        }
+      },
+      {
+        "id": "w2",
+        "from": {
+          "component": "nib",
+          "port": "f0"
+        },
+        "to": {
+          "component": "lo",
+          "port": "addr"
+        }
+      },
+      {
+        "id": "w3",
+        "from": {
+          "component": "hi",
+          "port": "out"
+        },
+        "to": {
+          "component": "d1",
+          "port": "seg"
+        }
+      },
+      {
+        "id": "w4",
+        "from": {
+          "component": "lo",
+          "port": "out"
+        },
+        "to": {
+          "component": "d0",
+          "port": "seg"
+        }
+      },
+      {
+        "id": "w5",
+        "from": {
+          "component": "key",
+          "port": "out"
+        },
+        "to": {
+          "component": "addr",
+          "port": "in"
+        }
+      },
+      {
+        "id": "w6",
+        "from": {
+          "component": "key",
+          "port": "out"
+        },
+        "to": {
+          "component": "bits",
+          "port": "in"
+        }
+      },
+      {
+        "id": "w7",
+        "from": {
+          "component": "addr",
+          "port": "f0"
+        },
+        "to": {
+          "component": "scr",
+          "port": "addr"
+        }
+      },
+      {
+        "id": "w8",
+        "from": {
+          "component": "key",
+          "port": "out"
+        },
+        "to": {
+          "component": "scr",
+          "port": "din"
+        }
+      },
+      {
+        "id": "w9",
+        "from": {
+          "component": "bits",
+          "port": "f1"
+        },
+        "to": {
+          "component": "draw",
+          "port": "a"
+        }
+      },
+      {
+        "id": "w10",
+        "from": {
+          "component": "bits",
+          "port": "f2"
+        },
+        "to": {
+          "component": "draw",
+          "port": "b"
+        }
+      },
+      {
+        "id": "w11",
+        "from": {
+          "component": "draw",
+          "port": "out"
+        },
+        "to": {
+          "component": "scr",
+          "port": "we"
+        }
+      },
+      {
+        "id": "w12",
+        "from": {
+          "component": "clk",
+          "port": "out"
+        },
+        "to": {
+          "component": "scr",
+          "port": "clk"
+        }
+      }
+    ]
+  },
+  "definitions": []
+}

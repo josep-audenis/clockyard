@@ -82,3 +82,22 @@ test("watched memories are read once a frame however many states arrive, a newly
   stop();
   vi.useRealTimers();
 });
+
+test("why a run stopped is the worker's latest word on it, and a pause gives none (ADR 0021)", () => {
+  const stop = connectEngine();
+  const state = (running: boolean, stopped?: Extract<Result, { type: "state" }>["stopped"]) =>
+    worker.reply({ type: "state", nets: new Uint32Array(), diagnostics: [], time: 0, running, ...(stopped && { stopped }) });
+  state(true);
+  state(false, { reason: "lit", led: "l" });
+  expect(useSim.getState()).toMatchObject({ running: false, stopped: { reason: "lit", led: "l" } });
+  // The worker repeats it with later states (a switch flipped) and drops it after a command or a load.
+  state(false, { reason: "lit", led: "l" });
+  expect(useSim.getState().stopped).toEqual({ reason: "lit", led: "l" });
+  state(false);
+  expect(useSim.getState().stopped).toBeNull();
+  // Paused by the user: the worker says nothing, so neither does the status bar.
+  state(true);
+  state(false);
+  expect(useSim.getState().stopped).toBeNull();
+  stop();
+});
