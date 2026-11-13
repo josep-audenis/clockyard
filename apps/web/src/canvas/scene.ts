@@ -8,6 +8,7 @@ import {
   endOwner,
   fieldRanges,
   hex,
+  widthOf,
   DEFAULT_ADDRESS,
   isFielded,
   isMemory,
@@ -19,6 +20,7 @@ import {
   type Junction,
   type Props,
 } from "../editor/document";
+import { heldCode, keyCode, press, release, type Held } from "../editor/keyboard";
 import { armedProps, useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
 import { useSim, watchMemory } from "../simulation/sync";
@@ -65,12 +67,14 @@ const SIZES = ["grid-cell", "wire-width", "wire-width-high", "bus-width", "selec
 
 /**
  * What the canvas tells the rest of the editor: the wire under the pointer (the status
- * bar shows a bus's value), and a wide switch just clicked, whose Value field takes focus.
+ * bar shows a bus's value), a wide switch just clicked, whose Value field takes focus,
+ * and the keyboard part that has the keys (ADR 0021).
  */
-export const useCanvasHints = create<{ wire: string | null; focusValue: string | null; zoom: number }>(() => ({
+export const useCanvasHints = create<{ wire: string | null; focusValue: string | null; zoom: number; keyboard: string | null }>(() => ({
   wire: null,
   focusValue: null,
   zoom: 1,
+  keyboard: null,
 }));
 
 /** The zoom controls' commands, bound while a canvas is mounted. */
@@ -345,10 +349,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       const ports = loaded?.portNets[component.id];
       const value = (port: string) => signal(ports?.[port]);
       drawBody(component, culprits.has(component.id), value);
-      const bits = component.props.width ?? 1;
-      if ((component.kind === "switch" || component.kind === "led" || component.kind === "dff") && bits > 1) {
-        // A wide switch, LED or register shows its value in hex, upright whatever its rotation.
-        const shown = value(component.kind === "switch" ? "out" : component.kind === "dff" ? "q" : "in");
+      const bits = widthOf(component);
+      if (component.kind === "keyboard" || ((component.kind === "switch" || component.kind === "led" || component.kind === "dff") && bits > 1)) {
+        // A wide switch, LED or register, or a keyboard, shows its value in hex, upright whatever its rotation.
+        const shown = value(component.kind === "switch" || component.kind === "keyboard" ? "out" : component.kind === "dff" ? "q" : "in");
         const { width, height } = layoutOf(component);
         const centre = px({ x: component.position.x + width / 2, y: component.position.y + height / 2 });
         const text = shown === null ? "--" : hex(shown, bits);
@@ -375,6 +379,9 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     }
 
     drawLabels(circuit.components);
+    // A keyboard deleted, or left behind on another sheet, gives the keys back.
+    const keyboard = useCanvasHints.getState().keyboard;
+    if (keyboard && !circuit.components.some((c) => c.id === keyboard)) focusKeyboard(null);
     // Each screen's words, read after every state (ADR 0021).
     watchMemory(new Map(circuit.components.flatMap((c) => (c.kind === "screen" ? [[c.id, screenSize(c.props).words] as const] : []))));
     const present = new Set(circuit.components.map((component) => component.id));
@@ -553,7 +560,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     // A screen's picture is its words: each reply is a new array (ADR 0021).
     const words = component.kind === "screen" ? useSim.getState().memory[component.id] : undefined;
     const picture = component.kind === "screen" ? `${pictureVersion(words)}:${component.props.width}:${component.props.columns}` : "";
-    const look = `${component.kind}|${local.width}x${local.height}|${chip}|${picture}|${culprit}|${ports.map(value).join()}|${themeVersion}`;
+    const focus = component.kind === "keyboard" && useCanvasHints.getState().keyboard === component.id;
+    const look = `${component.kind}|${local.width}x${local.height}|${chip}|${picture}|${focus}|${culprit}|${ports.map(value).join()}|${themeVersion}`;
     if (looks.get(component.id) === look) return;
     looks.set(component.id, look);
     g.clear();
@@ -647,16 +655,13 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
         break;
       }
       case "keyboard": {
-        // A box with two rows of keys (ADR 0021).
-        g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(outline);
-        const key = 0.55 * c;
-        for (let row = 0; row < 2; row++) {
-          for (let col = 0; col < 4; col++) {
-            const kx = x + 0.4 * c + col * 0.8 * c + (row ? 0.2 * c : 0);
-            if (row && col === 3) continue;
-            g.roundRect(kx, y + 0.35 * c + row * 0.75 * c, key, key, 2).stroke({ width: 1, color: color["line-strong"] });
-          }
-        }
+        // A box with a row of keys along its bottom, its code as a label (ADR 0021). With the keys, it is
+        // outlined in the accent colour, as wide as a selection, so it always shows that it has them.
+        const focused = useCanvasHints.getState().keyboard === component.id;
+        const edge = focused ? { width: size["select-width"], color: color.accent } : outline;
+        g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(edge);
+        for (const kx of [0.3, 0.9, 1.5, 2.1]) g.roundRect(x + kx * c, y + 1.45 * c, 0.45 * c, 0.3 * c, 2);
+        g.roundRect(x + 2.7 * c, y + 1.45 * c, 1 * c, 0.3 * c, 2).stroke({ width: 1, color: focused ? color.accent : color["line-strong"] });
         break;
       }
       case "dff":
@@ -793,6 +798,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     // Leaving a field commits it (the inspector's label) before this press changes the selection.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const editor = useEditor.getState();
+    // A press anywhere gives the keys back; a click on a keyboard takes them again on release.
+    focusKeyboard(null);
     canvas.setPointerCapture(e.pointerId);
     // A press on the canvas ends any page text selection, so the next copy is the canvas's again.
     window.getSelection()?.removeAllRanges();
@@ -928,6 +935,9 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
         useCanvasHints.setState({ focusValue: id });
       } else if (part?.kind === "switch") {
         editor.toggle(id);
+      } else if (part?.kind === "keyboard") {
+        // A click gives it the keys (ADR 0021).
+        focusKeyboard(id);
       }
     } else if (gesture?.type === "wire") {
       const p = toWorld(e);
@@ -987,6 +997,45 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     schedule();
   };
   const zoomBy = (factor: number) => zoomAt(host.clientWidth / 2, host.clientHeight / 2, view.zoom * factor);
+
+  /** The keys held while a keyboard part has them (ADR 0021). */
+  let held: Held = [];
+  /** Gives the keys to keyboard `id`, or back to the editor; the keyboard left reads 0 again. */
+  const focusKeyboard = (id: string | null) => {
+    const was = useCanvasHints.getState().keyboard;
+    if (was === id) return;
+    const editor = useEditor.getState();
+    if (was && held.length > 0 && editor.circuit.components.some((c) => c.id === was)) editor.setInput(was, 0);
+    held = [];
+    useCanvasHints.setState({ keyboard: id });
+    schedule();
+  };
+  /**
+   * While a keyboard part has the keys, a key held sends its code (ADR 0021) and no shortcut
+   * hears it. Ctrl, Cmd and Alt combinations stay the editor's (undo, copy); Tab moves on and
+   * gives the keys back; Escape is a key too, and gives them back once released.
+   */
+  const onKeyboardKey = (e: KeyboardEvent) => {
+    const id = useCanvasHints.getState().keyboard;
+    if (!id) return;
+    const editor = useEditor.getState();
+    if (!editor.circuit.components.some((c) => c.id === id && c.kind === "keyboard")) return focusKeyboard(null);
+    const down = e.type === "keydown";
+    if (down && (e.ctrlKey || e.metaKey || e.altKey)) return;
+    if (down && e.key === "Tab") return focusKeyboard(null);
+    e.stopImmediatePropagation();
+    const code = keyCode(e.key);
+    if (down) {
+      if (code === null) return;
+      e.preventDefault();
+      held = press(held, e.code, code);
+    } else {
+      held = release(held, e.code);
+    }
+    const value = heldCode(held);
+    if ((editor.inputs[id] ?? 0) !== value) editor.setInput(id, value);
+    if (!down && e.key === "Escape") focusKeyboard(null);
+  };
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -1063,6 +1112,15 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   });
   canvas.addEventListener("wheel", onWheel, { passive: false });
   window.addEventListener("keydown", onKeyDown);
+  // Before anything else hears a key: while a keyboard part has the keys, they are the circuit's.
+  window.addEventListener("keydown", onKeyboardKey, true);
+  window.addEventListener("keyup", onKeyboardKey, true);
+  const onPressOutside = (e: PointerEvent) => {
+    if (e.target !== canvas) focusKeyboard(null);
+  };
+  window.addEventListener("pointerdown", onPressOutside, true);
+  const onWindowBlur = () => focusKeyboard(null);
+  window.addEventListener("blur", onWindowBlur);
   const releaseSpace = (e: KeyboardEvent | FocusEvent) => {
     if (e instanceof KeyboardEvent && e.key !== " ") return;
     spaceHeld = false;
@@ -1103,6 +1161,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     resize.disconnect();
     scheme.removeEventListener("change", onScheme);
     window.removeEventListener("keydown", onKeyDown);
+    window.removeEventListener("keydown", onKeyboardKey, true);
+    window.removeEventListener("keyup", onKeyboardKey, true);
+    window.removeEventListener("pointerdown", onPressOutside, true);
+    window.removeEventListener("blur", onWindowBlur);
     window.removeEventListener("keyup", releaseSpace);
     window.removeEventListener("blur", releaseSpace);
     app.destroy(true, { children: true });

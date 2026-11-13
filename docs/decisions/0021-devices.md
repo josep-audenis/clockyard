@@ -83,6 +83,13 @@ What the engine and editor already have:
      drawn highlighted. While it has them, canvas shortcuts are off. Escape
      or a click elsewhere gives them back. Escape is itself a key, so it
      reaches the circuit with code 27 before the focus is released.
+   - *As built (step 3):* the focus is released when Escape is let go, so
+     the circuit sees 27 for as long as it is held. Tab and leaving the
+     window give the keys back too, so the keyboard never traps them; Ctrl,
+     ⌘ and Alt combinations stay the editor's (undo, copy). Keys are
+     tracked by physical key, so letting go of Shift before A still
+     releases the "A". The status bar says the keyboard has the keys, and
+     the body shows the code it drives.
    - The value is an editor input like a switch's: transient, never saved,
      and restored after a load with the other inputs (ADR 0017).
 6. **Why a run stopped.** Games and programs often run until an LED

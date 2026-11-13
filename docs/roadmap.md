@@ -360,7 +360,11 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
    2. ✅ The screen: per-component memory reads, throttled to one per
       frame, pixels drawn MSB leftmost, `columns` in the inspector (at
       most 256 rows shown; ADR 0021 item 3, amended).
-   3. ⬜ Keyboard focus and key mapping.
+   3. ✅ Keyboard focus and key mapping: a click gives a keyboard the
+      keys (accent outline, status bar hint); Esc, Tab, a click elsewhere
+      or leaving the window gives them back. The keyboard shows its code,
+      and the screen-reader readout lists keyboards and seven-segment
+      displays.
    4. ⬜ Why a run stopped, the devices example, Playwright, docs.
 2. ⬜ Memory-mapped I/O on the reference CPU, with no new instructions.
 3. ⬜ The game demo, chosen once 1 and 2 work.
@@ -378,8 +382,8 @@ analysis, plugin system, full game campaign during the MVP.
 ## Next increment
 
 Phase 4 is built, with its demo. Phase 5 is planned in ADR 0020 (accepted);
-its first increment, devices (ADR 0021), is being built: step 3, keyboard
-focus and key mapping, is next.
+its first increment, devices (ADR 0021), is being built: step 4, why a
+run stopped and the devices example, is next.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).
@@ -389,8 +393,8 @@ Rough edges still open:
 - A component made by Make component can cover parts below it (ADR 0016).
 - Make component is offered only for two or more selected items.
 - Every connectivity edit resets registers and time (ADR 0017).
-- The readout for screen readers lists switches and LEDs only, not
-  registers or the clock.
+- The readout for screen readers lists switches, keyboards, LEDs and
+  seven-segment displays only, not registers, the clock or screens.
 - An imported file or opened sheet keeps the current view; Fit (F) frames
   it. Fitting on open would move the grid the Playwright tests click by.
 - Nothing says why a run stopped (Run until an LED, an unstable loop): the
