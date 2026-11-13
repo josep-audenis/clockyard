@@ -1,6 +1,6 @@
 # 0019. The reference CPU, its assembler and instruction stepping
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-08
 - Depends on: ADRs 0012 (custom components), 0014 (widths and splitters),
   0017 (clocks, run controls), 0018 (ROM and RAM)
@@ -62,10 +62,13 @@ software CPU, and all simulation semantics live in `sim-core`.
      - the ROM and RAM of ADR 0018;
      - custom components for the repeated pieces: an 8-bit 2-to-1
        multiplexer, a register with load enable, and the 8-bit adder.
-   - **Register enable.** A register with load enable feeds its own `q`
-     back through a multiplexer, since `dff` has no enable. A 1-bit select
-     drives every bit of an 8-bit multiplexer through a merger whose fields
-     all come from that one net.
+   - **Register enable.** `dff` has no enable, so a register with load
+     enable gates its `d` and its own `q` with AND and OR gates into the
+     flip-flop: `d ∧ en ∨ q ∧ ¬en`. A 1-bit enable reaches every bit of an
+     8-bit register through a merger whose fields all come from that one
+     net, as the 8-bit multiplexer's select does. There are 8-bit and
+     1-bit register components; `IR` is two 8-bit ones, merged into a
+     16-bit value for its LED.
    - **The ALU** is an 8-bit adder built from full adders. For `SUB` and
      `SBI`, B passes through XOR with the subtract signal, and the carry in
      is that same signal.
@@ -123,15 +126,17 @@ software CPU, and all simulation semantics live in `sim-core`.
      having read 0 just before it, after any switch change since the tick
      before: a rise caused by a tick. An LED lit by a switch during a run
      therefore has to go dark and light again too.
-   - `sim-core` gains `tick_until(count, net)`. It stops at that tick and
-     reports how many ticks ran, so the stop does not depend on how the
-     worker slices the run.
+   - `sim-core` gains `tick_until(count, net)`. It stops at that tick, or
+     at a tick that does not settle (`unstable`), and reports how many
+     ticks ran, so the stop does not depend on how the worker slices the
+     run.
    - On the reference CPU:
      - *Run until Fetch* is the instruction step: it stops at the start of
        the next fetch, two cycles on;
      - *Run until Halted* runs a program to its end;
      - a breakpoint is circuit the user adds: compare `PC` with a switch
-       and light an LED on equality, then *Run until* it.
+       and light an LED on equality, then *Run until* it. No comparator
+       part or example ships with Phase 4, and none is tested.
    - Being lit is not enough: an LED lit when the run starts must go dark
      and light again. One that never rises runs until paused, like Run. For
      example, *Run until Fetch* on a halted CPU never stops, because Fetch
@@ -151,23 +156,39 @@ software CPU, and all simulation semantics live in `sim-core`.
      the specification, about 60 lines written from the page alone. It
      lives in test code only, never in the app.
    - **Differential runs.** The tests assemble programs and load the
-     example circuit with each program in its ROM. After every two cycles
-     they compare `PC`, `A`, `OUT`, `Z`, `C`, `H` and the RAM with the
-     model, after every cycle rather than every instruction. Registers are
-     read from the LEDs on the sheet, so the display wiring is checked
-     too, `T` from its flip-flop by elaborated ID (`t/r`), and the RAM
-     through `memory()` (ADR 0018). The Fetch LED must equal `¬T ∧ ¬H`.
-     The programs are:
-     - one per instruction;
+     example circuit with each program in its ROM. After every cycle they
+     compare `PC`, `IR`, `A`, `OUT`, `Z`, `C`, `T`, `H` and the RAM with
+     the model. Registers are read from the LEDs on the sheet, so the
+     display wiring is checked too, `T` from its flip-flop by elaborated
+     ID (`t/r`), and the RAM through `memory()` (ADR 0018). The Fetch LED
+     must equal `¬T ∧ ¬H`, and three cycles after `HLT` are checked. The
+     programs are:
      - the two examples on the specification page;
+     - programs covering every instruction and flag case (carry and
+       none, borrow and none, `Z` both ways, jumps taken and not), plus
+       reserved opcodes and bits, each required to halt;
+     - a `PC` wrap from 255 to 0;
      - 200 random programs from a seeded generator, so the runs are
        repeatable. Each is 256 raw words, so reserved opcodes and bits
-       are exercised too, and runs 64 instructions or until `H`, so a
-       program that loops forever still ends.
+       are exercised too; in half of them operands stay within 0-15, so
+       loads, stores and jumps meet. Each runs 64 instructions or until
+       `H`, so a program that loops forever still ends.
+   - **The shipped example.** Its ROM words are its source assembled,
+     and it shows 8 after eight steps. `pnpm verify` checks the file is
+     what the generator writes.
+   - **Run until.** On the CPU, until Fetch and until Halted stop at the
+     ticks the specification gives, whatever size of calls the run is
+     split into.
    - **Assembler.** `crates/asm` is tested on every syntax rule and error.
-   - **Playwright.** Open the example, type `LDI 5 / ADI 3 / OUT / HLT`,
-     Assemble, *Run until Halted*, and the output LED reads 8. One *Run
-     until Fetch* advances the cycle counter by two.
+   - **Playwright**, on the example:
+     - *Run until Fetch* twice stops at cycles 2 and 4, and *Run until
+       Halted* runs the shipped program to an output of 8;
+     - the program editor: an error listed by line with the ROM
+       unchanged, `LDI 7 / ADI 2 / OUT / HLT` assembled, undo, the note
+       for words edited directly, and a run to an output of 9;
+     - the Phase 4 demo: a program summing 1 to 5 through RAM, typed and
+       assembled; one instruction step is two cycles (PC 1, IR `LDI 0`);
+       run until Halted, the output shows 15.
 9. **Order of work.**
    1. ROM and RAM (ADR 0018).
    2. `crates/asm` and its tests.
@@ -205,8 +226,8 @@ software CPU, and all simulation semantics live in `sim-core`.
 - The Phase 4 demo is reachable with two new kinds (ROM, RAM), one crate,
   one engine call (`tick_until`) and UI.
 - The CPU is large: hundreds of primitives across instances, well inside
-  the engine's limits. A run at 10,000 cycles per second exercises the
-  worker's budget (ADR 0017 item 6), so measure it when step 3 lands.
+  the engine's limits. Measured when step 3 landed: it keeps up with the
+  top speed, about 9,950 cycles per second at the 10,000 setting.
 - Every program change resets the CPU. That is fine for loading programs;
   editing a program while it runs is not offered.
 - The specification is small by design. Larger instruction sets, a stack,

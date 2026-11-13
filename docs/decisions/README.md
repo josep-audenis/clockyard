@@ -8,7 +8,7 @@ replacement.
 |---|-------|--------|
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
 | [0002](0002-monorepo-layout.md) | Monorepo layout | Accepted |
-| [0003](0003-wasm-toolchain.md) | WASM toolchain | Proposed |
+| [0003](0003-wasm-toolchain.md) | WASM toolchain | Accepted |
 | [0004](0004-document-vs-netlist.md) | Separate circuit document and compiled netlist | Accepted |
 | [0005](0005-simulation-in-worker.md) | Host the engine in a Web Worker from the start | Accepted |
 | [0006](0006-delta-cycle-evaluation.md) | Change-driven evaluation with synchronous deltas | Accepted; sequential part by 0017 |
@@ -24,7 +24,7 @@ replacement.
 | [0016](0016-make-component-crossing-wires.md) | Make component keeps wires that cross the selection's edge | Accepted; amended by its own amendment (what stays on the sheet) |
 | [0017](0017-clocks-and-flip-flops.md) | Clocks, flip-flops and virtual time | Accepted |
 | [0018](0018-rom-and-ram.md) | ROM and RAM parts | Accepted |
-| [0019](0019-reference-cpu.md) | The reference CPU, its assembler and instruction stepping | Proposed |
+| [0019](0019-reference-cpu.md) | The reference CPU, its assembler and instruction stepping | Accepted |
 
 ## Template
 

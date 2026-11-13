@@ -473,20 +473,20 @@ test("a part cannot be placed with a port on a junction; it stays armed for a be
   await click(page, at(11, 7)); // LED at (10,6), in (10,7)
   await drag(page, at(2, 1), at(10, 1));
   await drag(page, at(10, 7), at(6, 1.2)); // junction at (6,1)
-  const count = async () => {
+  // Select all, then wait for the inspector to say so: it renders after the key, so a plain read can race it.
+  const selected = async (items: number) => {
     await page.keyboard.press("Control+a");
-    return inspector.textContent();
+    await expect(inspector).toContainText(`${items} items selected`);
   };
-  const before = await count();
-  expect(before).toContain("7 items selected"); // 3 parts, 1 junction, 3 wires
+  await selected(7); // 3 parts, 1 junction, 3 wires
 
   // A NOT centred here would sit at (6,0) with its input on the junction: refused.
   await page.keyboard.press("n");
   await click(page, at(7.6, 1));
-  expect(await count()).toContain("7 items selected");
+  await selected(7);
   // Still armed: a click on free ground places it.
   await click(page, at(7.6, 12));
-  expect(await count()).toContain("8 items selected");
+  await selected(8);
 });
 
 test("R turns a part armed from the parts panel, before it is placed", async ({ page }) => {
@@ -884,4 +884,49 @@ test("a program longer than its ROM holds is refused with the reason (ADR 0019)"
   await page.getByRole("button", { name: "Assemble", exact: true }).click();
   await expect(inspector.getByRole("alert")).toHaveText("3 words do not fit in 2 addresses: give the ROM more address bits.");
   await expect(inspector.getByRole("region", { name: "Disassembly" })).toContainText("Empty");
+});
+
+test("Phase 4 demo: a program loops through RAM on the CPU built from parts and shows 15 on the output (ADR 0019)", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  const at = await grid(page);
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const until = page.getByLabel("Run until");
+  // 5 + 4 + 3 + 2 + 1, with the sum and the count in RAM and a loop that ends on Z.
+  const program = [
+    "        LDI 0",
+    "        STA 0      ; sum",
+    "        LDI 5",
+    "        STA 1      ; n",
+    "loop:   LDA 0",
+    "        ADD 1",
+    "        STA 0      ; sum += n",
+    "        LDA 1",
+    "        SBI 1",
+    "        STA 1      ; n -= 1",
+    "        JZ done",
+    "        JMP loop",
+    "done:   LDA 0",
+    "        OUT",
+    "        HLT",
+  ].join("\n");
+  await click(page, at(24.5, 16)); // the program ROM
+  await inspector.getByLabel("Assembly", { exact: true }).fill(program);
+  await button("Assemble").click();
+  await expect(inspector.getByRole("status")).toHaveText("Assembled 15 words.");
+  await page.getByLabel("Speed").selectOption("1000");
+  // A clock cycle is not an instruction: one instruction step is two cycles, ending as the next fetch begins.
+  await until.selectOption({ label: "Until LED Fetch lights" });
+  await button("Run").click();
+  await expect(counter(page)).toHaveText("Cycle 2, clock high");
+  await expect(readout(page, "LED PC")).toHaveText("LED PC: 1 (0x01)");
+  await expect(readout(page, "LED IR")).toHaveText("LED IR: 4096 (0x1000)"); // LDI 0, just executed
+  await expect(button("Run")).toBeVisible(); // stopped by the LED, not a click
+  // Then to the end: the loop runs five times and the output device shows the sum.
+  await until.selectOption({ label: "Until LED Halted lights" });
+  await button("Run").click();
+  await expect(readout(page, "LED Halted")).toHaveText("LED Halted: on");
+  await expect(readout(page, "LED Output")).toHaveText("LED Output: 15 (0x0F)");
 });

@@ -14,9 +14,17 @@ the browser through WASM in a Web Worker, linting, tests and a pre-push check ho
 PixiJS canvas, simulated by the Rust engine in a worker, exported and imported
 as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
 
+**Phase 4 — ✅ done.** A programmable 8-bit computer: ROM and RAM (ADR 0018),
+then the reference CPU of ADR 0019, built from Clockyard parts and checked
+against its specification after every cycle, its assembler, *Run until* an
+LED for instruction steps (and breakpoints the user wires), and the program
+editor (PRs #42 and #47–#51). The demo, a program that sums 1 to 5 through RAM and shows 15
+on the output, runs in Playwright. Phase 5 (the computer-building sandbox) is
+next.
+
 **Phase 3 — ✅ done.** Clocks, flip-flops and virtual time (ADR 0017): the
 engine and parts (PR #40), then run/pause/step/reset, the cycle counter and
-the 8-bit counter demo. Phase 4 (a programmable 8-bit computer) is next.
+the 8-bit counter demo.
 
 **Phase 2 — ✅ done.**
 Editing comfort, labels, junctions and nets, routing and rotation merged (PRs
@@ -285,10 +293,10 @@ and a worker-paced run loop.
   returns to 0, and after a run the value is exactly the cycles run.
 
 Not yet (ADR 0017 item 11): falling edges, clock enable, per-part reset,
-several clocks, keeping state across edits, stepping one delta, RAM/ROM,
-waveforms.
+several clocks, keeping state across edits, stepping one delta,
+waveforms. RAM and ROM came in Phase 4 (ADR 0018).
 
-## Phase 4 — Programmable 8-bit computer
+## Phase 4 — Programmable 8-bit computer ✅
 
 Goal: the central promise.
 
@@ -306,7 +314,8 @@ netlist.
 Design: ADR 0018 (ROM and RAM parts, format v8; accepted) and ADR 0019 (the
 reference CPU, specified in `docs/reference-cpu.md`: 8-bit accumulator,
 Harvard, 13 instructions, two cycles each; a Rust assembler crate; *Run until
-an LED lights* for instruction steps and breakpoints; proposed). Built in six steps:
+an LED lights* for instruction steps, and for breakpoints as circuits the user
+wires, none bundled or tested; accepted). Built in six steps:
 
 1. ✅ ROM and RAM (ADR 0018, accepted): engine, inspection (`readMemory`), the
    ROM, RAM tiles and inspector (address bits, contents, RAM dump), format v8.
@@ -326,7 +335,9 @@ an LED lights* for instruction steps and breakpoints; proposed). Built in six st
 5. ✅ The program editor: a 16-bit ROM's inspector has an Assembly box and an
    Assemble button (errors listed by line, the ROM unchanged on error), a note
    when the words no longer match the source, and a disassembly listing.
-6. ⬜ Playwright and docs.
+6. ✅ The demo in Playwright: on the reference CPU, a program summing 1 to 5
+   through RAM is assembled in the editor; one instruction step is two cycles;
+   run until Halted, the output shows 15. ADR 0019 accepted.
 
 ## Phase 5 — Computer-building sandbox
 
@@ -347,9 +358,9 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 3 is built, with its 8-bit counter demo. Phase 4 (a programmable 8-bit
-computer) is designed in ADRs 0018 and 0019 (proposed); ROM and RAM come
-first. Rough edges still open:
+Phase 4 is built, with its demo. Phase 5 (the computer-building sandbox:
+challenges, memory-mapped peripherals, sharing) starts with a design ADR.
+Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).
 - Wires kept after an edit can stay longer than needed until the file is
@@ -362,6 +373,12 @@ first. Rough edges still open:
   registers or the clock.
 - An imported file or opened sheet keeps the current view; Fit (F) frames
   it. Fitting on open would move the grid the Playwright tests click by.
+- Nothing says why a run stopped (Run until an LED, an unstable loop): the
+  Run button just comes back (ADR 0019).
+- The program editor is offered for 16-bit ROMs only, the reference CPU's
+  word size; other machines would need their own assembler (ADR 0019).
+- The reference CPU's sheet is dense, with long wires; its data RAM sits
+  past the right edge at the default view.
 
 Fixed since: deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
 amended); a click on a label's tag selects it; below 900px the inspector
