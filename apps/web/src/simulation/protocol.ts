@@ -81,7 +81,8 @@ export type Result =
   /** `nets`: each net's value, cut to its width. */
   /**
    * `time`: virtual time in ticks (cycle count `(time + 1) / 2`); `running`: whether a run is under way.
-   * `stopped`: why the run ended at this state, when it ended itself (ADR 0021); never for a pause.
+   * `stopped`: why the last run ended by itself (ADR 0021), on every state until the next load, Run, Pause,
+   * Step or Reset; never for a pause.
    */
   | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[]; time: number; running: boolean; stopped?: Stopped }
   /** `errors` empty: the source assembled to `words` (empty for an empty program). */

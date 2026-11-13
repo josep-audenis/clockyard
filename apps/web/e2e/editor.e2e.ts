@@ -774,6 +774,10 @@ test("a loop that oscillates while the clock is high pauses the run (ADR 0017)",
   await expect(status(page)).toContainText("Unstable");
   await expect(button("Run")).toBeVisible(); // paused by the worker, not by a click
   await expect(counter(page)).toHaveText("Cycle 1, clock high");
+  await expect(status(page)).toContainText("Stopped: The circuit did not settle"); // and says so (ADR 0021)
+  // A step is the user's: the reason goes.
+  await button("Step").click();
+  await expect(status(page)).not.toContainText("Stopped:");
 });
 
 test("a word written to a RAM by hand shows in its inspector, and Reset clears it (ADR 0018)", async ({ page }) => {
@@ -948,15 +952,17 @@ test("devices demo: a held key shows its code on two digits and is drawn on the 
   await expect(readout(page, "Keyboard Keys")).toHaveText("Keyboard Keys: 65 (0x41)");
   await expect(readout(page, "Seven-segment High")).toHaveText("Seven-segment High: 102 (0x66)"); // 4
   await expect(readout(page, "Seven-segment Low")).toHaveText("Seven-segment Low: 6 (0x06)"); // 1
-  // Held through a few clock cycles at 1000 a second: the screen's word 0x41 takes the code.
-  await expect(counter(page)).not.toHaveText(/^Cycle [0-9] /);
+  // Held through at least two clock rises: the screen's word 0x41 takes the code.
+  const cycle = async () => Number(/\d+/.exec((await counter(page).textContent()) ?? "")?.[0]);
+  const held = await cycle();
+  await expect.poll(cycle).toBeGreaterThanOrEqual(held + 2);
   await page.keyboard.up("A");
   await page.keyboard.up("Shift");
   await page.keyboard.press("Escape");
   await expect(status(page)).not.toContainText("The keyboard has the keys");
   await button("Pause").click();
   await click(page, at(25.5, 21.5)); // the screen
-  const contents = page.getByRole("region", { name: "RAM contents" });
+  const contents = page.getByRole("region", { name: "Screen contents" });
   await expect(contents).toContainText("0x00 0x41 0x00 0x00 0x00 0x00 0x00 0x00");
   await expect(readout(page, "Keyboard Keys")).toHaveText("Keyboard Keys: 0 (0x00)");
 });

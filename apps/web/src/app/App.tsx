@@ -863,15 +863,17 @@ function RamDump({ part }: { part: CircuitComponent }) {
   const id = useId();
   // On any sheet the open sheet is what is simulated, so the part's own ID names it.
   // Only the words shown cross from the worker, however large the RAM.
-  useEffect(() => readMemory(part.id, DUMP_WORDS), [part.id, nets]);
-  const words = own ? [...own] : null;
+  // A screen's canvas reads its shown words into the same slot (ADR 0021): asking for as many keeps the two from alternating.
+  const count = part.kind === "screen" ? screenSize(part.props).words : DUMP_WORDS;
+  useEffect(() => readMemory(part.id, count), [part.id, count, nets]);
+  const words = own ? [...own.slice(0, DUMP_WORDS)] : null;
   return (
     <div className="field">
       <p className="field-label" id={`${id}-label`}>
         Contents
       </p>
       {/* Focusable, so the list can be scrolled from the keyboard; named for screen readers. */}
-      <pre className="memory-words" role="region" tabIndex={0} aria-label="RAM contents">
+      <pre className="memory-words" role="region" tabIndex={0} aria-label={part.kind === "screen" ? "Screen contents" : "RAM contents"}>
         {words === null ? "…" : words.length === 0 ? "Not simulated: the circuit has errors." : wordLines(words, width)}
       </pre>
       <p className="field-hint">
@@ -1141,15 +1143,11 @@ function StatusBar() {
   const diagnostics = [...(loaded?.diagnostics ?? []), ...runtime];
   const errors = diagnostics.filter((d) => d.severity === "error");
   const unstable = errors.some((d) => d.code === "unstable");
-  // Why the last run ended by itself (ADR 0021): its LED, while the sheet still has it, or the loop that did not settle.
+  // Why the last run ended by itself (ADR 0021): its LED, while the sheet still has it, or the loop that did not settle,
+  // which keeps the unstable diagnostic and its part names after "Stopped: ".
   const lit = stopped?.reason === "lit" ? components.find((c) => c.id === stopped.led) : undefined;
-  const why = running
-    ? null
-    : lit && errors.length === 0
-      ? `Stopped: ${partName(components, lit)} lit.`
-      : stopped?.reason === "unstable" && unstable
-        ? "Stopped: unstable. A loop keeps oscillating, so the run paused."
-        : null;
+  const why = !running && lit && errors.length === 0 ? `Stopped: ${partName(components, lit)} lit.` : null;
+  const stoppedUnstable = !running && stopped?.reason === "unstable" && unstable ? "Stopped: " : "";
   const [state, tone] =
     status === "error"
       ? ["Engine error", "danger"]
@@ -1181,7 +1179,7 @@ function StatusBar() {
           : placing ||
           why ||
           (first &&
-        `${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`);
+        `${first.code === "unstable" ? stoppedUnstable : ""}${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`);
 
   return (
     <footer className="statusbar">

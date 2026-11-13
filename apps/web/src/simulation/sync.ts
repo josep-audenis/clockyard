@@ -21,7 +21,7 @@ export type SimState = {
   time: number;
   /** Whether the worker is running the clock (it pauses itself on an unstable loop). */
   running: boolean;
-  /** Why the last run ended by itself, until the next Run, Pause, Step or Reset; null when it was paused (ADR 0021). */
+  /** Why the last run ended by itself, as the worker last said; null when it was paused or since changed (ADR 0021). */
   stopped: Stopped | null;
   /** Run speed in cycles per second, the editor's choice. */
   speed: number;
@@ -55,7 +55,6 @@ let send: ((command: Command) => void) | null = null;
 /** Run, Pause, Step and Reset (ADR 0017). Run uses the chosen speed, and stops at the chosen LED (ADR 0019). */
 export function control(type: "run" | "pause" | "step" | "reset") {
   const { speed, until } = useSim.getState();
-  useSim.setState({ stopped: null });
   send?.(type === "run" ? { type, cyclesPerSecond: speed, ...(until && { until }) } : { type });
 }
 
@@ -171,7 +170,7 @@ export function connectEngine(): () => void {
       }
       case "state":
         // Running or not is the worker's, whatever circuit the state describes.
-        useSim.setState({ running: message.running, ...(message.stopped && { stopped: message.stopped }) });
+        useSim.setState({ running: message.running, stopped: message.stopped ?? null });
         if (pending === 0) {
           const { nets, diagnostics: runtime, time } = message;
           useSim.setState({ nets, runtime, time, stale: false, status: "ready", error: null });

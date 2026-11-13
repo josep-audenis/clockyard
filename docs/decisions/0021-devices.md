@@ -105,10 +105,14 @@ What the engine and editor already have:
 
    This fixes a Phase 4 rough edge, as ADR 0020 item 4 intends.
 
-   *As built (step 4):* the worker names the reason with the state that
-   ends the run, and the editor keeps it until the next Run, Pause, Step or
-   Reset. The status bar shows it only while it still holds: the LED is
-   on the sheet with no errors, or the loop is still unstable.
+   *As built (step 4):* the worker keeps the reason and sends it with
+   every state until the next load, Run, Pause, Step or Reset, so an edit
+   that rebuilds the circuit clears it too. The status bar shows it only
+   while the LED is on the sheet with no errors, or the loop is still
+   unstable (then "Stopped: " leads the unstable diagnostic, with its
+   parts). "Lit" is past tense: a switch flipped afterwards can darken the
+   LED without clearing the message. A screen's inspector reads as many
+   words as its picture, so the two never ask for different counts.
 7. **File format v9.** It adds the three kinds and the editor-only
    `columns`. A v8 file opens unchanged. `columns` joins v9 in step 2
    without a new version: nothing between the steps is released, so no

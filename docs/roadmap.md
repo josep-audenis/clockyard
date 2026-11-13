@@ -417,8 +417,8 @@ moves under the canvas; Make component turns each net crossing the
 selection's edge into a new pin, still wired (ADR 0016), leaves junctions
 a net only passes through on the sheet, and keeps the chip's ports off
 junctions; a load the engine fails on no longer leaves the editor waiting
-for it; the status bar says why a run stopped (ADR 0021). UI polish: zoom controls over the canvas (−, level, +, Fit; F fits
-the sheet, at most 2x), Undo and Redo in the toolbar, a hint on an empty
+for it; the status bar says why a run stopped (ADR 0021). UI polish: zoom
+controls over the canvas (−, level, +, Fit; F fits the sheet, at most 2x), Undo and Redo in the toolbar, a hint on an empty
 sheet and in the status bar while a part is armed, the shortcuts as a
 folding list in the parts panel, a Run/Pause button that keeps its width,
 and native scrollbars that follow the theme.

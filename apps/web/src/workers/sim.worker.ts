@@ -36,10 +36,12 @@ let ports: Record<string, unknown> = {};
 /** The last settle's runtime diagnostics, sent again by run and pause so they do not clear an unstable report. */
 let last: Diagnostic[] = [];
 
-const state = (diagnostics: Diagnostic[], stopped?: Stopped) => {
+/** Why the last run ended by itself (ADR 0021), sent with every state until a load or a run command clears it. */
+let stopped: Stopped | null = null;
+
+const state = (diagnostics: Diagnostic[]) => {
   last = diagnostics;
-  const time = engine?.time() ?? 0;
-  reply({ type: "state", nets: engine?.nets() ?? new Uint32Array(), diagnostics, time, running: run !== null, ...(stopped && { stopped }) });
+  reply({ type: "state", nets: engine?.nets() ?? new Uint32Array(), diagnostics, time: engine?.time() ?? 0, running: run !== null, ...(stopped && { stopped }) });
 };
 
 const pause = () => {
@@ -60,7 +62,6 @@ function slice() {
   let ticks = Math.floor(run.owed);
   run.owed -= ticks;
   let diagnostics: Diagnostic[] = [];
-  let stopped: Stopped | undefined;
   const ran = ticks > 0 && hasCircuit;
   try {
     while (hasCircuit && ticks > 0 && performance.now() - now < BUDGET_MS) {
@@ -92,7 +93,7 @@ function slice() {
     reply({ type: "error", message: String(error), running: false });
     return;
   }
-  if (ran) state(diagnostics, stopped);
+  if (ran) state(diagnostics);
   if (run) run.timer = setTimeout(slice, SLICE_MS);
 }
 
@@ -107,6 +108,8 @@ onmessage = async (event: MessageEvent<Command>) => {
   }
   // Set once a load has been answered, so a later failure is not taken for the load's.
   let answered = false;
+  // A new run, a pause, a step, a reset or a new circuit (time back to 0) ends what the reason described.
+  if (command.type === "load" || command.type === "run" || command.type === "pause" || command.type === "step" || command.type === "reset") stopped = null;
   try {
     switch (command.type) {
       case "load": {
