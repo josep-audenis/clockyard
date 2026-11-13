@@ -14,9 +14,10 @@ execute it — one clock edge at a time.
 
 Everything runs locally in your browser. No accounts, no servers, no cloud.
 
-> **Status: pre-alpha — Phase 0 (foundation) done.** The app loads the Rust
-> engine through WASM and evaluates a single AND gate. The circuit editor
-> arrives in Phase 1. See the [roadmap](docs/roadmap.md).
+> **Status: pre-alpha — Phases 0–4 done.** Build circuits from gates, buses,
+> custom components, clocks, flip-flops and memories, and run the bundled
+> 8-bit reference CPU, programmed in its own assembly. Phase 5, the
+> computer-building sandbox, is next. See the [roadmap](docs/roadmap.md).
 
 ## Why
 

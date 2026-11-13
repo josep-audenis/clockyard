@@ -17,8 +17,8 @@ as JSON. Every acceptance item is covered by Playwright (`apps/web/e2e/`).
 **Phase 4 — ✅ done.** A programmable 8-bit computer: ROM and RAM (ADR 0018),
 then the reference CPU of ADR 0019, built from Clockyard parts and checked
 against its specification after every cycle, its assembler, *Run until* an
-LED for instruction steps and breakpoints, and the program editor (PRs #42
-and #47–#50). The demo, a program that sums 1 to 5 through RAM and shows 15
+LED for instruction steps (and breakpoints the user wires), and the program
+editor (PRs #42 and #47–#51). The demo, a program that sums 1 to 5 through RAM and shows 15
 on the output, runs in Playwright. Phase 5 (the computer-building sandbox) is
 next.
 
@@ -293,8 +293,8 @@ and a worker-paced run loop.
   returns to 0, and after a run the value is exactly the cycles run.
 
 Not yet (ADR 0017 item 11): falling edges, clock enable, per-part reset,
-several clocks, keeping state across edits, stepping one delta, RAM/ROM,
-waveforms.
+several clocks, keeping state across edits, stepping one delta,
+waveforms. RAM and ROM came in Phase 4 (ADR 0018).
 
 ## Phase 4 — Programmable 8-bit computer ✅
 
@@ -314,7 +314,8 @@ netlist.
 Design: ADR 0018 (ROM and RAM parts, format v8; accepted) and ADR 0019 (the
 reference CPU, specified in `docs/reference-cpu.md`: 8-bit accumulator,
 Harvard, 13 instructions, two cycles each; a Rust assembler crate; *Run until
-an LED lights* for instruction steps and breakpoints; accepted). Built in six steps:
+an LED lights* for instruction steps, and for breakpoints as circuits the user
+wires, none bundled or tested; accepted). Built in six steps:
 
 1. ✅ ROM and RAM (ADR 0018, accepted): engine, inspection (`readMemory`), the
    ROM, RAM tiles and inspector (address bits, contents, RAM dump), format v8.

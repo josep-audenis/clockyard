@@ -923,6 +923,7 @@ test("Phase 4 demo: a program loops through RAM on the CPU built from parts and 
   await expect(counter(page)).toHaveText("Cycle 2, clock high");
   await expect(readout(page, "LED PC")).toHaveText("LED PC: 1 (0x01)");
   await expect(readout(page, "LED IR")).toHaveText("LED IR: 4096 (0x1000)"); // LDI 0, just executed
+  await expect(button("Run")).toBeVisible(); // stopped by the LED, not a click
   // Then to the end: the loop runs five times and the output device shows the sum.
   await until.selectOption({ label: "Until LED Halted lights" });
   await button("Run").click();

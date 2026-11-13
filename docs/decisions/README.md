@@ -8,7 +8,7 @@ replacement.
 |---|-------|--------|
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
 | [0002](0002-monorepo-layout.md) | Monorepo layout | Accepted |
-| [0003](0003-wasm-toolchain.md) | WASM toolchain | Proposed |
+| [0003](0003-wasm-toolchain.md) | WASM toolchain | Accepted |
 | [0004](0004-document-vs-netlist.md) | Separate circuit document and compiled netlist | Accepted |
 | [0005](0005-simulation-in-worker.md) | Host the engine in a Web Worker from the start | Accepted |
 | [0006](0006-delta-cycle-evaluation.md) | Change-driven evaluation with synchronous deltas | Accepted; sequential part by 0017 |

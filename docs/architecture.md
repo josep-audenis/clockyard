@@ -1,7 +1,7 @@
 # Architecture
 
-Status: **proposed** — describes the target design for Phase 0–1. Sections are
-updated as code lands; anything not yet built is marked *planned*.
+Status: **built** through Phase 4; sections are updated as code lands, and
+anything not yet built is marked *planned*.
 
 ## Goals
 
