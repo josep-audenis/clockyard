@@ -35,6 +35,9 @@ pub enum Kind {
     Dff,
     Rom,
     Ram,
+    Seg7,
+    Screen,
+    Keyboard,
 }
 
 /// One port of a part, with the width its props give it.
@@ -46,7 +49,7 @@ pub struct Port {
 }
 
 impl Kind {
-    pub const ALL: [Kind; 15] = [
+    pub const ALL: [Kind; 18] = [
         Kind::Switch,
         Kind::Led,
         Kind::Not,
@@ -62,6 +65,9 @@ impl Kind {
         Kind::Dff,
         Kind::Rom,
         Kind::Ram,
+        Kind::Seg7,
+        Kind::Screen,
+        Kind::Keyboard,
     ];
 
     /// Name used in circuit descriptions.
@@ -82,6 +88,9 @@ impl Kind {
             Kind::Dff => "dff",
             Kind::Rom => "rom",
             Kind::Ram => "ram",
+            Kind::Seg7 => "seg7",
+            Kind::Screen => "screen",
+            Kind::Keyboard => "keyboard",
         }
     }
 
@@ -90,14 +99,25 @@ impl Kind {
     }
 
     /// Whether the `width` prop sets its ports' widths (switch, LED, gates,
-    /// and a flip-flop's `d` and `q`). A clock is always 1 bit.
+    /// and a flip-flop's `d` and `q`). A clock is always 1 bit; a seven-segment
+    /// display and a keyboard always 8 (ADR 0021).
     pub fn sized(self) -> bool {
-        !self.fielded() && self != Kind::Clock
+        !self.fielded() && self.fixed_width().is_none()
     }
 
-    /// Whether the part is a memory, with `addressWidth` setting its `addr` port (ADR 0018).
+    /// The width of a part whose ports never take a `width` prop.
+    pub fn fixed_width(self) -> Option<u32> {
+        match self {
+            Kind::Clock => Some(1),
+            Kind::Seg7 | Kind::Keyboard => Some(8),
+            _ => None,
+        }
+    }
+
+    /// Whether the part is a memory, with `addressWidth` setting its `addr` port
+    /// (ADR 0018). A screen is a RAM whose words are pixels (ADR 0021).
     pub fn addressed(self) -> bool {
-        matches!(self, Kind::Rom | Kind::Ram)
+        matches!(self, Kind::Rom | Kind::Ram | Kind::Screen)
     }
 
     /// Whether the `fields` prop adds field ports `f0`, `f1`, … (split, merge).
@@ -118,11 +138,12 @@ impl Kind {
     /// Fixed input ports. A merge's field inputs come from `ports`.
     pub fn inputs(self) -> &'static [&'static str] {
         match self {
-            Kind::Switch | Kind::Merge | Kind::Clock => &[],
+            Kind::Switch | Kind::Merge | Kind::Clock | Kind::Keyboard => &[],
             Kind::Led | Kind::Not | Kind::Split => &["in"],
+            Kind::Seg7 => &["seg"],
             Kind::Dff => &["d", "clk"],
             Kind::Rom => &["addr"],
-            Kind::Ram => &["addr", "din", "we", "clk"],
+            Kind::Ram | Kind::Screen => &["addr", "din", "we", "clk"],
             _ => &["a", "b"],
         }
     }
@@ -130,7 +151,7 @@ impl Kind {
     /// Fixed output ports. A split's field outputs come from `ports`.
     pub fn outputs(self) -> &'static [&'static str] {
         match self {
-            Kind::Led | Kind::Split => &[],
+            Kind::Led | Kind::Split | Kind::Seg7 => &[],
             Kind::Dff => &["q"],
             _ => &["out"],
         }
@@ -146,7 +167,7 @@ impl Kind {
         } else if self.fielded() {
             fields.iter().sum()
         } else {
-            1
+            self.fixed_width().unwrap_or(1)
         };
         let fixed = |names: &'static [&'static str], output| {
             names.iter().map(move |name| Port {
@@ -193,7 +214,10 @@ impl Kind {
             | Kind::Clock
             | Kind::Dff
             | Kind::Rom
-            | Kind::Ram => {
+            | Kind::Ram
+            | Kind::Seg7
+            | Kind::Screen
+            | Kind::Keyboard => {
                 unreachable!("{} is not a gate", self.name())
             }
         }
@@ -282,5 +306,10 @@ mod tests {
         );
         assert_eq!(names_of(Kind::Clock, 1), [port("out", 1, true)]);
         assert!(!Kind::Clock.sized() && Kind::Dff.sized());
+        // ADR 0021: devices.
+        assert_eq!(names_of(Kind::Seg7, 1), [port("seg", 8, false)]);
+        assert_eq!(names_of(Kind::Keyboard, 1), [port("out", 8, true)]);
+        assert!(!Kind::Seg7.sized() && !Kind::Keyboard.sized() && Kind::Screen.sized());
+        assert!(Kind::Screen.addressed() && !Kind::Seg7.addressed());
     }
 }

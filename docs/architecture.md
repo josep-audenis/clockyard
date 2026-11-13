@@ -51,14 +51,15 @@ The UI never computes a signal value. It renders values received from the worker
 
 The editable design. Owned by the frontend, serialized as JSON, versioned.
 
-Format version 8 (ADRs 0010, 0012, 0013, 0014, 0015, 0017, 0018; exact schema fixed in code with
-validation). Versions 7 and 8 add part kinds and props only: `clock` and `dff` (v7), `rom` and `ram`
-with `addressWidth`, and a ROM's `data` and editor-only `source` (v8):
+Format version 9 (ADRs 0010, 0012, 0013, 0014, 0015, 0017, 0018, 0021; exact schema fixed in code with
+validation). Versions 7 to 9 add part kinds and props only: `clock` and `dff` (v7), `rom` and `ram`
+with `addressWidth`, and a ROM's `data` and editor-only `source` (v8), and the devices `seg7`,
+`screen` (a RAM whose words are pixels) and `keyboard` (v9):
 
 ```json
 {
   "format": "clockyard",
-  "version": 8,
+  "version": 9,
   "metadata": { "name": "AND demo", "createdAt": "2026-11-06T12:00:00Z", "modifiedAt": "2026-11-06T12:00:00Z" },
   "circuit": {
     "components": [

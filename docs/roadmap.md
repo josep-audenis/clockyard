@@ -20,7 +20,7 @@ against its specification after every cycle, its assembler, *Run until* an
 LED for instruction steps (and breakpoints the user wires), and the program
 editor (PRs #42 and #47–#51). The demo, a program that sums 1 to 5 through RAM and shows 15
 on the output, runs in Playwright. Phase 5 (the computer-building sandbox) is
-next.
+in progress: devices first (ADR 0021).
 
 **Phase 3 — ✅ done.** Clocks, flip-flops and virtual time (ADR 0017): the
 engine and parts (PR #40), then run/pause/step/reset, the cycle counter and
@@ -350,6 +350,23 @@ performance work, file/URL sharing, educational material.
 
 Aspirational demo: a small game running on a processor designed in Clockyard.
 
+Plan (ADR 0020, accepted): increments, each with its own ADR and target:
+
+1. 🔨 Devices (ADR 0021, accepted): seven-segment display, pixel screen and
+   keyboard as parts; why a run stopped.
+   1. ✅ Engine and catalog entries (`seg7`, `screen`, `keyboard`), format
+      v9, tiles, and the seven-segment and keyboard bodies. A screen is
+      drawn as a RAM until step 2; a keyboard reads 0 until step 3.
+   2. ⬜ The screen: per-component memory reads, pixels, `columns`.
+   3. ⬜ Keyboard focus and key mapping.
+   4. ⬜ Why a run stopped, the devices example, Playwright, docs.
+2. ⬜ Memory-mapped I/O on the reference CPU, with no new instructions.
+3. ⬜ The game demo, chosen once 1 and 2 work.
+4. ⬜ Sharing through a URL fragment.
+5. ⬜ Challenges checked by behavioural tests.
+6. ⬜ Waveforms.
+7. ⬜ Library and teaching: blueprints, bundled designs, material.
+
 ## Out of scope (for now)
 
 Backend, accounts, multiplayer, cloud storage, marketplace, analog/transistor
@@ -358,8 +375,9 @@ analysis, plugin system, full game campaign during the MVP.
 
 ## Next increment
 
-Phase 4 is built, with its demo. Phase 5 (the computer-building sandbox:
-challenges, memory-mapped peripherals, sharing) starts with a design ADR.
+Phase 4 is built, with its demo. Phase 5 is planned in ADR 0020 (accepted);
+its first increment, devices (ADR 0021), is being built: step 2, the screen,
+is next.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).

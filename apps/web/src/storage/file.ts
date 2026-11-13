@@ -4,6 +4,7 @@ import {
   COMPONENT_KINDS,
   fieldsProblem,
   DEFAULT_ADDRESS,
+  FIXED_WIDTH,
   isFielded,
   isMemory,
   MAX_ADDRESS,
@@ -28,7 +29,10 @@ import {
   type Wire,
 } from "../editor/document";
 
-export const FORMAT_VERSION = 8;
+export const FORMAT_VERSION = 9;
+
+/** How a part of fixed width is named when a file gives it a width. */
+const FIXED_NAMES: Partial<Record<PartKind, string>> = { clock: "clock", seg7: "seven-segment display", keyboard: "keyboard" };
 
 export type ParseResult = { ok: true; document: CircuitDocument } | { ok: false; error: string };
 
@@ -103,7 +107,8 @@ function readProps(props: Record<string, unknown>, kind: PartKind, where: string
   if (props.width !== undefined) {
     if (kind === "custom") throw new Error(`${where} is a custom component, which takes no width.`);
     if (isFielded(kind)) throw new Error(`${where} is a splitter or merger, which takes fields, not a width.`);
-    if (kind === "clock") throw new Error(`${where} is a clock, which is always 1 bit wide.`);
+    const fixed = FIXED_WIDTH[kind];
+    if (fixed !== undefined) throw new Error(`${where} is a ${FIXED_NAMES[kind]}, which is always ${fixed} bit${fixed === 1 ? "" : "s"} wide.`);
     const width = props.width;
     if (!Number.isInteger(width) || (width as number) < 1 || (width as number) > MAX_WIDTH) {
       throw new Error(`${where} width must be a whole number from 1 to ${MAX_WIDTH}.`);
@@ -121,7 +126,7 @@ function readProps(props: Record<string, unknown>, kind: PartKind, where: string
   }
   // ADR 0018: an address width on a memory, and a ROM's words and assembly source.
   if (props.addressWidth !== undefined) {
-    if (!isMemory(kind)) throw new Error(`${where} has an address width, which only ROMs and RAMs take.`);
+    if (!isMemory(kind)) throw new Error(`${where} has an address width, which only ROMs, RAMs and screens take.`);
     const address = props.addressWidth;
     if (!Number.isInteger(address) || (address as number) < 1 || (address as number) > MAX_ADDRESS) {
       throw new Error(`${where} address width must be a whole number from 1 to ${MAX_ADDRESS}.`);
@@ -158,11 +163,12 @@ function readDocument(data: unknown): CircuitDocument {
   if (version > FORMAT_VERSION) {
     throw new Error(`This file uses format version ${version}, from a newer Clockyard. This version reads up to ${FORMAT_VERSION}.`);
   }
-  if (![1, 2, 3, 4, 5, 6, 7, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
+  if (![1, 2, 3, 4, 5, 6, 7, 8, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
   // Version 4 → 5 (ADR 0014): widths arrive as props; nothing to change.
   // Version 5 → 6 (ADR 0015): junctions may carry a net label's name; nothing to change.
   // Version 6 → 7 (ADR 0017): clock and dff kinds; nothing to change.
   // Version 7 → 8 (ADR 0018): rom and ram kinds, addressWidth, data and source; nothing to change.
+  // Version 8 → 9 (ADR 0021): seg7, screen and keyboard kinds; nothing to change.
 
   const metadata = object(data.metadata, "metadata");
   const circuit = object(data.circuit, "circuit");

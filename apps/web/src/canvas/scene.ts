@@ -584,10 +584,50 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       }
       case "rom":
       case "ram":
+      case "screen":
         // A memory (ADR 0018): a box, its size and port names as labels, a RAM's clock input marked.
         g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(outline);
-        if (component.kind === "ram") g.moveTo(x, y + 7 * c - 6).lineTo(x + 8, y + 7 * c).lineTo(x, y + 7 * c + 6).stroke(outline);
+        if (component.kind !== "rom") g.moveTo(x, y + 7 * c - 6).lineTo(x + 8, y + 7 * c).lineTo(x, y + 7 * c + 6).stroke(outline);
         break;
+      case "seg7": {
+        // A digit (ADR 0021): segment a (bit 0) at the top, then clockwise, g (bit 6) in the middle, dp (bit 7).
+        g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(outline);
+        const bits = value("seg");
+        const [l, r, t, m, b] = [0.9 * c, 2.1 * c, 0.6 * c, 2 * c, 3.4 * c];
+        const segments: [number, number, number, number][] = [
+          [l, t, r, t], // a
+          [r, t, r, m], // b
+          [r, m, r, b], // c
+          [l, b, r, b], // d
+          [l, m, l, b], // e
+          [l, t, l, m], // f
+          [l, m, r, m], // g
+        ];
+        const tone = (bit: number) =>
+          bits !== null && (bits >> bit) & 1 ? { color: color["signal-high"] } : { color: color["signal-low"], alpha: 0.25 };
+        segments.forEach(([x1, y1, x2, y2], bit) => {
+          const inset = 3;
+          const [dx, dy] = x1 === x2 ? [0, inset] : [inset, 0];
+          g.moveTo(x + x1 + dx, y + y1 + dy)
+            .lineTo(x + x2 - dx, y + y2 - dy)
+            .stroke({ width: 4, cap: "round", ...tone(bit) });
+        });
+        g.circle(x + 2.5 * c, y + b, 2.5).fill(tone(7));
+        break;
+      }
+      case "keyboard": {
+        // A box with two rows of keys (ADR 0021).
+        g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(outline);
+        const key = 0.55 * c;
+        for (let row = 0; row < 2; row++) {
+          for (let col = 0; col < 4; col++) {
+            const kx = x + 0.4 * c + col * 0.8 * c + (row ? 0.2 * c : 0);
+            if (row && col === 3) continue;
+            g.roundRect(kx, y + 0.35 * c + row * 0.75 * c, key, key, 2).stroke({ width: 1, color: color["line-strong"] });
+          }
+        }
+        break;
+      }
       case "dff":
         // A box with D and Q as labels, and the clock input marked by a triangle (ADR 0017).
         g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(outline);

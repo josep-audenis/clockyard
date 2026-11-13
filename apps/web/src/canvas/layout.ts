@@ -47,6 +47,17 @@ export const LAYOUTS: Record<Exclude<ComponentKind, FieldedKind>, Layout> = {
     inputs: { addr: { x: 0, y: 1 }, din: { x: 0, y: 3 }, we: { x: 0, y: 5 }, clk: { x: 0, y: 7 } },
     outputs: { out: { x: 5, y: 1 } },
   },
+  // ADR 0021: a digit, segments in on the left.
+  seg7: { width: 3, height: 4, inputs: { seg: { x: 0, y: 2 } }, outputs: {} },
+  // shortcut: a screen is drawn as a RAM until it shows its pixels (ADR 0021, step 2).
+  screen: {
+    width: 5,
+    height: 8,
+    inputs: { addr: { x: 0, y: 1 }, din: { x: 0, y: 3 }, we: { x: 0, y: 5 }, clk: { x: 0, y: 7 } },
+    outputs: { out: { x: 5, y: 1 } },
+  },
+  // A keyboard: its key's code out on the right.
+  keyboard: { width: 4, height: 2, inputs: {}, outputs: { out: { x: 4, y: 1 } } },
 };
 
 /**

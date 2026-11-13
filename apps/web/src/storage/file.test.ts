@@ -5,7 +5,7 @@ import { parseDocument, serializeDocument } from "./file";
 
 const document: CircuitDocument = {
   format: "clockyard",
-  version: 8,
+  version: 9,
   metadata: { name: "AND demo", createdAt: "2026-11-06T12:00:00Z", modifiedAt: "2026-11-06T12:30:00Z" },
   circuit: {
     components: [
@@ -77,7 +77,7 @@ test("definition names are normalized like the editor does, and a blank one beco
 test.each([
   ["not JSON", () => parseDocument("{"), "not valid JSON"],
   ["another format", () => broken((doc) => Object.assign(doc, { format: "other" })), "not a Clockyard file"],
-  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 9 })), "newer Clockyard"],
+  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 10 })), "newer Clockyard"],
   ["an instance of a missing definition", () => broken((doc) => Object.assign(doc.circuit.components[2] ?? {}, { definition: "gone" })), "missing definition gone"],
   ["an ID with a slash", () => broken((_, c) => (c.id = "a/b")), 'must not contain "/"'],
   ["a definition ID used twice", () => broken((doc) => doc.definitions.push({ ...(doc.definitions[0] as Definition) })), "ID inv is used more than once"],
@@ -240,8 +240,20 @@ test("a version 7 file is migrated: only the version changes; memories round-tri
   expect(ram.ok && ram.document.circuit.components[0]?.props).toEqual({ width: 8 });
 });
 
+test("a version 8 file is migrated: only the version changes; devices round-trip in 9 (ADR 0021)", () => {
+  const v8 = { ...document, version: 8 };
+  expect(parseDocument(JSON.stringify(v8))).toEqual({ ok: true, document });
+  const screen = broken((_, c) => Object.assign(c, { kind: "screen", props: { width: 8, addressWidth: 7 } }));
+  expect(screen.ok && screen.document.circuit.components[0]?.props).toEqual({ width: 8, addressWidth: 7 });
+  for (const kind of ["seg7", "keyboard"]) {
+    const part = broken((_, c) => Object.assign(c, { kind, props: {} }));
+    expect(part.ok && part.document.circuit.components[0]?.kind).toBe(kind);
+    expect(broken((_, c) => Object.assign(c, { kind, props: { width: 8 } }))).toMatchObject({ ok: false, error: expect.stringMatching(/always 8 bits wide/) });
+  }
+});
+
 test.each([
-  ["an address width on a gate", { kind: "and", props: { addressWidth: 4 } }, "only ROMs and RAMs"],
+  ["an address width on a gate", { kind: "and", props: { addressWidth: 4 } }, "only ROMs, RAMs and screens"],
   ["an address width out of range", { kind: "rom", props: { addressWidth: 17 } }, "address width must be"],
   ["data on a RAM", { kind: "ram", props: { data: [1] } }, "only ROMs hold"],
   ["a word too wide", { kind: "rom", props: { width: 8, data: [256] } }, "from 0 to 255"],

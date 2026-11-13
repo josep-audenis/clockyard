@@ -1,17 +1,19 @@
-// The editable circuit document, format version 8 (docs/architecture.md#circuit-document, ADRs 0010, 0012, 0014, 0015, 0017, 0018).
+// The editable circuit document, format version 9 (docs/architecture.md#circuit-document, ADRs 0010, 0012, 0014, 0015, 0017, 0018, 0021).
 // Connectivity is explicit: wires reference ports and junctions by ID, never by geometry.
 import type { CircuitBody, CircuitDescription, Endpoint, JunctionRef, PinDesc } from "../simulation/protocol";
 
 /** The built-in parts (the engine's catalog). */
-export const COMPONENT_KINDS = ["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "split", "merge", "clock", "dff", "rom", "ram"] as const;
+export const COMPONENT_KINDS = ["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "split", "merge", "clock", "dff", "rom", "ram", "seg7", "screen", "keyboard"] as const;
 export type ComponentKind = (typeof COMPONENT_KINDS)[number];
 /** A splitter or merger: its `fields` prop adds a port per field (ADR 0014). Every other built-in part takes `width`. */
 export type FieldedKind = "split" | "merge";
 export const isFielded = (kind: PartKind): kind is FieldedKind => kind === "split" || kind === "merge";
-/** Whether `width` sets the part's ports (ADR 0014): not a chip, splitter, merger or clock (always 1 bit, ADR 0017). */
-export const takesWidth = (kind: PartKind) => kind !== "custom" && kind !== "clock" && !isFielded(kind);
-/** A ROM or RAM (ADR 0018): `addressWidth` sets its `addr` port and how many words it holds. */
-export const isMemory = (kind: PartKind) => kind === "rom" || kind === "ram";
+/** Parts whose ports have one width whatever their props: a clock (ADR 0017), a seven-segment display and a keyboard (ADR 0021). */
+export const FIXED_WIDTH: Partial<Record<PartKind, number>> = { clock: 1, seg7: 8, keyboard: 8 };
+/** Whether `width` sets the part's ports (ADR 0014): not a chip, splitter, merger, or a part of fixed width. */
+export const takesWidth = (kind: PartKind) => kind !== "custom" && FIXED_WIDTH[kind] === undefined && !isFielded(kind);
+/** A ROM, RAM or screen (ADRs 0018, 0021): `addressWidth` sets its `addr` port and how many words it holds. */
+export const isMemory = (kind: PartKind) => kind === "rom" || kind === "ram" || kind === "screen";
 /** A built-in part, or an instance of a custom component (ADR 0012). */
 export type PartKind = ComponentKind | "custom";
 
@@ -52,7 +54,10 @@ export function wordsProblem(words: unknown, width: number, address: number): st
 export const DEFAULT_FIELDS: readonly number[] = [1, 1, 1, 1];
 
 /** Props a newly placed part starts with. */
-export const newProps = (kind: PartKind): Props => (isFielded(kind) ? { fields: [...DEFAULT_FIELDS] } : {});
+export const newProps = (kind: PartKind): Props =>
+  isFielded(kind) ? { fields: [...DEFAULT_FIELDS] } : kind === "screen" ? { addressWidth: SCREEN_ADDRESS } : {};
+/** A new screen's address width: with 8-bit words, 128 words are 32 × 32 pixels (ADR 0021). */
+export const SCREEN_ADDRESS = 7;
 
 /** What is wrong with a `fields` value, or null: a non-empty list of whole numbers of at least 1, at most `MAX_WIDTH` bits in all. */
 export function fieldsProblem(fields: unknown): string | null {
@@ -146,7 +151,7 @@ export type Definition = { id: string; name: string; circuit: Circuit };
 
 export type CircuitDocument = {
   format: "clockyard";
-  version: 8;
+  version: 9;
   metadata: { name: string; createdAt: string; modifiedAt: string };
   circuit: Circuit;
   definitions: Definition[];

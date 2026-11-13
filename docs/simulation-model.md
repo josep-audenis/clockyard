@@ -194,6 +194,12 @@ As decided in [ADR 0017](decisions/0017-clocks-and-flip-flops.md).
   snapshot as a flip-flop takes `d`; it starts at 0 and reset clears it.
   A RAM is stateful for the pre-settle, a ROM is not. Flattened circuits
   hold at most 2^20 memory words.
+- **Devices** ([ADR 0021](decisions/0021-devices.md)) reuse the parts
+  above. A **seven-segment display** (`seg7`) is an LED with one 8-bit input
+  `seg` (bit 0 segment a … bit 6 g, bit 7 the point). A **screen** (`screen`)
+  is a RAM whose words are its pixels. A **keyboard** (`keyboard`) is a
+  switch with an 8-bit `out`, set through `setInputs`. Neither `seg7` nor
+  `keyboard` takes a width.
 
 ### Edge sampling rule
 
