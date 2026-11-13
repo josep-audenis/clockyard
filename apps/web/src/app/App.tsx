@@ -38,9 +38,19 @@ const LIBRARY: { title: string; parts: Part[] }[] = [
       { kind: "switch", name: "Switch", key: "S" },
       // The global clock (ADR 0017).
       { kind: "clock", name: "Clock" },
+      // Devices (ADR 0021): the key held down, as an 8-bit code.
+      { kind: "keyboard", name: "Keyboard" },
     ],
   },
-  { title: "Outputs", parts: [{ kind: "led", name: "LED", key: "L" }] },
+  {
+    title: "Outputs",
+    parts: [
+      { kind: "led", name: "LED", key: "L" },
+      { kind: "seg7", name: "Seven-segment" },
+      // A 32 × 32 picture: 128 words of 8 pixels.
+      { kind: "screen", name: "Screen", width: 8 },
+    ],
+  },
   {
     title: "Gates",
     parts: [

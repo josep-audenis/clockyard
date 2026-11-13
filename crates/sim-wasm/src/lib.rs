@@ -172,7 +172,7 @@ impl Engine {
         Ok(serde_json::to_string(&loaded)?)
     }
 
-    /// Sets a switch to `value` and settles. Returns runtime diagnostics as a
+    /// Sets a switch or keyboard (ADR 0021) to `value` and settles. Returns runtime diagnostics as a
     /// JSON array. `value` arrives as a JS number, so anything but a whole
     /// number from 0 to `u32::MAX` is refused rather than wrapped or truncated;
     /// the engine then refuses values wider than the switch.
@@ -185,7 +185,7 @@ impl Engine {
         Ok(serde_json::to_string(&Vec::from_iter(diagnostic))?)
     }
 
-    /// Sets several switches, `{ id: value }` as JSON, in one settle, as if they
+    /// Sets several switches or keyboards, `{ id: value }` as JSON, in one settle, as if they
     /// changed together (ADR 0017); values are checked as `set_input` checks them,
     /// and nothing is set if any is refused.
     pub fn set_inputs(&mut self, values: &str) -> Result<String, JsError> {

@@ -496,8 +496,9 @@ impl Simulator {
                 });
             };
             match kind {
-                Kind::Led => {}
-                Kind::Switch => add(Op::Switch, &[], 0),
+                Kind::Led | Kind::Seg7 => {}
+                // ADR 0021: a keyboard is a switch the editor sets from the key held.
+                Kind::Switch | Kind::Keyboard => add(Op::Switch, &[], 0),
                 Kind::Clock => add(Op::Clock, &[], 0),
                 Kind::Dff => add(Op::Dff { clk_was: false }, &nets[..2], 2),
                 // ADR 0018: a ROM's words padded to its size; a RAM's cells start at 0.
@@ -506,7 +507,7 @@ impl Simulator {
                     words.resize(1 << shapes[c].address, 0);
                     add(Op::Rom { words }, &nets[..1], 1);
                 }
-                Kind::Ram => {
+                Kind::Ram | Kind::Screen => {
                     let cells = vec![0; 1 << shapes[c].address];
                     add(
                         Op::Ram {
@@ -652,9 +653,9 @@ impl Simulator {
             .ids
             .binary_search_by(|id| id.as_str().cmp(component))
             .map_err(|_| format!("unknown component {component}"))?;
-        if self.kinds[c] != Kind::Switch {
+        if !matches!(self.kinds[c], Kind::Switch | Kind::Keyboard) {
             return Err(format!(
-                "{component} is a {}, not a switch",
+                "{component} is a {}, not a switch or keyboard",
                 self.kinds[c].name()
             ));
         }

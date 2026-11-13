@@ -38,7 +38,7 @@ export type Diagnostic = {
 
 export type Command =
   | { type: "load"; circuit: CircuitDescription }
-  /** Switch values by ID, each a whole number from 0 to 2^width − 1, set in one settle (ADR 0017). */
+  /** Switch and keyboard values by ID, each a whole number from 0 to 2^width − 1, set in one settle (ADR 0017). */
   | { type: "setInputs"; values: Record<string, number> }
   /**
    * The worker ticks the clock in slices of wall time until paused (ADR 0017). `until`: an LED's ID;
