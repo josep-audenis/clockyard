@@ -355,9 +355,11 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
 1. 🔨 Devices (ADR 0021, accepted): seven-segment display, pixel screen and
    keyboard as parts; why a run stopped.
    1. ✅ Engine and catalog entries (`seg7`, `screen`, `keyboard`), format
-      v9, tiles, and the seven-segment and keyboard bodies. A screen is
-      drawn as a RAM until step 2; a keyboard reads 0 until step 3.
-   2. ⬜ The screen: per-component memory reads, pixels, `columns`.
+      v9, tiles, and the seven-segment and keyboard bodies. A keyboard
+      reads 0 until step 3.
+   2. ✅ The screen: per-component memory reads, throttled to one per
+      frame, pixels drawn MSB leftmost, `columns` in the inspector (at
+      most 256 rows shown; ADR 0021 item 3, amended).
    3. ⬜ Keyboard focus and key mapping.
    4. ⬜ Why a run stopped, the devices example, Playwright, docs.
 2. ⬜ Memory-mapped I/O on the reference CPU, with no new instructions.
@@ -376,8 +378,8 @@ analysis, plugin system, full game campaign during the MVP.
 ## Next increment
 
 Phase 4 is built, with its demo. Phase 5 is planned in ADR 0020 (accepted);
-its first increment, devices (ADR 0021), is being built: step 2, the screen,
-is next.
+its first increment, devices (ADR 0021), is being built: step 3, keyboard
+focus and key mapping, is next.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).

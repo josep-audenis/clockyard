@@ -59,3 +59,14 @@ test("a wide switch or LED is a 5x2 body with its port where a 1-bit one has it;
   expect(layoutOf({ kind: "switch", rotation: 90, props: wide })).toMatchObject({ width: 2, height: 5 });
   expect(layoutOf({ kind: "and", rotation: 0, props: wide })).toBe(LAYOUTS.and);
 });
+
+test("a screen grows to fit its picture, 4 pixels a cell, with a RAM's ports and `out` at its top right (ADR 0021)", () => {
+  // The tile's screen: 128 words of 8 bits, 32 × 32 pixels.
+  const tile = layoutOf({ kind: "screen", rotation: 0, props: { width: 8, addressWidth: 7 } });
+  expect(tile).toMatchObject({ width: 11, height: 9, outputs: { out: { x: 11, y: 1 } } });
+  expect(tile.inputs).toEqual(LAYOUTS.screen.inputs);
+  // A small picture keeps a RAM's 5 × 8 body; a wide one grows sideways.
+  expect(layoutOf({ kind: "screen", rotation: 0, props: { addressWidth: 2, columns: 4 } })).toMatchObject({ width: 5, height: 8 });
+  expect(layoutOf({ kind: "screen", rotation: 0, props: { width: 8, addressWidth: 7, columns: 64 } })).toMatchObject({ width: 19, height: 8 });
+  expect(layoutOf({ kind: "screen", rotation: 90, props: { width: 8, addressWidth: 7 } })).toMatchObject({ width: 9, height: 11 });
+});

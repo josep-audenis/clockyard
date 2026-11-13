@@ -7,6 +7,7 @@ import {
   DEFAULT_FIELDS,
   isFielded,
   pinsOf,
+  screenSize,
   type CircuitComponent,
   type ComponentKind,
   type Definition,
@@ -49,7 +50,7 @@ export const LAYOUTS: Record<Exclude<ComponentKind, FieldedKind>, Layout> = {
   },
   // ADR 0021: a digit, segments in on the left.
   seg7: { width: 3, height: 4, inputs: { seg: { x: 0, y: 2 } }, outputs: {} },
-  // shortcut: a screen is drawn as a RAM until it shows its pixels (ADR 0021, step 2).
+  // A screen's ports, as a RAM's; its size follows its picture (`screenLayout`).
   screen: {
     width: 5,
     height: 8,
@@ -71,6 +72,17 @@ const WIDE: Partial<Record<ComponentKind, Layout>> = {
   // A register (ADR 0017): wider, so 0x and 8 hex digits fit between D and Q.
   dff: { width: 6, height: 4, inputs: { d: { x: 0, y: 1 }, clk: { x: 0, y: 3 } }, outputs: { q: { x: 6, y: 1 } } },
 };
+
+/** A screen's pixel, in grid cells (4 px at 100%), and where its picture starts: right of the port names (ADR 0021). */
+export const PIXEL = 1 / 4;
+export const PICTURE = { x: 2, y: 0.5 };
+
+/** A screen: a RAM's ports down the left, `out` at the top right, the body grown to fit `columns` × `rows` pixels. */
+function screenLayout(columns: number, rows: number): Layout {
+  const width = Math.max(5, PICTURE.x + Math.ceil(columns * PIXEL) + 1);
+  const height = Math.max(8, Math.ceil(rows * PIXEL + 2 * PICTURE.y));
+  return { ...LAYOUTS.screen, width, height, outputs: { out: { x: width, y: 1 } } };
+}
 
 /**
  * A splitter or merger: a bar 3 cells wide and one cell taller than it has fields,
@@ -149,12 +161,15 @@ export function layoutOf({
 }: Pick<CircuitComponent, "kind" | "rotation" | "definition"> & { props?: Props }): Layout {
   const wide = kind !== "custom" && (props?.width ?? 1) > 1 ? WIDE[kind] : undefined;
   const fields = (props?.fields ?? DEFAULT_FIELDS).length;
+  const screen = kind === "screen" ? screenSize(props ?? {}) : undefined;
   const key =
     kind === "custom"
       ? `custom:${definition}:${rotation}`
       : isFielded(kind)
         ? `${kind}:${fields}:${rotation}`
-        : `${kind}${wide ? ":wide" : ""}:${rotation}`;
+        : screen
+          ? `screen:${screen.columns}x${screen.rows}:${rotation}`
+          : `${kind}${wide ? ":wide" : ""}:${rotation}`;
   let layout = rotated.get(key);
   if (!layout) {
     layout =
@@ -162,7 +177,9 @@ export function layoutOf({
         ? (custom.get(definition ?? "")?.layout ?? MISSING)
         : isFielded(kind)
           ? bar(kind, fields)
-          : (wide ?? LAYOUTS[kind]);
+          : screen
+            ? screenLayout(screen.columns, screen.rows)
+            : (wide ?? LAYOUTS[kind]);
     for (let r = 0; r < rotation; r += 90) layout = turned(layout);
     rotated.set(key, layout);
   }

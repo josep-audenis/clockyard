@@ -9,6 +9,8 @@ import {
   isFielded,
   isMemory,
   MAX_ADDRESS,
+  MAX_COLUMNS,
+  screenSize,
   MAX_SOURCE,
   takesWidth,
   MAX_LABEL,
@@ -652,6 +654,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           onCommit={(value) => /^\s*\d+\s*$/.test(value) && useEditor.getState().setAddressWidth(part.id, Number(value))}
         />
       )}
+      {part.kind === "screen" && <ColumnsField part={part} />}
       {part.kind === "rom" && <RomContents key={`${part.props.width ?? 1}:${(part.props.data ?? []).join()}`} part={part} />}
       {part.kind === "rom" && (part.props.width ?? 1) === 16 && <ProgramEditor key={part.id} part={part} />}
       {part.kind === "ram" && <RamDump part={part} />}
@@ -855,12 +858,12 @@ function RamDump({ part }: { part: CircuitComponent }) {
   const width = part.props.width ?? 1;
   const total = 2 ** (part.props.addressWidth ?? DEFAULT_ADDRESS);
   const nets = useSim((s) => s.nets);
-  const memory = useSim((s) => s.memory);
+  const own = useSim((s) => s.memory[part.id]);
   const id = useId();
   // On any sheet the open sheet is what is simulated, so the part's own ID names it.
   // Only the words shown cross from the worker, however large the RAM.
   useEffect(() => readMemory(part.id, DUMP_WORDS), [part.id, nets]);
-  const words = memory?.component === part.id ? [...memory.words] : null;
+  const words = own ? [...own] : null;
   return (
     <div className="field">
       <p className="field-label" id={`${id}-label`}>
@@ -874,6 +877,23 @@ function RamDump({ part }: { part: CircuitComponent }) {
         {total > DUMP_WORDS ? `The first ${DUMP_WORDS} of ${total} words. ` : ""}Written while the circuit runs; cleared by Reset and by any change to the wiring.
       </p>
     </div>
+  );
+}
+
+/** A screen's pixels per row (ADR 0021), and the picture they make. */
+function ColumnsField({ part }: { part: CircuitComponent }) {
+  const { columns, rows, words } = screenSize(part.props);
+  const total = 2 ** (part.props.addressWidth ?? DEFAULT_ADDRESS) * (part.props.width ?? 1);
+  const cut = total > columns * rows ? ` The first ${rows} rows are shown.` : "";
+  return (
+    <CommitField
+      key={`columns:${columns}`}
+      label="Columns"
+      saved={String(columns)}
+      hint={`Pixels per row, 1 to ${MAX_COLUMNS}: ${columns} × ${rows} pixels from ${words} words, most significant bit leftmost.${cut}`}
+      // One undoable edit; anything but a whole number in range leaves the columns as they were.
+      onCommit={(value) => /^\s*\d+\s*$/.test(value) && useEditor.getState().setColumns(part.id, Number(value))}
+    />
   );
 }
 

@@ -54,7 +54,7 @@ The editable design. Owned by the frontend, serialized as JSON, versioned.
 Format version 9 (ADRs 0010, 0012, 0013, 0014, 0015, 0017, 0018, 0021; exact schema fixed in code with
 validation). Versions 7 to 9 add part kinds and props only: `clock` and `dff` (v7), `rom` and `ram`
 with `addressWidth`, and a ROM's `data` and editor-only `source` (v8), and the devices `seg7`,
-`screen` (a RAM whose words are pixels) and `keyboard` (v9):
+`screen` (a RAM whose words are pixels, with editor-only `columns`) and `keyboard` (v9):
 
 ```json
 {
@@ -207,7 +207,7 @@ type Command =
   | { type: "pause" }
   | { type: "step" }                   // pause, then one clock cycle
   | { type: "reset" }                  // pause; flip-flops, RAM, clock and time to 0
-  | { type: "readMemory"; component: string; count: number } // a memory's first count words (ADR 0018)
+  | { type: "readMemory"; component: string; count: number } // a memory's first count words (ADRs 0018, 0021: every screen on the sheet, once a frame)
   | { type: "assemble"; request: number; source: string }    // reference-CPU assembly (ADR 0019)
   | { type: "disassemble"; request: number; words: number[] };
 

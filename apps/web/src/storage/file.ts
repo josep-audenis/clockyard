@@ -8,6 +8,8 @@ import {
   isFielded,
   isMemory,
   MAX_ADDRESS,
+  DEFAULT_COLUMNS,
+  MAX_COLUMNS,
   MAX_SOURCE,
   wordsProblem,
   MAX_BENDS,
@@ -146,6 +148,16 @@ function readProps(props: Record<string, unknown>, kind: PartKind, where: string
     if (source.length > MAX_SOURCE) throw new Error(`${where} source is longer than ${MAX_SOURCE} characters.`);
     if (source) read.source = source;
   }
+  // ADR 0021: a screen's pixels per row.
+  if (props.columns !== undefined) {
+    if (kind !== "screen") throw new Error(`${where} has columns, which only screens take.`);
+    const columns = props.columns;
+    if (!Number.isInteger(columns) || (columns as number) < 1 || (columns as number) > MAX_COLUMNS) {
+      throw new Error(`${where} columns must be a whole number from 1 to ${MAX_COLUMNS}.`);
+    }
+    // 32 is the default, so it is not stored.
+    if (columns !== DEFAULT_COLUMNS) read.columns = columns as number;
+  }
   return read;
 }
 
@@ -168,7 +180,7 @@ function readDocument(data: unknown): CircuitDocument {
   // Version 5 → 6 (ADR 0015): junctions may carry a net label's name; nothing to change.
   // Version 6 → 7 (ADR 0017): clock and dff kinds; nothing to change.
   // Version 7 → 8 (ADR 0018): rom and ram kinds, addressWidth, data and source; nothing to change.
-  // Version 8 → 9 (ADR 0021): seg7, screen and keyboard kinds; nothing to change.
+  // Version 8 → 9 (ADR 0021): seg7, screen and keyboard kinds, and a screen's columns; nothing to change.
 
   const metadata = object(data.metadata, "metadata");
   const circuit = object(data.circuit, "circuit");

@@ -12,13 +12,15 @@ import {
   isFielded,
   isMemory,
   sameEnd,
+  screenSize,
   type Circuit,
   type CircuitComponent,
   type Junction,
+  type Props,
 } from "../editor/document";
 import { armedProps, useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
-import { useSim } from "../simulation/sync";
+import { useSim, watchMemory } from "../simulation/sync";
 import {
   endAt,
   dragSegment,
@@ -33,7 +35,7 @@ import {
   type Hit,
   type Point,
 } from "./geometry";
-import { definitionName, layoutOf, layoutsVersion, pinLabel } from "./layout";
+import { definitionName, layoutOf, layoutsVersion, PICTURE, pinLabel, PIXEL } from "./layout";
 import { routes, routesKeeping } from "./routing";
 
 const MIN_ZOOM = 0.25;
@@ -156,6 +158,15 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   const shapes = new Map<string, Graphics>();
   /** What each part's shape was last drawn showing; see drawBody. */
   const looks = new Map<string, string>();
+  /** A number per words array a screen was drawn from, so a new reply redraws it and the same one does not. */
+  const pictures = new WeakMap<Uint32Array, number>();
+  let pictureCount = 0;
+  const pictureVersion = (words: Uint32Array | undefined) => {
+    if (!words) return -1;
+    let n = pictures.get(words);
+    if (n === undefined) pictures.set(words, (n = ++pictureCount));
+    return n;
+  };
   /** Bumped on theme change, so every shape is drawn again in the new colours. */
   let themeVersion = 0;
   const overlay = new Graphics();
@@ -344,8 +355,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
         const along = component.rotation % 180 === 0 ? 0 : -90;
         put(`${component.id}:value`, text, centre.x, centre.y, { x: 0.5, y: 0.5 }, color["signal-bus"]).angle = along;
       }
-      if (isMemory(component.kind)) {
-        // Its size, words × bits, in the middle of the body (ADR 0018).
+      if (isMemory(component.kind) && component.kind !== "screen") {
+        // Its size, words × bits, in the middle of the body (ADR 0018); a screen shows its picture instead.
         const { width, height } = layoutOf(component);
         const centre = px({ x: component.position.x + width / 2, y: component.position.y + height / 2 });
         const words = 2 ** (component.props.addressWidth ?? DEFAULT_ADDRESS);
@@ -363,6 +374,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     }
 
     drawLabels(circuit.components);
+    // Each screen's words, read after every state (ADR 0021).
+    watchMemory(new Map(circuit.components.flatMap((c) => (c.kind === "screen" ? [[c.id, screenSize(c.props).words] as const] : []))));
     const present = new Set(circuit.components.map((component) => component.id));
     // An armed label: where a click would put it.
     if (armedLabel && pointer && !gesture) {
@@ -495,6 +508,28 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     }
   }
 
+  /** A screen's pixels, lit in the signal colour on the bench (ADR 0021); all dark until its words arrive. */
+  function drawPicture(g: Graphics, props: Props, words: Uint32Array | undefined) {
+    const { color } = theme;
+    const c = cell();
+    const { columns, rows } = screenSize(props);
+    const width = props.width ?? 1;
+    const p = PIXEL * c;
+    const [x0, y0] = [PICTURE.x * c, PICTURE.y * c];
+    g.rect(x0, y0, columns * p, rows * p).fill({ color: color.bench });
+    if (!words) return;
+    const shown = Math.min(words.length * width, columns * rows);
+    let lit = false;
+    for (let n = 0; n < shown; n++) {
+      // Pixel n is bit (width - 1 - n % width) of word n / width: the most significant bit leftmost.
+      const word = words[Math.floor(n / width)] ?? 0;
+      if (!((word >>> (width - 1 - (n % width))) & 1)) continue;
+      g.rect(x0 + (n % columns) * p, y0 + Math.floor(n / columns) * p, p, p);
+      lit = true;
+    }
+    if (lit) g.fill({ color: color["signal-high"] });
+  }
+
   function polyline(g: Graphics, points: Point[]) {
     const [first, ...rest] = points;
     if (first) g.moveTo(first.x, first.y);
@@ -523,7 +558,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     const ports = [...Object.keys(local.inputs), ...Object.keys(local.outputs)];
     // A chip's size and port places follow its definition's pins, so they are part of what is shown.
     const chip = component.kind === "custom" ? layoutsVersion() : "";
-    const look = `${component.kind}|${local.width}x${local.height}|${chip}|${culprit}|${ports.map(value).join()}|${themeVersion}`;
+    // A screen's picture is its words: each reply is a new array (ADR 0021).
+    const words = component.kind === "screen" ? useSim.getState().memory[component.id] : undefined;
+    const picture = component.kind === "screen" ? `${pictureVersion(words)}:${component.props.width}` : "";
+    const look = `${component.kind}|${local.width}x${local.height}|${chip}|${picture}|${culprit}|${ports.map(value).join()}|${themeVersion}`;
     if (looks.get(component.id) === look) return;
     looks.set(component.id, look);
     g.clear();
@@ -588,6 +626,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
         // A memory (ADR 0018): a box, its size and port names as labels, a RAM's clock input marked.
         g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(outline);
         if (component.kind !== "rom") g.moveTo(x, y + 7 * c - 6).lineTo(x + 8, y + 7 * c).lineTo(x, y + 7 * c + 6).stroke(outline);
+        if (component.kind === "screen") drawPicture(g, component.props, words);
         break;
       case "seg7": {
         // A digit (ADR 0021): segment a (bit 0) at the top, then clockwise, g (bit 6) in the middle, dp (bit 7).

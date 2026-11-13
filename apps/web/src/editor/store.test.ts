@@ -1202,3 +1202,21 @@ test("a ROM's program: an empty one clears words and source, and unchanged words
   setData(r, [], "");
   expect(useEditor.getState().circuit.components.find((c) => c.id === r)?.props).toEqual({ width: 16, label: "Program" });
 });
+
+test("a screen's columns are an edit: 1 to 256, 32 not stored, other parts refuse them (ADR 0021)", () => {
+  const { add, setColumns, undo } = useEditor.getState();
+  const s = add("screen", { x: 0, y: 0 });
+  const props = () => useEditor.getState().circuit.components.find((c) => c.id === s)?.props;
+  expect(props()).toEqual({ addressWidth: 7 });
+  setColumns(s, 64);
+  expect(props()).toEqual({ addressWidth: 7, columns: 64 });
+  for (const bad of [0, 257, 2.5]) setColumns(s, bad);
+  expect(props()).toEqual({ addressWidth: 7, columns: 64 });
+  setColumns(s, 32);
+  expect(props()).toEqual({ addressWidth: 7 });
+  undo();
+  expect(props()).toEqual({ addressWidth: 7, columns: 64 });
+  const r = add("ram", { x: 20, y: 0 });
+  setColumns(r, 8);
+  expect(useEditor.getState().circuit.components.find((c) => c.id === r)?.props).toEqual({});
+});

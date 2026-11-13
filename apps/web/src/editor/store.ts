@@ -15,6 +15,8 @@ import {
   MAX_LABEL,
   MAX_WIDTH,
   newProps,
+  DEFAULT_COLUMNS,
+  MAX_COLUMNS,
   widthOf,
   normalizeLabel,
   normalizeName,
@@ -112,6 +114,8 @@ export type EditorState = {
   setWidth: (id: string, width: number) => void;
   /** Sets a ROM's or RAM's address width (1 to `MAX_ADDRESS`) as one edit; a ROM keeps the words that still fit (ADR 0018). */
   setAddressWidth: (id: string, address: number) => void;
+  /** Sets a screen's pixels per row as one edit (ADR 0021); anything but 1 to `MAX_COLUMNS` changes nothing. */
+  setColumns: (id: string, columns: number) => void;
   /** Sets a ROM's words as one edit, and its assembly source if given (ADRs 0018, 0019). Invalid words change nothing. */
   setData: (id: string, words: number[], source?: string) => void;
   /**
@@ -757,6 +761,19 @@ export const useEditor = create<EditorState>()((set, get) => ({
         ...(address !== DEFAULT_ADDRESS && { addressWidth: address }),
         ...(rest.data && { data: rest.data.slice(0, 2 ** address) }),
       };
+      const components = state.circuit.components.map((c) => (c.id === id ? { ...c, props } : c));
+      return edit(state, { ...state.circuit, components });
+    }),
+
+  setColumns: (id, columns) =>
+    set((state) => {
+      const part = state.circuit.components.find((c) => c.id === id);
+      const valid = Number.isInteger(columns) && columns >= 1 && columns <= MAX_COLUMNS;
+      if (part?.kind !== "screen" || !valid || (part.props.columns ?? DEFAULT_COLUMNS) === columns) return state;
+      const props = { ...part.props };
+      // 32 is the default, so it is not stored.
+      if (columns !== DEFAULT_COLUMNS) props.columns = columns;
+      else delete props.columns;
       const components = state.circuit.components.map((c) => (c.id === id ? { ...c, props } : c));
       return edit(state, { ...state.circuit, components });
     }),

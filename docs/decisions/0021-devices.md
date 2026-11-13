@@ -46,13 +46,21 @@ What the engine and editor already have:
      limits. Its memory is the picture.
    - A word's bits are pixels, most significant bit leftmost. The words
      fill rows left to right, top to bottom.
-   - An editor-only prop `columns` (1 to 256) sets the pixels per row. It
-     must divide the number of pixels, `2^addressWidth × width`. The tile
-     places a 32 × 32 screen: 8-bit words, 7 address bits, 32 columns.
+   - An editor-only prop `columns` (1 to 256, 32 unless set) sets the
+     pixels per row. The tile places a 32 × 32 screen: 8-bit words, 7
+     address bits, 32 columns.
+   - *Amended in step 2:* `columns` need not divide the number of pixels,
+     `2^addressWidth × width`; a last row the words do not fill is drawn
+     short. A screen shows at most 256 rows, so a picture is at most
+     256 × 256 pixels, and only the words those rows hold are read. Every
+     shape of memory is then a valid screen, and no width or address edit
+     has to be refused for the picture's sake.
    - Monochrome: a pixel is on or off. Grey levels or colour are left for
      later.
-   - The editor draws each pixel as a 4 px square in the signal-high
-     colour, on the bench colour, and the body grows to fit.
+   - The editor draws each pixel as a 4 px square (a quarter of a grid
+     cell) in the signal-high colour, on the bench colour, and the body
+     grows to fit: the picture right of the port names, `out` at the top
+     right.
 4. **Reading the picture.**
    - The editor asks for each screen's words as it asks for a RAM's dump:
      `readMemory`, after each `state`, while the screen is on the sheet.
@@ -60,7 +68,10 @@ What the engine and editor already have:
      dump do not overwrite each other. `useSim.memory` becomes a map from
      component ID to words.
    - It is throttled to one request per screen per animation frame, so a
-     run at 10,000 cycles per second does not flood the worker.
+     run at 10,000 cycles per second does not flood the worker. The canvas
+     tells the simulation client which screens are on the sheet
+     (`watchMemory`); the client reads them on the frame after a `state`,
+     and at once when a screen is newly watched.
 5. **Keyboard (`keyboard`).**
    - Its `out` is the code of the key held down, or 0 when none is.
    - Printable ASCII keys give their code. Enter is 13, Backspace 8, Escape

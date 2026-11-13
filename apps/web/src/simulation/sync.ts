@@ -25,8 +25,8 @@ export type SimState = {
   speed: number;
   /** The LED a run stops at when it lights, or null to run until paused (ADR 0019). */
   until: string | null;
-  /** The memory last asked for with `readMemory`, as the engine reported it (ADR 0018). */
-  memory: { component: string; words: Uint32Array } | null;
+  /** Each memory's words last asked for with `readMemory`, by component ID, as the engine reported them (ADRs 0018, 0021). */
+  memory: Record<string, Uint32Array>;
 };
 
 /** Run speeds offered, in cycles per second (ADR 0017). */
@@ -43,7 +43,7 @@ export const useSim = create<SimState>()(() => ({
   running: false,
   speed: 2,
   until: null,
-  memory: null,
+  memory: {},
 }));
 
 /** Sends a command to the worker, once `connectEngine` has started it. */
@@ -59,6 +59,25 @@ export function control(type: "run" | "pause" | "step" | "reset") {
 export function setUntil(until: string | null) {
   useSim.setState({ until });
   if (useSim.getState().running) control("run");
+}
+
+/** Memories read after every state, by ID, with how many words of each (ADR 0021: the screens on the sheet). */
+let watched = new Map<string, number>();
+let reading = 0;
+
+/** Reads every watched memory once, on the next animation frame however many states arrive before it. */
+function readWatched() {
+  reading ||= requestAnimationFrame(() => {
+    reading = 0;
+    for (const [component, count] of watched) readMemory(component, count);
+  });
+}
+
+/** Sets the memories read after every state; one newly watched is read at once. */
+export function watchMemory(memories: Map<string, number>) {
+  const changed = [...memories].some(([id, count]) => watched.get(id) !== count);
+  watched = memories;
+  if (changed) readWatched();
 }
 
 /** Asks for a ROM's or RAM's first `count` words; they arrive in `useSim`'s `memory`. */
@@ -137,7 +156,7 @@ export function connectEngine(): () => void {
         awaiting.delete(message.request);
         break;
       case "memory":
-        useSim.setState({ memory: { component: message.component, words: message.words } });
+        useSim.setState(({ memory }) => ({ memory: { ...memory, [message.component]: message.words } }));
         break;
       case "state":
         // Running or not is the worker's, whatever circuit the state describes.
@@ -145,6 +164,7 @@ export function connectEngine(): () => void {
         if (pending === 0) {
           const { nets, diagnostics: runtime, time } = message;
           useSim.setState({ nets, runtime, time, stale: false, status: "ready", error: null });
+          readWatched();
         }
         break;
     }
