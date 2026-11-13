@@ -67,10 +67,13 @@ let reading = 0;
 
 /** Reads every watched memory once, on the next animation frame however many states arrive before it. */
 function readWatched() {
-  reading ||= requestAnimationFrame(() => {
+  if (reading) return;
+  const read = () => {
     reading = 0;
     for (const [component, count] of watched) readMemory(component, count);
-  });
+  };
+  // A frame where there are frames; a worker test or a server render has none.
+  reading = typeof requestAnimationFrame === "function" ? requestAnimationFrame(read) : Number(setTimeout(read, 16));
 }
 
 /** Sets the memories read after every state; one newly watched is read at once. */
@@ -155,9 +158,13 @@ export function connectEngine(): () => void {
         awaiting.get(message.request)?.(message);
         awaiting.delete(message.request);
         break;
-      case "memory":
-        useSim.setState(({ memory }) => ({ memory: { ...memory, [message.component]: message.words } }));
+      case "memory": {
+        // Words as before keep their array, so nothing showing them redraws (a screen at top speed, ADR 0021).
+        const before = useSim.getState().memory[message.component];
+        const same = before?.length === message.words.length && before.every((w, i) => w === message.words[i]);
+        if (!same) useSim.setState(({ memory }) => ({ memory: { ...memory, [message.component]: message.words } }));
         break;
+      }
       case "state":
         // Running or not is the worker's, whatever circuit the state describes.
         useSim.setState({ running: message.running });

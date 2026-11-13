@@ -12,7 +12,7 @@ vi.mock("./client", () => ({
   },
 }));
 
-const { connectEngine, useSim } = await import("./sync");
+const { connectEngine, useSim, watchMemory } = await import("./sync");
 
 test("a load the engine fails on answers that load: the error shows, nothing stays loaded or pending", () => {
   const stop = connectEngine();
@@ -55,4 +55,30 @@ test("an assembler request never waits forever: no engine, a failed request, or 
   const pending = assemble("NOP");
   stop();
   await expect(pending).resolves.toMatchObject({ words: [], errors: [{ line: 0 }] });
+});
+
+test("watched memories are read once a frame however many states arrive, a newly watched one at once; equal words keep their array (ADR 0021)", () => {
+  vi.useFakeTimers();
+  const stop = connectEngine();
+  worker.reply({ type: "loaded", portNets: {}, wireNets: {} } as unknown as Result);
+  const reads = () => worker.sent.filter((c) => c.type === "readMemory");
+  worker.sent.length = 0;
+  watchMemory(new Map([["s", 128]]));
+  vi.advanceTimersByTime(20);
+  expect(reads()).toEqual([{ type: "readMemory", component: "s", count: 128 }]);
+  worker.sent.length = 0;
+  watchMemory(new Map([["s", 128]])); // the same screens: nothing new to read
+  const state = { type: "state", nets: new Uint32Array(1), diagnostics: [], time: 1, running: true } as unknown as Result;
+  for (let i = 0; i < 3; i++) worker.reply(state);
+  expect(reads()).toEqual([]);
+  vi.advanceTimersByTime(20);
+  expect(reads()).toHaveLength(1);
+  worker.reply({ type: "memory", component: "s", words: new Uint32Array([1, 2]) });
+  const first = useSim.getState().memory.s;
+  worker.reply({ type: "memory", component: "s", words: new Uint32Array([1, 2]) });
+  expect(useSim.getState().memory.s).toBe(first);
+  worker.reply({ type: "memory", component: "s", words: new Uint32Array([1, 3]) });
+  expect([...(useSim.getState().memory.s ?? [])]).toEqual([1, 3]);
+  stop();
+  vi.useRealTimers();
 });

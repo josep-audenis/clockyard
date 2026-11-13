@@ -1220,3 +1220,14 @@ test("a screen's columns are an edit: 1 to 256, 32 not stored, other parts refus
   setColumns(r, 8);
   expect(useEditor.getState().circuit.components.find((c) => c.id === r)?.props).toEqual({});
 });
+
+test("a screen that grows is refused when a port would land on a junction, as placing it there is (ADR 0021)", () => {
+  const { add, addLabel, setColumns } = useEditor.getState();
+  const s = add("screen", { x: 0, y: 0 });
+  // The tile's screen is 11 wide, `out` at (11, 1); 64 columns move it to (19, 1).
+  expect(addLabel({ x: 19, y: 1 })).not.toBeNull();
+  setColumns(s, 64);
+  expect(useEditor.getState().circuit.components.find((c) => c.id === s)?.props.columns).toBeUndefined();
+  setColumns(s, 48); // out at (15, 1): free
+  expect(useEditor.getState().circuit.components.find((c) => c.id === s)?.props.columns).toBe(48);
+});

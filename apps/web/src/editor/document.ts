@@ -64,6 +64,18 @@ export function screenSize(props: Props) {
   return { columns, rows, words: Math.min(words, Math.ceil((rows * columns) / width)) };
 }
 
+/** The lit pixels of a screen's picture, as indexes `row × columns + column`, from the words read for it. */
+export function litPixels(words: ArrayLike<number>, props: Props): number[] {
+  const { columns, rows } = screenSize(props);
+  const width = props.width ?? 1;
+  const lit = [];
+  for (let n = 0; n < Math.min(words.length * width, columns * rows); n++) {
+    // Pixel n is bit (width - 1 - n % width) of word n / width: the most significant bit leftmost.
+    if (((words[Math.floor(n / width)] ?? 0) >>> (width - 1 - (n % width))) & 1) lit.push(n);
+  }
+  return lit;
+}
+
 /** What is wrong with a ROM's words, or null: whole numbers that fit `width` bits, no more than `2^address` (ADR 0018). */
 export function wordsProblem(words: unknown, width: number, address: number): string | null {
   if (!Array.isArray(words)) return "must be a list of words";

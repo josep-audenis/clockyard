@@ -11,6 +11,7 @@ import {
   DEFAULT_ADDRESS,
   isFielded,
   isMemory,
+  litPixels,
   sameEnd,
   screenSize,
   type Circuit,
@@ -513,21 +514,12 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     const { color } = theme;
     const c = cell();
     const { columns, rows } = screenSize(props);
-    const width = props.width ?? 1;
     const p = PIXEL * c;
     const [x0, y0] = [PICTURE.x * c, PICTURE.y * c];
     g.rect(x0, y0, columns * p, rows * p).fill({ color: color.bench });
-    if (!words) return;
-    const shown = Math.min(words.length * width, columns * rows);
-    let lit = false;
-    for (let n = 0; n < shown; n++) {
-      // Pixel n is bit (width - 1 - n % width) of word n / width: the most significant bit leftmost.
-      const word = words[Math.floor(n / width)] ?? 0;
-      if (!((word >>> (width - 1 - (n % width))) & 1)) continue;
-      g.rect(x0 + (n % columns) * p, y0 + Math.floor(n / columns) * p, p, p);
-      lit = true;
-    }
-    if (lit) g.fill({ color: color["signal-high"] });
+    const lit = words ? litPixels(words, props) : [];
+    for (const n of lit) g.rect(x0 + (n % columns) * p, y0 + Math.floor(n / columns) * p, p, p);
+    if (lit.length) g.fill({ color: color["signal-high"] });
   }
 
   function polyline(g: Graphics, points: Point[]) {
@@ -560,7 +552,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     const chip = component.kind === "custom" ? layoutsVersion() : "";
     // A screen's picture is its words: each reply is a new array (ADR 0021).
     const words = component.kind === "screen" ? useSim.getState().memory[component.id] : undefined;
-    const picture = component.kind === "screen" ? `${pictureVersion(words)}:${component.props.width}` : "";
+    const picture = component.kind === "screen" ? `${pictureVersion(words)}:${component.props.width}:${component.props.columns}` : "";
     const look = `${component.kind}|${local.width}x${local.height}|${chip}|${picture}|${culprit}|${ports.map(value).join()}|${themeVersion}`;
     if (looks.get(component.id) === look) return;
     looks.set(component.id, look);
@@ -811,7 +803,9 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       // after the press has moved focus where it will.
       placedLabel = editor.addLabel({ x: Math.round(p.x), y: Math.round(p.y) });
     } else if (e.button === 0 && editor.armed) {
-      const part = { id: GHOST, kind: editor.armed, rotation: editor.armedRotation, definition: editor.armedDefinition ?? undefined, props: {} };
+      // Its props as `add` gives them: a wide part or a screen is larger, and centres differently.
+      const props = armedProps(editor.armed, editor.armedWidth);
+      const part = { id: GHOST, kind: editor.armed, rotation: editor.armedRotation, definition: editor.armedDefinition ?? undefined, props };
       const position = placement(part, p);
       // A port on a junction would look joined: refused, and the part stays armed (the preview shows why).
       if (!placementStacks(editor.circuit, { ...part, position })) editor.add(part.kind, position);
