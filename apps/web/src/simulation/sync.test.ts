@@ -82,3 +82,25 @@ test("watched memories are read once a frame however many states arrive, a newly
   stop();
   vi.useRealTimers();
 });
+
+test("why a run stopped is kept until the next command, and a pause gives none (ADR 0021)", async () => {
+  const { control } = await import("./sync");
+  const stop = connectEngine();
+  const state = (running: boolean, stopped?: Extract<Result, { type: "state" }>["stopped"]) =>
+    worker.reply({ type: "state", nets: new Uint32Array(), diagnostics: [], time: 0, running, ...(stopped && { stopped }) });
+  state(true);
+  state(false, { reason: "lit", led: "l" });
+  expect(useSim.getState()).toMatchObject({ running: false, stopped: { reason: "lit", led: "l" } });
+  // Later states (a switch flipped) keep it; any command clears it.
+  state(false);
+  expect(useSim.getState().stopped).toEqual({ reason: "lit", led: "l" });
+  control("step");
+  expect(useSim.getState().stopped).toBeNull();
+  // Paused by the user: the worker says nothing, so neither does the status bar.
+  control("run");
+  state(true);
+  control("pause");
+  state(false);
+  expect(useSim.getState().stopped).toBeNull();
+  stop();
+});

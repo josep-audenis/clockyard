@@ -352,7 +352,7 @@ Aspirational demo: a small game running on a processor designed in Clockyard.
 
 Plan (ADR 0020, accepted): increments, each with its own ADR and target:
 
-1. 🔨 Devices (ADR 0021, accepted): seven-segment display, pixel screen and
+1. ✅ Devices (ADR 0021, accepted): seven-segment display, pixel screen and
    keyboard as parts; why a run stopped.
    1. ✅ Engine and catalog entries (`seg7`, `screen`, `keyboard`), format
       v9, tiles, and the seven-segment and keyboard bodies. A keyboard
@@ -365,7 +365,15 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       or leaving the window gives them back. The keyboard shows its code,
       and the screen-reader readout lists keyboards and seven-segment
       displays.
-   4. ⬜ Why a run stopped, the devices example, Playwright, docs.
+   4. ✅ Why a run stopped: the status bar says "Stopped: LED X lit"
+      or "Stopped: unstable", and nothing after a pause. The example
+      `devices.clockyard.json` shows a held key's code on two
+      seven-segment digits through ROM decoders and draws it on the
+      screen while the clock runs; Playwright checks both, and a screen's
+      inspector lists its words like a RAM's.
+
+   Demo (done): open `devices`, Run, click the keyboard and hold Shift+A:
+   the digits show 41 and the screen lights the code's pixels.
 2. ⬜ Memory-mapped I/O on the reference CPU, with no new instructions.
 3. ⬜ The game demo, chosen once 1 and 2 work.
 4. ⬜ Sharing through a URL fragment.
@@ -382,8 +390,9 @@ analysis, plugin system, full game campaign during the MVP.
 ## Next increment
 
 Phase 4 is built, with its demo. Phase 5 is planned in ADR 0020 (accepted);
-its first increment, devices (ADR 0021), is being built: step 4, why a
-run stopped and the devices example, is next.
+its first increment, devices (ADR 0021), is built with its demo. Next is
+increment 2, memory-mapped I/O on the reference CPU, which needs its own
+ADR first.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).
@@ -397,8 +406,6 @@ Rough edges still open:
   seven-segment displays only, not registers, the clock or screens.
 - An imported file or opened sheet keeps the current view; Fit (F) frames
   it. Fitting on open would move the grid the Playwright tests click by.
-- Nothing says why a run stopped (Run until an LED, an unstable loop): the
-  Run button just comes back (ADR 0019).
 - The program editor is offered for 16-bit ROMs only, the reference CPU's
   word size; other machines would need their own assembler (ADR 0019).
 - The reference CPU's sheet is dense, with long wires; its data RAM sits
@@ -410,7 +417,7 @@ moves under the canvas; Make component turns each net crossing the
 selection's edge into a new pin, still wired (ADR 0016), leaves junctions
 a net only passes through on the sheet, and keeps the chip's ports off
 junctions; a load the engine fails on no longer leaves the editor waiting
-for it. UI polish: zoom controls over the canvas (−, level, +, Fit; F fits
+for it; the status bar says why a run stopped (ADR 0021). UI polish: zoom controls over the canvas (−, level, +, Fit; F fits
 the sheet, at most 2x), Undo and Redo in the toolbar, a hint on an empty
 sheet and in the status bar while a part is armed, the shortcuts as a
 folding list in the parts panel, a Run/Pause button that keeps its width,

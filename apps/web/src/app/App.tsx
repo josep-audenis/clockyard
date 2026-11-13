@@ -658,7 +658,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
       {part.kind === "screen" && <ColumnsField part={part} />}
       {part.kind === "rom" && <RomContents key={`${part.props.width ?? 1}:${(part.props.data ?? []).join()}`} part={part} />}
       {part.kind === "rom" && (part.props.width ?? 1) === 16 && <ProgramEditor key={part.id} part={part} />}
-      {part.kind === "ram" && <RamDump part={part} />}
+      {(part.kind === "ram" || part.kind === "screen") && <RamDump part={part} />}
       {part.definition && name !== undefined && (
         <CommitField
           key={name}
@@ -1118,6 +1118,7 @@ function StatusBar() {
   const nets = useSim((s) => s.nets);
   const stale = useSim((s) => s.stale);
   const running = useSim((s) => s.running);
+  const stopped = useSim((s) => s.stopped);
   const time = useSim((s) => s.time);
   const definitions = useEditor((s) => s.definitions);
   // The cycle counter and clock level, once the sheet has anything clocked, inside components too (ADR 0017).
@@ -1139,12 +1140,22 @@ function StatusBar() {
 
   const diagnostics = [...(loaded?.diagnostics ?? []), ...runtime];
   const errors = diagnostics.filter((d) => d.severity === "error");
+  const unstable = errors.some((d) => d.code === "unstable");
+  // Why the last run ended by itself (ADR 0021): its LED, while the sheet still has it, or the loop that did not settle.
+  const lit = stopped?.reason === "lit" ? components.find((c) => c.id === stopped.led) : undefined;
+  const why = running
+    ? null
+    : lit && errors.length === 0
+      ? `Stopped: ${partName(components, lit)} lit.`
+      : stopped?.reason === "unstable" && unstable
+        ? "Stopped: unstable. A loop keeps oscillating, so the run paused."
+        : null;
   const [state, tone] =
     status === "error"
       ? ["Engine error", "danger"]
       : status === "loading"
         ? ["Starting", "muted"]
-        : errors.some((d) => d.code === "unstable")
+        : unstable
           ? ["Unstable", "danger"]
           : errors.length > 0
             ? ["Invalid", "danger"]
@@ -1152,7 +1163,9 @@ function StatusBar() {
               ? ["No circuit", "muted"]
               : running
                 ? ["Running", "ok"]
-                : ["Settled", "ok"];
+                : why
+                  ? ["Stopped", "ok"]
+                  : ["Settled", "ok"];
   const first = errors[0] ?? diagnostics[0];
   // Name the labelled parts involved; unlabelled ones are highlighted on the canvas.
   const named = first
@@ -1166,6 +1179,7 @@ function StatusBar() {
         : probed !== undefined
           ? `${bits} bits: ${probed}, ${hex(probed, bits)}`
           : placing ||
+          why ||
           (first &&
         `${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`);
 

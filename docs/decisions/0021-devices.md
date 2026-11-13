@@ -104,6 +104,11 @@ What the engine and editor already have:
    - nothing when the user pauses.
 
    This fixes a Phase 4 rough edge, as ADR 0020 item 4 intends.
+
+   *As built (step 4):* the worker names the reason with the state that
+   ends the run, and the editor keeps it until the next Run, Pause, Step or
+   Reset. The status bar shows it only while it still holds: the LED is
+   on the sheet with no errors, or the loop is still unstable.
 7. **File format v9.** It adds the three kinds and the editor-only
    `columns`. A v8 file opens unchanged. `columns` joins v9 in step 2
    without a new version: nothing between the steps is released, so no
@@ -120,6 +125,12 @@ What the engine and editor already have:
    Target (ADR 0020): the example shows a key's code on two seven-segment
    digits through a ROM decoder, and a pressed key draws on the screen.
    Playwright checks both.
+
+   *As built (step 4):* `examples/devices.clockyard.json` splits the code
+   into nibbles, each decoded by a 16-word ROM, and writes the code into
+   the screen at its own address on each clock rise while bit 5 or 6 is
+   set (every printable key). A screen's inspector lists its words like a
+   RAM's, so a test can read what was drawn.
 
 ## Alternatives considered
 

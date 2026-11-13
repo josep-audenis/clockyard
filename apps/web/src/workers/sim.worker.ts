@@ -1,5 +1,5 @@
 import init, { assemble, disassemble, Engine } from "../generated/sim-wasm/sim_wasm.js";
-import type { Command, Diagnostic, Result } from "../simulation/protocol";
+import type { Command, Diagnostic, Result, Stopped } from "../simulation/protocol";
 
 const reply = (result: Result) => postMessage(result);
 
@@ -36,9 +36,10 @@ let ports: Record<string, unknown> = {};
 /** The last settle's runtime diagnostics, sent again by run and pause so they do not clear an unstable report. */
 let last: Diagnostic[] = [];
 
-const state = (diagnostics: Diagnostic[]) => {
+const state = (diagnostics: Diagnostic[], stopped?: Stopped) => {
   last = diagnostics;
-  reply({ type: "state", nets: engine?.nets() ?? new Uint32Array(), diagnostics, time: engine?.time() ?? 0, running: run !== null });
+  const time = engine?.time() ?? 0;
+  reply({ type: "state", nets: engine?.nets() ?? new Uint32Array(), diagnostics, time, running: run !== null, ...(stopped && { stopped }) });
 };
 
 const pause = () => {
@@ -59,6 +60,7 @@ function slice() {
   let ticks = Math.floor(run.owed);
   run.owed -= ticks;
   let diagnostics: Diagnostic[] = [];
+  let stopped: Stopped | undefined;
   const ran = ticks > 0 && hasCircuit;
   try {
     while (hasCircuit && ticks > 0 && performance.now() - now < BUDGET_MS) {
@@ -71,12 +73,18 @@ function slice() {
         // Stops at the exact tick the LED lights, wherever the chunks fall (ADR 0019).
         const result = JSON.parse(engine.tick_until(count, until)) as { rose: boolean; diagnostics: Diagnostic[] };
         diagnostics = result.diagnostics;
-        if (result.rose) pause();
+        if (result.rose) {
+          pause();
+          stopped = { reason: "lit", led: until };
+        }
       } else {
         diagnostics = JSON.parse(engine.tick(count)) as Diagnostic[];
       }
       // A loop that does not settle pauses the run (ADR 0017).
-      if (diagnostics.length > 0) pause();
+      if (diagnostics.length > 0) {
+        pause();
+        stopped = { reason: "unstable" };
+      }
       if (!run) break;
     }
   } catch (error) {
@@ -84,7 +92,7 @@ function slice() {
     reply({ type: "error", message: String(error), running: false });
     return;
   }
-  if (ran) state(diagnostics);
+  if (ran) state(diagnostics, stopped);
   if (run) run.timer = setTimeout(slice, SLICE_MS);
 }
 

@@ -924,9 +924,39 @@ test("Phase 4 demo: a program loops through RAM on the CPU built from parts and 
   await expect(readout(page, "LED PC")).toHaveText("LED PC: 1 (0x01)");
   await expect(readout(page, "LED IR")).toHaveText("LED IR: 4096 (0x1000)"); // LDI 0, just executed
   await expect(button("Run")).toBeVisible(); // stopped by the LED, not a click
+  await expect(page.locator(".status-live")).toContainText("Stopped: LED Fetch lit."); // and says so (ADR 0021)
   // Then to the end: the loop runs five times and the output device shows the sum.
   await until.selectOption({ label: "Until LED Halted lights" });
   await button("Run").click();
   await expect(readout(page, "LED Halted")).toHaveText("LED Halted: on");
   await expect(readout(page, "LED Output")).toHaveText("LED Output: 15 (0x0F)");
+});
+
+test("devices demo: a held key shows its code on two digits and is drawn on the screen (ADR 0021)", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("devices"));
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  await page.getByLabel("Speed").selectOption("1000");
+  await button("Run").click();
+  // The keyboard takes the keys on a click; Shift+A gives "A", 0x41.
+  await click(page, at(2, 15));
+  await expect(status(page)).toContainText("The keyboard has the keys");
+  await page.keyboard.down("Shift");
+  await page.keyboard.down("A");
+  await expect(readout(page, "Keyboard Keys")).toHaveText("Keyboard Keys: 65 (0x41)");
+  await expect(readout(page, "Seven-segment High")).toHaveText("Seven-segment High: 102 (0x66)"); // 4
+  await expect(readout(page, "Seven-segment Low")).toHaveText("Seven-segment Low: 6 (0x06)"); // 1
+  // Held through a few clock cycles at 1000 a second: the screen's word 0x41 takes the code.
+  await expect(counter(page)).not.toHaveText(/^Cycle [0-9] /);
+  await page.keyboard.up("A");
+  await page.keyboard.up("Shift");
+  await page.keyboard.press("Escape");
+  await expect(status(page)).not.toContainText("The keyboard has the keys");
+  await button("Pause").click();
+  await click(page, at(25.5, 21.5)); // the screen
+  const contents = page.getByRole("region", { name: "RAM contents" });
+  await expect(contents).toContainText("0x00 0x41 0x00 0x00 0x00 0x00 0x00 0x00");
+  await expect(readout(page, "Keyboard Keys")).toHaveText("Keyboard Keys: 0 (0x00)");
 });

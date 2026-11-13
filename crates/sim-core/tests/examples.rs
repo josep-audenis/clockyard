@@ -101,3 +101,21 @@ fn eight_bit_counter() {
     sim.tick(2 * 10);
     assert_eq!((sim.time(), value(&sim, "out", "in")), (20, 30));
 }
+
+#[test]
+fn devices() {
+    // A key's code on two seven-segment digits through ROM decoders, and the
+    // key drawn into the screen's RAM on the clock (ADR 0021).
+    let mut sim = load("devices");
+    sim.set_input("key", 0x41).unwrap();
+    assert_eq!(value(&sim, "d1", "seg"), 0x66, "4");
+    assert_eq!(value(&sim, "d0", "seg"), 0x06, "1");
+    assert_eq!(sim.step_cycle(), None, "settles");
+    assert_eq!(sim.memory("scr").unwrap()[0x41], 0x41);
+    // An unprintable code (an arrow, 0x80) is not drawn.
+    sim.set_input("key", 0x80).unwrap();
+    assert_eq!(value(&sim, "d1", "seg"), 0x7F, "8");
+    assert_eq!(value(&sim, "d0", "seg"), 0x3F, "0");
+    sim.step_cycle();
+    assert_eq!(sim.memory("scr").unwrap()[0], 0);
+}

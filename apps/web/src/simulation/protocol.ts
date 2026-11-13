@@ -57,6 +57,9 @@ export type Command =
   /** ROM words as assembly, one line each, answered with `disassembled` carrying the same `request`. */
   | { type: "disassemble"; request: number; words: number[] };
 
+/** Why a run ended by itself: its LED lit (by ID), or a loop did not settle. */
+export type Stopped = { reason: "lit"; led: string } | { reason: "unstable" };
+
 /** An assembly error, on a 1-based line. */
 export type AsmError = { line: number; message: string };
 
@@ -76,8 +79,11 @@ export type Result =
       diagnostics: Diagnostic[];
     }
   /** `nets`: each net's value, cut to its width. */
-  /** `time`: virtual time in ticks (cycle count `(time + 1) / 2`); `running`: whether a run is under way. */
-  | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[]; time: number; running: boolean }
+  /**
+   * `time`: virtual time in ticks (cycle count `(time + 1) / 2`); `running`: whether a run is under way.
+   * `stopped`: why the run ended at this state, when it ended itself (ADR 0021); never for a pause.
+   */
+  | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[]; time: number; running: boolean; stopped?: Stopped }
   /** `errors` empty: the source assembled to `words` (empty for an empty program). */
   | { type: "assembled"; request: number; words: number[]; errors: AsmError[] }
   | { type: "disassembled"; request: number; lines: string[] }
