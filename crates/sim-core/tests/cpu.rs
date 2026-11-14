@@ -516,6 +516,40 @@ fn reset_starts_catch_again() {
 }
 
 #[test]
+fn the_catch_example_holds_the_game_as_assembled_and_plays_it() {
+    // examples/catch.clockyard.json, as shipped: its ROM's source is scripts/catch.asm and its
+    // words are that source assembled (scripts/reference-cpu.mjs keeps a copy of them).
+    let text = example("catch");
+    let document: Value = serde_json::from_str(&text).expect("valid project file");
+    let rom = document["circuit"]["components"]
+        .as_array()
+        .expect("components")
+        .iter()
+        .find(|c| c["id"] == "rom")
+        .expect("the program ROM");
+    let source = rom["props"]["source"].as_str().expect("source");
+    let data: Vec<u16> =
+        serde_json::from_value(rom["props"]["data"].clone()).expect("the ROM's words");
+    assert_eq!(source, CATCH.replace("\r\n", "\n"));
+    assert_eq!(
+        data,
+        assemble(CATCH),
+        "the words in scripts/reference-cpu.mjs"
+    );
+    // With no keys the first block is caught and the second missed: 01 on the digits, halted.
+    let (mut sim, _) = Simulator::load(&description(&text)).expect("valid circuit");
+    for _ in 0..100_000 {
+        if read(&sim).h {
+            break;
+        }
+        assert_eq!(sim.step_cycle(), None, "settles");
+    }
+    assert!(read(&sim).h, "halts");
+    let digits = (value(&sim, "hexhigh", "seg"), value(&sim, "hexlow", "seg"));
+    assert_eq!(digits, (HEX_DIGITS[0], HEX_DIGITS[1]));
+}
+
+#[test]
 fn catch_speeds_up_down_to_a_delay_of_20() {
     // The model alone, steered by a player who always moves under the block. The delay as each
     // catch scores is the one the caught block fell with: 8 less per catch, down to 20.

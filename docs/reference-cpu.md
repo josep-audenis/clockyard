@@ -182,9 +182,11 @@ done:   OUT
 ## Catch
 
 The game demo of ADR 0023, a program of 89 words in
-[`scripts/catch.asm`](../scripts/catch.asm). Its native tests run it on
-the circuit and this page's model together, with keys scripted cycle by
-cycle.
+[`scripts/catch.asm`](../scripts/catch.asm), shipped in the ROM of the
+`catch` example. Its native tests run it on the circuit and this page's
+model together, with keys scripted cycle by cycle. To play: import
+`catch`, set the speed to 10,000, Run, click the keyboard and hold Left or
+Right to move the paddle.
 
 - **Play:** blocks (`0x3C`) fall one row at a time, one block at a time,
   in one of the 8 lanes (the 8 bytes of a row). The paddle (`0xFF`) sits

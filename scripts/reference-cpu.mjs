@@ -1,9 +1,10 @@
 // Writes examples/reference-cpu.clockyard.json: the reference CPU of ADR 0019,
 // built from Clockyard parts, as specified in docs/reference-cpu.md, with the
-// memory-mapped devices of ADR 0022.
+// memory-mapped devices of ADR 0022. And examples/catch.clockyard.json: the same
+// circuit with the game of ADR 0023, scripts/catch.asm, in its ROM.
 //
-//   node scripts/reference-cpu.mjs           writes the file
-//   node scripts/reference-cpu.mjs --check   fails if the file is not what it would write
+//   node scripts/reference-cpu.mjs           writes the files
+//   node scripts/reference-cpu.mjs --check   fails if a file is not what it would write
 //
 // The circuit is generated so it can be regenerated, diffed and kept in step
 // with the specification. The 8-bit adder and its full adder are copied from
@@ -443,15 +444,40 @@ const document = {
     ...adder.definitions,
   ],
 };
-const target = root("examples/reference-cpu.clockyard.json");
-const text = `${JSON.stringify(document, null, 2)}\n`;
-if (process.argv.includes("--check")) {
-  // Line endings may follow the checkout's settings; the content may not differ.
-  if (readFileSync(target, "utf8").replaceAll("\r\n", "\n") !== text) {
-    console.error("examples/reference-cpu.clockyard.json is out of date: run node scripts/reference-cpu.mjs");
-    process.exit(1);
+
+// The game of ADR 0023: scripts/catch.asm as its source, and its words as assembled.
+// crates/sim-core/tests/cpu.rs fails if the two drift apart.
+const CATCH_WORDS = [
+  0x1003, 0x3000, 0x3002, 0x1064, 0x3003, 0x10fb, 0x30fe, 0x10ff, 0x30fd, 0x2002, 0x3001, 0x30fe,
+  0x103c, 0x30fd, 0x2002, 0x6005, 0x7008, 0xa013, 0x6008, 0x3002, 0x2003, 0x3005, 0x2005, 0x7001,
+  0x3005, 0x901b, 0x8016, 0x20ff, 0x7082, 0x9021, 0x7001, 0x902b, 0x803a, 0x2000, 0x903a, 0x60f8,
+  0x30fe, 0x1000, 0x30fd, 0x2000, 0x7001, 0x3000, 0x8036, 0x2000, 0x7007, 0x903a, 0x2000, 0x60f8,
+  0x30fe, 0x1000, 0x30fd, 0x2000, 0x6001, 0x3000, 0x60f8, 0x30fe, 0x10ff, 0x30fd, 0x2001, 0x30fe,
+  0x1000, 0x30fd, 0x2001, 0x6008, 0x3001, 0x30fe, 0x70f8, 0xa047, 0x103c, 0x30fd, 0x8014, 0x20fd,
+  0x9056, 0x2004, 0x6001, 0x3004, 0x30fc, 0x2003, 0x7008, 0x3006, 0x7014, 0xa053, 0x8009, 0x2006,
+  0x3003, 0x8009, 0x103c, 0x30fd, 0xc000,
+];
+const catchSource = readFileSync(root("scripts/catch.asm"), "utf8").replaceAll("\r\n", "\n");
+const game = {
+  ...document,
+  metadata: { name: "Catch", createdAt: "2026-11-14T12:00:00.000Z", modifiedAt: "2026-11-14T12:00:00.000Z" },
+  circuit: {
+    ...document.circuit,
+    components: components.map((c) => (c.id === "rom" ? { ...c, props: { ...c.props, data: CATCH_WORDS, source: catchSource } } : c)),
+  },
+};
+
+for (const [name, doc] of [["reference-cpu", document], ["catch", game]]) {
+  const path = `examples/${name}.clockyard.json`;
+  const text = `${JSON.stringify(doc, null, 2)}\n`;
+  if (process.argv.includes("--check")) {
+    // Line endings may follow the checkout's settings; the content may not differ.
+    if (readFileSync(root(path), "utf8").replaceAll("\r\n", "\n") !== text) {
+      console.error(`${path} is out of date: run node scripts/reference-cpu.mjs`);
+      process.exit(1);
+    }
+  } else {
+    writeFileSync(root(path), text);
+    console.log(`${path}: ${components.length} parts, ${main.length} wires on the main sheet`);
   }
-} else {
-  writeFileSync(target, text);
-  console.log(`examples/reference-cpu.clockyard.json: ${components.length} parts, ${main.length} wires on the main sheet`);
 }
