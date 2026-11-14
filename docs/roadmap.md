@@ -417,8 +417,8 @@ analysis, plugin system, full game campaign during the MVP.
 Phase 4 is built, with its demo. Phase 5 is planned in ADR 0020 (accepted);
 its first two increments, devices (ADR 0021) and memory-mapped I/O on the
 reference CPU (ADR 0022), are built with their demos. Next is increment 3,
-the game demo: ADR 0023 (accepted) chooses Catch; step 2, the `catch` example, Playwright
-and docs, is next.
+the game demo: ADR 0023 (accepted) chooses Catch; step 2, the `catch`
+example, Playwright and docs, is next.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).

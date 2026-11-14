@@ -449,11 +449,7 @@ fn catch_scores_the_first_block_speeds_up_and_halts_on_a_miss() {
     // No keys: the first block falls in the paddle's lane 3 and is caught; the second, in lane
     // 3 + 5 - 8 = 0, is missed and left where it landed.
     let program = assemble(CATCH);
-    assert!(
-        program.len() <= 256,
-        "fits the ROM: {} words",
-        program.len()
-    );
+    assert_eq!(program.len(), 89, "the size the docs give");
     let state = check(&example("reference-cpu"), &program, 100_000);
     assert!(state.h, "halts");
     assert_eq!(state.hex, 1, "one point");
@@ -502,9 +498,13 @@ fn reset_starts_catch_again() {
     let program = assemble(CATCH);
     let mut sim = cpu(&text, &program);
     let play = |sim: &mut Simulator| {
-        while !read(sim).h {
+        for _ in 0..100_000 {
+            if read(sim).h {
+                break;
+            }
             assert_eq!(sim.step_cycle(), None, "settles");
         }
+        assert!(read(sim).h, "halts");
         (sim.time(), read(sim))
     };
     let first = play(&mut sim);
@@ -513,4 +513,30 @@ fn reset_starts_catch_again() {
     let second = play(&mut sim);
     assert_eq!(second.1, first.1);
     assert_eq!(second.0, first.0, "as many cycles");
+}
+
+#[test]
+fn catch_speeds_up_down_to_a_delay_of_20() {
+    // The model alone, steered by a player who always moves under the block. The delay as each
+    // catch scores is the one the caught block fell with: 8 less per catch, down to 20.
+    let program = assemble(CATCH);
+    let mut model = Model::new(&program);
+    let mut delays = Vec::new();
+    for _ in 0..1_000_000 {
+        if model.state.h || delays.len() == 12 {
+            break;
+        }
+        let (paddle, block) = (model.state.ram[0], model.state.ram[1] % 8);
+        model.key = match paddle.cmp(&block) {
+            std::cmp::Ordering::Greater => LEFT,
+            std::cmp::Ordering::Less => RIGHT,
+            std::cmp::Ordering::Equal => 0,
+        };
+        let score = model.state.ram[4];
+        model.cycle();
+        if model.state.ram[4] != score {
+            delays.push(model.state.ram[3]);
+        }
+    }
+    assert_eq!(delays, [100, 92, 84, 76, 68, 60, 52, 44, 36, 28, 20, 20]);
 }

@@ -2,7 +2,7 @@
 ; Left and Right move the paddle. A catch scores on HEX and the next block
 ; falls faster. A miss halts: Reset to play again.
 ;
-; RAM: 0 paddle lane, 1 block address, 2 next lane, 3 delay, 4 score, 5 count, 6 spare.
+; RAM: 0 paddle lane, 1 block address, 2 next lane, 3 delay, 4 score, 5 count, 6 scratch.
 ; Screen byte = row * 8 + lane; row 31 (bytes 248-255) holds the paddle.
 
 start:  LDI 3
