@@ -20,7 +20,8 @@ against its specification after every cycle, its assembler, *Run until* an
 LED for instruction steps (and breakpoints the user wires), and the program
 editor (PRs #42 and #47–#51). The demo, a program that sums 1 to 5 through RAM and shows 15
 on the output, runs in Playwright. Phase 5 (the computer-building sandbox) is
-in progress: devices first (ADR 0021).
+in progress: devices (ADR 0021) and memory-mapped I/O on the reference CPU
+(ADR 0022) are done.
 
 **Phase 3 — ✅ done.** Clocks, flip-flops and virtual time (ADR 0017): the
 engine and parts (PR #40), then run/pause/step/reset, the cycle counter and
@@ -382,13 +383,15 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       bus of multiplexers, and the keyboard, screen and digits on the
       main sheet. The model is given the same keys, and random programs
       aim at the I/O window too.
-   2. ✅ The keyboard, digits and screen along the top of the CPU sheet,
-      in the default view; the example's ROM ships "draw the key held";
+   2. ✅ The devices in the default view: the screen along the top of
+      the CPU sheet, the keyboard and digits down its left, joined to the
+      read bus and the digit decoders by net labels rather than wires
+      across the sheet. The example's ROM ships "draw the key held";
       Playwright holds a key and checks the digits and the screen.
 
-   Demo (done): open `reference-cpu`, Run, click the keyboard and hold
-   Shift+A: the program reads `KEY`, the digits show 41, and eight
-   pixels light at screen byte 0x41.
+   Demo (done): open `reference-cpu`, set the speed to 100 Hz or more,
+   Run, click the keyboard and hold Shift+A: the program reads `KEY`, the
+   digits show 41, and eight pixels light at screen byte 0x41.
 3. ⬜ The game demo, chosen once 1 and 2 work.
 4. ⬜ Sharing through a URL fragment.
 5. ⬜ Challenges checked by behavioural tests.

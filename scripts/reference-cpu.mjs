@@ -18,11 +18,11 @@ const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 const part = (id, kind, x, y, props = {}, extra = {}) => ({ id, kind, ...extra, position: { x, y }, rotation: 0, props });
 const chip = (id, definition, x, y, props = {}) => part(id, "custom", x, y, props, { definition });
 
-/** Wires from "part.port" to "part.port"; ids w0, w1, … per circuit. */
+/** Wires from "part.port" to "part.port" (or a junction's ID, with no dot); ids w0, w1, … per circuit. */
 function wires(pairs) {
   const end = (spec) => {
     const [component, port] = spec.split(".");
-    return { component, port };
+    return port ? { component, port } : { junction: spec };
   };
   return pairs.map(([from, to], i) => ({ id: `w${i}`, from: end(from), to: end(to) }));
 }
@@ -241,14 +241,26 @@ const components = [
   chip("rd3", "mux8", 116, 62, { label: "Read SDATA" }),
   chip("rd4", "mux8", 124, 62, { label: "Read HEX" }),
 
-  // The devices, along the top where the sheet opens: the keyboard, HEX on two digits, a 64 x 32 screen.
-  part("key", "keyboard", 12, 1, { label: "Keyboard" }),
-  part("screen", "screen", 26, 0, { label: "Screen", width: 8, addressWidth: 8, columns: 64 }),
+  // The devices, where the sheet opens: a 64 x 32 screen along the top, the keyboard and HEX on two
+  // digits down the left, joined to the read bus and the digit decoders by net labels (ADR 0015).
+  part("key", "keyboard", 1, 11, { label: "Keyboard" }),
+  part("screen", "screen", 25, 0, { label: "Screen", width: 8, addressWidth: 8, columns: 64 }),
   part("hexsplit", "split", 120, 76, { fields: [4, 4] }),
   part("hexhighrom", "rom", 126, 74, { label: "High digit", width: 8, addressWidth: 4, data: HEX_DIGITS }),
   part("hexlowrom", "rom", 126, 82, { label: "Low digit", width: 8, addressWidth: 4, data: HEX_DIGITS }),
-  part("hexhigh", "seg7", 17, 1, { label: "High" }),
-  part("hexlow", "seg7", 21, 1, { label: "Low" }),
+  part("hexhigh", "seg7", 1, 16, { label: "High" }),
+  part("hexlow", "seg7", 6, 16, { label: "Low" }),
+];
+
+// Net labels: each name joins a device by the canvas origin to its far end of the sheet.
+const label = (id, x, y, name) => ({ id, position: { x, y }, name });
+const junctions = [
+  label("key-near", 7, 12, "KEY"),
+  label("key-far", 96, 59, "KEY"),
+  label("high-near", 0, 22, "HEX high"),
+  label("high-far", 134, 75, "HEX high"),
+  label("low-near", 5, 22, "HEX low"),
+  label("low-far", 134, 83, "HEX low"),
 ];
 
 const clocked = ["irl", "irh", "pc", "t", "h", "a", "z", "c", "outr", "sptr", "hex"];
@@ -396,7 +408,8 @@ const main = wires([
   ["zero8.out", "rd0.b"],
   [io("io"), "rd0.s"],
   ["rd0.out", "rd1.a"],
-  ["key.out", "rd1.b"],
+  ["key.out", "key-near"],
+  ["key-far", "rd1.b"],
   [io("key"), "rd1.s"],
   ["rd1.out", "rd2.a"],
   ["sptr.q", "rd2.b"],
@@ -410,8 +423,10 @@ const main = wires([
   ["hex.q", "hexsplit.in"],
   ["hexsplit.f1", "hexhighrom.addr"],
   ["hexsplit.f0", "hexlowrom.addr"],
-  ["hexhighrom.out", "hexhigh.seg"],
-  ["hexlowrom.out", "hexlow.seg"],
+  ["hexhighrom.out", "high-far"],
+  ["high-near", "hexhigh.seg"],
+  ["hexlowrom.out", "low-far"],
+  ["low-near", "hexlow.seg"],
 ]);
 
 const adder = JSON.parse(readFileSync(root("examples/8-bit-adder.clockyard.json"), "utf8"));
@@ -419,7 +434,7 @@ const document = {
   format: "clockyard",
   version: 9,
   metadata: { name: "Reference CPU", createdAt: "2026-11-10T12:00:00.000Z", modifiedAt: "2026-11-10T12:00:00.000Z" },
-  circuit: { components, junctions: [], wires: main },
+  circuit: { components, junctions, wires: main },
   definitions: [
     mux8,
     register("reg8", "Register 8", 8),

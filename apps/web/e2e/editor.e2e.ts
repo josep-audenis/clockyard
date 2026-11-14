@@ -979,8 +979,8 @@ test("memory-mapped I/O demo: the shipped CPU program shows the key held on the 
   const button = (name: string) => page.getByRole("button", { name, exact: true });
   await page.getByLabel("Speed").selectOption("1000");
   await button("Run").click();
-  // The devices open in view along the top of the sheet; the program waits on KEY until a key is held.
-  await click(page, at(14, 2)); // the keyboard at (12,1)
+  // The devices open in view; the program waits on KEY until a key is held.
+  await click(page, at(3, 12)); // the keyboard at (1,11)
   await expect(status(page)).toContainText("The keyboard has the keys");
   await page.keyboard.down("Shift");
   await page.keyboard.down("A");
@@ -993,11 +993,12 @@ test("memory-mapped I/O demo: the shipped CPU program shows the key held on the 
   await expect.poll(cycle).toBeGreaterThanOrEqual(shown + 8);
   await page.keyboard.up("A");
   await page.keyboard.up("Shift");
-  await page.keyboard.press("Escape");
+  // Pause gives the keys back too; no Escape, which a running CPU would read as key 27.
   await button("Pause").click();
-  // Released, the program waits again and the digits keep the last key.
+  await expect(status(page)).not.toContainText("The keyboard has the keys");
   await expect(readout(page, "Seven-segment High")).toHaveText("Seven-segment High: 102 (0x66)");
-  await click(page, at(35, 5)); // the screen at (26,0)
+  await click(page, at(35, 5)); // the screen at (25,0)
   const contents = page.getByRole("region", { name: "Screen contents" });
   await expect(contents).toContainText("0x00 0xFF 0x00 0x00 0x00 0x00 0x00 0x00");
+  await expect(contents).not.toContainText(/0xFF[\s\S]*0xFF/); // byte 0x41 only
 });
