@@ -1,6 +1,6 @@
 {
   "format": "clockyard",
-  "version": 8,
+  "version": 9,
   "metadata": {
     "name": "Reference CPU",
     "createdAt": "2026-11-10T12:00:00.000Z",
@@ -771,6 +771,567 @@
         "props": {
           "label": "Halted"
         }
+      },
+      {
+        "id": "iodec",
+        "kind": "rom",
+        "position": {
+          "x": 60,
+          "y": 62
+        },
+        "rotation": 0,
+        "props": {
+          "label": "I/O decoder",
+          "width": 5,
+          "addressWidth": 8,
+          "data": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            17,
+            9,
+            5,
+            3
+          ]
+        }
+      },
+      {
+        "id": "ios",
+        "kind": "split",
+        "position": {
+          "x": 68,
+          "y": 62
+        },
+        "rotation": 0,
+        "props": {
+          "fields": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      {
+        "id": "nio",
+        "kind": "not",
+        "position": {
+          "x": 74,
+          "y": 62
+        },
+        "rotation": 0,
+        "props": {}
+      },
+      {
+        "id": "ramwe",
+        "kind": "and",
+        "position": {
+          "x": 80,
+          "y": 62
+        },
+        "rotation": 0,
+        "props": {}
+      },
+      {
+        "id": "sptren",
+        "kind": "and",
+        "position": {
+          "x": 74,
+          "y": 68
+        },
+        "rotation": 0,
+        "props": {}
+      },
+      {
+        "id": "hexen",
+        "kind": "and",
+        "position": {
+          "x": 74,
+          "y": 74
+        },
+        "rotation": 0,
+        "props": {}
+      },
+      {
+        "id": "sdwe",
+        "kind": "and",
+        "position": {
+          "x": 74,
+          "y": 80
+        },
+        "rotation": 0,
+        "props": {}
+      },
+      {
+        "id": "sptr",
+        "kind": "custom",
+        "definition": "reg8",
+        "position": {
+          "x": 84,
+          "y": 66
+        },
+        "rotation": 0,
+        "props": {
+          "label": "SPTR"
+        }
+      },
+      {
+        "id": "hex",
+        "kind": "custom",
+        "definition": "reg8",
+        "position": {
+          "x": 84,
+          "y": 76
+        },
+        "rotation": 0,
+        "props": {
+          "label": "HEX"
+        }
+      },
+      {
+        "id": "rd0",
+        "kind": "custom",
+        "definition": "mux8",
+        "position": {
+          "x": 92,
+          "y": 62
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Read I/O or RAM"
+        }
+      },
+      {
+        "id": "rd1",
+        "kind": "custom",
+        "definition": "mux8",
+        "position": {
+          "x": 100,
+          "y": 62
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Read KEY"
+        }
+      },
+      {
+        "id": "rd2",
+        "kind": "custom",
+        "definition": "mux8",
+        "position": {
+          "x": 108,
+          "y": 62
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Read SPTR"
+        }
+      },
+      {
+        "id": "rd3",
+        "kind": "custom",
+        "definition": "mux8",
+        "position": {
+          "x": 116,
+          "y": 62
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Read SDATA"
+        }
+      },
+      {
+        "id": "rd4",
+        "kind": "custom",
+        "definition": "mux8",
+        "position": {
+          "x": 124,
+          "y": 62
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Read HEX"
+        }
+      },
+      {
+        "id": "key",
+        "kind": "keyboard",
+        "position": {
+          "x": 0,
+          "y": 62
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Keyboard"
+        }
+      },
+      {
+        "id": "screen",
+        "kind": "screen",
+        "position": {
+          "x": 96,
+          "y": 74
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Screen",
+          "width": 8,
+          "addressWidth": 8,
+          "columns": 64
+        }
+      },
+      {
+        "id": "hexsplit",
+        "kind": "split",
+        "position": {
+          "x": 120,
+          "y": 76
+        },
+        "rotation": 0,
+        "props": {
+          "fields": [
+            4,
+            4
+          ]
+        }
+      },
+      {
+        "id": "hexhighrom",
+        "kind": "rom",
+        "position": {
+          "x": 126,
+          "y": 74
+        },
+        "rotation": 0,
+        "props": {
+          "label": "High digit",
+          "width": 8,
+          "addressWidth": 4,
+          "data": [
+            63,
+            6,
+            91,
+            79,
+            102,
+            109,
+            125,
+            7,
+            127,
+            111,
+            119,
+            124,
+            57,
+            94,
+            121,
+            113
+          ]
+        }
+      },
+      {
+        "id": "hexlowrom",
+        "kind": "rom",
+        "position": {
+          "x": 126,
+          "y": 82
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Low digit",
+          "width": 8,
+          "addressWidth": 4,
+          "data": [
+            63,
+            6,
+            91,
+            79,
+            102,
+            109,
+            125,
+            7,
+            127,
+            111,
+            119,
+            124,
+            57,
+            94,
+            121,
+            113
+          ]
+        }
+      },
+      {
+        "id": "hexhigh",
+        "kind": "seg7",
+        "position": {
+          "x": 134,
+          "y": 76
+        },
+        "rotation": 0,
+        "props": {
+          "label": "HEX high"
+        }
+      },
+      {
+        "id": "hexlow",
+        "kind": "seg7",
+        "position": {
+          "x": 138,
+          "y": 76
+        },
+        "rotation": 0,
+        "props": {
+          "label": "HEX low"
+        }
       }
     ],
     "junctions": [],
@@ -1013,12 +1574,45 @@
           "port": "out"
         },
         "to": {
-          "component": "ram",
+          "component": "sptr",
           "port": "clk"
         }
       },
       {
         "id": "w22",
+        "from": {
+          "component": "clk",
+          "port": "out"
+        },
+        "to": {
+          "component": "hex",
+          "port": "clk"
+        }
+      },
+      {
+        "id": "w23",
+        "from": {
+          "component": "clk",
+          "port": "out"
+        },
+        "to": {
+          "component": "ram",
+          "port": "clk"
+        }
+      },
+      {
+        "id": "w24",
+        "from": {
+          "component": "clk",
+          "port": "out"
+        },
+        "to": {
+          "component": "screen",
+          "port": "clk"
+        }
+      },
+      {
+        "id": "w25",
         "from": {
           "component": "t",
           "port": "q"
@@ -1029,7 +1623,7 @@
         }
       },
       {
-        "id": "w23",
+        "id": "w26",
         "from": {
           "component": "h",
           "port": "q"
@@ -1040,7 +1634,7 @@
         }
       },
       {
-        "id": "w24",
+        "id": "w27",
         "from": {
           "component": "nt",
           "port": "out"
@@ -1051,7 +1645,7 @@
         }
       },
       {
-        "id": "w25",
+        "id": "w28",
         "from": {
           "component": "nh",
           "port": "out"
@@ -1062,7 +1656,7 @@
         }
       },
       {
-        "id": "w26",
+        "id": "w29",
         "from": {
           "component": "one",
           "port": "out"
@@ -1073,7 +1667,7 @@
         }
       },
       {
-        "id": "w27",
+        "id": "w30",
         "from": {
           "component": "hlten",
           "port": "out"
@@ -1084,7 +1678,7 @@
         }
       },
       {
-        "id": "w28",
+        "id": "w31",
         "from": {
           "component": "nt",
           "port": "out"
@@ -1095,7 +1689,7 @@
         }
       },
       {
-        "id": "w29",
+        "id": "w32",
         "from": {
           "component": "nh",
           "port": "out"
@@ -1106,7 +1700,7 @@
         }
       },
       {
-        "id": "w30",
+        "id": "w33",
         "from": {
           "component": "t",
           "port": "q"
@@ -1117,7 +1711,7 @@
         }
       },
       {
-        "id": "w31",
+        "id": "w34",
         "from": {
           "component": "nh",
           "port": "out"
@@ -1128,7 +1722,7 @@
         }
       },
       {
-        "id": "w32",
+        "id": "w35",
         "from": {
           "component": "pc",
           "port": "q"
@@ -1139,7 +1733,7 @@
         }
       },
       {
-        "id": "w33",
+        "id": "w36",
         "from": {
           "component": "rom",
           "port": "out"
@@ -1150,7 +1744,7 @@
         }
       },
       {
-        "id": "w34",
+        "id": "w37",
         "from": {
           "component": "romsplit",
           "port": "f0"
@@ -1158,44 +1752,44 @@
         "to": {
           "component": "irl",
           "port": "d"
-        }
-      },
-      {
-        "id": "w35",
-        "from": {
-          "component": "romsplit",
-          "port": "f1"
-        },
-        "to": {
-          "component": "irh",
-          "port": "d"
-        }
-      },
-      {
-        "id": "w36",
-        "from": {
-          "component": "fetch",
-          "port": "out"
-        },
-        "to": {
-          "component": "irl",
-          "port": "en"
-        }
-      },
-      {
-        "id": "w37",
-        "from": {
-          "component": "fetch",
-          "port": "out"
-        },
-        "to": {
-          "component": "irh",
-          "port": "en"
         }
       },
       {
         "id": "w38",
         "from": {
+          "component": "romsplit",
+          "port": "f1"
+        },
+        "to": {
+          "component": "irh",
+          "port": "d"
+        }
+      },
+      {
+        "id": "w39",
+        "from": {
+          "component": "fetch",
+          "port": "out"
+        },
+        "to": {
+          "component": "irl",
+          "port": "en"
+        }
+      },
+      {
+        "id": "w40",
+        "from": {
+          "component": "fetch",
+          "port": "out"
+        },
+        "to": {
+          "component": "irh",
+          "port": "en"
+        }
+      },
+      {
+        "id": "w41",
+        "from": {
           "component": "irl",
           "port": "q"
         },
@@ -1205,7 +1799,7 @@
         }
       },
       {
-        "id": "w39",
+        "id": "w42",
         "from": {
           "component": "irh",
           "port": "q"
@@ -1216,7 +1810,7 @@
         }
       },
       {
-        "id": "w40",
+        "id": "w43",
         "from": {
           "component": "irmerge",
           "port": "out"
@@ -1227,7 +1821,7 @@
         }
       },
       {
-        "id": "w41",
+        "id": "w44",
         "from": {
           "component": "irh",
           "port": "q"
@@ -1238,7 +1832,7 @@
         }
       },
       {
-        "id": "w42",
+        "id": "w45",
         "from": {
           "component": "pc",
           "port": "q"
@@ -1249,7 +1843,7 @@
         }
       },
       {
-        "id": "w43",
+        "id": "w46",
         "from": {
           "component": "zero8",
           "port": "out"
@@ -1260,7 +1854,7 @@
         }
       },
       {
-        "id": "w44",
+        "id": "w47",
         "from": {
           "component": "one",
           "port": "out"
@@ -1271,7 +1865,7 @@
         }
       },
       {
-        "id": "w45",
+        "id": "w48",
         "from": {
           "component": "inc",
           "port": "sum"
@@ -1282,7 +1876,7 @@
         }
       },
       {
-        "id": "w46",
+        "id": "w49",
         "from": {
           "component": "irl",
           "port": "q"
@@ -1293,7 +1887,7 @@
         }
       },
       {
-        "id": "w47",
+        "id": "w50",
         "from": {
           "component": "jump",
           "port": "out"
@@ -1304,7 +1898,7 @@
         }
       },
       {
-        "id": "w48",
+        "id": "w51",
         "from": {
           "component": "pcmux",
           "port": "out"
@@ -1315,7 +1909,7 @@
         }
       },
       {
-        "id": "w49",
+        "id": "w52",
         "from": {
           "component": "fetch",
           "port": "out"
@@ -1326,7 +1920,7 @@
         }
       },
       {
-        "id": "w50",
+        "id": "w53",
         "from": {
           "component": "jump",
           "port": "out"
@@ -1337,7 +1931,7 @@
         }
       },
       {
-        "id": "w51",
+        "id": "w54",
         "from": {
           "component": "pcen",
           "port": "out"
@@ -1348,7 +1942,7 @@
         }
       },
       {
-        "id": "w52",
+        "id": "w55",
         "from": {
           "component": "pc",
           "port": "q"
@@ -1359,7 +1953,7 @@
         }
       },
       {
-        "id": "w53",
+        "id": "w56",
         "from": {
           "component": "opsplit",
           "port": "f1"
@@ -1370,7 +1964,7 @@
         }
       },
       {
-        "id": "w54",
+        "id": "w57",
         "from": {
           "component": "ctl",
           "port": "out"
@@ -1381,7 +1975,7 @@
         }
       },
       {
-        "id": "w55",
+        "id": "w58",
         "from": {
           "component": "cs",
           "port": "f0"
@@ -1392,7 +1986,7 @@
         }
       },
       {
-        "id": "w56",
+        "id": "w59",
         "from": {
           "component": "exec",
           "port": "out"
@@ -1403,7 +1997,7 @@
         }
       },
       {
-        "id": "w57",
+        "id": "w60",
         "from": {
           "component": "cs",
           "port": "f5"
@@ -1414,7 +2008,7 @@
         }
       },
       {
-        "id": "w58",
+        "id": "w61",
         "from": {
           "component": "exec",
           "port": "out"
@@ -1425,7 +2019,7 @@
         }
       },
       {
-        "id": "w59",
+        "id": "w62",
         "from": {
           "component": "cs",
           "port": "f6"
@@ -1436,7 +2030,7 @@
         }
       },
       {
-        "id": "w60",
+        "id": "w63",
         "from": {
           "component": "exec",
           "port": "out"
@@ -1447,7 +2041,7 @@
         }
       },
       {
-        "id": "w61",
+        "id": "w64",
         "from": {
           "component": "cs",
           "port": "f7"
@@ -1458,7 +2052,7 @@
         }
       },
       {
-        "id": "w62",
+        "id": "w65",
         "from": {
           "component": "exec",
           "port": "out"
@@ -1469,7 +2063,7 @@
         }
       },
       {
-        "id": "w63",
+        "id": "w66",
         "from": {
           "component": "cs",
           "port": "f11"
@@ -1480,7 +2074,7 @@
         }
       },
       {
-        "id": "w64",
+        "id": "w67",
         "from": {
           "component": "exec",
           "port": "out"
@@ -1491,7 +2085,7 @@
         }
       },
       {
-        "id": "w65",
+        "id": "w68",
         "from": {
           "component": "cs",
           "port": "f9"
@@ -1502,7 +2096,7 @@
         }
       },
       {
-        "id": "w66",
+        "id": "w69",
         "from": {
           "component": "z",
           "port": "q"
@@ -1513,7 +2107,7 @@
         }
       },
       {
-        "id": "w67",
+        "id": "w70",
         "from": {
           "component": "cs",
           "port": "f10"
@@ -1524,7 +2118,7 @@
         }
       },
       {
-        "id": "w68",
+        "id": "w71",
         "from": {
           "component": "c",
           "port": "q"
@@ -1535,7 +2129,7 @@
         }
       },
       {
-        "id": "w69",
+        "id": "w72",
         "from": {
           "component": "cs",
           "port": "f8"
@@ -1546,7 +2140,7 @@
         }
       },
       {
-        "id": "w70",
+        "id": "w73",
         "from": {
           "component": "jzt",
           "port": "out"
@@ -1557,7 +2151,7 @@
         }
       },
       {
-        "id": "w71",
+        "id": "w74",
         "from": {
           "component": "j1",
           "port": "out"
@@ -1568,7 +2162,7 @@
         }
       },
       {
-        "id": "w72",
+        "id": "w75",
         "from": {
           "component": "jct",
           "port": "out"
@@ -1579,7 +2173,7 @@
         }
       },
       {
-        "id": "w73",
+        "id": "w76",
         "from": {
           "component": "j2",
           "port": "out"
@@ -1590,7 +2184,7 @@
         }
       },
       {
-        "id": "w74",
+        "id": "w77",
         "from": {
           "component": "exec",
           "port": "out"
@@ -1601,7 +2195,7 @@
         }
       },
       {
-        "id": "w75",
+        "id": "w78",
         "from": {
           "component": "irl",
           "port": "q"
@@ -1612,7 +2206,7 @@
         }
       },
       {
-        "id": "w76",
+        "id": "w79",
         "from": {
           "component": "a",
           "port": "q"
@@ -1623,9 +2217,9 @@
         }
       },
       {
-        "id": "w77",
+        "id": "w80",
         "from": {
-          "component": "we",
+          "component": "ramwe",
           "port": "out"
         },
         "to": {
@@ -1634,9 +2228,9 @@
         }
       },
       {
-        "id": "w78",
+        "id": "w81",
         "from": {
-          "component": "ram",
+          "component": "rd4",
           "port": "out"
         },
         "to": {
@@ -1645,7 +2239,7 @@
         }
       },
       {
-        "id": "w79",
+        "id": "w82",
         "from": {
           "component": "irl",
           "port": "q"
@@ -1656,7 +2250,7 @@
         }
       },
       {
-        "id": "w80",
+        "id": "w83",
         "from": {
           "component": "cs",
           "port": "f3"
@@ -1664,39 +2258,6 @@
         "to": {
           "component": "bmux",
           "port": "s"
-        }
-      },
-      {
-        "id": "w81",
-        "from": {
-          "component": "cs",
-          "port": "f4"
-        },
-        "to": {
-          "component": "subfill",
-          "port": "f0"
-        }
-      },
-      {
-        "id": "w82",
-        "from": {
-          "component": "cs",
-          "port": "f4"
-        },
-        "to": {
-          "component": "subfill",
-          "port": "f1"
-        }
-      },
-      {
-        "id": "w83",
-        "from": {
-          "component": "cs",
-          "port": "f4"
-        },
-        "to": {
-          "component": "subfill",
-          "port": "f2"
         }
       },
       {
@@ -1707,7 +2268,7 @@
         },
         "to": {
           "component": "subfill",
-          "port": "f3"
+          "port": "f0"
         }
       },
       {
@@ -1718,7 +2279,7 @@
         },
         "to": {
           "component": "subfill",
-          "port": "f4"
+          "port": "f1"
         }
       },
       {
@@ -1729,7 +2290,7 @@
         },
         "to": {
           "component": "subfill",
-          "port": "f5"
+          "port": "f2"
         }
       },
       {
@@ -1740,7 +2301,7 @@
         },
         "to": {
           "component": "subfill",
-          "port": "f6"
+          "port": "f3"
         }
       },
       {
@@ -1751,11 +2312,44 @@
         },
         "to": {
           "component": "subfill",
-          "port": "f7"
+          "port": "f4"
         }
       },
       {
         "id": "w89",
+        "from": {
+          "component": "cs",
+          "port": "f4"
+        },
+        "to": {
+          "component": "subfill",
+          "port": "f5"
+        }
+      },
+      {
+        "id": "w90",
+        "from": {
+          "component": "cs",
+          "port": "f4"
+        },
+        "to": {
+          "component": "subfill",
+          "port": "f6"
+        }
+      },
+      {
+        "id": "w91",
+        "from": {
+          "component": "cs",
+          "port": "f4"
+        },
+        "to": {
+          "component": "subfill",
+          "port": "f7"
+        }
+      },
+      {
+        "id": "w92",
         "from": {
           "component": "bmux",
           "port": "out"
@@ -1766,7 +2360,7 @@
         }
       },
       {
-        "id": "w90",
+        "id": "w93",
         "from": {
           "component": "subfill",
           "port": "out"
@@ -1777,7 +2371,7 @@
         }
       },
       {
-        "id": "w91",
+        "id": "w94",
         "from": {
           "component": "a",
           "port": "q"
@@ -1788,7 +2382,7 @@
         }
       },
       {
-        "id": "w92",
+        "id": "w95",
         "from": {
           "component": "x8",
           "port": "out"
@@ -1799,7 +2393,7 @@
         }
       },
       {
-        "id": "w93",
+        "id": "w96",
         "from": {
           "component": "cs",
           "port": "f4"
@@ -1810,7 +2404,7 @@
         }
       },
       {
-        "id": "w94",
+        "id": "w97",
         "from": {
           "component": "irl",
           "port": "q"
@@ -1821,9 +2415,9 @@
         }
       },
       {
-        "id": "w95",
+        "id": "w98",
         "from": {
-          "component": "ram",
+          "component": "rd4",
           "port": "out"
         },
         "to": {
@@ -1832,7 +2426,7 @@
         }
       },
       {
-        "id": "w96",
+        "id": "w99",
         "from": {
           "component": "cs",
           "port": "f1"
@@ -1843,7 +2437,7 @@
         }
       },
       {
-        "id": "w97",
+        "id": "w100",
         "from": {
           "component": "amux1",
           "port": "out"
@@ -1854,7 +2448,7 @@
         }
       },
       {
-        "id": "w98",
+        "id": "w101",
         "from": {
           "component": "alu",
           "port": "sum"
@@ -1865,7 +2459,7 @@
         }
       },
       {
-        "id": "w99",
+        "id": "w102",
         "from": {
           "component": "cs",
           "port": "f2"
@@ -1876,7 +2470,7 @@
         }
       },
       {
-        "id": "w100",
+        "id": "w103",
         "from": {
           "component": "amux2",
           "port": "out"
@@ -1887,7 +2481,7 @@
         }
       },
       {
-        "id": "w101",
+        "id": "w104",
         "from": {
           "component": "aen",
           "port": "out"
@@ -1898,7 +2492,7 @@
         }
       },
       {
-        "id": "w102",
+        "id": "w105",
         "from": {
           "component": "a",
           "port": "q"
@@ -1909,7 +2503,7 @@
         }
       },
       {
-        "id": "w103",
+        "id": "w106",
         "from": {
           "component": "amux2",
           "port": "out"
@@ -1920,7 +2514,7 @@
         }
       },
       {
-        "id": "w104",
+        "id": "w107",
         "from": {
           "component": "zs",
           "port": "f0"
@@ -1931,7 +2525,7 @@
         }
       },
       {
-        "id": "w105",
+        "id": "w108",
         "from": {
           "component": "zs",
           "port": "f1"
@@ -1942,7 +2536,7 @@
         }
       },
       {
-        "id": "w106",
+        "id": "w109",
         "from": {
           "component": "zs",
           "port": "f2"
@@ -1953,7 +2547,7 @@
         }
       },
       {
-        "id": "w107",
+        "id": "w110",
         "from": {
           "component": "zs",
           "port": "f3"
@@ -1964,7 +2558,7 @@
         }
       },
       {
-        "id": "w108",
+        "id": "w111",
         "from": {
           "component": "zs",
           "port": "f4"
@@ -1975,7 +2569,7 @@
         }
       },
       {
-        "id": "w109",
+        "id": "w112",
         "from": {
           "component": "zs",
           "port": "f5"
@@ -1986,7 +2580,7 @@
         }
       },
       {
-        "id": "w110",
+        "id": "w113",
         "from": {
           "component": "zs",
           "port": "f6"
@@ -1997,7 +2591,7 @@
         }
       },
       {
-        "id": "w111",
+        "id": "w114",
         "from": {
           "component": "zs",
           "port": "f7"
@@ -2008,7 +2602,7 @@
         }
       },
       {
-        "id": "w112",
+        "id": "w115",
         "from": {
           "component": "o1",
           "port": "out"
@@ -2019,7 +2613,7 @@
         }
       },
       {
-        "id": "w113",
+        "id": "w116",
         "from": {
           "component": "o2",
           "port": "out"
@@ -2030,7 +2624,7 @@
         }
       },
       {
-        "id": "w114",
+        "id": "w117",
         "from": {
           "component": "o3",
           "port": "out"
@@ -2041,7 +2635,7 @@
         }
       },
       {
-        "id": "w115",
+        "id": "w118",
         "from": {
           "component": "o4",
           "port": "out"
@@ -2052,7 +2646,7 @@
         }
       },
       {
-        "id": "w116",
+        "id": "w119",
         "from": {
           "component": "o5",
           "port": "out"
@@ -2063,7 +2657,7 @@
         }
       },
       {
-        "id": "w117",
+        "id": "w120",
         "from": {
           "component": "o6",
           "port": "out"
@@ -2074,7 +2668,7 @@
         }
       },
       {
-        "id": "w118",
+        "id": "w121",
         "from": {
           "component": "o7",
           "port": "out"
@@ -2085,7 +2679,7 @@
         }
       },
       {
-        "id": "w119",
+        "id": "w122",
         "from": {
           "component": "isz",
           "port": "out"
@@ -2096,7 +2690,7 @@
         }
       },
       {
-        "id": "w120",
+        "id": "w123",
         "from": {
           "component": "aen",
           "port": "out"
@@ -2107,7 +2701,7 @@
         }
       },
       {
-        "id": "w121",
+        "id": "w124",
         "from": {
           "component": "alu",
           "port": "cout"
@@ -2118,7 +2712,7 @@
         }
       },
       {
-        "id": "w122",
+        "id": "w125",
         "from": {
           "component": "cen",
           "port": "out"
@@ -2129,7 +2723,7 @@
         }
       },
       {
-        "id": "w123",
+        "id": "w126",
         "from": {
           "component": "z",
           "port": "q"
@@ -2140,7 +2734,7 @@
         }
       },
       {
-        "id": "w124",
+        "id": "w127",
         "from": {
           "component": "c",
           "port": "q"
@@ -2151,7 +2745,7 @@
         }
       },
       {
-        "id": "w125",
+        "id": "w128",
         "from": {
           "component": "a",
           "port": "q"
@@ -2162,7 +2756,7 @@
         }
       },
       {
-        "id": "w126",
+        "id": "w129",
         "from": {
           "component": "outen",
           "port": "out"
@@ -2173,7 +2767,7 @@
         }
       },
       {
-        "id": "w127",
+        "id": "w130",
         "from": {
           "component": "outr",
           "port": "q"
@@ -2184,7 +2778,7 @@
         }
       },
       {
-        "id": "w128",
+        "id": "w131",
         "from": {
           "component": "fetch",
           "port": "out"
@@ -2195,7 +2789,7 @@
         }
       },
       {
-        "id": "w129",
+        "id": "w132",
         "from": {
           "component": "h",
           "port": "q"
@@ -2203,6 +2797,424 @@
         "to": {
           "component": "haltled",
           "port": "in"
+        }
+      },
+      {
+        "id": "w133",
+        "from": {
+          "component": "irl",
+          "port": "q"
+        },
+        "to": {
+          "component": "iodec",
+          "port": "addr"
+        }
+      },
+      {
+        "id": "w134",
+        "from": {
+          "component": "iodec",
+          "port": "out"
+        },
+        "to": {
+          "component": "ios",
+          "port": "in"
+        }
+      },
+      {
+        "id": "w135",
+        "from": {
+          "component": "ios",
+          "port": "f0"
+        },
+        "to": {
+          "component": "nio",
+          "port": "in"
+        }
+      },
+      {
+        "id": "w136",
+        "from": {
+          "component": "we",
+          "port": "out"
+        },
+        "to": {
+          "component": "ramwe",
+          "port": "a"
+        }
+      },
+      {
+        "id": "w137",
+        "from": {
+          "component": "nio",
+          "port": "out"
+        },
+        "to": {
+          "component": "ramwe",
+          "port": "b"
+        }
+      },
+      {
+        "id": "w138",
+        "from": {
+          "component": "we",
+          "port": "out"
+        },
+        "to": {
+          "component": "sptren",
+          "port": "a"
+        }
+      },
+      {
+        "id": "w139",
+        "from": {
+          "component": "ios",
+          "port": "f2"
+        },
+        "to": {
+          "component": "sptren",
+          "port": "b"
+        }
+      },
+      {
+        "id": "w140",
+        "from": {
+          "component": "we",
+          "port": "out"
+        },
+        "to": {
+          "component": "hexen",
+          "port": "a"
+        }
+      },
+      {
+        "id": "w141",
+        "from": {
+          "component": "ios",
+          "port": "f4"
+        },
+        "to": {
+          "component": "hexen",
+          "port": "b"
+        }
+      },
+      {
+        "id": "w142",
+        "from": {
+          "component": "we",
+          "port": "out"
+        },
+        "to": {
+          "component": "sdwe",
+          "port": "a"
+        }
+      },
+      {
+        "id": "w143",
+        "from": {
+          "component": "ios",
+          "port": "f3"
+        },
+        "to": {
+          "component": "sdwe",
+          "port": "b"
+        }
+      },
+      {
+        "id": "w144",
+        "from": {
+          "component": "a",
+          "port": "q"
+        },
+        "to": {
+          "component": "sptr",
+          "port": "d"
+        }
+      },
+      {
+        "id": "w145",
+        "from": {
+          "component": "sptren",
+          "port": "out"
+        },
+        "to": {
+          "component": "sptr",
+          "port": "en"
+        }
+      },
+      {
+        "id": "w146",
+        "from": {
+          "component": "a",
+          "port": "q"
+        },
+        "to": {
+          "component": "hex",
+          "port": "d"
+        }
+      },
+      {
+        "id": "w147",
+        "from": {
+          "component": "hexen",
+          "port": "out"
+        },
+        "to": {
+          "component": "hex",
+          "port": "en"
+        }
+      },
+      {
+        "id": "w148",
+        "from": {
+          "component": "sptr",
+          "port": "q"
+        },
+        "to": {
+          "component": "screen",
+          "port": "addr"
+        }
+      },
+      {
+        "id": "w149",
+        "from": {
+          "component": "a",
+          "port": "q"
+        },
+        "to": {
+          "component": "screen",
+          "port": "din"
+        }
+      },
+      {
+        "id": "w150",
+        "from": {
+          "component": "sdwe",
+          "port": "out"
+        },
+        "to": {
+          "component": "screen",
+          "port": "we"
+        }
+      },
+      {
+        "id": "w151",
+        "from": {
+          "component": "ram",
+          "port": "out"
+        },
+        "to": {
+          "component": "rd0",
+          "port": "a"
+        }
+      },
+      {
+        "id": "w152",
+        "from": {
+          "component": "zero8",
+          "port": "out"
+        },
+        "to": {
+          "component": "rd0",
+          "port": "b"
+        }
+      },
+      {
+        "id": "w153",
+        "from": {
+          "component": "ios",
+          "port": "f0"
+        },
+        "to": {
+          "component": "rd0",
+          "port": "s"
+        }
+      },
+      {
+        "id": "w154",
+        "from": {
+          "component": "rd0",
+          "port": "out"
+        },
+        "to": {
+          "component": "rd1",
+          "port": "a"
+        }
+      },
+      {
+        "id": "w155",
+        "from": {
+          "component": "key",
+          "port": "out"
+        },
+        "to": {
+          "component": "rd1",
+          "port": "b"
+        }
+      },
+      {
+        "id": "w156",
+        "from": {
+          "component": "ios",
+          "port": "f1"
+        },
+        "to": {
+          "component": "rd1",
+          "port": "s"
+        }
+      },
+      {
+        "id": "w157",
+        "from": {
+          "component": "rd1",
+          "port": "out"
+        },
+        "to": {
+          "component": "rd2",
+          "port": "a"
+        }
+      },
+      {
+        "id": "w158",
+        "from": {
+          "component": "sptr",
+          "port": "q"
+        },
+        "to": {
+          "component": "rd2",
+          "port": "b"
+        }
+      },
+      {
+        "id": "w159",
+        "from": {
+          "component": "ios",
+          "port": "f2"
+        },
+        "to": {
+          "component": "rd2",
+          "port": "s"
+        }
+      },
+      {
+        "id": "w160",
+        "from": {
+          "component": "rd2",
+          "port": "out"
+        },
+        "to": {
+          "component": "rd3",
+          "port": "a"
+        }
+      },
+      {
+        "id": "w161",
+        "from": {
+          "component": "screen",
+          "port": "out"
+        },
+        "to": {
+          "component": "rd3",
+          "port": "b"
+        }
+      },
+      {
+        "id": "w162",
+        "from": {
+          "component": "ios",
+          "port": "f3"
+        },
+        "to": {
+          "component": "rd3",
+          "port": "s"
+        }
+      },
+      {
+        "id": "w163",
+        "from": {
+          "component": "rd3",
+          "port": "out"
+        },
+        "to": {
+          "component": "rd4",
+          "port": "a"
+        }
+      },
+      {
+        "id": "w164",
+        "from": {
+          "component": "hex",
+          "port": "q"
+        },
+        "to": {
+          "component": "rd4",
+          "port": "b"
+        }
+      },
+      {
+        "id": "w165",
+        "from": {
+          "component": "ios",
+          "port": "f4"
+        },
+        "to": {
+          "component": "rd4",
+          "port": "s"
+        }
+      },
+      {
+        "id": "w166",
+        "from": {
+          "component": "hex",
+          "port": "q"
+        },
+        "to": {
+          "component": "hexsplit",
+          "port": "in"
+        }
+      },
+      {
+        "id": "w167",
+        "from": {
+          "component": "hexsplit",
+          "port": "f1"
+        },
+        "to": {
+          "component": "hexhighrom",
+          "port": "addr"
+        }
+      },
+      {
+        "id": "w168",
+        "from": {
+          "component": "hexsplit",
+          "port": "f0"
+        },
+        "to": {
+          "component": "hexlowrom",
+          "port": "addr"
+        }
+      },
+      {
+        "id": "w169",
+        "from": {
+          "component": "hexhighrom",
+          "port": "out"
+        },
+        "to": {
+          "component": "hexhigh",
+          "port": "seg"
+        }
+      },
+      {
+        "id": "w170",
+        "from": {
+          "component": "hexlowrom",
+          "port": "out"
+        },
+        "to": {
+          "component": "hexlow",
+          "port": "seg"
         }
       }
     ]

@@ -4,7 +4,8 @@
 //! independent reference. Each test loads `examples/reference-cpu.clockyard.json`
 //! with a program in its ROM, runs the netlist one cycle at a time, and after
 //! every cycle compares what the sheet shows (its register LEDs, the status
-//! LEDs, the phase and the RAM) with the model's state.
+//! LEDs, the phase, the RAM and the I/O devices) with the model's state.
+//! The keyboard is an input both are given, cycle by cycle (ADR 0022).
 
 mod common;
 
@@ -24,12 +25,42 @@ struct State {
     t: bool,
     h: bool,
     ram: Vec<u8>,
+    sptr: u8,
+    hex: u8,
+    screen: Vec<u8>,
+}
+
+impl State {
+    /// `RAM[n]` as a load sees it (I/O section): RAM up to 0xEF, devices above.
+    fn data(&self, n: u8, key: u8) -> u8 {
+        match n {
+            0xFF => key,
+            0xFE => self.sptr,
+            0xFD => self.screen[usize::from(self.sptr)],
+            0xFC => self.hex,
+            0xF0..=0xFB => 0,
+            _ => self.ram[usize::from(n)],
+        }
+    }
+
+    /// `RAM[n] ← value` as a store does it.
+    fn store(&mut self, n: u8, value: u8) {
+        match n {
+            0xFE => self.sptr = value,
+            0xFD => self.screen[usize::from(self.sptr)] = value,
+            0xFC => self.hex = value,
+            0xF0..=0xFF => {}
+            _ => self.ram[usize::from(n)] = value,
+        }
+    }
 }
 
 /// The specification as code: one call is one clock cycle (Timing section).
 struct Model {
     rom: Vec<u16>,
     state: State,
+    /// The key held during the next cycle.
+    key: u8,
 }
 
 impl Model {
@@ -46,7 +77,11 @@ impl Model {
                 t: false,
                 h: false,
                 ram: vec![0; 256],
+                sptr: 0,
+                hex: 0,
+                screen: vec![0; 256],
             },
+            key: 0,
         }
     }
 
@@ -65,6 +100,7 @@ impl Model {
         // Execute.
         s.t = false;
         let n = (s.ir & 0xFF) as u8;
+        let data = s.data(n, self.key);
         let load = |s: &mut State, value: u8| {
             s.a = value;
             s.z = value == 0;
@@ -80,10 +116,10 @@ impl Model {
         };
         match s.ir >> 12 {
             0x1 => load(s, n),
-            0x2 => load(s, s.ram[usize::from(n)]),
-            0x3 => s.ram[usize::from(n)] = s.a,
-            0x4 => add(s, s.ram[usize::from(n)]),
-            0x5 => sub(s, s.ram[usize::from(n)]),
+            0x2 => load(s, data),
+            0x3 => s.store(n, s.a),
+            0x4 => add(s, data),
+            0x5 => sub(s, data),
             0x6 => add(s, n),
             0x7 => sub(s, n),
             0x8 => s.pc = n,
@@ -112,8 +148,14 @@ fn cpu(text: &str, program: &[u16]) -> Simulator {
     sim
 }
 
+/// Seven-segment patterns of the hex digits (segment a on bit 0), as the specification shows them.
+const HEX_DIGITS: [u32; 16] = [
+    0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71,
+];
+
 /// What the sheet shows: its LEDs (stable top-level IDs, so this also checks the display wiring),
-/// the phase register's flip-flop, and the data RAM. The Fetch LED must agree with T and H.
+/// the phase register's flip-flop, the data RAM, the I/O registers and the screen. The Fetch LED
+/// must agree with T and H, and the two digits with HEX.
 fn read(sim: &Simulator) -> State {
     let led = |id: &str| {
         assert!(sim.port_nets().contains_key(id), "the sheet has {id}");
@@ -122,6 +164,19 @@ fn read(sim: &Simulator) -> State {
     let t = value(sim, "t/r", "q") == 1;
     let h = led("haltled") == 1;
     assert_eq!(led("fetchled") == 1, !t && !h, "Fetch = ¬T ∧ ¬H");
+    let hex = value(sim, "hex/r", "q");
+    let digits = (value(sim, "hexhigh", "seg"), value(sim, "hexlow", "seg"));
+    let shown = (
+        HEX_DIGITS[(hex >> 4) as usize],
+        HEX_DIGITS[(hex & 0xF) as usize],
+    );
+    assert_eq!(digits, shown, "the digits show HEX {hex:02X}");
+    let bytes = |id: &str| -> Vec<u8> {
+        let words = sim
+            .memory(id)
+            .unwrap_or_else(|| panic!("the sheet has {id}"));
+        words.iter().map(|&w| w as u8).collect()
+    };
     State {
         pc: led("pcled") as u8,
         ir: led("irled") as u16,
@@ -131,23 +186,29 @@ fn read(sim: &Simulator) -> State {
         c: led("cled") == 1,
         t,
         h,
-        ram: sim
-            .memory("ram")
-            .expect("the data RAM")
-            .iter()
-            .map(|&w| w as u8)
-            .collect(),
+        ram: bytes("ram"),
+        sptr: value(sim, "sptr/r", "q") as u8,
+        hex: hex as u8,
+        screen: bytes("screen"),
     }
 }
 
 /// Runs `program` for up to `limit` instructions, or until it halts and three more cycles pass,
 /// checking the netlist against the model after every cycle. Returns the final state.
 fn check(text: &str, program: &[u16], limit: usize) -> State {
+    check_keys(text, program, limit, |_| 0)
+}
+
+/// As `check`, with `keys(cycle)` held on the keyboard during each cycle (from 1).
+fn check_keys(text: &str, program: &[u16], limit: usize, keys: impl Fn(usize) -> u8) -> State {
     let mut sim = cpu(text, program);
     let mut model = Model::new(program);
     assert_eq!(read(&sim), model.state, "after reset");
     let mut after_halt = 0;
     for cycle in 1..=2 * limit {
+        model.key = keys(cycle);
+        sim.set_input("key", u32::from(model.key))
+            .expect("the keyboard");
         assert_eq!(sim.step_cycle(), None, "settles");
         model.cycle();
         assert_eq!(
@@ -224,13 +285,87 @@ fn random_programs_run_as_specified() {
         seed ^= seed << 17;
         seed
     };
-    for i in 0..200 {
-        // 256 raw words, reserved opcodes and bits included. In half the programs operands stay
-        // within 0-15, so stores and loads meet the same RAM bytes and jumps stay near the start.
+    for i in 0..200u64 {
+        // 256 raw words, reserved opcodes and bits included. Operands: any value in even programs;
+        // 0x00-0x0F when i % 4 == 1, so stores and loads meet the same RAM bytes and jumps stay near
+        // the start; 0xF0-0xFF when i % 4 == 3, so the devices are met often.
         let window = if i % 2 == 0 { 0xFFFF } else { 0xF00F };
-        let program: Vec<u16> = (0..256).map(|_| next() as u16 & window).collect();
-        check(&text, &program, 64);
+        let io = if i % 4 == 3 { 0x00F0 } else { 0 };
+        let program: Vec<u16> = (0..256).map(|_| (next() as u16 & window) | io).collect();
+        // A key code that changes every few cycles, from a hash of the cycle and the program.
+        let keys =
+            move |cycle: usize| ((cycle as u64 / 3 + i).wrapping_mul(0x9E37_79B9) >> 8) as u8;
+        check_keys(&text, &program, 64, keys);
     }
+}
+
+#[test]
+fn io_devices_run_as_specified() {
+    let text = example("reference-cpu");
+    let programs = [
+        // Every device written and read back; ADD and SUB read devices too.
+        "LDI 0x2A\nSTA 0xFC\nLDI 7\nSTA 0xFE\nLDI 0x81\nSTA 0xFD\nLDI 0\nLDA 0xFC\nOUT\nLDA 0xFE\nOUT\nLDA 0xFD\nOUT\nADD 0xFD\nSUB 0xFC\nOUT\nHLT",
+        // The pointer moves; each byte keeps its value; a load from SDATA follows the pointer.
+        "LDI 255\nSTA 0xFE\nSTA 0xFD\nLDI 0\nSTA 0xFE\nLDI 1\nSTA 0xFD\nLDI 255\nSTA 0xFE\nLDA 0xFD\nOUT\nHLT",
+        // Stores to KEY and the reserved addresses change nothing; loads from them read 0, and RAM is untouched.
+        "LDI 9\nSTA 0xFF\nSTA 0xF0\nSTA 0xFB\nSTA 0xEF\nLDA 0xF0\nOUT\nLDA 0xFB\nADD 0xEF\nOUT\nHLT",
+        // A device store just before HLT lands.
+        "LDI 3\nSTA 0xFC\nHLT",
+    ];
+    let states: Vec<State> = programs
+        .iter()
+        .map(|source| {
+            let state = check(&text, &assemble(source), 64);
+            assert!(state.h, "{source} halts");
+            state
+        })
+        .collect();
+    let s = &states[0];
+    assert_eq!((s.hex, s.sptr, s.screen[7], s.out), (0x2A, 7, 0x81, 0xD8));
+    let s = &states[1];
+    assert_eq!((s.screen[255], s.screen[0], s.out), (255, 1, 255));
+    let s = &states[2];
+    assert_eq!((s.out, s.ram[0xEF], s.ram[0xF0], s.ram[0xFF]), (9, 9, 0, 0));
+    assert_eq!(states[3].hex, 3);
+}
+
+/// docs/reference-cpu.md, "draw the key held".
+const KEY_PROGRAM: &str =
+    "loop: LDA 0xFF\nJZ loop\nSTA 0xFC\nSTA 0xFE\nLDI 0xFF\nSTA 0xFD\nJMP loop";
+
+#[test]
+fn the_key_program_draws_the_key_held() {
+    // Nothing until a key, then its code on the digits and eight pixels at its byte. 'A' is held
+    // from cycle 20 to 39, then nothing, then '0'.
+    let text = example("reference-cpu");
+    let keys = |cycle: usize| match cycle {
+        20..40 => b'A',
+        60..80 => b'0',
+        _ => 0,
+    };
+    let state = check_keys(&text, &assemble(KEY_PROGRAM), 60, keys);
+    assert_eq!((state.hex, state.sptr), (b'0', b'0'));
+    assert_eq!((state.screen[0x41], state.screen[0x30]), (0xFF, 0xFF));
+    assert_eq!(state.screen.iter().filter(|&&b| b != 0).count(), 2);
+}
+
+#[test]
+fn reset_clears_the_devices() {
+    // Reset (Machine section): SPTR, HEX and every screen byte back to 0, as at load.
+    let text = example("reference-cpu");
+    let program = assemble(KEY_PROGRAM);
+    let mut sim = cpu(&text, &program);
+    sim.set_input("key", u32::from(b'A')).expect("the keyboard");
+    for _ in 0..40 {
+        assert_eq!(sim.step_cycle(), None, "settles");
+    }
+    let drawn = read(&sim);
+    assert_eq!(
+        (drawn.hex, drawn.sptr, drawn.screen[0x41]),
+        (b'A', b'A', 0xFF)
+    );
+    assert_eq!(sim.reset(), None, "settles");
+    assert_eq!(read(&sim), Model::new(&program).state);
 }
 
 #[test]
