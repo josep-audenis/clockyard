@@ -128,6 +128,10 @@ Rules:
   junctions and wires, wires must reference existing parts and junctions, and
   positions are whole numbers within ±1,000,000 grid cells. Port names are checked by the engine on load.
   Switch positions and wide switch values are transient and never saved.
+- A link (`storage/link.ts`, ADR 0024) carries the same document in its
+  fragment, `#circuit=1.<data>`: compact JSON, deflate-raw, base64url. It is
+  read back through the same validation as Import, and decompression stops at
+  Import's 10 MiB limit.
 - `props.width` (ADR 0014) is a whole number from 1 to 32, allowed only on
   switches, LEDs and gates; it sets every port's width. 1 is the default and
   is not stored, so 1-bit circuits read as before. `props.fields` is required
