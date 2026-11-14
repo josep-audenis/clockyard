@@ -62,7 +62,12 @@ the person who opens the link, whatever hosts the app.
    - Once loaded, the fragment is removed from the address bar
      (`history.replaceState`). The address then never claims to be a
      circuit that has since been edited, and Copy link is the one way to
-     share the current one.
+     share the current one. A link that is refused is removed too, after
+     its reason is shown, so a reload does not show the error again.
+   - The data goes into decompression 1 KiB at a time. Each engine then
+     hands back output in pieces small enough that the size limit is
+     checked before much memory is used, whatever the engine's own
+     buffering.
 4. **Copy link**, next to Export:
    - It builds the link from the page's own address and the current
      document, whichever sheet is open, as Export does.

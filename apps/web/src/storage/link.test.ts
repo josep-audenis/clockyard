@@ -33,23 +33,39 @@ test("a fragment without a circuit is not a link", async () => {
 
 test("a link that cannot be read is refused with the reason", async () => {
   const fragment = await linkFragment(read("and-gate.clockyard.json"));
+  const head = "circuit=1.".length;
   const refused = async (text: string) => {
     const result = await readLinkFragment(text);
     return result?.ok === false ? result.error : result;
   };
-  expect(await refused(fragment.slice(0, fragment.length / 2))).toBe("This link is cut short or damaged.");
+  const cut = "This link is cut short or damaged.";
+  // Cut short at every length modulo 4, as a chat tool might cut it.
+  for (const length of [101, 102, 103, 104]) expect(await refused(fragment.slice(0, head + length))).toBe(cut);
+  expect(await refused("circuit=1.")).toBe(cut); // no data at all
+  expect(await refused("circuit=1")).toBe(cut); // no version separator
   expect(await refused(`${fragment.slice(0, 20)}!${fragment.slice(21)}`)).toMatch(/characters a Clockyard link never has/);
   expect(await refused(fragment.replace("circuit=1.", "circuit=2."))).toMatch(/cannot read/);
-  expect(await refused("circuit=1")).toMatch(/cannot read/); // no version separator
+  // Bytes that decompress but are not UTF-8 text.
+  const latin1 = new Blob([new Uint8Array([0x7b, 0xff, 0x7d])]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+  expect(await refused(`circuit=1.${Buffer.from(await new Response(latin1).arrayBuffer()).toString("base64url")}`)).toBe(cut);
   expect(await refused(`circuit=1.${await deflate("not a circuit")}`)).toBe("This file is not valid JSON.");
   expect(await refused(`circuit=1.${await deflate("{}")}`)).toBeTypeOf("string"); // parseDocument's own reason
 });
 
-test("a small link that would expand past the size Import accepts is refused", async () => {
+test("text beyond ASCII survives a link", async () => {
+  const document = read("and-gate.clockyard.json");
+  document.metadata.name = "Puerta AND · ⚡ 🔌";
+  expect(await readLinkFragment(await linkFragment(document))).toEqual({ ok: true, document });
+});
+
+test("a small link that would expand past the size Import accepts is refused; up to it, it is read", async () => {
   const bomb = await deflate(" ".repeat(MAX_DOCUMENT_BYTES + 1));
   expect(bomb.length).toBeLessThan(20_000);
   expect(await readLinkFragment(`circuit=1.${bomb}`)).toEqual({
     ok: false,
     error: "This link opens to more than 10 MiB, too large to be a Clockyard circuit.",
   });
+  // Exactly the limit passes the size check and reaches parseDocument, which finds no JSON in it.
+  const full = await deflate(" ".repeat(MAX_DOCUMENT_BYTES));
+  expect(await readLinkFragment(`circuit=1.${full}`)).toEqual({ ok: false, error: "This file is not valid JSON." });
 });
