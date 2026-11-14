@@ -533,11 +533,12 @@ fn the_catch_example_holds_the_game_as_assembled_and_plays_it() {
     assert_eq!(source, CATCH.replace("\r\n", "\n"));
     assert_eq!(
         data,
-        assemble(CATCH),
-        "the words in scripts/reference-cpu.mjs"
+        assemble(source),
+        "the words in scripts/reference-cpu.mjs, as the editor checks them"
     );
     // With no keys the first block is caught and the second missed: 01 on the digits, halted.
-    let (mut sim, _) = Simulator::load(&description(&text)).expect("valid circuit");
+    let (mut sim, warnings) = Simulator::load(&description(&text)).expect("valid circuit");
+    assert_eq!(warnings, vec![], "loads without warnings");
     for _ in 0..100_000 {
         if read(&sim).h {
             break;

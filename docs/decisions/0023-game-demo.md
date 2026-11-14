@@ -105,9 +105,10 @@ looks natural. One that needs single pixels or square cells does not.
       - a miss stops the run with "Stopped: LED Halted lit".
 
       This closes the increment. *As built (step 2):* the second check
-      holds Right from the start, so the paddle ends at the right edge
-      and the first block is missed, an outcome that does not depend on
-      when the key lands.
+      holds Right right after Run, so the paddle ends at the right edge
+      and the first block is missed. The key only has to land within the
+      first block's first 27 of 31 steps, so the outcome does not depend
+      on exactly when.
 
 ## Alternatives considered
 

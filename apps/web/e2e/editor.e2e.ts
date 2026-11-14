@@ -1004,9 +1004,10 @@ test("memory-mapped I/O demo: the shipped CPU program shows the key held on the 
 });
 
 test("game demo: in Catch the first block is caught, a miss halts the run, and an arrow held moves the paddle (ADR 0023)", async ({ page }) => {
-  // The game runs in real time, a few seconds a block; the checks are outcomes, not the moment a key lands.
-  test.setTimeout(120_000);
-  const game = { timeout: 45_000 };
+  // The game runs in real time: about 3 s a block at full speed, three times that or more in a busy
+  // headless browser. The checks are outcomes, not the moment a key lands, so only the budget is long.
+  test.setTimeout(300_000);
+  const game = { timeout: 120_000 };
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("catch"));
   await expect(counter(page)).toHaveText("Cycle 0, clock low");
