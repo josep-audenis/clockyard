@@ -141,7 +141,17 @@ const HEX_DIGITS = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f, 
 
 // --- The main sheet -----------------------------------------------------------
 
-const program = "        LDI 5\n        ADI 3\n        OUT\n        HLT\n";
+// docs/reference-cpu.md, "draw the key held": the key's code on the digits, eight pixels at its byte.
+const program = [
+  "loop:   LDA 0xFF     ; KEY",
+  "        JZ loop      ; no key held",
+  "        STA 0xFC     ; HEX",
+  "        STA 0xFE     ; SPTR",
+  "        LDI 0xFF",
+  "        STA 0xFD     ; SDATA",
+  "        JMP loop",
+  "",
+].join("\n");
 
 const components = [
   // Clock and constants: XNOR and XOR of a net with itself are 1 and 0.
@@ -151,7 +161,7 @@ const components = [
   part("zero8", "merge", 14, 6, { fields: ones(8) }),
 
   // Fetch: ROM[PC] into IR, PC + 1 into PC.
-  part("rom", "rom", 22, 14, { label: "Program", width: 16, data: [0x1005, 0x6003, 0xb000, 0xc000], source: program }),
+  part("rom", "rom", 22, 14, { label: "Program", width: 16, data: [0x20ff, 0x9000, 0x30fc, 0x30fe, 0x10ff, 0x30fd, 0x8000], source: program }),
   part("romsplit", "split", 30, 14, { fields: [8, 8] }),
   chip("irl", "reg8", 36, 12, { label: "IR low" }),
   chip("irh", "reg8", 36, 20, { label: "IR high" }),
@@ -231,14 +241,14 @@ const components = [
   chip("rd3", "mux8", 116, 62, { label: "Read SDATA" }),
   chip("rd4", "mux8", 124, 62, { label: "Read HEX" }),
 
-  // The devices: the keyboard, a 64 x 32 screen, and HEX on two digits.
-  part("key", "keyboard", 0, 62, { label: "Keyboard" }),
-  part("screen", "screen", 96, 74, { label: "Screen", width: 8, addressWidth: 8, columns: 64 }),
+  // The devices, along the top where the sheet opens: the keyboard, HEX on two digits, a 64 x 32 screen.
+  part("key", "keyboard", 12, 1, { label: "Keyboard" }),
+  part("screen", "screen", 26, 0, { label: "Screen", width: 8, addressWidth: 8, columns: 64 }),
   part("hexsplit", "split", 120, 76, { fields: [4, 4] }),
   part("hexhighrom", "rom", 126, 74, { label: "High digit", width: 8, addressWidth: 4, data: HEX_DIGITS }),
   part("hexlowrom", "rom", 126, 82, { label: "Low digit", width: 8, addressWidth: 4, data: HEX_DIGITS }),
-  part("hexhigh", "seg7", 134, 76, { label: "HEX high" }),
-  part("hexlow", "seg7", 138, 76, { label: "HEX low" }),
+  part("hexhigh", "seg7", 17, 1, { label: "High" }),
+  part("hexlow", "seg7", 21, 1, { label: "Low" }),
 ];
 
 const clocked = ["irl", "irh", "pc", "t", "h", "a", "z", "c", "outr", "sptr", "hex"];

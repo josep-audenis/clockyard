@@ -814,8 +814,12 @@ test("run until an LED lights: an instruction step on the reference CPU, then ru
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
   await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  const at = await grid(page);
   const button = (name: string) => page.getByRole("button", { name, exact: true });
   const until = page.getByLabel("Run until");
+  await click(page, at(24.5, 16)); // the program ROM at (22,14)
+  await page.getByLabel("Assembly", { exact: true }).fill("LDI 5\nADI 3\nOUT\nHLT");
+  await button("Assemble").click();
   await page.getByLabel("Speed").selectOption("100");
   // Fetch is lit at reset: it goes dark and lights again as the next fetch begins, the clock high.
   await until.selectOption({ label: "Until LED Fetch lights" });
@@ -842,15 +846,15 @@ test("the program editor assembles into the ROM, lists errors by line, and the C
   await click(page, at(24.5, 16)); // the program ROM at (22,14)
   const source = inspector.getByLabel("Assembly", { exact: true });
   const listing = inspector.getByRole("region", { name: "Disassembly" });
-  await expect(source).toHaveValue(/LDI 5/);
-  await expect(listing).toContainText("00  LDI 5");
+  await expect(source).toHaveValue(/LDA 0xFF/); // the shipped program: draw the key held
+  await expect(listing).toContainText("00  LDA 255");
   // An error is listed by line and changes nothing.
   await source.fill("LDX 1");
   await button("Assemble").click();
   await expect(inspector.getByRole("alert")).toHaveText("Line 1: unknown instruction LDX");
   // The Contents box changes in the same render as the ROM's words: the error wrote nothing.
   const contents = inspector.getByLabel("Contents", { exact: true });
-  await expect(contents).toHaveValue(/^0x1005 0x6003/);
+  await expect(contents).toHaveValue(/^0x20FF 0x9000/);
   // A new program: 7 + 2.
   await source.fill("LDI 7\nADI 2\nOUT\nHLT");
   await button("Assemble").click();
@@ -859,8 +863,8 @@ test("the program editor assembles into the ROM, lists errors by line, and the C
   await expect(listing).toContainText("01  ADI 2");
   // Undo brings back the old program, in the box as well as in the ROM.
   await button("Undo").click();
-  await expect(source).toHaveValue(/LDI 5/);
-  await expect(listing).toContainText("00  LDI 5");
+  await expect(source).toHaveValue(/LDA 0xFF/);
+  await expect(listing).toContainText("00  LDA 255");
   // Words edited directly no longer match the kept source, and the editor says so. 7 + 2 again, by hand.
   await contents.fill("0x1007 0x6002 0xB000 0xC000");
   await contents.blur();
@@ -965,4 +969,35 @@ test("devices demo: a held key shows its code on two digits and is drawn on the 
   const contents = page.getByRole("region", { name: "Screen contents" });
   await expect(contents).toContainText("0x00 0x41 0x00 0x00 0x00 0x00 0x00 0x00");
   await expect(readout(page, "Keyboard Keys")).toHaveText("Keyboard Keys: 0 (0x00)");
+});
+
+test("memory-mapped I/O demo: the shipped CPU program shows the key held on the digits and draws it on the screen (ADR 0022)", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  const at = await grid(page);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  await page.getByLabel("Speed").selectOption("1000");
+  await button("Run").click();
+  // The devices open in view along the top of the sheet; the program waits on KEY until a key is held.
+  await click(page, at(14, 2)); // the keyboard at (12,1)
+  await expect(status(page)).toContainText("The keyboard has the keys");
+  await page.keyboard.down("Shift");
+  await page.keyboard.down("A");
+  await expect(readout(page, "Keyboard Keyboard")).toHaveText("Keyboard Keyboard: 65 (0x41)");
+  await expect(readout(page, "Seven-segment High")).toHaveText("Seven-segment High: 102 (0x66)"); // 4
+  await expect(readout(page, "Seven-segment Low")).toHaveText("Seven-segment Low: 6 (0x06)"); // 1
+  // HEX is stored first; SDATA three instructions later, so hold through a few more of them.
+  const cycle = async () => Number(/\d+/.exec((await counter(page).textContent()) ?? "")?.[0]);
+  const shown = await cycle();
+  await expect.poll(cycle).toBeGreaterThanOrEqual(shown + 8);
+  await page.keyboard.up("A");
+  await page.keyboard.up("Shift");
+  await page.keyboard.press("Escape");
+  await button("Pause").click();
+  // Released, the program waits again and the digits keep the last key.
+  await expect(readout(page, "Seven-segment High")).toHaveText("Seven-segment High: 102 (0x66)");
+  await click(page, at(35, 5)); // the screen at (26,0)
+  const contents = page.getByRole("region", { name: "Screen contents" });
+  await expect(contents).toContainText("0x00 0xFF 0x00 0x00 0x00 0x00 0x00 0x00");
 });

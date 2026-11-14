@@ -73,12 +73,15 @@
           "label": "Program",
           "width": 16,
           "data": [
-            4101,
-            24579,
-            45056,
-            49152
+            8447,
+            36864,
+            12540,
+            12542,
+            4351,
+            12541,
+            32768
           ],
-          "source": "        LDI 5\n        ADI 3\n        OUT\n        HLT\n"
+          "source": "loop:   LDA 0xFF     ; KEY\n        JZ loop      ; no key held\n        STA 0xFC     ; HEX\n        STA 0xFE     ; SPTR\n        LDI 0xFF\n        STA 0xFD     ; SDATA\n        JMP loop\n"
         }
       },
       {
@@ -1207,8 +1210,8 @@
         "id": "key",
         "kind": "keyboard",
         "position": {
-          "x": 0,
-          "y": 62
+          "x": 12,
+          "y": 1
         },
         "rotation": 0,
         "props": {
@@ -1219,8 +1222,8 @@
         "id": "screen",
         "kind": "screen",
         "position": {
-          "x": 96,
-          "y": 74
+          "x": 26,
+          "y": 0
         },
         "rotation": 0,
         "props": {
@@ -1313,24 +1316,24 @@
         "id": "hexhigh",
         "kind": "seg7",
         "position": {
-          "x": 134,
-          "y": 76
+          "x": 17,
+          "y": 1
         },
         "rotation": 0,
         "props": {
-          "label": "HEX high"
+          "label": "High"
         }
       },
       {
         "id": "hexlow",
         "kind": "seg7",
         "position": {
-          "x": 138,
-          "y": 76
+          "x": 21,
+          "y": 1
         },
         "rotation": 0,
         "props": {
-          "label": "HEX low"
+          "label": "Low"
         }
       }
     ],

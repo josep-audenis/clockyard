@@ -369,7 +369,7 @@ fn reset_clears_the_devices() {
 }
 
 #[test]
-fn the_shipped_program_is_its_source_and_shows_8_after_eight_steps() {
+fn the_shipped_program_is_the_key_program_and_draws_the_key_held() {
     let text = example("reference-cpu");
     let document: Value = serde_json::from_str(&text).expect("valid project file");
     let rom = document["circuit"]["components"]
@@ -382,14 +382,16 @@ fn the_shipped_program_is_its_source_and_shows_8_after_eight_steps() {
     let data: Vec<u16> =
         serde_json::from_value(rom["props"]["data"].clone()).expect("the ROM's words");
     assert_eq!(assemble(source), data);
+    assert_eq!(data, assemble(KEY_PROGRAM));
+    // The file as shipped, not a copy with the ROM replaced: 'A' held shows 41 and lights byte 0x41.
     let (mut sim, _) = Simulator::load(&description(&text)).expect("valid circuit");
-    for _ in 0..8 {
-        sim.step_cycle();
+    sim.set_input("key", u32::from(b'A')).expect("the keyboard");
+    for _ in 0..20 {
+        assert_eq!(sim.step_cycle(), None, "settles");
     }
-    assert_eq!(
-        (value(&sim, "outled", "in"), value(&sim, "haltled", "in")),
-        (8, 1)
-    );
+    let digits = (value(&sim, "hexhigh", "seg"), value(&sim, "hexlow", "seg"));
+    assert_eq!(digits, (HEX_DIGITS[4], HEX_DIGITS[1]));
+    assert_eq!(sim.memory("screen").expect("the screen")[0x41], 0xFF);
 }
 
 #[test]
