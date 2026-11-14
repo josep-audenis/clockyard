@@ -20,7 +20,8 @@ against its specification after every cycle, its assembler, *Run until* an
 LED for instruction steps (and breakpoints the user wires), and the program
 editor (PRs #42 and #47–#51). The demo, a program that sums 1 to 5 through RAM and shows 15
 on the output, runs in Playwright. Phase 5 (the computer-building sandbox) is
-in progress: devices first (ADR 0021).
+in progress: devices (ADR 0021) and memory-mapped I/O on the reference CPU
+(ADR 0022) are done.
 
 **Phase 3 — ✅ done.** Clocks, flip-flops and virtual time (ADR 0017): the
 engine and parts (PR #40), then run/pause/step/reset, the cycle counter and
@@ -374,15 +375,23 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
 
    Demo (done): open `devices`, Run, click the keyboard and hold Shift+A:
    the digits show 41 and the screen lights the code's pixels.
-2. ⬜ Memory-mapped I/O on the reference CPU, with no new instructions
+2. ✅ Memory-mapped I/O on the reference CPU, with no new instructions
    (ADR 0022, accepted): data addresses `0xF0`–`0xFF` reach the keyboard,
    a screen through a pointer port, and a hex display.
    1. ✅ Specification, reference model, circuit and native tests: an
       I/O decoder ROM on the operand, `SPTR` and `HEX` registers, a read
       bus of multiplexers, and the keyboard, screen and digits on the
-      main sheet (below the CPU for now). The model is given the same
-      keys, and random programs aim at the I/O window too.
-   2. ⬜ Devices on the CPU sheet, the target program, Playwright, docs.
+      main sheet. The model is given the same keys, and random programs
+      aim at the I/O window too.
+   2. ✅ The devices in the default view: the screen along the top of
+      the CPU sheet, the keyboard and digits down its left, joined to the
+      read bus and the digit decoders by net labels rather than wires
+      across the sheet. The example's ROM ships "draw the key held";
+      Playwright holds a key and checks the digits and the screen.
+
+   Demo (done): open `reference-cpu`, set the speed to 100 Hz or more,
+   Run, click the keyboard and hold Shift+A: the program reads `KEY`, the
+   digits show 41, and eight pixels light at screen byte 0x41.
 3. ⬜ The game demo, chosen once 1 and 2 work.
 4. ⬜ Sharing through a URL fragment.
 5. ⬜ Challenges checked by behavioural tests.
@@ -398,10 +407,9 @@ analysis, plugin system, full game campaign during the MVP.
 ## Next increment
 
 Phase 4 is built, with its demo. Phase 5 is planned in ADR 0020 (accepted);
-its first increment, devices (ADR 0021), is built with its demo. Next is
-increment 2, memory-mapped I/O on the reference CPU, planned in ADR 0022
-(accepted): step 2, the devices placed where the default view shows them,
-the target program, Playwright and docs, is next.
+its first two increments, devices (ADR 0021) and memory-mapped I/O on the
+reference CPU (ADR 0022), are built with their demos. Next is increment 3,
+the game demo: choosing the game, in its own ADR.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).
