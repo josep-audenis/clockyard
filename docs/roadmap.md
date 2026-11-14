@@ -407,7 +407,14 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       on Halted; with Right held the paddle goes to the right edge and
       the first block is missed. Demo: import `catch`, set the speed to
       10,000, Run, click the keyboard and steer with Left and Right.
-4. ⬜ Sharing through a URL fragment.
+4. ⬜ Sharing through a URL fragment (ADR 0024, accepted): the document
+   compressed into `#circuit=1.…`, opened through the same validation as
+   Import, and a Copy link button next to Export.
+   1. ✅ The encoding (`apps/web/src/storage/link.ts`): every example
+      round-trips through a link (the `catch` CPU and game in about 7,300
+      characters); a link cut short, damaged, of an unknown encoding or
+      expanding past 10 MiB is refused with its reason.
+   2. ⬜ Opening links and Copy link in the editor, Playwright, docs.
 5. ⬜ Challenges checked by behavioural tests.
 6. ⬜ Waveforms.
 7. ⬜ Library and teaching: blueprints, bundled designs, material.
@@ -423,8 +430,8 @@ analysis, plugin system, full game campaign during the MVP.
 Phase 4 is built, with its demo. Phase 5 is planned in ADR 0020 (accepted);
 its first three increments, devices (ADR 0021), memory-mapped I/O on the
 reference CPU (ADR 0022) and the game demo, Catch (ADR 0023), are built with
-their demos. Next is increment 4, sharing through a URL fragment, which
-needs its ADR first.
+their demos. Increment 4, sharing through a URL fragment (ADR 0024,
+accepted), has its encoding; step 2, the editor's side, is next.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).

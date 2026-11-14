@@ -28,7 +28,7 @@ import {
 import { deleteRefusal, liveDefinitions, mainCircuit, useEditor } from "../editor/store";
 import { assemble, connectEngine, control, disassemble, readMemory, setSpeed, setUntil, SPEEDS, useSim } from "../simulation/sync";
 import type { AsmError } from "../simulation/protocol";
-import { FORMAT_VERSION, parseDocument, serializeDocument } from "../storage/file";
+import { FORMAT_VERSION, MAX_DOCUMENT_BYTES, parseDocument, serializeDocument } from "../storage/file";
 
 /** `label` is not a part: it places a named junction (ADR 0015). */
 /** A parts-panel tile; `width` arms the part that wide (a Register is an 8-bit D flip-flop). */
@@ -101,9 +101,6 @@ const kindName = (part: Pick<CircuitComponent, "kind" | "definition" | "props">)
 const SHORTCUTS = new Map(LIBRARY.flatMap(({ parts }) => parts.flatMap(({ kind, key }) => (key ? [[key, kind] as const] : []))));
 /** The platform's name for the shortcut modifier (design system Kbd rule). */
 const MOD = navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl";
-/** Larger files are refused before reading; real circuits are far smaller. */
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
-
 export function App() {
   useEffect(() => connectEngine(), []);
 
@@ -162,7 +159,7 @@ function FileActions() {
   };
 
   const importFile = async (file: File) => {
-    if (file.size > MAX_FILE_BYTES) return setError(`Could not open ${file.name}: it is too large to be a Clockyard circuit.`);
+    if (file.size > MAX_DOCUMENT_BYTES) return setError(`Could not open ${file.name}: it is too large to be a Clockyard circuit.`);
     const result = parseDocument(await file.text());
     if (!result.ok) return setError(`Could not open ${file.name}: ${result.error}`);
     const state = useEditor.getState();

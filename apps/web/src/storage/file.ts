@@ -38,14 +38,18 @@ const FIXED_NAMES: Partial<Record<PartKind, string>> = { clock: "clock", seg7: "
 
 export type ParseResult = { ok: true; document: CircuitDocument } | { ok: false; error: string };
 
-export function serializeDocument(document: CircuitDocument): string {
+/** The largest document Import or a link accepts, in bytes of JSON; real circuits are far smaller. */
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+/** `indent` 0 gives compact JSON, as a link carries (ADR 0024). */
+export function serializeDocument(document: CircuitDocument, indent = 2): string {
   // Wires to deleted pins stay in the editor for undo only (ADR 0013, amended).
   const { circuit, definitions } = document;
   const clean = (c: Circuit) => withoutDeletedPins(c, definitions);
   return JSON.stringify(
     { ...document, circuit: clean(circuit), definitions: definitions.map((d) => ({ ...d, circuit: clean(d.circuit) })) },
     null,
-    2,
+    indent,
   );
 }
 
