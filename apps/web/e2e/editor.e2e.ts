@@ -1002,3 +1002,39 @@ test("memory-mapped I/O demo: the shipped CPU program shows the key held on the 
   await expect(contents).toContainText("0x00 0xFF 0x00 0x00 0x00 0x00 0x00 0x00");
   await expect(contents).not.toContainText(/0xFF[\s\S]*0xFF/); // byte 0x41 only
 });
+
+test("game demo: in Catch the first block is caught, a miss halts the run, and an arrow held moves the paddle (ADR 0023)", async ({ page }) => {
+  // The game runs in real time: about 3 s a block at full speed, three times that or more in a busy
+  // headless browser. The checks are outcomes, not the moment a key lands, so only the budget is long.
+  test.setTimeout(300_000);
+  const game = { timeout: 120_000 };
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("catch"));
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  const at = await grid(page);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const halted = readout(page, "LED Halted");
+  const contents = page.getByRole("region", { name: "Screen contents" });
+  await page.getByLabel("Speed").selectOption("10000");
+  await page.getByLabel("Run until").selectOption({ label: "Until LED Halted lights" });
+  // No keys: the first block falls in the paddle's lane 3 and scores; the second, in lane 0, is missed.
+  await button("Run").click();
+  await expect(readout(page, "Seven-segment Low")).toHaveText("Seven-segment Low: 6 (0x06)", game); // 1
+  await expect(halted).toHaveText("LED Halted: on", game);
+  await expect(page.locator(".status-live")).toContainText("Stopped: LED Halted lit.");
+  await expect(readout(page, "Seven-segment High")).toHaveText("Seven-segment High: 63 (0x3F)"); // 0
+  await click(page, at(35, 5)); // the screen at (25,0)
+  await expect(contents).toContainText("0x3C 0x00 0x00 0xFF 0x00 0x00 0x00 0x00"); // row 31: block, paddle
+  // Again, with Right held: the paddle moves to the right edge, so the first block is missed.
+  await button("Reset").click();
+  await expect(halted).toHaveText("LED Halted: off");
+  await button("Run").click();
+  await click(page, at(3, 12)); // the keyboard at (1,11)
+  await expect(status(page)).toContainText("The keyboard has the keys");
+  await page.keyboard.down("ArrowRight");
+  await expect(halted).toHaveText("LED Halted: on", game);
+  await page.keyboard.up("ArrowRight");
+  await expect(readout(page, "Seven-segment Low")).toHaveText("Seven-segment Low: 63 (0x3F)"); // 0
+  await click(page, at(35, 5));
+  await expect(contents).toContainText("0x00 0x00 0x00 0x3C 0x00 0x00 0x00 0xFF"); // the block in lane 3, the paddle in lane 7
+});

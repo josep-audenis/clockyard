@@ -104,7 +104,11 @@ looks natural. One that needs single pixels or square cells does not.
       - holding an arrow moves the paddle on the screen;
       - a miss stops the run with "Stopped: LED Halted lit".
 
-      This closes the increment.
+      This closes the increment. *As built (step 2):* the second check
+      holds Right right after Run, so the paddle ends at the right edge
+      and the first block is missed. The key only has to land within the
+      first block's first 27 of 31 steps, so the outcome does not depend
+      on exactly when.
 
 ## Alternatives considered
 

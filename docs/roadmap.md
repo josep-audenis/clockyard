@@ -20,8 +20,8 @@ against its specification after every cycle, its assembler, *Run until* an
 LED for instruction steps (and breakpoints the user wires), and the program
 editor (PRs #42 and #47–#51). The demo, a program that sums 1 to 5 through RAM and shows 15
 on the output, runs in Playwright. Phase 5 (the computer-building sandbox) is
-in progress: devices (ADR 0021) and memory-mapped I/O on the reference CPU
-(ADR 0022) are done.
+in progress: devices (ADR 0021), memory-mapped I/O on the reference CPU
+(ADR 0022) and the game demo, Catch (ADR 0023), are done.
 
 **Phase 3 — ✅ done.** Clocks, flip-flops and virtual time (ADR 0017): the
 engine and parts (PR #40), then run/pause/step/reset, the cycle counter and
@@ -392,7 +392,7 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
    Demo (done): open `reference-cpu`, set the speed to 100 Hz or more,
    Run, click the keyboard and hold Shift+A: the program reads `KEY`, the
    digits show 41, and eight pixels light at screen byte 0x41.
-3. ⬜ The game demo (ADR 0023, accepted): Catch, blocks falling in 8
+3. ✅ The game demo (ADR 0023, accepted): Catch, blocks falling in 8
    lanes onto a paddle moved with the arrow keys, score on `HEX`, a miss
    halts. Shipped as the `catch` example.
    1. ✅ Rules (`docs/reference-cpu.md`, "Catch"), the program
@@ -400,7 +400,13 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       the model with scripted keys: a catch scores and speeds up, the
       paddle stops at both edges, a miss halts, Reset plays the same game
       again. The CPU still runs at about 10,000 cycles per second.
-   2. ⬜ The `catch` example, Playwright, docs.
+   2. ✅ The `catch` example, generated with `reference-cpu` from the same
+      circuit and checked by `--check`; a native test plays the file as
+      shipped. Playwright at 10,000: with no keys the first block is
+      caught (01 on the digits) and the second missed, stopping the run
+      on Halted; with Right held the paddle goes to the right edge and
+      the first block is missed. Demo: import `catch`, set the speed to
+      10,000, Run, click the keyboard and steer with Left and Right.
 4. ⬜ Sharing through a URL fragment.
 5. ⬜ Challenges checked by behavioural tests.
 6. ⬜ Waveforms.
@@ -415,10 +421,10 @@ analysis, plugin system, full game campaign during the MVP.
 ## Next increment
 
 Phase 4 is built, with its demo. Phase 5 is planned in ADR 0020 (accepted);
-its first two increments, devices (ADR 0021) and memory-mapped I/O on the
-reference CPU (ADR 0022), are built with their demos. Next is increment 3,
-the game demo: ADR 0023 (accepted) chooses Catch; step 2, the `catch`
-example, Playwright and docs, is next.
+its first three increments, devices (ADR 0021), memory-mapped I/O on the
+reference CPU (ADR 0022) and the game demo, Catch (ADR 0023), are built with
+their demos. Next is increment 4, sharing through a URL fragment, which
+needs its ADR first.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).
@@ -437,6 +443,10 @@ Rough edges still open:
 - What Catch showed the reference CPU lacks, for a later richer-CPU ADR
   (ADR 0023): bit operations, to draw single pixels rather than whole
   bytes; and a call, so drawing code is shared rather than repeated.
+- Catch reads `KEY` once per step, so a quick tap can be missed while
+  blocks fall slowly, and a held key moves the paddle several lanes in a
+  moment once they fall fast. Moving only on a new press would fix it, at
+  the cost of tapping once per lane.
 - The reference CPU's sheet is dense, with long wires; its data RAM sits
   past the right edge at the default view.
 
