@@ -429,3 +429,88 @@ fn run_until_stops_where_the_specification_says_and_never_depends_on_how_the_run
         assert_eq!(split.time(), 15, "calls of {size} ticks");
     }
 }
+
+/// scripts/catch.asm, the game of ADR 0023 (rules: docs/reference-cpu.md, "Catch").
+const CATCH: &str = include_str!("../../../scripts/catch.asm");
+const LEFT: u8 = 0x82;
+const RIGHT: u8 = 0x83;
+const BLOCK: u8 = 0x3C;
+
+/// The screen's lit bytes, by address.
+fn lit(state: &State) -> Vec<(usize, u8)> {
+    (0..256)
+        .filter(|&i| state.screen[i] != 0)
+        .map(|i| (i, state.screen[i]))
+        .collect()
+}
+
+#[test]
+fn catch_scores_the_first_block_speeds_up_and_halts_on_a_miss() {
+    // No keys: the first block falls in the paddle's lane 3 and is caught; the second, in lane
+    // 3 + 5 - 8 = 0, is missed and left where it landed.
+    let program = assemble(CATCH);
+    assert!(
+        program.len() <= 256,
+        "fits the ROM: {} words",
+        program.len()
+    );
+    let state = check(&example("reference-cpu"), &program, 100_000);
+    assert!(state.h, "halts");
+    assert_eq!(state.hex, 1, "one point");
+    assert_eq!(state.ram[3], 100 - 8, "the second block fell faster");
+    assert_eq!(lit(&state), [(248, BLOCK), (251, 0xFF)]);
+}
+
+#[test]
+fn the_catch_paddle_stops_at_both_edges() {
+    // Held from the start, an arrow moves the paddle a lane per step until the edge; the first
+    // block, in lane 3, is then missed.
+    let text = example("reference-cpu");
+    let program = assemble(CATCH);
+    for (key, lane) in [(LEFT, 0), (RIGHT, 7)] {
+        let state = check_keys(&text, &program, 100_000, |_| key);
+        assert!(state.h, "halts");
+        assert_eq!((state.ram[0], state.hex), (lane, 0));
+        let mut shown = vec![(248 + usize::from(lane), 0xFF), (251, BLOCK)];
+        shown.sort();
+        assert_eq!(lit(&state), shown);
+    }
+}
+
+#[test]
+fn moving_the_paddle_catches_a_block_in_another_lane() {
+    // Left held from the first catch on: the paddle reaches lane 0 for the second block, then
+    // stays there while the third falls in lane 5.
+    let program = assemble(CATCH);
+    let mut model = Model::new(&program);
+    let mut first = 0;
+    while model.state.ram[4] == 0 {
+        model.cycle();
+        first += 1;
+    }
+    let keys = |cycle: usize| if cycle > first { LEFT } else { 0 };
+    let state = check_keys(&example("reference-cpu"), &program, 100_000, keys);
+    assert!(state.h, "halts");
+    assert_eq!((state.hex, state.ram[0], state.ram[3]), (2, 0, 100 - 16));
+    assert_eq!(lit(&state), [(248, 0xFF), (253, BLOCK)]);
+}
+
+#[test]
+fn reset_starts_catch_again() {
+    // The circuit alone: a game to its end, Reset, and the same game again.
+    let text = example("reference-cpu");
+    let program = assemble(CATCH);
+    let mut sim = cpu(&text, &program);
+    let play = |sim: &mut Simulator| {
+        while !read(sim).h {
+            assert_eq!(sim.step_cycle(), None, "settles");
+        }
+        (sim.time(), read(sim))
+    };
+    let first = play(&mut sim);
+    assert_eq!(sim.reset(), None, "settles");
+    assert_eq!(read(&sim), Model::new(&program).state);
+    let second = play(&mut sim);
+    assert_eq!(second.1, first.1);
+    assert_eq!(second.0, first.0, "as many cycles");
+}
