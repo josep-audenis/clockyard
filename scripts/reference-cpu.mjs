@@ -225,11 +225,11 @@ const components = [
   part("sdwe", "and", 74, 80),
   chip("sptr", "reg8", 84, 66, { label: "SPTR" }),
   chip("hex", "reg8", 84, 76, { label: "HEX" }),
-  chip("rd0", "mux8", 92, 62, { label: "I/O or RAM" }),
-  chip("rd1", "mux8", 100, 62, { label: "KEY" }),
-  chip("rd2", "mux8", 108, 62, { label: "SPTR" }),
-  chip("rd3", "mux8", 116, 62, { label: "SDATA" }),
-  chip("rd4", "mux8", 124, 62, { label: "HEX" }),
+  chip("rd0", "mux8", 92, 62, { label: "Read I/O or RAM" }),
+  chip("rd1", "mux8", 100, 62, { label: "Read KEY" }),
+  chip("rd2", "mux8", 108, 62, { label: "Read SPTR" }),
+  chip("rd3", "mux8", 116, 62, { label: "Read SDATA" }),
+  chip("rd4", "mux8", 124, 62, { label: "Read HEX" }),
 
   // The devices: the keyboard, a 64 x 32 screen, and HEX on two digits.
   part("key", "keyboard", 0, 62, { label: "Keyboard" }),

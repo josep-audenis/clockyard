@@ -285,16 +285,16 @@ fn random_programs_run_as_specified() {
         seed ^= seed << 17;
         seed
     };
-    for i in 0..200 {
-        // 256 raw words, reserved opcodes and bits included. In half the programs operands stay
-        // within 0-15, so stores and loads meet the same RAM bytes and jumps stay near the start.
+    for i in 0..200u64 {
+        // 256 raw words, reserved opcodes and bits included. Operands: any value in even programs;
+        // 0x00-0x0F when i % 4 == 1, so stores and loads meet the same RAM bytes and jumps stay near
+        // the start; 0xF0-0xFF when i % 4 == 3, so the devices are met often.
         let window = if i % 2 == 0 { 0xFFFF } else { 0xF00F };
-        // The other half put operands in the I/O window, 0xF0-0xFF, so devices are met often.
-        let window = if i % 4 == 1 { 0xF00F } else { window };
         let io = if i % 4 == 3 { 0x00F0 } else { 0 };
         let program: Vec<u16> = (0..256).map(|_| (next() as u16 & window) | io).collect();
         // A key code that changes every few cycles, from a hash of the cycle and the program.
-        let keys = move |cycle: usize| (((cycle / 3 + i) * 0x9E37_79B9) >> 8) as u8;
+        let keys =
+            move |cycle: usize| ((cycle as u64 / 3 + i).wrapping_mul(0x9E37_79B9) >> 8) as u8;
         check_keys(&text, &program, 64, keys);
     }
 }
@@ -304,92 +304,68 @@ fn io_devices_run_as_specified() {
     let text = example("reference-cpu");
     let programs = [
         // Every device written and read back; ADD and SUB read devices too.
-        "LDI 0x2A
-STA 0xFC
-LDI 7
-STA 0xFE
-LDI 0x81
-STA 0xFD
-LDI 0
-LDA 0xFC
-OUT
-LDA 0xFE
-OUT
-LDA 0xFD
-OUT
-ADD 0xFD
-SUB 0xFC
-OUT
-HLT",
+        "LDI 0x2A\nSTA 0xFC\nLDI 7\nSTA 0xFE\nLDI 0x81\nSTA 0xFD\nLDI 0\nLDA 0xFC\nOUT\nLDA 0xFE\nOUT\nLDA 0xFD\nOUT\nADD 0xFD\nSUB 0xFC\nOUT\nHLT",
         // The pointer moves; each byte keeps its value; a load from SDATA follows the pointer.
-        "LDI 255
-STA 0xFE
-STA 0xFD
-LDI 0
-STA 0xFE
-LDI 1
-STA 0xFD
-LDI 255
-STA 0xFE
-LDA 0xFD
-OUT
-HLT",
+        "LDI 255\nSTA 0xFE\nSTA 0xFD\nLDI 0\nSTA 0xFE\nLDI 1\nSTA 0xFD\nLDI 255\nSTA 0xFE\nLDA 0xFD\nOUT\nHLT",
         // Stores to KEY and the reserved addresses change nothing; loads from them read 0, and RAM is untouched.
-        "LDI 9
-STA 0xFF
-STA 0xF0
-STA 0xFB
-STA 0xEF
-LDA 0xF0
-OUT
-LDA 0xFB
-ADD 0xEF
-OUT
-HLT",
-        // A device store just before HLT lands; nothing after HLT does.
-        "LDI 3
-STA 0xFC
-HLT
-STA 0xFE
-STA 0xFD",
+        "LDI 9\nSTA 0xFF\nSTA 0xF0\nSTA 0xFB\nSTA 0xEF\nLDA 0xF0\nOUT\nLDA 0xFB\nADD 0xEF\nOUT\nHLT",
+        // A device store just before HLT lands.
+        "LDI 3\nSTA 0xFC\nHLT",
     ];
-    for source in programs {
-        assert!(check(&text, &assemble(source), 64).h, "{source} halts");
-    }
-    let state = check(&text, &assemble(programs[0]), 64);
-    assert_eq!(
-        (state.hex, state.sptr, state.screen[7], state.out),
-        (0x2A, 7, 0x81, 0xD8)
-    );
-    let state = check(&text, &assemble(programs[2]), 64);
-    assert_eq!(
-        (state.out, state.ram[0xEF], state.ram[0xF0], state.ram[0xFF]),
-        (9, 9, 0, 0)
-    );
+    let states: Vec<State> = programs
+        .iter()
+        .map(|source| {
+            let state = check(&text, &assemble(source), 64);
+            assert!(state.h, "{source} halts");
+            state
+        })
+        .collect();
+    let s = &states[0];
+    assert_eq!((s.hex, s.sptr, s.screen[7], s.out), (0x2A, 7, 0x81, 0xD8));
+    let s = &states[1];
+    assert_eq!((s.screen[255], s.screen[0], s.out), (255, 1, 255));
+    let s = &states[2];
+    assert_eq!((s.out, s.ram[0xEF], s.ram[0xF0], s.ram[0xFF]), (9, 9, 0, 0));
+    assert_eq!(states[3].hex, 3);
 }
+
+/// docs/reference-cpu.md, "draw the key held".
+const KEY_PROGRAM: &str =
+    "loop: LDA 0xFF\nJZ loop\nSTA 0xFC\nSTA 0xFE\nLDI 0xFF\nSTA 0xFD\nJMP loop";
 
 #[test]
 fn the_key_program_draws_the_key_held() {
-    // docs/reference-cpu.md, "draw the key held": nothing until a key, then its code on the digits
-    // and eight pixels at its byte. 'A' is held from cycle 20 to 39, then nothing, then '0'.
+    // Nothing until a key, then its code on the digits and eight pixels at its byte. 'A' is held
+    // from cycle 20 to 39, then nothing, then '0'.
     let text = example("reference-cpu");
-    let program = "loop:   LDA 0xFF
-        JZ loop
-        STA 0xFC
-        STA 0xFE
-        LDI 0xFF
-        STA 0xFD
-        JMP loop
-";
     let keys = |cycle: usize| match cycle {
         20..40 => b'A',
         60..80 => b'0',
         _ => 0,
     };
-    let state = check_keys(&text, &assemble(program), 60, keys);
+    let state = check_keys(&text, &assemble(KEY_PROGRAM), 60, keys);
     assert_eq!((state.hex, state.sptr), (b'0', b'0'));
     assert_eq!((state.screen[0x41], state.screen[0x30]), (0xFF, 0xFF));
     assert_eq!(state.screen.iter().filter(|&&b| b != 0).count(), 2);
+}
+
+#[test]
+fn reset_clears_the_devices() {
+    // Reset (Machine section): SPTR, HEX and every screen byte back to 0, as at load.
+    let text = example("reference-cpu");
+    let program = assemble(KEY_PROGRAM);
+    let mut sim = cpu(&text, &program);
+    sim.set_input("key", u32::from(b'A')).expect("the keyboard");
+    for _ in 0..40 {
+        assert_eq!(sim.step_cycle(), None, "settles");
+    }
+    let drawn = read(&sim);
+    assert_eq!(
+        (drawn.hex, drawn.sptr, drawn.screen[0x41]),
+        (b'A', b'A', 0xFF)
+    );
+    assert_eq!(sim.reset(), None, "settles");
+    assert_eq!(read(&sim), Model::new(&program).state);
 }
 
 #[test]

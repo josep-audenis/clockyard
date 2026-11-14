@@ -94,8 +94,9 @@ writes the RAM, and a load there never reads it.
   a program sees a new press by comparing with the code it read before.
   Key codes are those of ADR 0021: printable ASCII as itself, Enter 13,
   Backspace 8, Escape 27, arrows `0x80` up to `0x83` right.
-- Writes take effect on the execute cycle's rising edge, as RAM stores do;
-  `SDATA` uses `SPTR` as it was before that edge.
+- Writes take effect on the execute cycle's rising edge, as RAM stores do.
+  An instruction stores at most once, so `SDATA` always uses the `SPTR`
+  an earlier instruction set.
 
 ## Timing
 

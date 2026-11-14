@@ -35,6 +35,9 @@ the places written into the program.
    test: the operand's top four bits are all 1. The RAM is still a
    256-byte part, but a store to an I/O address never writes it, and a
    load from one never reads it.
+   - *As built (step 1):* the circuit decodes the operand with a 256-word
+     ROM, one word of select bits per data address, as the control ROM
+     decodes opcodes. The test above is what its words encode.
 
 2. **Four devices, at fixed addresses.** They are reached by the existing
    `LDA`, `STA`, `ADD` and `SUB`.
