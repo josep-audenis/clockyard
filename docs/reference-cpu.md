@@ -178,3 +178,35 @@ loop:   OUT
 done:   OUT
         HLT
 ```
+
+## Catch
+
+The game demo of ADR 0023, a program of 89 words in
+[`scripts/catch.asm`](../scripts/catch.asm). Its native tests run it on
+the circuit and this page's model together, with keys scripted cycle by
+cycle.
+
+- **Play:** blocks (`0x3C`) fall one row at a time, one block at a time,
+  in one of the 8 lanes (the 8 bytes of a row). The paddle (`0xFF`) sits
+  in row 31 (bytes 248–255). Left (`0x82`) and Right (`0x83`) move it one
+  lane per step while held, and it stops at the edges.
+- **Catch:** a block reaching row 31 reads `SDATA` there. If the paddle's
+  byte is there, the score goes up by 1 and is shown on `HEX` (in hex),
+  and the next block falls faster.
+- **Miss:** if not, the block is drawn where it landed and the program
+  halts. Reset starts a new game.
+- **Lanes:** the paddle starts in lane 3 and the first block falls there,
+  so the first point needs no keys. Each later block falls 5 lanes on,
+  modulo 8: 3, 0, 5, 2, 7, 4, 1, 6, and again.
+- **Pace:** each step waits in a loop of 100 rounds of 5 instructions, so
+  one step is a little over 1,000 cycles: about 3 s for a block to fall at
+  the 10,000 setting. Each catch takes 8 rounds off, down to 20.
+
+| RAM | Holds |
+|-----|-------|
+| `0` | the paddle's lane, 0–7 |
+| `1` | the block's screen byte |
+| `2` | the next block's lane |
+| `3` | rounds of the wait loop per step |
+| `4` | the score |
+| `5`, `6` | scratch |

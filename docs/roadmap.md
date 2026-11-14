@@ -392,7 +392,15 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
    Demo (done): open `reference-cpu`, set the speed to 100 Hz or more,
    Run, click the keyboard and hold Shift+A: the program reads `KEY`, the
    digits show 41, and eight pixels light at screen byte 0x41.
-3. ⬜ The game demo, chosen once 1 and 2 work.
+3. ⬜ The game demo (ADR 0023, accepted): Catch, blocks falling in 8
+   lanes onto a paddle moved with the arrow keys, score on `HEX`, a miss
+   halts. Shipped as the `catch` example.
+   1. ✅ Rules (`docs/reference-cpu.md`, "Catch"), the program
+      (`scripts/catch.asm`, 89 words) and native tests on the circuit and
+      the model with scripted keys: a catch scores and speeds up, the
+      paddle stops at both edges, a miss halts, Reset plays the same game
+      again. The CPU still runs at about 10,000 cycles per second.
+   2. ⬜ The `catch` example, Playwright, docs.
 4. ⬜ Sharing through a URL fragment.
 5. ⬜ Challenges checked by behavioural tests.
 6. ⬜ Waveforms.
@@ -409,7 +417,8 @@ analysis, plugin system, full game campaign during the MVP.
 Phase 4 is built, with its demo. Phase 5 is planned in ADR 0020 (accepted);
 its first two increments, devices (ADR 0021) and memory-mapped I/O on the
 reference CPU (ADR 0022), are built with their demos. Next is increment 3,
-the game demo: choosing the game, in its own ADR.
+the game demo: ADR 0023 (accepted) chooses Catch; step 2, the `catch`
+example, Playwright and docs, is next.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).
@@ -425,6 +434,9 @@ Rough edges still open:
   it. Fitting on open would move the grid the Playwright tests click by.
 - The program editor is offered for 16-bit ROMs only, the reference CPU's
   word size; other machines would need their own assembler (ADR 0019).
+- What Catch showed the reference CPU lacks, for a later richer-CPU ADR
+  (ADR 0023): bit operations, to draw single pixels rather than whole
+  bytes; and a call, so drawing code is shared rather than repeated.
 - The reference CPU's sheet is dense, with long wires; its data RAM sits
   past the right edge at the default view.
 

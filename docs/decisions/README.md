@@ -28,6 +28,7 @@ replacement.
 | [0020](0020-phase-5-plan.md) | Phase 5: what comes first, and how it is split | Accepted |
 | [0021](0021-devices.md) | Devices: seven-segment display, pixel screen, keyboard | Accepted |
 | [0022](0022-memory-mapped-io.md) | Memory-mapped I/O on the reference CPU | Accepted |
+| [0023](0023-game-demo.md) | The game demo: Catch on the reference CPU | Accepted |
 
 ## Template
 
