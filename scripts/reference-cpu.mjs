@@ -1,5 +1,6 @@
 // Writes examples/reference-cpu.clockyard.json: the reference CPU of ADR 0019,
-// built from Clockyard parts, as specified in docs/reference-cpu.md.
+// built from Clockyard parts, as specified in docs/reference-cpu.md, with the
+// memory-mapped devices of ADR 0022.
 //
 //   node scripts/reference-cpu.mjs           writes the file
 //   node scripts/reference-cpu.mjs --check   fails if the file is not what it would write
@@ -124,6 +125,20 @@ const control = [
 ];
 const field = (name) => `cs.f${CONTROL.indexOf(name)}`;
 
+// --- The I/O decoder: one word per data address (ADR 0022) -------------------
+
+const IO = ["io", "key", "sptr", "sdata", "hex"];
+const ioBit = (name) => 1 << IO.indexOf(name);
+/** 0x00-0xEF are RAM (0); 0xF0-0xFF are I/O, and four of them name a device (docs/reference-cpu.md, I/O). */
+const iodec = Array.from({ length: 256 }, (_, n) => {
+  if (n < 0xf0) return 0;
+  const device = { 0xff: "key", 0xfe: "sptr", 0xfd: "sdata", 0xfc: "hex" }[n];
+  return ioBit("io") | (device ? ioBit(device) : 0);
+});
+const io = (name) => `ios.f${IO.indexOf(name)}`;
+/** Seven-segment patterns of the hex digits, segment a on bit 0 (ADR 0021). */
+const HEX_DIGITS = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f, 0x77, 0x7c, 0x39, 0x5e, 0x79, 0x71];
+
 // --- The main sheet -----------------------------------------------------------
 
 const program = "        LDI 5\n        ADI 3\n        OUT\n        HLT\n";
@@ -198,9 +213,35 @@ const components = [
   // Status outputs (docs/reference-cpu.md): Fetch = ¬T ∧ ¬H, Halted = H.
   part("fetchled", "led", 22, 36, { label: "Fetch" }),
   part("haltled", "led", 22, 46, { label: "Halted" }),
+
+  // I/O (ADR 0022): the operand decoded, RAM writes gated off above 0xEF, the device registers,
+  // and the read bus choosing RAM or a device for LDA, ADD and SUB.
+  part("iodec", "rom", 60, 62, { label: "I/O decoder", width: IO.length, addressWidth: 8, data: iodec }),
+  part("ios", "split", 68, 62, { fields: ones(IO.length) }),
+  part("nio", "not", 74, 62),
+  part("ramwe", "and", 80, 62),
+  part("sptren", "and", 74, 68),
+  part("hexen", "and", 74, 74),
+  part("sdwe", "and", 74, 80),
+  chip("sptr", "reg8", 84, 66, { label: "SPTR" }),
+  chip("hex", "reg8", 84, 76, { label: "HEX" }),
+  chip("rd0", "mux8", 92, 62, { label: "I/O or RAM" }),
+  chip("rd1", "mux8", 100, 62, { label: "KEY" }),
+  chip("rd2", "mux8", 108, 62, { label: "SPTR" }),
+  chip("rd3", "mux8", 116, 62, { label: "SDATA" }),
+  chip("rd4", "mux8", 124, 62, { label: "HEX" }),
+
+  // The devices: the keyboard, a 64 x 32 screen, and HEX on two digits.
+  part("key", "keyboard", 0, 62, { label: "Keyboard" }),
+  part("screen", "screen", 96, 74, { label: "Screen", width: 8, addressWidth: 8, columns: 64 }),
+  part("hexsplit", "split", 120, 76, { fields: [4, 4] }),
+  part("hexhighrom", "rom", 126, 74, { label: "High digit", width: 8, addressWidth: 4, data: HEX_DIGITS }),
+  part("hexlowrom", "rom", 126, 82, { label: "Low digit", width: 8, addressWidth: 4, data: HEX_DIGITS }),
+  part("hexhigh", "seg7", 134, 76, { label: "HEX high" }),
+  part("hexlow", "seg7", 138, 76, { label: "HEX low" }),
 ];
 
-const clocked = ["irl", "irh", "pc", "t", "h", "a", "z", "c", "outr"];
+const clocked = ["irl", "irh", "pc", "t", "h", "a", "z", "c", "outr", "sptr", "hex"];
 const main = wires([
   ["clk.out", "one.a"],
   ["clk.out", "one.b"],
@@ -209,6 +250,7 @@ const main = wires([
   ...Array.from({ length: 8 }, (_, i) => ["zero.out", `zero8.f${i}`]),
   ...clocked.map((r) => ["clk.out", `${r}.clk`]),
   ["clk.out", "ram.clk"],
+  ["clk.out", "screen.clk"],
 
   // Phase and halt.
   ["t.q", "nt.in"],
@@ -272,8 +314,8 @@ const main = wires([
   // Execute.
   ["irl.q", "ram.addr"],
   ["a.q", "ram.din"],
-  ["we.out", "ram.we"],
-  ["ram.out", "bmux.a"],
+  ["ramwe.out", "ram.we"],
+  ["rd4.out", "bmux.a"],
   ["irl.q", "bmux.b"],
   [field("aluImm"), "bmux.s"],
   ...Array.from({ length: 8 }, (_, i) => [field("sub"), `subfill.f${i}`]),
@@ -283,7 +325,7 @@ const main = wires([
   ["x8.out", "alu.b"],
   [field("sub"), "alu.cin"],
   ["irl.q", "amux1.a"],
-  ["ram.out", "amux1.b"],
+  ["rd4.out", "amux1.b"],
   [field("aFromRam"), "amux1.s"],
   ["amux1.out", "amux2.a"],
   ["alu.sum", "amux2.b"],
@@ -320,12 +362,52 @@ const main = wires([
   // Status.
   ["fetch.out", "fetchled.in"],
   ["h.q", "haltled.in"],
+
+  // I/O: decode, write enables, device registers, the read bus.
+  ["irl.q", "iodec.addr"],
+  ["iodec.out", "ios.in"],
+  [io("io"), "nio.in"],
+  ["we.out", "ramwe.a"],
+  ["nio.out", "ramwe.b"],
+  ["we.out", "sptren.a"],
+  [io("sptr"), "sptren.b"],
+  ["we.out", "hexen.a"],
+  [io("hex"), "hexen.b"],
+  ["we.out", "sdwe.a"],
+  [io("sdata"), "sdwe.b"],
+  ["a.q", "sptr.d"],
+  ["sptren.out", "sptr.en"],
+  ["a.q", "hex.d"],
+  ["hexen.out", "hex.en"],
+  ["sptr.q", "screen.addr"],
+  ["a.q", "screen.din"],
+  ["sdwe.out", "screen.we"],
+  ["ram.out", "rd0.a"],
+  ["zero8.out", "rd0.b"],
+  [io("io"), "rd0.s"],
+  ["rd0.out", "rd1.a"],
+  ["key.out", "rd1.b"],
+  [io("key"), "rd1.s"],
+  ["rd1.out", "rd2.a"],
+  ["sptr.q", "rd2.b"],
+  [io("sptr"), "rd2.s"],
+  ["rd2.out", "rd3.a"],
+  ["screen.out", "rd3.b"],
+  [io("sdata"), "rd3.s"],
+  ["rd3.out", "rd4.a"],
+  ["hex.q", "rd4.b"],
+  [io("hex"), "rd4.s"],
+  ["hex.q", "hexsplit.in"],
+  ["hexsplit.f1", "hexhighrom.addr"],
+  ["hexsplit.f0", "hexlowrom.addr"],
+  ["hexhighrom.out", "hexhigh.seg"],
+  ["hexlowrom.out", "hexlow.seg"],
 ]);
 
 const adder = JSON.parse(readFileSync(root("examples/8-bit-adder.clockyard.json"), "utf8"));
 const document = {
   format: "clockyard",
-  version: 8,
+  version: 9,
   metadata: { name: "Reference CPU", createdAt: "2026-11-10T12:00:00.000Z", modifiedAt: "2026-11-10T12:00:00.000Z" },
   circuit: { components, junctions: [], wires: main },
   definitions: [
