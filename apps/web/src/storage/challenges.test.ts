@@ -6,7 +6,7 @@ if (!entry) throw new Error("the inverter challenge is missing");
 const inverter = entry.challenge;
 
 test("every bundled challenge is listed in order, with a starter on its definition", () => {
-  expect(CHALLENGES.map((c) => c.name)).toEqual(["01-inverter", "02-xor", "03-half-adder", "04-full-adder", "05-adder8"]);
+  expect(CHALLENGES.map((c) => c.name)).toEqual(["01-inverter", "02-xor", "03-half-adder", "04-full-adder", "05-adder8", "06-register", "07-register8", "08-counter8", "09-alu"]);
   for (const { name, challenge } of CHALLENGES) {
     const document = starterDocument(name, "2026-11-15T13:00:00.000Z");
     expect(document.metadata).toEqual({ name: challenge.title, createdAt: "2026-11-15T13:00:00.000Z", modifiedAt: "2026-11-15T13:00:00.000Z", challenge: name });

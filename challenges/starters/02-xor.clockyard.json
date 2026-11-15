@@ -1,10 +1,11 @@
 {
   "format": "clockyard",
-  "version": 9,
+  "version": 10,
   "metadata": {
     "name": "XOR from NAND gates",
     "createdAt": "2026-11-15T12:00:00.000Z",
-    "modifiedAt": "2026-11-15T12:00:00.000Z"
+    "modifiedAt": "2026-11-15T12:00:00.000Z",
+    "challenge": "02-xor"
   },
   "circuit": {
     "components": [],

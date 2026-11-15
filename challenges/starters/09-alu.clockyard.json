@@ -1,0 +1,976 @@
+{
+  "format": "clockyard",
+  "version": 10,
+  "metadata": {
+    "name": "ALU",
+    "createdAt": "2026-11-15T12:00:00.000Z",
+    "modifiedAt": "2026-11-15T12:00:00.000Z",
+    "challenge": "09-alu"
+  },
+  "circuit": {
+    "components": [],
+    "junctions": [],
+    "wires": []
+  },
+  "definitions": [
+    {
+      "id": "alu",
+      "name": "ALU",
+      "circuit": {
+        "components": [
+          {
+            "id": "A",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "A",
+              "width": 8
+            }
+          },
+          {
+            "id": "B",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "B",
+              "width": 8
+            }
+          },
+          {
+            "id": "sub",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {
+              "label": "sub"
+            }
+          },
+          {
+            "id": "Y",
+            "kind": "led",
+            "position": {
+              "x": 50,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "Y",
+              "width": 8
+            }
+          },
+          {
+            "id": "C",
+            "kind": "led",
+            "position": {
+              "x": 50,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "C"
+            }
+          },
+          {
+            "id": "Z",
+            "kind": "led",
+            "position": {
+              "x": 50,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {
+              "label": "Z"
+            }
+          }
+        ],
+        "junctions": [],
+        "wires": []
+      }
+    },
+    {
+      "id": "adder8",
+      "name": "8-bit adder",
+      "circuit": {
+        "components": [
+          {
+            "id": "A",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "A",
+              "width": 8
+            }
+          },
+          {
+            "id": "B",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "B",
+              "width": 8
+            }
+          },
+          {
+            "id": "Cin",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {
+              "label": "Cin"
+            }
+          },
+          {
+            "id": "S",
+            "kind": "led",
+            "position": {
+              "x": 44,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "S",
+              "width": 8
+            }
+          },
+          {
+            "id": "Cout",
+            "kind": "led",
+            "position": {
+              "x": 44,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "Cout"
+            }
+          },
+          {
+            "id": "sa",
+            "kind": "split",
+            "position": {
+              "x": 8,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "fields": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ]
+            }
+          },
+          {
+            "id": "sb",
+            "kind": "split",
+            "position": {
+              "x": 8,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {
+              "fields": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ]
+            }
+          },
+          {
+            "id": "fa0",
+            "kind": "custom",
+            "definition": "full-adder",
+            "position": {
+              "x": 20,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "fa1",
+            "kind": "custom",
+            "definition": "full-adder",
+            "position": {
+              "x": 20,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "fa2",
+            "kind": "custom",
+            "definition": "full-adder",
+            "position": {
+              "x": 20,
+              "y": 16
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "fa3",
+            "kind": "custom",
+            "definition": "full-adder",
+            "position": {
+              "x": 20,
+              "y": 24
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "fa4",
+            "kind": "custom",
+            "definition": "full-adder",
+            "position": {
+              "x": 20,
+              "y": 32
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "fa5",
+            "kind": "custom",
+            "definition": "full-adder",
+            "position": {
+              "x": 20,
+              "y": 40
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "fa6",
+            "kind": "custom",
+            "definition": "full-adder",
+            "position": {
+              "x": 20,
+              "y": 48
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "fa7",
+            "kind": "custom",
+            "definition": "full-adder",
+            "position": {
+              "x": 20,
+              "y": 56
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "ms",
+            "kind": "merge",
+            "position": {
+              "x": 32,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "fields": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ]
+            }
+          }
+        ],
+        "junctions": [],
+        "wires": [
+          {
+            "id": "w0",
+            "from": {
+              "component": "A",
+              "port": "out"
+            },
+            "to": {
+              "component": "sa",
+              "port": "in"
+            }
+          },
+          {
+            "id": "w1",
+            "from": {
+              "component": "B",
+              "port": "out"
+            },
+            "to": {
+              "component": "sb",
+              "port": "in"
+            }
+          },
+          {
+            "id": "w2",
+            "from": {
+              "component": "sa",
+              "port": "f0"
+            },
+            "to": {
+              "component": "fa0",
+              "port": "A"
+            }
+          },
+          {
+            "id": "w3",
+            "from": {
+              "component": "sb",
+              "port": "f0"
+            },
+            "to": {
+              "component": "fa0",
+              "port": "B"
+            }
+          },
+          {
+            "id": "w4",
+            "from": {
+              "component": "fa0",
+              "port": "S"
+            },
+            "to": {
+              "component": "ms",
+              "port": "f0"
+            }
+          },
+          {
+            "id": "w5",
+            "from": {
+              "component": "Cin",
+              "port": "out"
+            },
+            "to": {
+              "component": "fa0",
+              "port": "Cin"
+            }
+          },
+          {
+            "id": "w6",
+            "from": {
+              "component": "sa",
+              "port": "f1"
+            },
+            "to": {
+              "component": "fa1",
+              "port": "A"
+            }
+          },
+          {
+            "id": "w7",
+            "from": {
+              "component": "sb",
+              "port": "f1"
+            },
+            "to": {
+              "component": "fa1",
+              "port": "B"
+            }
+          },
+          {
+            "id": "w8",
+            "from": {
+              "component": "fa1",
+              "port": "S"
+            },
+            "to": {
+              "component": "ms",
+              "port": "f1"
+            }
+          },
+          {
+            "id": "w9",
+            "from": {
+              "component": "fa0",
+              "port": "Cout"
+            },
+            "to": {
+              "component": "fa1",
+              "port": "Cin"
+            }
+          },
+          {
+            "id": "w10",
+            "from": {
+              "component": "sa",
+              "port": "f2"
+            },
+            "to": {
+              "component": "fa2",
+              "port": "A"
+            }
+          },
+          {
+            "id": "w11",
+            "from": {
+              "component": "sb",
+              "port": "f2"
+            },
+            "to": {
+              "component": "fa2",
+              "port": "B"
+            }
+          },
+          {
+            "id": "w12",
+            "from": {
+              "component": "fa2",
+              "port": "S"
+            },
+            "to": {
+              "component": "ms",
+              "port": "f2"
+            }
+          },
+          {
+            "id": "w13",
+            "from": {
+              "component": "fa1",
+              "port": "Cout"
+            },
+            "to": {
+              "component": "fa2",
+              "port": "Cin"
+            }
+          },
+          {
+            "id": "w14",
+            "from": {
+              "component": "sa",
+              "port": "f3"
+            },
+            "to": {
+              "component": "fa3",
+              "port": "A"
+            }
+          },
+          {
+            "id": "w15",
+            "from": {
+              "component": "sb",
+              "port": "f3"
+            },
+            "to": {
+              "component": "fa3",
+              "port": "B"
+            }
+          },
+          {
+            "id": "w16",
+            "from": {
+              "component": "fa3",
+              "port": "S"
+            },
+            "to": {
+              "component": "ms",
+              "port": "f3"
+            }
+          },
+          {
+            "id": "w17",
+            "from": {
+              "component": "fa2",
+              "port": "Cout"
+            },
+            "to": {
+              "component": "fa3",
+              "port": "Cin"
+            }
+          },
+          {
+            "id": "w18",
+            "from": {
+              "component": "sa",
+              "port": "f4"
+            },
+            "to": {
+              "component": "fa4",
+              "port": "A"
+            }
+          },
+          {
+            "id": "w19",
+            "from": {
+              "component": "sb",
+              "port": "f4"
+            },
+            "to": {
+              "component": "fa4",
+              "port": "B"
+            }
+          },
+          {
+            "id": "w20",
+            "from": {
+              "component": "fa4",
+              "port": "S"
+            },
+            "to": {
+              "component": "ms",
+              "port": "f4"
+            }
+          },
+          {
+            "id": "w21",
+            "from": {
+              "component": "fa3",
+              "port": "Cout"
+            },
+            "to": {
+              "component": "fa4",
+              "port": "Cin"
+            }
+          },
+          {
+            "id": "w22",
+            "from": {
+              "component": "sa",
+              "port": "f5"
+            },
+            "to": {
+              "component": "fa5",
+              "port": "A"
+            }
+          },
+          {
+            "id": "w23",
+            "from": {
+              "component": "sb",
+              "port": "f5"
+            },
+            "to": {
+              "component": "fa5",
+              "port": "B"
+            }
+          },
+          {
+            "id": "w24",
+            "from": {
+              "component": "fa5",
+              "port": "S"
+            },
+            "to": {
+              "component": "ms",
+              "port": "f5"
+            }
+          },
+          {
+            "id": "w25",
+            "from": {
+              "component": "fa4",
+              "port": "Cout"
+            },
+            "to": {
+              "component": "fa5",
+              "port": "Cin"
+            }
+          },
+          {
+            "id": "w26",
+            "from": {
+              "component": "sa",
+              "port": "f6"
+            },
+            "to": {
+              "component": "fa6",
+              "port": "A"
+            }
+          },
+          {
+            "id": "w27",
+            "from": {
+              "component": "sb",
+              "port": "f6"
+            },
+            "to": {
+              "component": "fa6",
+              "port": "B"
+            }
+          },
+          {
+            "id": "w28",
+            "from": {
+              "component": "fa6",
+              "port": "S"
+            },
+            "to": {
+              "component": "ms",
+              "port": "f6"
+            }
+          },
+          {
+            "id": "w29",
+            "from": {
+              "component": "fa5",
+              "port": "Cout"
+            },
+            "to": {
+              "component": "fa6",
+              "port": "Cin"
+            }
+          },
+          {
+            "id": "w30",
+            "from": {
+              "component": "sa",
+              "port": "f7"
+            },
+            "to": {
+              "component": "fa7",
+              "port": "A"
+            }
+          },
+          {
+            "id": "w31",
+            "from": {
+              "component": "sb",
+              "port": "f7"
+            },
+            "to": {
+              "component": "fa7",
+              "port": "B"
+            }
+          },
+          {
+            "id": "w32",
+            "from": {
+              "component": "fa7",
+              "port": "S"
+            },
+            "to": {
+              "component": "ms",
+              "port": "f7"
+            }
+          },
+          {
+            "id": "w33",
+            "from": {
+              "component": "fa6",
+              "port": "Cout"
+            },
+            "to": {
+              "component": "fa7",
+              "port": "Cin"
+            }
+          },
+          {
+            "id": "w34",
+            "from": {
+              "component": "ms",
+              "port": "out"
+            },
+            "to": {
+              "component": "S",
+              "port": "in"
+            }
+          },
+          {
+            "id": "w35",
+            "from": {
+              "component": "fa7",
+              "port": "Cout"
+            },
+            "to": {
+              "component": "Cout",
+              "port": "in"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "full-adder",
+      "name": "Full adder",
+      "circuit": {
+        "components": [
+          {
+            "id": "A",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "A"
+            }
+          },
+          {
+            "id": "B",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "B"
+            }
+          },
+          {
+            "id": "Cin",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {
+              "label": "Cin"
+            }
+          },
+          {
+            "id": "S",
+            "kind": "led",
+            "position": {
+              "x": 30,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "S"
+            }
+          },
+          {
+            "id": "Cout",
+            "kind": "led",
+            "position": {
+              "x": 30,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "Cout"
+            }
+          },
+          {
+            "id": "x1",
+            "kind": "xor",
+            "position": {
+              "x": 8,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "x2",
+            "kind": "xor",
+            "position": {
+              "x": 18,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "n1",
+            "kind": "and",
+            "position": {
+              "x": 8,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "n2",
+            "kind": "and",
+            "position": {
+              "x": 18,
+              "y": 6
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "o",
+            "kind": "or",
+            "position": {
+              "x": 24,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {}
+          }
+        ],
+        "junctions": [],
+        "wires": [
+          {
+            "id": "w0",
+            "from": {
+              "component": "A",
+              "port": "out"
+            },
+            "to": {
+              "component": "x1",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w1",
+            "from": {
+              "component": "B",
+              "port": "out"
+            },
+            "to": {
+              "component": "x1",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w2",
+            "from": {
+              "component": "x1",
+              "port": "out"
+            },
+            "to": {
+              "component": "x2",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w3",
+            "from": {
+              "component": "Cin",
+              "port": "out"
+            },
+            "to": {
+              "component": "x2",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w4",
+            "from": {
+              "component": "x2",
+              "port": "out"
+            },
+            "to": {
+              "component": "S",
+              "port": "in"
+            }
+          },
+          {
+            "id": "w5",
+            "from": {
+              "component": "A",
+              "port": "out"
+            },
+            "to": {
+              "component": "n1",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w6",
+            "from": {
+              "component": "B",
+              "port": "out"
+            },
+            "to": {
+              "component": "n1",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w7",
+            "from": {
+              "component": "x1",
+              "port": "out"
+            },
+            "to": {
+              "component": "n2",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w8",
+            "from": {
+              "component": "Cin",
+              "port": "out"
+            },
+            "to": {
+              "component": "n2",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w9",
+            "from": {
+              "component": "n1",
+              "port": "out"
+            },
+            "to": {
+              "component": "o",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w10",
+            "from": {
+              "component": "n2",
+              "port": "out"
+            },
+            "to": {
+              "component": "o",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w11",
+            "from": {
+              "component": "o",
+              "port": "out"
+            },
+            "to": {
+              "component": "Cout",
+              "port": "in"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

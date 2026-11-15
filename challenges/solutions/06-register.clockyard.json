@@ -1,0 +1,236 @@
+{
+  "format": "clockyard",
+  "version": 10,
+  "metadata": {
+    "name": "One-bit register: solution",
+    "createdAt": "2026-11-15T12:00:00.000Z",
+    "modifiedAt": "2026-11-15T12:00:00.000Z",
+    "challenge": "06-register"
+  },
+  "circuit": {
+    "components": [],
+    "junctions": [],
+    "wires": []
+  },
+  "definitions": [
+    {
+      "id": "register",
+      "name": "One-bit register",
+      "circuit": {
+        "components": [
+          {
+            "id": "D",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "D"
+            }
+          },
+          {
+            "id": "load",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "load"
+            }
+          },
+          {
+            "id": "clk",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {
+              "label": "clk"
+            }
+          },
+          {
+            "id": "Q",
+            "kind": "led",
+            "position": {
+              "x": 34,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "Q"
+            }
+          },
+          {
+            "id": "nl",
+            "kind": "not",
+            "position": {
+              "x": 8,
+              "y": 10
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "a1",
+            "kind": "and",
+            "position": {
+              "x": 14,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "a2",
+            "kind": "and",
+            "position": {
+              "x": 14,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "o",
+            "kind": "or",
+            "position": {
+              "x": 20,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "ff",
+            "kind": "dff",
+            "position": {
+              "x": 26,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {}
+          }
+        ],
+        "junctions": [],
+        "wires": [
+          {
+            "id": "w0",
+            "from": {
+              "component": "D",
+              "port": "out"
+            },
+            "to": {
+              "component": "a1",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w1",
+            "from": {
+              "component": "load",
+              "port": "out"
+            },
+            "to": {
+              "component": "a1",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w2",
+            "from": {
+              "component": "load",
+              "port": "out"
+            },
+            "to": {
+              "component": "nl",
+              "port": "in"
+            }
+          },
+          {
+            "id": "w3",
+            "from": {
+              "component": "ff",
+              "port": "q"
+            },
+            "to": {
+              "component": "a2",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w4",
+            "from": {
+              "component": "nl",
+              "port": "out"
+            },
+            "to": {
+              "component": "a2",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w5",
+            "from": {
+              "component": "a1",
+              "port": "out"
+            },
+            "to": {
+              "component": "o",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w6",
+            "from": {
+              "component": "a2",
+              "port": "out"
+            },
+            "to": {
+              "component": "o",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w7",
+            "from": {
+              "component": "o",
+              "port": "out"
+            },
+            "to": {
+              "component": "ff",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w8",
+            "from": {
+              "component": "clk",
+              "port": "out"
+            },
+            "to": {
+              "component": "ff",
+              "port": "clk"
+            }
+          },
+          {
+            "id": "w9",
+            "from": {
+              "component": "ff",
+              "port": "q"
+            },
+            "to": {
+              "component": "Q",
+              "port": "in"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
