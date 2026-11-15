@@ -106,6 +106,69 @@ test("a cascaded circuit with fan-out evaluates every input combination", async 
   }
 });
 
+test("a circuit shared by link opens in another page and simulates the same way (ADR 0024)", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const notice = (p: Page) => p.locator(".file-notice");
+  const copied = async (p: Page) => {
+    await p.getByRole("button", { name: "Copy link" }).click();
+    await expect(notice(p)).toHaveText(/^Link copied, [\d,]+ characters\. Anyone with it can read the whole circuit\.$/);
+    return p.evaluate(() => navigator.clipboard.readText());
+  };
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("and-gate"));
+  await expect(status(page)).toContainText("Settled");
+  const link = await copied(page);
+  expect(link).toMatch(/^http:\/\/localhost:\d+\/#circuit=1\.[A-Za-z0-9_-]+$/);
+
+  // Opened in a new page: the same circuit, and the fragment leaves the address.
+  const other = await context.newPage();
+  await other.goto(link);
+  await expect(status(other)).toContainText("Settled");
+  expect(new URL(other.url()).hash).toBe("");
+  const at = await grid(other);
+  await expectStates(other, { "Switch 1": 0, "Switch 2": 0, "LED 1": 0 });
+  await click(other, at(1, 1));
+  await click(other, at(1, 6));
+  await expectStates(other, { "Switch 1": 1, "Switch 2": 1, "LED 1": 1 });
+
+  // A second link opened in the same tab asks before replacing the circuit, then opens and runs.
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("catch"));
+  await expect(page.locator(".project-name")).toHaveText("Catch");
+  const game = await copied(page);
+  let asked = "";
+  other.once("dialog", (dialog) => {
+    asked = dialog.message();
+    void dialog.accept();
+  });
+  await other.goto(game);
+  await expect(other.locator(".project-name")).toHaveText("Catch");
+  expect(asked).toBe("Replace the current circuit? Changes since your last export will be lost.");
+  expect(new URL(other.url()).hash).toBe("");
+  await other.getByLabel("Speed").selectOption("1000");
+  await other.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(counter(other)).toHaveText(/^Cycle \d{2,},/); // it runs
+});
+
+test("a link the clipboard refuses is shown to copy by hand (ADR 0024)", async ({ page }) => {
+  await page.addInitScript(() => {
+    navigator.clipboard.writeText = () => Promise.reject(new DOMException("Refused", "NotAllowedError"));
+  });
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("and-gate"));
+  await expect(status(page)).toContainText("Settled");
+  await page.getByRole("button", { name: "Copy link" }).click();
+  await expect(page.locator(".file-notice")).toHaveText(/^Copy this link by hand, [\d,]+ characters\./);
+  await expect(page.getByLabel("Link to this circuit")).toHaveValue(/^http:\/\/localhost:\d+\/#circuit=1\.[A-Za-z0-9_-]+$/);
+});
+
+test("a broken link shows its reason and opens nothing (ADR 0024)", async ({ page }) => {
+  await page.goto("/#circuit=1.A");
+  await expect(page.getByRole("alert")).toHaveText("Could not open the link: This link is cut short or damaged.");
+  await expect(status(page)).toContainText("No circuit");
+  expect(new URL(page.url()).hash).toBe("");
+});
+
 test("a broken file is refused and the circuit is kept", async ({ page }) => {
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("and-gate"));

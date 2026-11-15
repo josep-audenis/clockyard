@@ -20,6 +20,7 @@ import {
   parseValue,
   showValue,
   type CircuitComponent,
+  type CircuitDocument,
   type Definition,
   type Junction,
   type ComponentKind,
@@ -29,6 +30,7 @@ import { deleteRefusal, liveDefinitions, mainCircuit, useEditor } from "../edito
 import { assemble, connectEngine, control, disassemble, readMemory, setSpeed, setUntil, SPEEDS, useSim } from "../simulation/sync";
 import type { AsmError } from "../simulation/protocol";
 import { FORMAT_VERSION, MAX_DOCUMENT_BYTES, parseDocument, serializeDocument } from "../storage/file";
+import { linkFragment, readLinkFragment } from "../storage/link";
 
 /** `label` is not a part: it places a named junction (ADR 0015). */
 /** A parts-panel tile; `width` arms the part that wide (a Register is an 8-bit D flip-flop). */
@@ -134,39 +136,100 @@ export function App() {
   );
 }
 
+/** The whole document, whichever sheet is open: the main circuit and every definition as it is now. */
+function currentDocument(): CircuitDocument {
+  const state = useEditor.getState();
+  return {
+    format: "clockyard",
+    version: FORMAT_VERSION,
+    metadata: { ...state.metadata, modifiedAt: new Date().toISOString() },
+    circuit: mainCircuit(state),
+    definitions: liveDefinitions(state),
+  };
+}
+
+/** Asks before an opened file or link replaces a circuit that has parts. */
+function mayReplace(): boolean {
+  const state = useEditor.getState();
+  const replacing = mainCircuit(state).components.length > 0 || state.definitions.length > 0;
+  return !replacing || window.confirm("Replace the current circuit? Changes since your last export will be lost.");
+}
+
+/** Above this, Copy link warns that some apps cut links (ADR 0024). */
+const LONG_LINK = 8000;
+
 function FileActions() {
   const name = useEditor((s) => s.metadata.name);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  // A link the clipboard refused, shown to copy by hand.
+  const [manual, setManual] = useState<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
+  const report = (message: string | null, isError = false) => {
+    setError(isError ? message : null);
+    setNotice(isError ? null : message);
+    setManual(null);
+  };
+
+  // A circuit in the address's fragment (ADR 0024): opened as Import opens a file, on load and when
+  // the fragment changes in this tab, then removed from the address either way.
+  useEffect(() => {
+    // Only the newest open loads: a later fragment change, or this effect's cleanup, makes earlier ones stale.
+    let latest = 0;
+    const open = async (asking: boolean) => {
+      const me = ++latest;
+      const result = await readLinkFragment(window.location.hash);
+      if (me !== latest || result === null) return;
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      if (!result.ok) return report(`Could not open the link: ${result.error}`, true);
+      if (asking && !mayReplace()) return;
+      useEditor.getState().load(result.document);
+      report(null);
+    };
+    void open(false);
+    const changed = () => void open(true);
+    window.addEventListener("hashchange", changed);
+    return () => {
+      latest = -1;
+      window.removeEventListener("hashchange", changed);
+    };
+  }, []);
 
   const exportFile = () => {
-    const state = useEditor.getState();
-    const modifiedAt = new Date().toISOString();
-    // The whole document, whichever sheet is open: the main circuit and every definition as it is now.
-    const text = serializeDocument({
-      format: "clockyard",
-      version: FORMAT_VERSION,
-      metadata: { ...state.metadata, modifiedAt },
-      circuit: mainCircuit(state),
-      definitions: liveDefinitions(state),
-    });
-    const { metadata } = state;
-    const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
-    const link = Object.assign(document.createElement("a"), { href: url, download: `${slug(metadata.name)}.clockyard.json` });
+    const saved = currentDocument();
+    const url = URL.createObjectURL(new Blob([serializeDocument(saved)], { type: "application/json" }));
+    const link = Object.assign(document.createElement("a"), { href: url, download: `${slug(saved.metadata.name)}.clockyard.json` });
     link.click();
     setTimeout(() => URL.revokeObjectURL(url));
-    setError(null);
+    report(null);
+  };
+
+  const copyLink = async () => {
+    const { origin, pathname, search } = window.location;
+    let link: string;
+    try {
+      link = `${origin}${pathname}${search}#${await linkFragment(currentDocument())}`;
+    } catch (cause) {
+      return report(`Could not make a link: ${cause instanceof Error ? cause.message : String(cause)}`, true);
+    }
+    const size = `${link.length.toLocaleString("en")} characters. Anyone with it can read the whole circuit.`;
+    const long = link.length > LONG_LINK ? " Some apps cut links this long; a file from Export is safer." : "";
+    try {
+      await navigator.clipboard.writeText(link);
+      report(`Link copied, ${size}${long}`);
+    } catch {
+      report(`Copy this link by hand, ${size}${long}`);
+      setManual(link);
+    }
   };
 
   const importFile = async (file: File) => {
-    if (file.size > MAX_DOCUMENT_BYTES) return setError(`Could not open ${file.name}: it is too large to be a Clockyard circuit.`);
+    if (file.size > MAX_DOCUMENT_BYTES) return report(`Could not open ${file.name}: it is too large to be a Clockyard circuit.`, true);
     const result = parseDocument(await file.text());
-    if (!result.ok) return setError(`Could not open ${file.name}: ${result.error}`);
-    const state = useEditor.getState();
-    const replacing = mainCircuit(state).components.length > 0 || state.definitions.length > 0;
-    if (replacing && !window.confirm("Replace the current circuit? Changes since your last export will be lost.")) return;
+    if (!result.ok) return report(`Could not open ${file.name}: ${result.error}`, true);
+    if (!mayReplace()) return;
     useEditor.getState().load(result.document);
-    setError(null);
+    report(null);
   };
 
   return (
@@ -177,11 +240,26 @@ function FileActions() {
           {error}
         </span>
       )}
+      {/* Announced, but not a second status region next to the status bar's. */}
+      <span className="file-notice type-caption" aria-live="polite" title={notice ?? undefined}>
+        {notice}
+      </span>
+      {manual && (
+        <input className="file-link type-caption" readOnly value={manual} aria-label="Link to this circuit" onFocus={(e) => e.target.select()} />
+      )}
       <button type="button" className="button type-label" onClick={() => picker.current?.click()}>
         Import
       </button>
       <button type="button" className="button type-label" onClick={exportFile}>
         Export
+      </button>
+      <button
+        type="button"
+        className="button type-label"
+        onClick={() => void copyLink()}
+        title="Copy a link that opens this circuit. Anyone with the link can read the whole circuit."
+      >
+        Copy link
       </button>
       <input
         ref={picker}

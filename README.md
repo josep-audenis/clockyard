@@ -18,7 +18,9 @@ Everything runs locally in your browser. No accounts, no servers, no cloud.
 > custom components, clocks, flip-flops and memories, and run the bundled
 > 8-bit reference CPU, programmed in its own assembly, with a keyboard,
 > screen and hex display mapped into its memory, and play Catch, a small game
-> running on it. Phase 5, the computer-building sandbox, is in progress. See the [roadmap](docs/roadmap.md).
+> running on it. Share a circuit as a file or as a link that carries it
+> whole, with no server. Phase 5, the computer-building sandbox, is in
+> progress. See the [roadmap](docs/roadmap.md).
 
 ## Why
 

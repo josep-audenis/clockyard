@@ -73,10 +73,26 @@ button:focus-visible {
   white-space: nowrap;
 }
 
-.file-error {
+.file-error,
+.file-notice {
   overflow: hidden;
   color: var(--danger);
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-notice {
+  color: var(--ink-muted);
+}
+
+.file-link {
+  width: 16rem;
+  min-width: 0;
+}
+
+/* The messages give way first; the buttons keep their labels on one line. */
+.file-actions > .button {
+  flex: none;
   white-space: nowrap;
 }
 
