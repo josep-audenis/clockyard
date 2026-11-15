@@ -99,6 +99,19 @@ pub fn disassemble(word: f64) -> Result<String, JsError> {
     Ok(asm::disassemble(word as u16))
 }
 
+/// Checks a challenge (ADR 0025) against a circuit description, both JSON, on
+/// a bench of its own: the report as JSON, `{ result: "passed" | "failed" |
+/// "refused", … }`. A description or challenge that does not parse is an error.
+#[wasm_bindgen]
+pub fn check(description: &str, challenge: &str) -> Result<String, JsError> {
+    let description: CircuitDescription = serde_json::from_str(description)
+        .map_err(|e| JsError::new(&format!("invalid circuit description: {e}")))?;
+    let challenge: sim_core::check::Challenge = serde_json::from_str(challenge)
+        .map_err(|e| JsError::new(&format!("invalid challenge: {e}")))?;
+    let report = sim_core::check::check(&description, &challenge);
+    Ok(serde_json::to_string(&report).expect("plain data serializes"))
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Loaded<'a> {

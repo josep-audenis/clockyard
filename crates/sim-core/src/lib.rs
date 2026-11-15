@@ -6,6 +6,7 @@
 //! synchronous deltas as described in `docs/simulation-model.md`.
 
 pub mod catalog;
+pub mod check;
 pub mod description;
 pub mod elaborate;
 pub mod sim;

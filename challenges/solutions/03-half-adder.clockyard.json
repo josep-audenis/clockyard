@@ -1,0 +1,161 @@
+{
+  "format": "clockyard",
+  "version": 9,
+  "metadata": {
+    "name": "Half adder: solution",
+    "createdAt": "2026-11-15T12:00:00.000Z",
+    "modifiedAt": "2026-11-15T12:00:00.000Z"
+  },
+  "circuit": {
+    "components": [],
+    "junctions": [],
+    "wires": []
+  },
+  "definitions": [
+    {
+      "id": "half-adder",
+      "name": "Half adder",
+      "circuit": {
+        "components": [
+          {
+            "id": "A",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "A"
+            }
+          },
+          {
+            "id": "B",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "B"
+            }
+          },
+          {
+            "id": "S",
+            "kind": "led",
+            "position": {
+              "x": 20,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "S"
+            }
+          },
+          {
+            "id": "C",
+            "kind": "led",
+            "position": {
+              "x": 20,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "C"
+            }
+          },
+          {
+            "id": "x",
+            "kind": "xor",
+            "position": {
+              "x": 8,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "n",
+            "kind": "and",
+            "position": {
+              "x": 8,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {}
+          }
+        ],
+        "junctions": [],
+        "wires": [
+          {
+            "id": "w0",
+            "from": {
+              "component": "A",
+              "port": "out"
+            },
+            "to": {
+              "component": "x",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w1",
+            "from": {
+              "component": "B",
+              "port": "out"
+            },
+            "to": {
+              "component": "x",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w2",
+            "from": {
+              "component": "x",
+              "port": "out"
+            },
+            "to": {
+              "component": "S",
+              "port": "in"
+            }
+          },
+          {
+            "id": "w3",
+            "from": {
+              "component": "A",
+              "port": "out"
+            },
+            "to": {
+              "component": "n",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w4",
+            "from": {
+              "component": "B",
+              "port": "out"
+            },
+            "to": {
+              "component": "n",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w5",
+            "from": {
+              "component": "n",
+              "port": "out"
+            },
+            "to": {
+              "component": "C",
+              "port": "in"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

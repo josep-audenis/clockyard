@@ -1,0 +1,62 @@
+{
+  "format": "clockyard",
+  "version": 9,
+  "metadata": {
+    "name": "XOR from NAND gates",
+    "createdAt": "2026-11-15T12:00:00.000Z",
+    "modifiedAt": "2026-11-15T12:00:00.000Z"
+  },
+  "circuit": {
+    "components": [],
+    "junctions": [],
+    "wires": []
+  },
+  "definitions": [
+    {
+      "id": "xor",
+      "name": "XOR",
+      "circuit": {
+        "components": [
+          {
+            "id": "A",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "A"
+            }
+          },
+          {
+            "id": "B",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "B"
+            }
+          },
+          {
+            "id": "Y",
+            "kind": "led",
+            "position": {
+              "x": 36,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "Y"
+            }
+          }
+        ],
+        "junctions": [],
+        "wires": []
+      }
+    }
+  ]
+}
