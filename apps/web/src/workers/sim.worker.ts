@@ -100,8 +100,8 @@ function slice() {
 onmessage = async (event: MessageEvent<Command>) => {
   await ready;
   const command = event.data;
-  // Load failure was already reported; calling into the uninitialised module would replace that message. An
-  // assembler request still gets its answer, so nothing waits for it forever.
+  // Load failure was already reported; calling into the uninitialised module would replace that message. A
+  // request (assembler or check) still gets its answer, so nothing waits for it forever.
   if (!engine) {
     if ("request" in command) reply({ type: "error", message: "the engine failed to load", request: command.request });
     return;

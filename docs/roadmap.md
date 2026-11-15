@@ -437,8 +437,8 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       component to build. The Challenge panel under the inspector shows its
       text and Check, which runs the worker's `check` on the whole document
       and reports "Passed, N of N steps.", the first failing step with its
-      inputs and outputs, or why it could not run; an edit clears the
-      report. `metadata.challenge` (format 10) records the challenge, so an
+      inputs and outputs, or why it could not run; an edit to a component
+      hides the report. `metadata.challenge` (format 10) records the challenge, so an
       exported file or a link reopens with its panel. Playwright: the
       inverter built from a NAND passes and its link reopens it; a wrong
       XOR names its first failing step, and an XOR gate is refused by

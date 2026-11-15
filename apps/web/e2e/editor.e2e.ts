@@ -194,8 +194,11 @@ test("start the inverter challenge, build it from a NAND gate, Check passes; a l
   const other = await context.newPage();
   await other.goto(await page.evaluate(() => navigator.clipboard.readText()));
   await expect(challenge(other)).toContainText("Build a NOT gate from NAND gates");
-  await expect(challenge(other).getByRole("button", { name: "Open Inverter" })).toBeVisible();
   await challenge(other).getByRole("button", { name: "Check" }).click();
+  await expect(checked(other)).toHaveText("Passed, 2 of 2 steps.");
+  // Opening the component is not an edit: the report stays.
+  await challenge(other).getByRole("button", { name: "Open Inverter" }).click();
+  await expect(other.getByRole("navigation", { name: "Sheet" })).toContainText("Inverter");
   await expect(checked(other)).toHaveText("Passed, 2 of 2 steps.");
 });
 

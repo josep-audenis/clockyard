@@ -239,7 +239,7 @@ type Result =
   | { type: "assembled"; request: number; words: number[]; errors: { line: number; message: string }[] }
   | { type: "disassembled"; request: number; lines: string[] }
   | { type: "checked"; request: number; report: Report } // passed, failed (first step) or refused (why)
-  | { type: "error"; message: string; load?: true; running?: boolean }; // load: answers a load; running: after the failure
+  | { type: "error"; message: string; load?: true; running?: boolean; request?: number }; // load: answers a load; running: after the failure; request: answers that request
 ```
 
 - Commands are processed in order. The engine settles after each input change

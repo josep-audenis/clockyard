@@ -171,8 +171,9 @@ Two facts limit what can be asked:
       inspector's properties, with an Open button for the component when
       another sheet is open. `metadata.challenge` is the challenge's file
       name (`01-inverter`). A name this version has no challenge for is kept
-      and shows no panel. The report is cleared by any edit, since it
-      describes the circuit it checked. The starters stay in format 9; the
+      and shows no panel. The report is hidden by any edit to a component,
+      since it describes the components it checked; switching sheets or
+      editing the main circuit, which the bench ignores, keeps it. The starters stay in format 9; the
       editor adds the name when it opens one.
    3. Challenges 6 to 9 with their solutions, starters and native tests,
       and a Playwright test of the one-bit register.

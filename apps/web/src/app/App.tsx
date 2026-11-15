@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { definitionName } from "../canvas/layout";
 import { mountCanvas, useCanvasHints, viewControls } from "../canvas/scene";
 import {
@@ -20,6 +21,7 @@ import {
   parseValue,
   project,
   showValue,
+  type Circuit,
   type CircuitComponent,
   type CircuitDocument,
   type Definition,
@@ -29,9 +31,9 @@ import {
 } from "../editor/document";
 import { deleteRefusal, liveDefinitions, mainCircuit, useEditor } from "../editor/store";
 import { assemble, check, connectEngine, control, disassemble, readMemory, setSpeed, setUntil, SPEEDS, useSim } from "../simulation/sync";
-import type { AsmError } from "../simulation/protocol";
+import type { AsmError, Report } from "../simulation/protocol";
 import { FORMAT_VERSION, MAX_DOCUMENT_BYTES, parseDocument, serializeDocument } from "../storage/file";
-import { CHALLENGES, findChallenge, reportText, starterDocument } from "../storage/challenges";
+import { CHALLENGES, findChallenge, reportText, starterDocument, type ChallengeEntry } from "../storage/challenges";
 import { linkFragment, readLinkFragment } from "../storage/link";
 
 /** `label` is not a part: it places a named junction (ADR 0015). */
@@ -499,20 +501,13 @@ function ZoomControls() {
 
 /** Opens a challenge's starter (ADR 0025), asking first as Import does, on the sheet of the component to build. */
 function ChallengeList() {
-  const [error, setError] = useState<string | null>(null);
-  const start = (name: string) => {
-    let document: CircuitDocument;
-    try {
-      document = starterDocument(name);
-    } catch (cause) {
-      return setError(cause instanceof Error ? cause.message : String(cause));
-    }
-    setError(null);
+  const start = ({ name, challenge }: ChallengeEntry) => {
+    // Bundled and proved to open by challenges.test.ts.
+    const document = starterDocument(name);
     if (!mayReplace()) return;
     const { load, openSheet } = useEditor.getState();
     load(document);
-    const definition = findChallenge(name)?.challenge.definition;
-    if (definition) openSheet(definition);
+    openSheet(challenge.definition);
   };
   return (
     <section className="panel" aria-labelledby="challenges-title">
@@ -520,20 +515,15 @@ function ChallengeList() {
         CHALLENGES
       </h2>
       <ol className="challenge-list">
-        {CHALLENGES.map(({ name, challenge }, i) => (
-          <li key={name}>
+        {CHALLENGES.map((entry, i) => (
+          <li key={entry.name}>
             {/* Numbered: they are an order to work through, and a chip may share a title. */}
-            <button type="button" className="part-tile type-label" onClick={() => start(name)}>
-              {i + 1}. {challenge.title}
+            <button type="button" className="part-tile type-label" onClick={() => start(entry)}>
+              {i + 1}. {entry.challenge.title}
             </button>
           </li>
         ))}
       </ol>
-      {error && (
-        <p className="field-hint field-error" role="alert">
-          {error}
-        </p>
-      )}
     </section>
   );
 }
@@ -542,21 +532,26 @@ function ChallengeList() {
 function ChallengePanel() {
   const entry = useEditor((s) => findChallenge(s.metadata.challenge));
   const sheet = useEditor((s) => s.sheet);
-  const circuit = useEditor((s) => s.circuit);
-  const definitions = useEditor((s) => s.definitions);
+  // The check reads the definitions only (the bench ignores the main circuit); a sheet switch keeps their circuits.
+  const circuits = useEditor(useShallow((s) => liveDefinitions(s).map((d) => d.circuit)));
   const built = useEditor((s) => (entry ? s.definitions.find((d) => d.id === entry.challenge.definition) : undefined));
-  // With the circuit it checked: any edit since makes it out of date, and it is no longer shown.
-  const [checked, setChecked] = useState<{ text: string; passed: boolean; circuit: unknown; definitions: unknown } | null>(null);
-  const [checking, setChecking] = useState(false);
-  const result = checked?.circuit === circuit && checked.definitions === definitions ? checked : null;
+  // With the circuits it checked: any edit to them since makes it out of date, and it is no longer shown.
+  const [checked, setChecked] = useState<{ report: Report; circuits: Circuit[] } | null>(null);
+  const checking = useRef(false);
+  const current = checked?.circuits.length === circuits.length && checked.circuits.every((c, i) => c === circuits[i]) ? checked.report : null;
   if (!entry) return null;
   const { challenge } = entry;
   const run = async () => {
-    setChecking(true);
+    // Not disabled while it runs, so keyboard focus stays on the button.
+    if (checking.current) return;
+    checking.current = true;
+    // Cleared first, so the same report checked again is shown and announced again.
+    setChecked(null);
     const state = useEditor.getState();
-    const report = await check(project(mainCircuit(state), liveDefinitions(state)), challenge);
-    setChecking(false);
-    setChecked({ text: reportText(report, challenge), passed: report.result === "passed", circuit: state.circuit, definitions: state.definitions });
+    const definitions = liveDefinitions(state);
+    const report = await check(project(mainCircuit(state), definitions), challenge);
+    checking.current = false;
+    setChecked({ report, circuits: definitions.map((d) => d.circuit) });
   };
   return (
     <section className="panel" aria-labelledby="challenge-title">
@@ -571,12 +566,12 @@ function ChallengePanel() {
             Open {built.name}
           </button>
         )}
-        <button type="button" className="button type-label" disabled={checking} onClick={() => void run()}>
+        <button type="button" className="button type-label" onClick={() => void run()}>
           Check
         </button>
         {/* Announced, but not a second status region next to the status bar's. */}
-        <p className={`type-body challenge-result${result?.passed ? " challenge-passed" : ""}`} aria-live="polite">
-          {result?.text}
+        <p className={`type-body challenge-result${current?.result === "passed" ? " challenge-passed" : ""}`} aria-live="polite">
+          {current && reportText(current, challenge)}
         </p>
       </div>
     </section>
