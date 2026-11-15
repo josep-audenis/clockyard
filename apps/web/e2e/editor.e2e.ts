@@ -111,7 +111,7 @@ test("a circuit shared by link opens in another page and simulates the same way 
   const notice = (p: Page) => p.locator(".file-notice");
   const copied = async (p: Page) => {
     await p.getByRole("button", { name: "Copy link" }).click();
-    await expect(notice(p)).toHaveText(/^Link copied, [\d,]+ characters\.$/);
+    await expect(notice(p)).toHaveText(/^Link copied, [\d,]+ characters\. Anyone with it can read the whole circuit\.$/);
     return p.evaluate(() => navigator.clipboard.readText());
   };
   await page.goto("/");
@@ -148,6 +148,18 @@ test("a circuit shared by link opens in another page and simulates the same way 
   await other.getByLabel("Speed").selectOption("1000");
   await other.getByRole("button", { name: "Run", exact: true }).click();
   await expect(counter(other)).toHaveText(/^Cycle \d{2,},/); // it runs
+});
+
+test("a link the clipboard refuses is shown to copy by hand (ADR 0024)", async ({ page }) => {
+  await page.addInitScript(() => {
+    navigator.clipboard.writeText = () => Promise.reject(new DOMException("Refused", "NotAllowedError"));
+  });
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("and-gate"));
+  await expect(status(page)).toContainText("Settled");
+  await page.getByRole("button", { name: "Copy link" }).click();
+  await expect(page.locator(".file-notice")).toHaveText(/^Copy this link by hand, [\d,]+ characters\./);
+  await expect(page.getByLabel("Link to this circuit")).toHaveValue(/^http:\/\/localhost:\d+\/#circuit=1\.[A-Za-z0-9_-]+$/);
 });
 
 test("a broken link shows its reason and opens nothing (ADR 0024)", async ({ page }) => {

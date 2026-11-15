@@ -78,8 +78,9 @@ the person who opens the link, whatever hosts the app.
 5. **Privacy.** Anyone who has a link can read the whole circuit, and the
    link stays wherever it is pasted and in browser history. The help text
    next to Copy link says so. Clockyard itself sends nothing anywhere.
-   *As built (step 2):* the help text is Copy link's tooltip; the
-   toolbar has no room for a sentence beside it.
+   *As built (step 2):* the help text is Copy link's tooltip, since the
+   toolbar has no room for a sentence beside it, and the message after
+   copying repeats it, so it reaches touch and keyboard users too.
 6. **Where links point.** A link opens on the same address it was made
    on. Run locally, that is `localhost`, so it works only on that
    machine. A public address needs the app deployed, which is outside

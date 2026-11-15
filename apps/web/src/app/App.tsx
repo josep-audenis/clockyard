@@ -174,9 +174,12 @@ function FileActions() {
   // A circuit in the address's fragment (ADR 0024): opened as Import opens a file, on load and when
   // the fragment changes in this tab, then removed from the address either way.
   useEffect(() => {
+    // Only the newest open loads: a later fragment change, or this effect's cleanup, makes earlier ones stale.
+    let latest = 0;
     const open = async (asking: boolean) => {
+      const me = ++latest;
       const result = await readLinkFragment(window.location.hash);
-      if (result === null) return;
+      if (me !== latest || result === null) return;
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
       if (!result.ok) return report(`Could not open the link: ${result.error}`, true);
       if (asking && !mayReplace()) return;
@@ -186,7 +189,10 @@ function FileActions() {
     void open(false);
     const changed = () => void open(true);
     window.addEventListener("hashchange", changed);
-    return () => window.removeEventListener("hashchange", changed);
+    return () => {
+      latest = -1;
+      window.removeEventListener("hashchange", changed);
+    };
   }, []);
 
   const exportFile = () => {
@@ -200,8 +206,13 @@ function FileActions() {
 
   const copyLink = async () => {
     const { origin, pathname, search } = window.location;
-    const link = `${origin}${pathname}${search}#${await linkFragment(currentDocument())}`;
-    const size = `${link.length.toLocaleString("en")} characters.`;
+    let link: string;
+    try {
+      link = `${origin}${pathname}${search}#${await linkFragment(currentDocument())}`;
+    } catch (cause) {
+      return report(`Could not make a link: ${cause instanceof Error ? cause.message : String(cause)}`, true);
+    }
+    const size = `${link.length.toLocaleString("en")} characters. Anyone with it can read the whole circuit.`;
     const long = link.length > LONG_LINK ? " Some apps cut links this long; a file from Export is safer." : "";
     try {
       await navigator.clipboard.writeText(link);
