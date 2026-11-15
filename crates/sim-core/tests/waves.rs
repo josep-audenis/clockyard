@@ -4,7 +4,7 @@
 mod common;
 
 use common::load;
-use sim_core::{Simulator, WAVE_WINDOW};
+use sim_core::{CircuitDescription, Simulator, WAVE_WINDOW};
 
 /// The 8-bit counter example counting, watching its clock, its value and its Count switch.
 fn counter() -> Simulator {
@@ -94,6 +94,46 @@ fn watching_starts_a_new_record_and_refuses_a_net_that_does_not_exist() {
         sim.watch(&[missing]),
         Err(format!("there is no net {missing}"))
     );
+}
+
+#[test]
+fn a_tick_that_does_not_settle_is_recorded_with_the_values_it_stopped_at() {
+    // A NAND fed back to itself, gated by the clock: settled while it is low, oscillating once it rises.
+    let description: CircuitDescription = serde_json::from_value(serde_json::json!({
+        "components": [{ "id": "k", "kind": "clock" }, { "id": "o", "kind": "nand" }],
+        "connections": [
+            { "id": "w-clk", "from": { "component": "k", "port": "out" }, "to": { "component": "o", "port": "a" } },
+            { "id": "w-loop", "from": { "component": "o", "port": "out" }, "to": { "component": "o", "port": "b" } },
+        ],
+    }))
+    .unwrap();
+    let mut sim = Simulator::load(&description).expect("valid").0;
+    let nets = ["w-clk", "w-loop"].map(|w| sim.wire_nets()[w]);
+    sim.watch(&nets).unwrap();
+    assert!(sim.tick(4).is_some());
+    assert_eq!(sim.time(), 1);
+    let waves = sim.waves();
+    assert_eq!(waves[0], [(0, 0), (1, 1)]);
+    let stopped = sim.nets()[nets[1] as usize];
+    assert_eq!(waves[1].last(), Some(&(1, stopped)));
+}
+
+#[test]
+fn time_without_a_clock_moves_the_window_along() {
+    let description: CircuitDescription = serde_json::from_value(serde_json::json!({
+        "components": [{ "id": "a", "kind": "switch" }, { "id": "l", "kind": "led" }],
+        "connections": [{ "id": "w", "from": { "component": "a", "port": "out" }, "to": { "component": "l", "port": "in" } }],
+    }))
+    .unwrap();
+    let mut sim = Simulator::load(&description).expect("valid").0;
+    sim.set_input("a", 1).unwrap();
+    sim.watch(&[sim.wire_nets()["w"]]).unwrap();
+    sim.tick(5);
+    sim.set_input("a", 0).unwrap();
+    assert_eq!(sim.waves(), [vec![(0, 1), (5, 0)]]);
+    // Nothing settles in these ticks, yet the change at 0 leaves the window.
+    sim.tick(10_000);
+    assert_eq!(sim.waves(), [vec![(5, 0)]]);
 }
 
 /// The cost of recording (ADR 0026 item 6): `cargo test --release --test waves -- --ignored --nocapture`.

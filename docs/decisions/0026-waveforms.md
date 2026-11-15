@@ -48,8 +48,7 @@ The ticks between two frames are only ever seen inside the engine.
 2. **The engine records the traces.**
    - `Simulator::watch(nets)` sets the nets to record and clears the
      record.
-   - After every settle (a load's first settle, `set_inputs`, each tick, a
-     step, a reset), each watched net whose value differs from its last
+   - After every settle (`set_inputs`, each tick, a step, a reset), each watched net whose value differs from its last
      record gets a new record `(time, value)`. A settle at a time that
      already has a record replaces it, so each net has one value per tick.
      Deltas inside a settle are not recorded, as they are never shown.

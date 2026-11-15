@@ -787,6 +787,8 @@ impl Simulator {
             // any settle does, so time stops there whatever `count` was.
             if self.unsettled.is_empty() || count == 0 {
                 self.time = self.time.saturating_add(count);
+                // No value changes; this only moves the waveform window along.
+                self.record();
                 return None;
             }
             self.time = self.time.saturating_add(1);
@@ -898,8 +900,9 @@ impl Simulator {
     /// order `watch` was given. The first is the value in force when the
     /// window of [`WAVE_WINDOW`] ticks starts, or when watching began.
     pub fn waves(&self) -> Vec<Vec<(u64, u32)>> {
-        (0..self.traces.len())
-            .filter_map(|i| Some(self.wave(i)?.collect()))
+        self.traces
+            .iter()
+            .map(|t| t.changes.iter().copied().collect())
             .collect()
     }
 
