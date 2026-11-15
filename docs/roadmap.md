@@ -450,9 +450,9 @@ analysis, plugin system, full game campaign during the MVP.
 Phase 4 is built, with its demo. Phase 5 is planned in ADR 0020 (accepted);
 its first four increments, devices (ADR 0021), memory-mapped I/O on the
 reference CPU (ADR 0022), the game demo, Catch (ADR 0023), and sharing
-through a URL fragment (ADR 0024), are built with their demos. Next is
-increment 5, challenges checked by behavioural tests (ADR 0025, accepted),
-once the ADR is accepted.
+through a URL fragment (ADR 0024), are built with their demos. Increment 5, challenges checked by behavioural
+tests (ADR 0025, accepted), is under way: step 1, the engine, is built; next
+is step 2, the editor.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).

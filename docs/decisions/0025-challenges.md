@@ -69,15 +69,16 @@ Two facts limit what can be asked:
      involved, and the outcome does not depend on run speed.
    - The result is one of these:
      - every step passed;
-     - the first step whose outputs differ, with the inputs it set, what
-       it expected and what it read;
+     - the first step whose outputs differ, with every input's value at
+       that step, what it expected and what it read;
      - a reason the bench could not run:
        - a pin is missing, or has the wrong width;
        - a part is not allowed;
        - the circuit did not settle (`Unstable`);
        - the description has errors.
    - `sim-wasm` exposes it as `check(description, challenge)`. The worker
-     answers a "check" message with the report, as it does for a load.
+     answers a "check" message with the report, as it does for a load
+     (step 2).
 3. **Allowed parts.** A challenge may list the primitive kinds it allows,
    such as only `nand` for the inverter and for XOR.
    - The check flattens the definition, so components the user made

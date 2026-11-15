@@ -13,7 +13,7 @@ use crate::description::{
 use crate::elaborate::{CUSTOM, elaborate};
 use crate::sim::Simulator;
 
-/// The bench's own parts. Pin IDs never contain '/', so these never clash with the definition's.
+/// The bench's own parts. The definition's parts are all elaborated under `dut/`, so these never clash.
 const DUT: &str = "dut";
 
 /// What a challenge asks for. Title and text are the editor's; the engine ignores them.
@@ -99,7 +99,7 @@ fn bench(
         .find(|d| d.id == challenge.definition)
     else {
         return Err(refused(
-            "The component this challenge checks is missing; start the challenge again to get it back."
+            "The component this challenge checks is missing; undo, or start the challenge again to get it back."
                 .to_string(),
         ));
     };
@@ -166,7 +166,7 @@ fn pin_width(definition: &DefinitionDesc, side: &str, spec: &PinSpec) -> Result<
     };
     let Some(pin) = pins.iter().find(|p| p.name == spec.name) else {
         return Err(refused(format!(
-            "The component has no {side} pin {}; start the challenge again to get it back.",
+            "The component has no {side} pin {}; undo, or start the challenge again to get it back.",
             spec.name
         )));
     };
@@ -222,7 +222,7 @@ fn run(bench: &CircuitDescription, challenge: &Challenge) -> Result<Report, Repo
     if let Some(d) = warnings.iter().find(|d| d.code == Code::Unstable) {
         return Err(refused(format!(
             "The circuit did not settle when it started: {}",
-            d.message
+            plain(&d.message)
         )));
     }
     let mut inputs: Vec<Reading> = challenge
@@ -247,12 +247,14 @@ fn run(bench: &CircuitDescription, challenge: &Challenge) -> Result<Report, Repo
         }
         let values: Vec<(&str, u32)> = values.iter().map(|(id, v)| (id.as_str(), *v)).collect();
         match sim.set_inputs(&values) {
-            Err(message) => return Err(refused(format!("Step {}: {message}", step + 1))),
+            Err(message) => {
+                return Err(refused(format!("Step {}: {}", step + 1, plain(&message))));
+            }
             Ok(Some(d)) => {
                 return Err(refused(format!(
                     "At step {} the circuit did not settle: {}",
                     step + 1,
-                    d.message
+                    plain(&d.message)
                 )));
             }
             Ok(None) => {}
@@ -298,7 +300,18 @@ fn run(bench: &CircuitDescription, challenge: &Challenge) -> Result<Report, Repo
 /// The first error, as the editor's status bar would show it.
 fn circuit_errors(errors: &[crate::Diagnostic]) -> Report {
     let first = errors.first().map_or("", |d| d.message.as_str());
-    refused(format!("The circuit has errors to fix first: {first}"))
+    refused(format!(
+        "The circuit has errors to fix first: {}",
+        plain(first)
+    ))
+}
+
+/// An engine message without the bench's own names, which the user never sees.
+fn plain(message: &str) -> String {
+    message
+        .replace(&format!("{DUT}/"), "")
+        .replace("input:", "")
+        .replace("output:", "")
 }
 
 /// Kind names joined by commas, since "and" is a kind too.

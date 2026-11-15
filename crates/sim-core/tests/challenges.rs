@@ -144,7 +144,7 @@ fn a_missing_definition_or_pin_is_refused() {
     renamed.inputs[0].name = "In".into();
     assert_eq!(
         refusal(check(&solution("01-inverter"), &renamed)),
-        "The component has no input pin In; start the challenge again to get it back."
+        "The component has no input pin In; undo, or start the challenge again to get it back."
     );
 }
 
@@ -178,11 +178,33 @@ fn a_loop_that_does_not_settle_is_refused() {
 fn a_circuit_with_errors_is_refused_with_the_first() {
     let mut broken = solution("01-inverter");
     broken.definitions[0].components[2].kind = "gizmo".into();
-    let reason = refusal(check(&broken, &challenge("01-inverter")));
+    // Named as the user sees the part, without the bench's own prefix.
+    assert_eq!(
+        refusal(check(&broken, &challenge("01-inverter"))),
+        "The circuit has errors to fix first: g has unknown kind 'gizmo'"
+    );
+}
+
+#[test]
+fn a_loop_that_stops_settling_at_a_step_is_refused() {
+    // A NAND fed back to itself, gated by A: settled while A is 0, oscillates once A is 1.
+    let mut looped = solution("01-inverter");
+    let text = serde_json::json!({
+        "components": [{ "id": "osc", "kind": "nand" }],
+        "connections": [
+            { "id": "gate", "from": { "component": "A", "port": "out" }, "to": { "component": "osc", "port": "a" } },
+            { "id": "loop", "from": { "component": "osc", "port": "out" }, "to": { "component": "osc", "port": "b" } },
+        ],
+    });
+    let extra: CircuitDescription = serde_json::from_value(text).unwrap();
+    looped.definitions[0].components.extend(extra.components);
+    looped.definitions[0].connections.extend(extra.connections);
+    let reason = refusal(check(&looped, &challenge("01-inverter")));
     assert!(
-        reason.starts_with("The circuit has errors to fix first: "),
+        reason.starts_with("At step 2 the circuit did not settle: "),
         "{reason}"
     );
+    assert!(!reason.contains("dut/"), "{reason}");
 }
 
 #[test]
