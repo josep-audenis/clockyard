@@ -265,6 +265,22 @@ impl Engine {
         Some(words[..words.len().min(count as usize)].to_vec())
     }
 
+    /// Records nets `nets` from now on, dropping any earlier record (ADR 0026).
+    pub fn watch(&mut self, nets: Vec<u32>) -> Result<(), JsError> {
+        self.loaded()?.watch(&nets).map_err(|e| JsError::new(&e))
+    }
+
+    /// The `index`th watched net's changes as `[t0, v0, t1, v1, …]`, oldest first; times are exact
+    /// up to 2^53 ticks, values always. Nothing if no such net is watched or nothing is loaded.
+    pub fn wave(&self, index: u32) -> Option<Vec<f64>> {
+        let changes = self.sim.as_ref()?.wave(index as usize)?;
+        Some(
+            changes
+                .flat_map(|(t, v)| [t as f64, f64::from(v)])
+                .collect(),
+        )
+    }
+
     /// Virtual time in ticks (exact as a JS number up to 2^53), 0 when nothing is loaded.
     pub fn time(&self) -> f64 {
         self.sim.as_ref().map_or(0.0, |sim| sim.time() as f64)

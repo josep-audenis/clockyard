@@ -256,6 +256,18 @@ and asynchronous reset (asynchronous reset acts like a combinational input).
 A load (any connectivity edit) also starts at time 0 with every flip-flop at
 0. A run under way keeps running. Stepping a single delta is planned.
 
+### Waveforms
+
+`watch(nets)` records chosen nets (ADR 0026). After every settle (a switch
+change, each tick, a reset), a watched net whose value differs from its last
+record gets `(time, value)`; a later settle at the same tick replaces that
+tick's value, so a net has one value per tick and deltas inside a settle are
+never recorded. Recording happens inside `tick`, so the record after *n* ticks
+does not depend on how the ticks were split into calls. The record keeps the
+last 4,096 ticks (`WAVE_WINDOW`) and the value in force when that window
+starts. A reset clears it, as does a load, which starts with nothing watched.
+`waves()` and `wave(i)` read it.
+
 ## Determinism
 
 Given the same circuit description and command sequence, the engine produces

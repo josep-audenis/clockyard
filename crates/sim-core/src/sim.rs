@@ -1,7 +1,7 @@
 //! Compile a circuit description into a netlist and settle it with
 //! synchronous deltas (`docs/simulation-model.md`, ADR 0006).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 use crate::catalog::{Kind, Port, mask};
 use crate::description::{CircuitDescription, Code, Diagnostic, Endpoint, Shape};
@@ -9,6 +9,10 @@ use crate::elaborate::{elaborate, lift, top};
 
 /// Net 0 is never driven: unconnected inputs read it as 0.
 const GROUND: u32 = 0;
+
+/// Ticks a waveform keeps: changes older than this are dropped, except the
+/// value still in force when the window starts (ADR 0026).
+pub const WAVE_WINDOW: u64 = 4096;
 
 /// Component ID → port name → net index.
 pub type PortNets = BTreeMap<String, BTreeMap<String, u32>>;
@@ -40,6 +44,17 @@ pub struct Simulator {
     stateful: bool,
     /// Net values as the current settle started: the pre-edge state flip-flops sample.
     snapshot: Vec<u32>,
+    /// The watched nets and their recorded changes (ADR 0026).
+    traces: Vec<Trace>,
+}
+
+/// A watched net's changes as `(time, value)`, oldest first: at most one per
+/// tick, each differing from the one before, the first in force when the
+/// window starts.
+#[derive(Debug)]
+struct Trace {
+    net: u32,
+    changes: VecDeque<(u64, u32)>,
 }
 
 /// What a primitive computes. A split compiles to one `Field` per field; an
@@ -573,6 +588,7 @@ impl Simulator {
             clocks,
             stateful,
             snapshot: Vec::new(),
+            traces: Vec::new(),
         };
         sim.presettle();
         warnings.extend(sim.settle((0..count).collect()));
@@ -771,6 +787,8 @@ impl Simulator {
             // any settle does, so time stops there whatever `count` was.
             if self.unsettled.is_empty() || count == 0 {
                 self.time = self.time.saturating_add(count);
+                // No value changes; this only moves the waveform window along.
+                self.record();
                 return None;
             }
             self.time = self.time.saturating_add(1);
@@ -839,6 +857,9 @@ impl Simulator {
         self.time = 0;
         self.unsettled.clear();
         self.nets.fill(0);
+        for trace in &mut self.traces {
+            trace.changes.clear();
+        }
         for prim in &mut self.prims {
             match &mut prim.op {
                 Op::Clock => prim.state = 0,
@@ -858,13 +879,73 @@ impl Simulator {
         self.settle(all).map(lift_one)
     }
 
+    /// Records `nets`, in this order, from their current values on; any
+    /// earlier record is dropped (ADR 0026). Refuses a net that does not exist.
+    pub fn watch(&mut self, nets: &[u32]) -> Result<(), String> {
+        if let Some(net) = nets.iter().find(|&&n| n as usize >= self.nets.len()) {
+            return Err(format!("there is no net {net}"));
+        }
+        self.traces = nets
+            .iter()
+            .map(|&net| Trace {
+                net,
+                changes: VecDeque::new(),
+            })
+            .collect();
+        self.record();
+        Ok(())
+    }
+
+    /// Each watched net's changes as `(time, value)`, oldest first, in the
+    /// order `watch` was given. The first is the value in force when the
+    /// window of [`WAVE_WINDOW`] ticks starts, or when watching began.
+    pub fn waves(&self) -> Vec<Vec<(u64, u32)>> {
+        self.traces
+            .iter()
+            .map(|t| t.changes.iter().copied().collect())
+            .collect()
+    }
+
+    /// The changes of the `index`th watched net, as [`Simulator::waves`] lists them.
+    pub fn wave(&self, index: usize) -> Option<impl Iterator<Item = (u64, u32)> + '_> {
+        Some(self.traces.get(index)?.changes.iter().copied())
+    }
+
+    /// Adds the settled values of the watched nets at the current time. A
+    /// later settle at the same tick replaces that tick's value.
+    fn record(&mut self) {
+        let (time, start) = (self.time, self.time.saturating_sub(WAVE_WINDOW));
+        for trace in &mut self.traces {
+            let value = self.nets[trace.net as usize];
+            let changes = &mut trace.changes;
+            if changes.back().is_some_and(|&(t, _)| t == time) {
+                changes.pop_back();
+            }
+            if changes.back().is_none_or(|&(_, v)| v != value) {
+                changes.push_back((time, value));
+            }
+            // Keep the change in force at `start`; drop those before it.
+            while changes.get(1).is_some_and(|&(t, _)| t <= start) {
+                changes.pop_front();
+            }
+        }
+    }
+
     /// Virtual time in ticks; the cycle counter is `(time + 1) / 2`.
     pub fn time(&self) -> u64 {
         self.time
     }
 
+    /// Settles as `settle_nets` does, then records the watched nets: every
+    /// settle goes through here, so the record holds every tick (ADR 0026).
+    fn settle(&mut self, dirty: Vec<u32>) -> Option<Diagnostic> {
+        let unstable = self.settle_nets(dirty);
+        self.record();
+        unstable
+    }
+
     /// Runs deltas until no net changes, bounded so oscillation cannot hang.
-    fn settle(&mut self, mut dirty: Vec<u32>) -> Option<Diagnostic> {
+    fn settle_nets(&mut self, mut dirty: Vec<u32>) -> Option<Diagnostic> {
         // Acyclic circuits settle in at most depth + 1 <= primitives + 1 deltas.
         let limit = self.prims.len() + 64;
         dirty.append(&mut self.unsettled);
