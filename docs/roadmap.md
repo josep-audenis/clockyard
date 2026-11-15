@@ -451,7 +451,17 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       challenge (format 10). Playwright: the one-bit register's starter fails
       at its first loading edge, and its solution, imported, passes.
    4. ⬜ Challenges 10–12 (CPU, program, output device): later, own ADR.
-6. ⬜ Waveforms.
+6. ⬜ Waveforms (ADR 0026, accepted): watched wires recorded per tick by
+   the engine, in a window of 4,096 ticks, and drawn in a panel below the
+   canvas.
+   1. ✅ The engine: `watch`, `waves` and `wave(i)` in `sim-core`; `watch`
+      and `wave(i)` in `sim-wasm`. Native tests: the record does not depend
+      on how ticks are split, an input change lands at its tick and a later
+      one replaces it, the window keeps the value in force, a reset or load
+      clears it. Recording 16 traces costs nothing measurable on the
+      reference CPU (about 120,000 cycles per second natively).
+   2. ⬜ The editor: Watch on a wire, the panel and its cursor. Playwright:
+      the 8-bit counter, stepped three times, reads `0x00` to `0x03`.
 7. ⬜ Library and teaching: blueprints, bundled designs, material.
 
 ## Out of scope (for now)

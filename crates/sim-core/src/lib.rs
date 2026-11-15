@@ -13,4 +13,4 @@ pub mod sim;
 
 pub use catalog::Kind;
 pub use description::{CircuitDescription, Code, Diagnostic, Endpoint, PortRef, Severity};
-pub use sim::{PortNets, Simulator, Until};
+pub use sim::{PortNets, Simulator, Until, WAVE_WINDOW};
