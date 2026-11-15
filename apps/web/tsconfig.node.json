@@ -5,7 +5,8 @@
       "ES2022"
     ],
     "types": [
-      "node"
+      "node",
+      "vite/client"
     ]
   },
   "include": [

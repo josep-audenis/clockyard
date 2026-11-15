@@ -1,4 +1,4 @@
-import init, { assemble, disassemble, Engine } from "../generated/sim-wasm/sim_wasm.js";
+import init, { assemble, check, disassemble, Engine } from "../generated/sim-wasm/sim_wasm.js";
 import type { Command, Diagnostic, Result, Stopped } from "../simulation/protocol";
 
 const reply = (result: Result) => postMessage(result);
@@ -166,6 +166,10 @@ onmessage = async (event: MessageEvent<Command>) => {
         break;
       case "disassemble":
         reply({ type: "disassembled", request: command.request, lines: command.words.map((w) => disassemble(w)) });
+        break;
+      // A bench of its own (ADR 0025): the loaded circuit and any run are untouched.
+      case "check":
+        reply({ type: "checked", request: command.request, report: JSON.parse(check(JSON.stringify(command.circuit), JSON.stringify(command.challenge))) });
         break;
     }
   } catch (error) {

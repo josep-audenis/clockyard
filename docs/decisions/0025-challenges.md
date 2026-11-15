@@ -166,6 +166,14 @@ Two facts limit what can be asked:
         - start the inverter, build it from NAND gates, Check: passed;
         - a wrong circuit names its first failing step;
         - an attempt shared by link reopens with its panel.
+
+      *As built:* the list sits under the chips; the panel under the
+      inspector's properties, with an Open button for the component when
+      another sheet is open. `metadata.challenge` is the challenge's file
+      name (`01-inverter`). A name this version has no challenge for is kept
+      and shows no panel. The report is cleared by any edit, since it
+      describes the circuit it checked. The starters stay in format 9; the
+      editor adds the name when it opens one.
    3. Challenges 6 to 9 with their solutions, starters and native tests,
       and a Playwright test of the one-bit register.
 

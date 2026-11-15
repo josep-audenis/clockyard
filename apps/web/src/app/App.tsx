@@ -18,6 +18,7 @@ import {
   MAX_WIDTH,
   maxValue,
   parseValue,
+  project,
   showValue,
   type CircuitComponent,
   type CircuitDocument,
@@ -27,9 +28,10 @@ import {
   type PartKind,
 } from "../editor/document";
 import { deleteRefusal, liveDefinitions, mainCircuit, useEditor } from "../editor/store";
-import { assemble, connectEngine, control, disassemble, readMemory, setSpeed, setUntil, SPEEDS, useSim } from "../simulation/sync";
+import { assemble, check, connectEngine, control, disassemble, readMemory, setSpeed, setUntil, SPEEDS, useSim } from "../simulation/sync";
 import type { AsmError } from "../simulation/protocol";
 import { FORMAT_VERSION, MAX_DOCUMENT_BYTES, parseDocument, serializeDocument } from "../storage/file";
+import { CHALLENGES, findChallenge, reportText, starterDocument } from "../storage/challenges";
 import { linkFragment, readLinkFragment } from "../storage/link";
 
 /** `label` is not a part: it places a named junction (ADR 0015). */
@@ -381,6 +383,7 @@ function PartsLibrary() {
           </p>
         )}
       </section>
+      <ChallengeList />
       <div className="type-caption parts-hint">
         <p>Pick a part or press its key, then click the canvas to place it. Esc cancels.</p>
         <details>
@@ -494,6 +497,92 @@ function ZoomControls() {
   );
 }
 
+/** Opens a challenge's starter (ADR 0025), asking first as Import does, on the sheet of the component to build. */
+function ChallengeList() {
+  const [error, setError] = useState<string | null>(null);
+  const start = (name: string) => {
+    let document: CircuitDocument;
+    try {
+      document = starterDocument(name);
+    } catch (cause) {
+      return setError(cause instanceof Error ? cause.message : String(cause));
+    }
+    setError(null);
+    if (!mayReplace()) return;
+    const { load, openSheet } = useEditor.getState();
+    load(document);
+    const definition = findChallenge(name)?.challenge.definition;
+    if (definition) openSheet(definition);
+  };
+  return (
+    <section className="panel" aria-labelledby="challenges-title">
+      <h2 id="challenges-title" className="type-heading panel-title">
+        CHALLENGES
+      </h2>
+      <ol className="challenge-list">
+        {CHALLENGES.map(({ name, challenge }, i) => (
+          <li key={name}>
+            {/* Numbered: they are an order to work through, and a chip may share a title. */}
+            <button type="button" className="part-tile type-label" onClick={() => start(name)}>
+              {i + 1}. {challenge.title}
+            </button>
+          </li>
+        ))}
+      </ol>
+      {error && (
+        <p className="field-hint field-error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** The challenge the document was started from: its text and Check (ADR 0025). The engine decides; this shows its report. */
+function ChallengePanel() {
+  const entry = useEditor((s) => findChallenge(s.metadata.challenge));
+  const sheet = useEditor((s) => s.sheet);
+  const circuit = useEditor((s) => s.circuit);
+  const definitions = useEditor((s) => s.definitions);
+  const built = useEditor((s) => (entry ? s.definitions.find((d) => d.id === entry.challenge.definition) : undefined));
+  // With the circuit it checked: any edit since makes it out of date, and it is no longer shown.
+  const [checked, setChecked] = useState<{ text: string; passed: boolean; circuit: unknown; definitions: unknown } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const result = checked?.circuit === circuit && checked.definitions === definitions ? checked : null;
+  if (!entry) return null;
+  const { challenge } = entry;
+  const run = async () => {
+    setChecking(true);
+    const state = useEditor.getState();
+    const report = await check(project(mainCircuit(state), liveDefinitions(state)), challenge);
+    setChecking(false);
+    setChecked({ text: reportText(report, challenge), passed: report.result === "passed", circuit: state.circuit, definitions: state.definitions });
+  };
+  return (
+    <section className="panel" aria-labelledby="challenge-title">
+      <h2 id="challenge-title" className="type-heading panel-title">
+        CHALLENGE
+      </h2>
+      <div className="inspector-body">
+        <p className="type-label inspector-kind">{challenge.title}</p>
+        <p className="type-body challenge-text">{challenge.text}</p>
+        {built && sheet !== built.id && (
+          <button type="button" className="button type-label" onClick={() => useEditor.getState().openSheet(built.id)}>
+            Open {built.name}
+          </button>
+        )}
+        <button type="button" className="button type-label" disabled={checking} onClick={() => void run()}>
+          Check
+        </button>
+        {/* Announced, but not a second status region next to the status bar's. */}
+        <p className={`type-body challenge-result${result?.passed ? " challenge-passed" : ""}`} aria-live="polite">
+          {result?.text}
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function Inspector() {
   const selection = useEditor((s) => s.selection);
   const part = useEditor((s) => (s.selection.length === 1 ? s.circuit.components.find((c) => c.id === s.selection[0]) : undefined));
@@ -529,6 +618,7 @@ function Inspector() {
           <p className="type-body inspector-empty">Select a component to edit its properties.</p>
         )}
       </section>
+      <ChallengePanel />
     </aside>
   );
 }

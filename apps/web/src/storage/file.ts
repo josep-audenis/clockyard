@@ -31,7 +31,7 @@ import {
   type Wire,
 } from "../editor/document";
 
-export const FORMAT_VERSION = 9;
+export const FORMAT_VERSION = 10;
 
 /** How a part of fixed width is named when a file gives it a width. */
 const FIXED_NAMES: Partial<Record<PartKind, string>> = { clock: "clock", seg7: "seven-segment display", keyboard: "keyboard" };
@@ -179,12 +179,13 @@ function readDocument(data: unknown): CircuitDocument {
   if (version > FORMAT_VERSION) {
     throw new Error(`This file uses format version ${version}, from a newer Clockyard. This version reads up to ${FORMAT_VERSION}.`);
   }
-  if (![1, 2, 3, 4, 5, 6, 7, 8, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
   // Version 4 → 5 (ADR 0014): widths arrive as props; nothing to change.
   // Version 5 → 6 (ADR 0015): junctions may carry a net label's name; nothing to change.
   // Version 6 → 7 (ADR 0017): clock and dff kinds; nothing to change.
   // Version 7 → 8 (ADR 0018): rom and ram kinds, addressWidth, data and source; nothing to change.
   // Version 8 → 9 (ADR 0021): seg7, screen and keyboard kinds, and a screen's columns; nothing to change.
+  // Version 9 → 10 (ADR 0025): metadata may name the challenge the document was started from; nothing to change.
 
   const metadata = object(data.metadata, "metadata");
   const circuit = object(data.circuit, "circuit");
@@ -219,10 +220,19 @@ function readDocument(data: unknown): CircuitDocument {
       name: text(metadata.name, "metadata.name"),
       createdAt: text(metadata.createdAt, "metadata.createdAt"),
       modifiedAt: text(metadata.modifiedAt, "metadata.modifiedAt"),
+      // Kept even when this version has no such challenge; the editor then shows no panel for it.
+      ...(metadata.challenge !== undefined && { challenge: challengeName(metadata.challenge) }),
     },
     circuit: main,
     definitions,
   };
+}
+
+/** A challenge's file name, such as `01-inverter` (ADR 0025). */
+function challengeName(value: unknown): string {
+  const name = text(value, "metadata.challenge");
+  if (!/^[a-z0-9-]{1,64}$/.test(name)) throw new Error("metadata.challenge must be a challenge's name, such as 01-inverter.");
+  return name;
 }
 
 /** Version 3 → 4 (ADR 0013): wires named an instance's port by its pin's label, now by the pin part's ID. */

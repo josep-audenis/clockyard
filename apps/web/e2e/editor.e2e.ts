@@ -162,6 +162,64 @@ test("a link the clipboard refuses is shown to copy by hand (ADR 0024)", async (
   await expect(page.getByLabel("Link to this circuit")).toHaveValue(/^http:\/\/localhost:\d+\/#circuit=1\.[A-Za-z0-9_-]+$/);
 });
 
+const challenges = (page: Page) => page.getByRole("region", { name: "CHALLENGES" });
+const challenge = (page: Page) => page.getByRole("region", { name: "CHALLENGE", exact: true });
+const checked = (page: Page) => challenge(page).locator(".challenge-result");
+
+test("start the inverter challenge, build it from a NAND gate, Check passes; a link reopens it with its panel (ADR 0025)", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/");
+  await challenges(page).getByRole("button", { name: "Inverter" }).click();
+  // The starter opens on the sheet of the component to build, its pins already placed.
+  await expect(page.getByRole("navigation", { name: "Sheet" })).toContainText("Inverter");
+  await expect(challenge(page)).toContainText("Build a NOT gate from NAND gates");
+  await challenge(page).getByRole("button", { name: "Check" }).click();
+  await expect(checked(page)).toHaveText("Step 1 of 2 failed. With A = 0: Y should be 1 but is 0.");
+
+  // Pin A's out at (2,1), pin Y's in at (20,1); a NAND placed at (10,6) has a (8,5), b (8,7) and out (12,6).
+  const at = await grid(page);
+  await page.getByRole("complementary", { name: "Parts" }).getByRole("button", { name: "NAND", exact: true }).click();
+  await click(page, at(10, 6));
+  await drag(page, at(8, 5), at(2, 1));
+  await drag(page, at(8, 7), at(2, 1));
+  await drag(page, at(12, 6), at(20, 1));
+  await expect(status(page)).toContainText("Settled");
+  await expect(checked(page)).toHaveText(""); // an edit puts the last report out of date
+  await challenge(page).getByRole("button", { name: "Check" }).click();
+  await expect(checked(page)).toHaveText("Passed, 2 of 2 steps.");
+
+  // Shared by link: it opens on the main circuit with its panel, and still passes.
+  await page.getByRole("button", { name: "Copy link" }).click();
+  await expect(page.locator(".file-notice")).toHaveText(/^Link copied/);
+  const other = await context.newPage();
+  await other.goto(await page.evaluate(() => navigator.clipboard.readText()));
+  await expect(challenge(other)).toContainText("Build a NOT gate from NAND gates");
+  await expect(challenge(other).getByRole("button", { name: "Open Inverter" })).toBeVisible();
+  await challenge(other).getByRole("button", { name: "Check" }).click();
+  await expect(checked(other)).toHaveText("Passed, 2 of 2 steps.");
+});
+
+test("a wrong attempt names its first failing step; a part the challenge does not allow is named (ADR 0025)", async ({ page }) => {
+  await page.goto("/");
+  await challenges(page).getByRole("button", { name: "XOR from NAND gates" }).click();
+  await expect(page.getByRole("navigation", { name: "Sheet" })).toContainText("XOR");
+  const at = await grid(page);
+  // Pin A's out at (2,1) straight to pin Y's in at (36,1): right until B is 1.
+  await drag(page, at(2, 1), at(36, 1));
+  await challenge(page).getByRole("button", { name: "Check" }).click();
+  await expect(checked(page)).toHaveText("Step 2 of 4 failed. With A = 0, B = 1: Y should be 1 but is 0.");
+
+  // An XOR gate in the middle behaves right but is not a NAND.
+  await page.getByRole("button", { name: "Undo" }).click();
+  await page.keyboard.press("x");
+  await click(page, at(18, 3)); // a (16,2), b (16,4), out (20,3)
+  await drag(page, at(16, 2), at(2, 1));
+  await drag(page, at(16, 4), at(2, 5));
+  await drag(page, at(20, 3), at(36, 1));
+  await challenge(page).getByRole("button", { name: "Check" }).click();
+  await expect(checked(page)).toHaveText("This challenge allows only these parts: nand. The component uses: xor.");
+});
+
 test("a broken link shows its reason and opens nothing (ADR 0024)", async ({ page }) => {
   await page.goto("/#circuit=1.A");
   await expect(page.getByRole("alert")).toHaveText("Could not open the link: This link is cut short or damaged.");

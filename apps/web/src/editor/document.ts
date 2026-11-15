@@ -1,4 +1,4 @@
-// The editable circuit document, format version 9 (docs/architecture.md#circuit-document, ADRs 0010, 0012, 0014, 0015, 0017, 0018, 0021).
+// The editable circuit document, format version 10 (docs/architecture.md#circuit-document, ADRs 0010, 0012, 0014, 0015, 0017, 0018, 0021, 0025).
 // Connectivity is explicit: wires reference ports and junctions by ID, never by geometry.
 import type { CircuitBody, CircuitDescription, Endpoint, JunctionRef, PinDesc } from "../simulation/protocol";
 
@@ -185,8 +185,9 @@ export type Definition = { id: string; name: string; circuit: Circuit };
 
 export type CircuitDocument = {
   format: "clockyard";
-  version: 9;
-  metadata: { name: string; createdAt: string; modifiedAt: string };
+  version: 10;
+  /** `challenge`: the challenge the document was started from, by its file name such as `01-inverter` (ADR 0025). */
+  metadata: { name: string; createdAt: string; modifiedAt: string; challenge?: string };
   circuit: Circuit;
   definitions: Definition[];
 };

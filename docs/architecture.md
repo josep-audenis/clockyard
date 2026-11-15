@@ -51,10 +51,11 @@ The UI never computes a signal value. It renders values received from the worker
 
 The editable design. Owned by the frontend, serialized as JSON, versioned.
 
-Format version 9 (ADRs 0010, 0012, 0013, 0014, 0015, 0017, 0018, 0021; exact schema fixed in code with
+Format version 10 (ADRs 0010, 0012, 0013, 0014, 0015, 0017, 0018, 0021, 0025; exact schema fixed in code with
 validation). Versions 7 to 9 add part kinds and props only: `clock` and `dff` (v7), `rom` and `ram`
 with `addressWidth`, and a ROM's `data` and editor-only `source` (v8), and the devices `seg7`,
-`screen` (a RAM whose words are pixels, with editor-only `columns`) and `keyboard` (v9):
+`screen` (a RAM whose words are pixels, with editor-only `columns`) and `keyboard` (v9). Version 10 adds an
+optional `metadata.challenge`, the challenge the document was started from (ADR 0025):
 
 ```json
 {
@@ -136,7 +137,10 @@ Rules:
   by part ID with their widths, the primitive kinds it may use, and steps of
   inputs and expected outputs. `sim_core::check` runs it on a bench of its
   own (switches on the input pins, LEDs on the outputs) in a fresh
-  simulator; `sim-wasm`'s `check` takes and returns JSON.
+  simulator; `sim-wasm`'s `check` takes and returns JSON. The editor bundles
+  the challenges and starters (`storage/challenges.ts`); starting one loads
+  its starter with `metadata.challenge` set (format 10), and the panel's
+  Check sends the whole document to the worker's `check`.
 - `props.width` (ADR 0014) is a whole number from 1 to 32, allowed only on
   switches, LEDs and gates; it sets every port's width. 1 is the default and
   is not stored, so 1-bit circuits read as before. `props.fields` is required
@@ -218,7 +222,8 @@ type Command =
   | { type: "reset" }                  // pause; flip-flops, RAM, clock and time to 0
   | { type: "readMemory"; component: string; count: number } // a memory's first count words (ADRs 0018, 0021: every screen on the sheet, once a frame)
   | { type: "assemble"; request: number; source: string }    // reference-CPU assembly (ADR 0019)
-  | { type: "disassemble"; request: number; words: number[] };
+  | { type: "disassemble"; request: number; words: number[] }
+  | { type: "check"; request: number; circuit: CircuitDescription; challenge: Challenge }; // a bench of its own (ADR 0025)
 
 // worker → main
 type Result =
@@ -233,6 +238,7 @@ type Result =
   | { type: "memory"; component: string; words: Uint32Array } // empty when not a memory
   | { type: "assembled"; request: number; words: number[]; errors: { line: number; message: string }[] }
   | { type: "disassembled"; request: number; lines: string[] }
+  | { type: "checked"; request: number; report: Report } // passed, failed (first step) or refused (why)
   | { type: "error"; message: string; load?: true; running?: boolean }; // load: answers a load; running: after the failure
 ```
 
