@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { project } from "../editor/document";
 import { liveDefinitions, useEditor, type EditorState } from "../editor/store";
 import { startSimulation } from "./client";
-import type { AsmError, Command, Diagnostic, Result, Stopped } from "./protocol";
+import type { AsmError, Challenge, CircuitDescription, Command, Diagnostic, Report, Result, Stopped } from "./protocol";
 
 export type Loaded = Extract<Result, { type: "loaded" }>;
 
@@ -120,6 +120,14 @@ export async function disassemble(words: number[]): Promise<string[] | null> {
   return result.type === "disassembled" ? result.lines : null;
 }
 
+/** Checks a challenge against a circuit in the worker (ADR 0025); a failure to run at all is a refusal saying why. */
+export async function check(circuit: CircuitDescription, challenge: Challenge): Promise<Report> {
+  const result = await ask((request) => ({ type: "check", request, circuit, challenge }));
+  if (result.type === "checked") return result.report;
+  const message = result.type === "error" ? result.message : "no answer from the engine";
+  return { result: "refused", reason: `Could not check: ${message}.` };
+}
+
 /** Picks the run speed; a run under way continues at it. */
 export function setSpeed(speed: number) {
   useSim.setState({ speed });
@@ -136,7 +144,7 @@ export function connectEngine(): () => void {
         useSim.setState({ status: "ready" });
         break;
       case "error":
-        // An assembler request's failure answers that request only; the simulation is unaffected.
+        // A request's failure (assembler or check) answers that request only; the simulation is unaffected.
         if (message.request !== undefined) {
           awaiting.get(message.request)?.(message);
           awaiting.delete(message.request);
@@ -158,6 +166,7 @@ export function connectEngine(): () => void {
         break;
       case "assembled":
       case "disassembled":
+      case "checked":
         awaiting.get(message.request)?.(message);
         awaiting.delete(message.request);
         break;

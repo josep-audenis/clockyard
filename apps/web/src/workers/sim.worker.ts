@@ -1,4 +1,4 @@
-import init, { assemble, disassemble, Engine } from "../generated/sim-wasm/sim_wasm.js";
+import init, { assemble, check, disassemble, Engine } from "../generated/sim-wasm/sim_wasm.js";
 import type { Command, Diagnostic, Result, Stopped } from "../simulation/protocol";
 
 const reply = (result: Result) => postMessage(result);
@@ -100,8 +100,8 @@ function slice() {
 onmessage = async (event: MessageEvent<Command>) => {
   await ready;
   const command = event.data;
-  // Load failure was already reported; calling into the uninitialised module would replace that message. An
-  // assembler request still gets its answer, so nothing waits for it forever.
+  // Load failure was already reported; calling into the uninitialised module would replace that message. A
+  // request (assembler or check) still gets its answer, so nothing waits for it forever.
   if (!engine) {
     if ("request" in command) reply({ type: "error", message: "the engine failed to load", request: command.request });
     return;
@@ -166,6 +166,10 @@ onmessage = async (event: MessageEvent<Command>) => {
         break;
       case "disassemble":
         reply({ type: "disassembled", request: command.request, lines: command.words.map((w) => disassemble(w)) });
+        break;
+      // A bench of its own (ADR 0025): the loaded circuit and any run are untouched.
+      case "check":
+        reply({ type: "checked", request: command.request, report: JSON.parse(check(JSON.stringify(command.circuit), JSON.stringify(command.challenge))) });
         break;
     }
   } catch (error) {

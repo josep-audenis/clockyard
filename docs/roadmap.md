@@ -432,8 +432,17 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       (inverter, XOR from NAND, half adder, full adder, 8-bit adder) are
       written by `scripts/challenges.mjs` with their solutions and
       starters; native tests pass every solution and fail every starter.
-   2. ⬜ Editor: Challenges list, panel and Check; `metadata.challenge`
-      (format 10); Playwright.
+   2. ✅ Editor: a Challenges list under the chips opens a challenge's
+      starter (asking before it replaces a circuit) on the sheet of the
+      component to build. The Challenge panel under the inspector shows its
+      text and Check, which runs the worker's `check` on the whole document
+      and reports "Passed, N of N steps.", the first failing step with its
+      inputs and outputs, or why it could not run; an edit to a component
+      hides the report. `metadata.challenge` (format 10) records the challenge, so an
+      exported file or a link reopens with its panel. Playwright: the
+      inverter built from a NAND passes and its link reopens it; a wrong
+      XOR names its first failing step, and an XOR gate is refused by
+      name.
    3. ⬜ Challenges 6–9 (one-bit register to ALU).
    4. ⬜ Challenges 10–12 (CPU, program, output device): later, own ADR.
 6. ⬜ Waveforms.
@@ -451,8 +460,8 @@ Phase 4 is built, with its demo. Phase 5 is planned in ADR 0020 (accepted);
 its first four increments, devices (ADR 0021), memory-mapped I/O on the
 reference CPU (ADR 0022), the game demo, Catch (ADR 0023), and sharing
 through a URL fragment (ADR 0024), are built with their demos. Increment 5, challenges checked by behavioural
-tests (ADR 0025, accepted), is under way: step 1, the engine, is built; next
-is step 2, the editor.
+tests (ADR 0025, accepted), is under way: steps 1 and 2, the engine and the
+editor, are built; next is step 3, challenges 6 to 9.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).

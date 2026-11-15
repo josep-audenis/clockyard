@@ -5,7 +5,7 @@ import { parseDocument, serializeDocument } from "./file";
 
 const document: CircuitDocument = {
   format: "clockyard",
-  version: 9,
+  version: 10,
   metadata: { name: "AND demo", createdAt: "2026-11-06T12:00:00Z", modifiedAt: "2026-11-06T12:30:00Z" },
   circuit: {
     components: [
@@ -77,7 +77,7 @@ test("definition names are normalized like the editor does, and a blank one beco
 test.each([
   ["not JSON", () => parseDocument("{"), "not valid JSON"],
   ["another format", () => broken((doc) => Object.assign(doc, { format: "other" })), "not a Clockyard file"],
-  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 10 })), "newer Clockyard"],
+  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 11 })), "newer Clockyard"],
   ["an instance of a missing definition", () => broken((doc) => Object.assign(doc.circuit.components[2] ?? {}, { definition: "gone" })), "missing definition gone"],
   ["an ID with a slash", () => broken((_, c) => (c.id = "a/b")), 'must not contain "/"'],
   ["a definition ID used twice", () => broken((doc) => doc.definitions.push({ ...(doc.definitions[0] as Definition) })), "ID inv is used more than once"],
@@ -248,6 +248,15 @@ test("a version 7 file is migrated: only the version changes; memories round-tri
   // 8 address bits is the default, so it is not stored.
   const ram = broken((_, c) => Object.assign(c, { kind: "ram", props: { width: 8, addressWidth: 8 } }));
   expect(ram.ok && ram.document.circuit.components[0]?.props).toEqual({ width: 8 });
+});
+
+test("a version 9 file is migrated: only the version changes; a challenge's name round-trips in 10 (ADR 0025)", () => {
+  const v9 = { ...document, version: 9 };
+  expect(parseDocument(JSON.stringify(v9))).toEqual({ ok: true, document });
+  const started = { ...document, metadata: { ...document.metadata, challenge: "01-inverter" } };
+  expect(parseDocument(serializeDocument(started))).toEqual({ ok: true, document: started });
+  const odd = broken((doc) => Object.assign(doc.metadata, { challenge: "../01 inverter" }));
+  expect(odd).toEqual({ ok: false, error: "metadata.challenge must be a challenge's name, such as 01-inverter." });
 });
 
 test("a version 8 file is migrated: only the version changes; devices round-trip in 9 (ADR 0021)", () => {
