@@ -423,7 +423,7 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       hand. Playwright: an AND gate's link opens in another page and
       simulates the same way; the `catch` link replaces it after asking,
       and runs; a broken link shows its reason and opens nothing.
-5. ⬜ Challenges checked by behavioural tests (ADR 0025, accepted): each is a
+5. ✅ Challenges checked by behavioural tests (ADR 0025, accepted): each is a
    custom component to build, checked by `sim-core` on a test bench.
    1. ✅ Engine: `sim_core::check` runs a challenge on a bench of its own,
       reporting passed, the first failing step, or why it cannot run
@@ -443,7 +443,13 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       inverter built from a NAND passes and its link reopens it; a wrong
       XOR names its first failing step, and an XOR gate is refused by
       name.
-   3. ⬜ Challenges 6–9 (one-bit register to ALU).
+   3. ✅ Challenges 6–9: one-bit register and 8-bit register (`load`),
+      8-bit counter (`en`, synchronous `clr`, wrapping at 255), and the ALU
+      the reference CPU needs (`A ± B`, carry, zero; 8-bit adder provided).
+      Clocked steps come from a model in the script; native tests pass every
+      solution and fail every starter. Solutions and starters name their
+      challenge (format 10). Playwright: the one-bit register's starter fails
+      at its first loading edge, and its solution, imported, passes.
    4. ⬜ Challenges 10–12 (CPU, program, output device): later, own ADR.
 6. ⬜ Waveforms.
 7. ⬜ Library and teaching: blueprints, bundled designs, material.
@@ -459,9 +465,9 @@ analysis, plugin system, full game campaign during the MVP.
 Phase 4 is built, with its demo. Phase 5 is planned in ADR 0020 (accepted);
 its first four increments, devices (ADR 0021), memory-mapped I/O on the
 reference CPU (ADR 0022), the game demo, Catch (ADR 0023), and sharing
-through a URL fragment (ADR 0024), are built with their demos. Increment 5, challenges checked by behavioural
-tests (ADR 0025, accepted), is under way: steps 1 and 2, the engine and the
-editor, are built; next is step 3, challenges 6 to 9.
+through a URL fragment (ADR 0024), are built with their demos, and so is
+increment 5, challenges 1 to 9 checked by behavioural tests (ADR 0025);
+challenges 10 to 12 wait for their own ADR. Next is increment 6, waveforms.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).

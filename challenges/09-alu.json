@@ -1,0 +1,78 @@
+{
+  "title": "ALU",
+  "text": "Add or subtract: Y is A + B, or A - B when sub is 1, modulo 256. C is the carry out; when subtracting it is 1 when nothing is borrowed (A is at least B). Z is 1 when Y is 0. An 8-bit adder is provided.",
+  "definition": "alu",
+  "inputs": [
+    {
+      "name": "A",
+      "width": 8
+    },
+    {
+      "name": "B",
+      "width": 8
+    },
+    {
+      "name": "sub",
+      "width": 1
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Y",
+      "width": 8
+    },
+    {
+      "name": "C",
+      "width": 1
+    },
+    {
+      "name": "Z",
+      "width": 1
+    }
+  ],
+  "parts": [
+    "not",
+    "and",
+    "nand",
+    "or",
+    "nor",
+    "xor",
+    "xnor",
+    "split",
+    "merge"
+  ],
+  "steps": [
+    {"set":{"A":0,"B":0,"sub":0},"expect":{"Y":0,"C":0,"Z":1}},
+    {"set":{"A":5,"B":5,"sub":1},"expect":{"Y":0,"C":1,"Z":1}},
+    {"set":{"A":3,"B":5,"sub":1},"expect":{"Y":254,"C":0,"Z":0}},
+    {"set":{"A":255,"B":1,"sub":0},"expect":{"Y":0,"C":1,"Z":1}},
+    {"set":{"A":0,"B":1,"sub":1},"expect":{"Y":255,"C":0,"Z":0}},
+    {"set":{"A":128,"B":128,"sub":0},"expect":{"Y":0,"C":1,"Z":1}},
+    {"set":{"A":200,"B":100,"sub":1},"expect":{"Y":100,"C":1,"Z":0}},
+    {"set":{"A":100,"B":200,"sub":1},"expect":{"Y":156,"C":0,"Z":0}},
+    {"set":{"A":85,"B":170,"sub":0},"expect":{"Y":255,"C":0,"Z":0}},
+    {"set":{"A":255,"B":255,"sub":1},"expect":{"Y":0,"C":1,"Z":1}},
+    {"set":{"A":248,"B":147,"sub":1},"expect":{"Y":101,"C":1,"Z":0}},
+    {"set":{"A":159,"B":86,"sub":0},"expect":{"Y":245,"C":0,"Z":0}},
+    {"set":{"A":141,"B":234,"sub":1},"expect":{"Y":163,"C":0,"Z":0}},
+    {"set":{"A":217,"B":125,"sub":1},"expect":{"Y":92,"C":1,"Z":0}},
+    {"set":{"A":127,"B":14,"sub":1},"expect":{"Y":113,"C":1,"Z":0}},
+    {"set":{"A":43,"B":139,"sub":1},"expect":{"Y":160,"C":0,"Z":0}},
+    {"set":{"A":88,"B":229,"sub":1},"expect":{"Y":115,"C":0,"Z":0}},
+    {"set":{"A":8,"B":196,"sub":0},"expect":{"Y":204,"C":0,"Z":0}},
+    {"set":{"A":154,"B":179,"sub":1},"expect":{"Y":231,"C":0,"Z":0}},
+    {"set":{"A":185,"B":85,"sub":1},"expect":{"Y":100,"C":1,"Z":0}},
+    {"set":{"A":8,"B":202,"sub":0},"expect":{"Y":210,"C":0,"Z":0}},
+    {"set":{"A":70,"B":21,"sub":0},"expect":{"Y":91,"C":0,"Z":0}},
+    {"set":{"A":212,"B":179,"sub":1},"expect":{"Y":33,"C":1,"Z":0}},
+    {"set":{"A":40,"B":97,"sub":1},"expect":{"Y":199,"C":0,"Z":0}},
+    {"set":{"A":51,"B":23,"sub":0},"expect":{"Y":74,"C":0,"Z":0}},
+    {"set":{"A":88,"B":7,"sub":1},"expect":{"Y":81,"C":1,"Z":0}},
+    {"set":{"A":111,"B":107,"sub":1},"expect":{"Y":4,"C":1,"Z":0}},
+    {"set":{"A":247,"B":226,"sub":1},"expect":{"Y":21,"C":1,"Z":0}},
+    {"set":{"A":99,"B":43,"sub":1},"expect":{"Y":56,"C":1,"Z":0}},
+    {"set":{"A":164,"B":146,"sub":0},"expect":{"Y":54,"C":1,"Z":0}},
+    {"set":{"A":13,"B":52,"sub":0},"expect":{"Y":65,"C":0,"Z":0}},
+    {"set":{"A":57,"B":118,"sub":0},"expect":{"Y":175,"C":0,"Z":0}}
+  ]
+}

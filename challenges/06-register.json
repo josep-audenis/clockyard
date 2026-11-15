@@ -1,0 +1,57 @@
+{
+  "title": "One-bit register",
+  "text": "Store one bit: at each rising edge of clk, Q takes D when load is 1, and keeps its value when load is 0.",
+  "definition": "register",
+  "inputs": [
+    {
+      "name": "D",
+      "width": 1
+    },
+    {
+      "name": "load",
+      "width": 1
+    },
+    {
+      "name": "clk",
+      "width": 1
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Q",
+      "width": 1
+    }
+  ],
+  "parts": [
+    "not",
+    "and",
+    "nand",
+    "or",
+    "nor",
+    "xor",
+    "xnor",
+    "dff"
+  ],
+  "steps": [
+    {"set":{"D":1},"expect":{"Q":0}},
+    {"set":{"clk":1},"expect":{"Q":0}},
+    {"set":{"clk":0},"expect":{"Q":0}},
+    {"set":{"load":1},"expect":{"Q":0}},
+    {"set":{"clk":1},"expect":{"Q":1}},
+    {"set":{"clk":0},"expect":{"Q":1}},
+    {"set":{"D":0},"expect":{"Q":1}},
+    {"set":{"load":0},"expect":{"Q":1}},
+    {"set":{"clk":1},"expect":{"Q":1}},
+    {"set":{"clk":0},"expect":{"Q":1}},
+    {"set":{"load":1},"expect":{"Q":1}},
+    {"set":{"clk":1},"expect":{"Q":0}},
+    {"set":{"clk":0},"expect":{"Q":0}},
+    {"set":{"D":1},"expect":{"Q":0}},
+    {"set":{"clk":1},"expect":{"Q":1}},
+    {"set":{"clk":0},"expect":{"Q":1}},
+    {"set":{"load":0},"expect":{"Q":1}},
+    {"set":{"D":0},"expect":{"Q":1}},
+    {"set":{"clk":1},"expect":{"Q":1}},
+    {"set":{"clk":0},"expect":{"Q":1}}
+  ]
+}

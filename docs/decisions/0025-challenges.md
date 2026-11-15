@@ -173,12 +173,21 @@ Two facts limit what can be asked:
       name (`01-inverter`). A name this version has no challenge for is kept
       and shows no panel. The report is hidden by any edit to a component,
       since it describes the components it checked; switching sheets or
-      editing the main circuit, which the bench ignores, keeps it. The starters stay in format 9; the
-      editor adds the name when it opens one.
+      editing the main circuit, which the bench ignores, keeps it. The editor adds the name to a
+      starter it opens; since step 3 the files carry it too (format 10), so
+      an imported solution opens with its panel.
    3. Challenges 6 to 9 with their solutions, starters and native tests,
       and a Playwright test of the one-bit register.
 
       This closes the increment.
+
+      *As built:* a clocked challenge's steps come from a model in the
+      script. Data inputs change with `clk` low, and each pulse is two
+      steps, `clk` 1 then 0, with nothing else changing, so every edge
+      samples inputs that have settled; the output is expected after every
+      step. The counter's steps run through 255 and round to 0, so every
+      carry is used (538 steps). The ALU's starter provides the 8-bit adder
+      and its full adder. Steps are written one to a line.
 
 ## Alternatives considered
 

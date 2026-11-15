@@ -21,3 +21,10 @@ every starter fails, through the engine.
 | `03-half-adder` | `A`, `B` → `S`, `C` | gates |
 | `04-full-adder` | `A`, `B`, `Cin` → `S`, `Cout` | gates |
 | `05-adder8` | `A[8]`, `B[8]`, `Cin` → `S[8]`, `Cout` | gates, split, merge (full adder provided) |
+| `06-register` | `D`, `load`, `clk` → `Q` | gates, dff |
+| `07-register8` | `D[8]`, `load`, `clk` → `Q[8]` | gates, dff, split, merge |
+| `08-counter8` | `en`, `clr`, `clk` → `Q[8]` | gates, dff, split, merge |
+| `09-alu` | `A[8]`, `B[8]`, `sub` → `Y[8]`, `C`, `Z` | gates, split, merge (8-bit adder provided) |
+
+A clocked challenge changes its data inputs with `clk` low and makes each
+edge as two steps, `clk` 1 then 0, so every edge samples settled inputs.

@@ -1,0 +1,76 @@
+{
+  "format": "clockyard",
+  "version": 10,
+  "metadata": {
+    "name": "8-bit counter",
+    "createdAt": "2026-11-15T12:00:00.000Z",
+    "modifiedAt": "2026-11-15T12:00:00.000Z",
+    "challenge": "08-counter8"
+  },
+  "circuit": {
+    "components": [],
+    "junctions": [],
+    "wires": []
+  },
+  "definitions": [
+    {
+      "id": "counter8",
+      "name": "8-bit counter",
+      "circuit": {
+        "components": [
+          {
+            "id": "en",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "en"
+            }
+          },
+          {
+            "id": "clr",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "clr"
+            }
+          },
+          {
+            "id": "clk",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {
+              "label": "clk"
+            }
+          },
+          {
+            "id": "Q",
+            "kind": "led",
+            "position": {
+              "x": 52,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "Q",
+              "width": 8
+            }
+          }
+        ],
+        "junctions": [],
+        "wires": []
+      }
+    }
+  ]
+}

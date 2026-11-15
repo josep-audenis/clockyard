@@ -1,0 +1,61 @@
+{
+  "title": "8-bit register",
+  "text": "Store eight bits: at each rising edge of clk, Q takes D when load is 1, and keeps its value when load is 0.",
+  "definition": "register8",
+  "inputs": [
+    {
+      "name": "D",
+      "width": 8
+    },
+    {
+      "name": "load",
+      "width": 1
+    },
+    {
+      "name": "clk",
+      "width": 1
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Q",
+      "width": 8
+    }
+  ],
+  "parts": [
+    "not",
+    "and",
+    "nand",
+    "or",
+    "nor",
+    "xor",
+    "xnor",
+    "dff",
+    "split",
+    "merge"
+  ],
+  "steps": [
+    {"set":{"D":165},"expect":{"Q":0}},
+    {"set":{"clk":1},"expect":{"Q":0}},
+    {"set":{"clk":0},"expect":{"Q":0}},
+    {"set":{"load":1},"expect":{"Q":0}},
+    {"set":{"clk":1},"expect":{"Q":165}},
+    {"set":{"clk":0},"expect":{"Q":165}},
+    {"set":{"D":60,"load":0},"expect":{"Q":165}},
+    {"set":{"clk":1},"expect":{"Q":165}},
+    {"set":{"clk":0},"expect":{"Q":165}},
+    {"set":{"load":1},"expect":{"Q":165}},
+    {"set":{"clk":1},"expect":{"Q":60}},
+    {"set":{"clk":0},"expect":{"Q":60}},
+    {"set":{"D":255},"expect":{"Q":60}},
+    {"set":{"clk":1},"expect":{"Q":255}},
+    {"set":{"clk":0},"expect":{"Q":255}},
+    {"set":{"D":0},"expect":{"Q":255}},
+    {"set":{"load":0},"expect":{"Q":255}},
+    {"set":{"clk":1},"expect":{"Q":255}},
+    {"set":{"clk":0},"expect":{"Q":255}},
+    {"set":{"load":1},"expect":{"Q":255}},
+    {"set":{"clk":1},"expect":{"Q":0}},
+    {"set":{"clk":0},"expect":{"Q":0}}
+  ]
+}

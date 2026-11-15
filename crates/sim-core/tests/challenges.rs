@@ -51,7 +51,7 @@ fn refusal(report: Report) -> String {
 }
 
 #[test]
-fn there_are_five_challenges_so_far() {
+fn there_are_nine_challenges_so_far() {
     assert_eq!(
         all(),
         [
@@ -59,7 +59,11 @@ fn there_are_five_challenges_so_far() {
             "02-xor",
             "03-half-adder",
             "04-full-adder",
-            "05-adder8"
+            "05-adder8",
+            "06-register",
+            "07-register8",
+            "08-counter8",
+            "09-alu"
         ]
     );
 }

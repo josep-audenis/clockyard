@@ -127,6 +127,183 @@ function adderSteps() {
   });
 }
 
+/**
+ * Steps for a clocked circuit, from a model of it: an object sets inputs with clk low; "pulse" raises clk, then
+ * lowers it. Nothing else changes with clk, so each edge samples inputs that have settled. `next` gives the state
+ * after a rising edge; the output is expected to show the state after every step.
+ */
+function clocked(output, next, ops) {
+  const inputs = {};
+  let state = 0;
+  return ops.flatMap((op) => {
+    if (op !== "pulse") {
+      Object.assign(inputs, op);
+      return [{ set: op, expect: { [output]: state } }];
+    }
+    state = next(inputs, state);
+    return [
+      { set: { clk: 1 }, expect: { [output]: state } },
+      { set: { clk: 0 }, expect: { [output]: state } },
+    ];
+  });
+}
+const P = "pulse";
+const pulses = (n) => Array(n).fill(P);
+const holds = (i, q) => (i.load ? i.D : q);
+
+/** A register's parts: d = load ? D : q from gates `width` bits wide, into a flip-flop; `load` names a signal that wide. */
+function register(width, load) {
+  const w = width > 1 ? { width } : {};
+  return {
+    parts: [part("nl", "not", 8, 10, w), part("a1", "and", 14, 0, w), part("a2", "and", 14, 8, w), part("o", "or", 20, 4, w), part("ff", "dff", 26, 4, w)],
+    wires: [
+      ["D.out", "a1.a"],
+      [load, "a1.b"],
+      [load, "nl.in"],
+      ["ff.q", "a2.a"],
+      ["nl.out", "a2.b"],
+      ["a1.out", "o.a"],
+      ["a2.out", "o.b"],
+      ["o.out", "ff.d"],
+      ["clk.out", "ff.clk"],
+      ["ff.q", "Q.in"],
+    ],
+  };
+}
+
+/** A 1-bit signal fanned out to 8 bits through a merge `id`, fed by `from`. */
+const widen = (id, from, x, y) => ({
+  part: part(id, "merge", x, y, { fields: ones(8) }),
+  wires: Array.from({ length: 8 }, (_, i) => [from, `${id}.f${i}`]),
+});
+
+function register1() {
+  const { parts, wires: inside } = register(1, "load.out");
+  return {
+    id: "register",
+    name: "One-bit register",
+    circuit: { components: [...pins([["D", 1], ["load", 1], ["clk", 1]], [["Q", 1]], 34), ...parts], junctions: [], wires: wires(inside) },
+  };
+}
+
+function register8() {
+  const { parts, wires: inside } = register(8, "lw.out");
+  const load = widen("lw", "load.out", 4, 10);
+  return {
+    id: "register8",
+    name: "8-bit register",
+    circuit: {
+      components: [...pins([["D", 8], ["load", 1], ["clk", 1]], [["Q", 8]], 34), load.part, ...parts],
+      junctions: [],
+      wires: wires([...load.wires, ...inside]),
+    },
+  };
+}
+
+function counter8() {
+  const bits = Array.from({ length: 8 }, (_, i) => i);
+  return {
+    id: "counter8",
+    name: "8-bit counter",
+    circuit: {
+      components: [
+        ...pins([["en", 1], ["clr", 1], ["clk", 1]], [["Q", 8]], 52),
+        part("ff", "dff", 44, 0, { width: 8 }),
+        part("sq", "split", 8, 0, { fields: ones(8) }),
+        part("nc", "not", 8, 40),
+        ...bits.map((i) => part(`x${i}`, "xor", 20, i * 5)),
+        ...bits.slice(0, 7).map((i) => part(`h${i}`, "and", 26, i * 5 + 2)),
+        ...bits.map((i) => part(`k${i}`, "and", 32, i * 5)),
+        part("m", "merge", 38, 0, { fields: ones(8) }),
+      ],
+      junctions: [],
+      // q + en, a half adder per bit with en as the first carry; then each bit cleared while clr is 1.
+      wires: wires([
+        ["ff.q", "sq.in"],
+        ["clr.out", "nc.in"],
+        ...bits.flatMap((i) => {
+          const carry = i === 0 ? "en.out" : `h${i - 1}.out`;
+          return [
+            [`sq.f${i}`, `x${i}.a`],
+            [carry, `x${i}.b`],
+            ...(i < 7 ? [[`sq.f${i}`, `h${i}.a`], [carry, `h${i}.b`]] : []),
+            [`x${i}.out`, `k${i}.a`],
+            ["nc.out", `k${i}.b`],
+            [`k${i}.out`, `m.f${i}`],
+          ];
+        }),
+        ["m.out", "ff.d"],
+        ["clk.out", "ff.clk"],
+        ["ff.q", "Q.in"],
+      ]),
+    },
+  };
+}
+
+function alu() {
+  const s = widen("sw", "sub.out", 8, 12);
+  return {
+    id: "alu",
+    name: "ALU",
+    circuit: {
+      components: [
+        ...pins([["A", 8], ["B", 8], ["sub", 1]], [["Y", 8], ["C", 1], ["Z", 1]], 50),
+        s.part,
+        part("bx", "xor", 14, 4, { width: 8 }),
+        chip("ad", "adder8", 22, 0),
+        part("sy", "split", 30, 10, { fields: ones(8) }),
+        ...[0, 1, 2, 3, 4, 5].map((i) => part(`o${i}`, "or", 36 + (i >> 2) * 6, (i % 4) * 4 + 8)),
+        part("z", "nor", 46, 12),
+      ],
+      junctions: [],
+      // B, inverted when subtracting, plus sub as the carry in: A - B is A + ~B + 1.
+      wires: wires([
+        ...s.wires,
+        ["B.out", "bx.a"],
+        ["sw.out", "bx.b"],
+        ["A.out", "ad.A"],
+        ["bx.out", "ad.B"],
+        ["sub.out", "ad.Cin"],
+        ["ad.S", "Y.in"],
+        ["ad.Cout", "C.in"],
+        ["ad.S", "sy.in"],
+        ...[0, 1, 2, 3].flatMap((i) => [
+          [`sy.f${2 * i}`, `o${i}.a`],
+          [`sy.f${2 * i + 1}`, `o${i}.b`],
+        ]),
+        ["o0.out", "o4.a"],
+        ["o1.out", "o4.b"],
+        ["o2.out", "o5.a"],
+        ["o3.out", "o5.b"],
+        ["o4.out", "z.a"],
+        ["o5.out", "z.b"],
+        ["z.out", "Z.in"],
+      ]),
+    },
+  };
+}
+
+function aluSteps() {
+  const edges = [
+    [0, 0, 0],
+    [5, 5, 1],
+    [3, 5, 1],
+    [255, 1, 0],
+    [0, 1, 1],
+    [128, 128, 0],
+    [200, 100, 1],
+    [100, 200, 1],
+    [0x55, 0xaa, 0],
+    [255, 255, 1],
+  ];
+  const r = random(9);
+  const more = Array.from({ length: 22 }, () => [r.next().value & 255, r.next().value & 255, r.next().value & 1]);
+  return [...edges, ...more].map(([A, B, sub]) => {
+    const total = A + (sub ? ~B & 255 : B) + sub;
+    return { set: { A, B, sub }, expect: { Y: total & 255, C: total >> 8, Z: (total & 255) === 0 ? 1 : 0 } };
+  });
+}
+
 const challenges = [
   {
     file: "01-inverter",
@@ -209,12 +386,61 @@ const challenges = [
     given: [fullAdder],
     steps: adderSteps(),
   },
+  {
+    file: "06-register",
+    title: "One-bit register",
+    text: "Store one bit: at each rising edge of clk, Q takes D when load is 1, and keeps its value when load is 0.",
+    parts: [...GATES, "dff"],
+    definition: register1(),
+    steps: clocked("Q", holds, [{ D: 1 }, P, { load: 1 }, P, { D: 0 }, { load: 0 }, P, { load: 1 }, P, { D: 1 }, P, { load: 0 }, { D: 0 }, P]),
+  },
+  {
+    file: "07-register8",
+    title: "8-bit register",
+    text: "Store eight bits: at each rising edge of clk, Q takes D when load is 1, and keeps its value when load is 0.",
+    parts: [...GATES, "dff", "split", "merge"],
+    definition: register8(),
+    steps: clocked("Q", holds, [{ D: 0xa5 }, P, { load: 1 }, P, { D: 0x3c, load: 0 }, P, { load: 1 }, P, { D: 0xff }, P, { D: 0 }, { load: 0 }, P, { load: 1 }, P]),
+  },
+  {
+    file: "08-counter8",
+    title: "8-bit counter",
+    text: "Count clock edges: at each rising edge of clk, Q goes back to 0 when clr is 1; otherwise it adds 1 when en is 1, wrapping from 255 to 0, and keeps its value when en is 0.",
+    parts: [...GATES, "dff", "split", "merge"],
+    definition: counter8(),
+    steps: clocked("Q", (i, q) => (i.clr ? 0 : (q + (i.en ?? 0)) & 255), [
+      P,
+      { en: 1 },
+      ...pulses(3),
+      { en: 0 },
+      P,
+      { clr: 1 },
+      P,
+      { clr: 0, en: 1 },
+      ...pulses(2),
+      { clr: 1 },
+      P,
+      { clr: 0 },
+      // Through 255 and round to 0, so every carry is used.
+      ...pulses(256),
+    ]),
+  },
+  {
+    file: "09-alu",
+    title: "ALU",
+    text: "Add or subtract: Y is A + B, or A - B when sub is 1, modulo 256. C is the carry out; when subtracting it is 1 when nothing is borrowed (A is at least B). Z is 1 when Y is 0. An 8-bit adder is provided.",
+    parts: [...GATES, "split", "merge"],
+    definition: alu(),
+    given: [adder8(), fullAdder],
+    steps: aluSteps(),
+  },
 ];
 
-const document = (name, definitions) => ({
+// Format 10 names the challenge, so an imported solution or starter opens with its panel.
+const document = (name, challenge, definitions) => ({
   format: "clockyard",
-  version: 9,
-  metadata: { name, createdAt: "2026-11-15T12:00:00.000Z", modifiedAt: "2026-11-15T12:00:00.000Z" },
+  version: 10,
+  metadata: { name, createdAt: "2026-11-15T12:00:00.000Z", modifiedAt: "2026-11-15T12:00:00.000Z", challenge },
   circuit: { components: [], junctions: [], wires: [] },
   definitions,
 });
@@ -238,14 +464,21 @@ for (const c of challenges) {
   const starter = { ...c.definition, circuit: { components: [...kinds("switch"), ...kinds("led")], junctions: [], wires: [] } };
   files.push(
     [`challenges/${c.file}.json`, challenge],
-    [`challenges/solutions/${c.file}.clockyard.json`, document(`${c.title}: solution`, [c.definition, ...given])],
-    [`challenges/starters/${c.file}.clockyard.json`, document(c.title, [starter, ...given])],
+    [`challenges/solutions/${c.file}.clockyard.json`, document(`${c.title}: solution`, c.file, [c.definition, ...given])],
+    [`challenges/starters/${c.file}.clockyard.json`, document(c.title, c.file, [starter, ...given])],
   );
+}
+
+/** JSON as written: indented, except a challenge's steps, one to a line, so long step lists stay readable. */
+function format(value) {
+  if (!value.steps) return `${JSON.stringify(value, null, 2)}\n`;
+  const steps = value.steps.map((s) => `    ${JSON.stringify(s)}`).join(",\n");
+  return `${JSON.stringify({ ...value, steps: [] }, null, 2).replace('"steps": []', `"steps": [\n${steps}\n  ]`)}\n`;
 }
 
 let stale = false;
 for (const [path, value] of files) {
-  const text = `${JSON.stringify(value, null, 2)}\n`;
+  const text = format(value);
   if (process.argv.includes("--check")) {
     let current = null;
     try {
