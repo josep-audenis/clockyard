@@ -21,7 +21,8 @@ LED for instruction steps (and breakpoints the user wires), and the program
 editor (PRs #42 and #47–#51). The demo, a program that sums 1 to 5 through RAM and shows 15
 on the output, runs in Playwright. Phase 5 (the computer-building sandbox) is
 in progress: devices (ADR 0021), memory-mapped I/O on the reference CPU
-(ADR 0022) and the game demo, Catch (ADR 0023), are done.
+(ADR 0022), the game demo, Catch (ADR 0023), and sharing a circuit by link
+(ADR 0024) are done.
 
 **Phase 3 — ✅ done.** Clocks, flip-flops and virtual time (ADR 0017): the
 engine and parts (PR #40), then run/pause/step/reset, the cycle counter and
@@ -407,14 +408,21 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       on Halted; with Right held the paddle goes to the right edge and
       the first block is missed. Demo: import `catch`, set the speed to
       10,000, Run, click the keyboard and steer with Left and Right.
-4. ⬜ Sharing through a URL fragment (ADR 0024, accepted): the document
+4. ✅ Sharing through a URL fragment (ADR 0024, accepted): the document
    compressed into `#circuit=1.…`, opened through the same validation as
    Import, and a Copy link button next to Export.
    1. ✅ The encoding (`apps/web/src/storage/link.ts`): every example
       round-trips through a link (the `catch` CPU and game in about 7,300
       characters); a link cut short, damaged, of an unknown encoding or
       expanding past 10 MiB is refused with its reason.
-   2. ⬜ Opening links and Copy link in the editor, Playwright, docs.
+   2. ✅ The editor: a link opens on load and when the fragment changes in
+      the tab (asking before it replaces a circuit), shows its reason if
+      refused, and leaves the address either way. Copy link, next to
+      Export, copies the link and says how long it is, warning above 8,000
+      characters; if the clipboard is refused the link is shown to copy by
+      hand. Playwright: an AND gate's link opens in another page and
+      simulates the same way; the `catch` link replaces it after asking,
+      and runs; a broken link shows its reason and opens nothing.
 5. ⬜ Challenges checked by behavioural tests.
 6. ⬜ Waveforms.
 7. ⬜ Library and teaching: blueprints, bundled designs, material.
@@ -428,10 +436,11 @@ analysis, plugin system, full game campaign during the MVP.
 ## Next increment
 
 Phase 4 is built, with its demo. Phase 5 is planned in ADR 0020 (accepted);
-its first three increments, devices (ADR 0021), memory-mapped I/O on the
-reference CPU (ADR 0022) and the game demo, Catch (ADR 0023), are built with
-their demos. Increment 4, sharing through a URL fragment (ADR 0024,
-accepted), has its encoding; step 2, the editor's side, is next.
+its first four increments, devices (ADR 0021), memory-mapped I/O on the
+reference CPU (ADR 0022), the game demo, Catch (ADR 0023), and sharing
+through a URL fragment (ADR 0024), are built with their demos. Next is
+increment 5, challenges checked by behavioural tests, which needs its ADR
+first.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).

@@ -78,6 +78,8 @@ the person who opens the link, whatever hosts the app.
 5. **Privacy.** Anyone who has a link can read the whole circuit, and the
    link stays wherever it is pasted and in browser history. The help text
    next to Copy link says so. Clockyard itself sends nothing anywhere.
+   *As built (step 2):* the help text is Copy link's tooltip; the
+   toolbar has no room for a sentence beside it.
 6. **Where links point.** A link opens on the same address it was made
    on. Run locally, that is `localhost`, so it works only on that
    machine. A public address needs the app deployed, which is outside
@@ -96,7 +98,11 @@ the person who opens the link, whatever hosts the app.
       - a broken link shows its reason and an empty editor;
       - the `catch` example's link opens and runs.
 
-      This closes the increment.
+      This closes the increment. *As built:* the `catch` link is opened in
+      the tab already showing the shared AND gate, so the same test checks
+      that a fragment change asks before replacing a circuit. Errors that
+      come from `parseDocument` read "Could not open the link: This file
+      …", the file being what the link carries.
 
 ## Alternatives considered
 
