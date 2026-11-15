@@ -26,5 +26,7 @@ every starter fails, through the engine.
 | `08-counter8` | `en`, `clr`, `clk` → `Q[8]` | gates, dff, split, merge |
 | `09-alu` | `A[8]`, `B[8]`, `sub` → `Y[8]`, `C`, `Z` | gates, split, merge (8-bit adder provided) |
 
-A clocked challenge changes its data inputs with `clk` low and makes each
-edge as two steps, `clk` 1 then 0, so every edge samples settled inputs.
+A clocked challenge changes its data inputs with `clk` low, and nothing
+else in the step that raises `clk`, so every edge samples settled inputs.
+One pulse also changes an input while `clk` is high, which must change
+nothing.

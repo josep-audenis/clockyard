@@ -182,11 +182,16 @@ Two facts limit what can be asked:
       This closes the increment.
 
       *As built:* a clocked challenge's steps come from a model in the
-      script. Data inputs change with `clk` low, and each pulse is two
-      steps, `clk` 1 then 0, with nothing else changing, so every edge
-      samples inputs that have settled; the output is expected after every
-      step. The counter's steps run through 255 and round to 0, so every
-      carry is used (538 steps). The ALU's starter provides the 8-bit adder
+      script. Data inputs change with `clk` low, and nothing else changes in
+      the step that raises `clk`, so every edge samples inputs that have
+      settled; the output is expected after every step. One pulse in each
+      sets an input while `clk` is high and expects nothing to change, so a
+      clock gated by `load` or `en` fails. The 8-bit register loads values
+      that differ when their bits are reordered; the counter runs through
+      255, holds there, wraps to 0, and is cleared from 254 (1,054 steps);
+      the ALU sets each bit of `Y` alone, for `Z`, and subtracts 0. A native
+      test holds wrong circuits that once passed (a gated clock, a reversed
+      register, a clear of two bits, a `Z` missing a bit) to failing. The ALU's starter provides the 8-bit adder
       and its full adder. Steps are written one to a line.
 
 ## Alternatives considered

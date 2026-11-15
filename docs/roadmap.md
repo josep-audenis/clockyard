@@ -447,7 +447,7 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       8-bit counter (`en`, synchronous `clr`, wrapping at 255), and the ALU
       the reference CPU needs (`A ± B`, carry, zero; 8-bit adder provided).
       Clocked steps come from a model in the script; native tests pass every
-      solution and fail every starter. Solutions and starters name their
+      solution, fail every starter, and fail wrong circuits that once passed. Solutions and starters name their
       challenge (format 10). Playwright: the one-bit register's starter fails
       at its first loading edge, and its solution, imported, passes.
    4. ⬜ Challenges 10–12 (CPU, program, output device): later, own ADR.

@@ -7,6 +7,7 @@ mod common;
 use common::description;
 use sim_core::CircuitDescription;
 use sim_core::check::{Challenge, Mismatch, Reading, Report, check};
+use sim_core::description::{Endpoint, PortRef};
 
 fn read(path: &str) -> String {
     let path = format!("{}/../../challenges/{path}", env!("CARGO_MANIFEST_DIR"));
@@ -209,6 +210,111 @@ fn a_loop_that_stops_settling_at_a_step_is_refused() {
         "{reason}"
     );
     assert!(!reason.contains("dut/"), "{reason}");
+}
+
+fn port(component: &str, port: &str) -> Endpoint {
+    Endpoint::Port(PortRef {
+        component: component.into(),
+        port: port.into(),
+    })
+}
+
+/// A solution with one change inside the component the challenge checks.
+struct Mutant {
+    name: &'static str,
+    doc: CircuitDescription,
+}
+
+impl Mutant {
+    fn new(name: &'static str) -> Self {
+        Mutant {
+            name,
+            doc: solution(name),
+        }
+    }
+
+    fn inside(&mut self) -> &mut sim_core::description::DefinitionDesc {
+        let id = challenge(self.name).definition;
+        self.doc
+            .definitions
+            .iter_mut()
+            .find(|d| d.id == id)
+            .expect("the definition")
+    }
+
+    /// The wire into `to` now comes from `from`.
+    fn rewire(mut self, to: (&str, &str), from: (&str, &str)) -> Self {
+        let wire = self
+            .inside()
+            .connections
+            .iter_mut()
+            .find(|c| c.to == port(to.0, to.1))
+            .unwrap_or_else(|| panic!("no wire into {to:?}"));
+        wire.from = port(from.0, from.1);
+        self
+    }
+
+    /// Parts and wires added, as a description's JSON.
+    fn add(mut self, extra: serde_json::Value) -> Self {
+        let extra: CircuitDescription = serde_json::from_value(extra).unwrap();
+        let inside = self.inside();
+        inside.components.extend(extra.components);
+        inside.connections.extend(extra.connections);
+        self
+    }
+
+    fn fails(self) {
+        let report = check(&self.doc, &challenge(self.name));
+        assert!(
+            matches!(report, Report::Failed { .. }),
+            "{}: {report:?}",
+            self.name
+        );
+    }
+}
+
+#[test]
+fn plausible_wrong_circuits_fail() {
+    // A clock gated by load: it loads when load rises while clk is high.
+    Mutant::new("06-register")
+        .rewire(("ff", "d"), ("D", "out"))
+        .rewire(("ff", "clk"), ("g", "out"))
+        .add(serde_json::json!({
+            "components": [{ "id": "g", "kind": "and" }],
+            "connections": [
+                { "id": "g1", "from": { "component": "clk", "port": "out" }, "to": { "component": "g", "port": "a" } },
+                { "id": "g2", "from": { "component": "load", "port": "out" }, "to": { "component": "g", "port": "b" } },
+            ],
+        }))
+        .fails();
+
+    // Q with its bits in reverse order.
+    let flips: Vec<_> = (0..8)
+        .map(|i| serde_json::json!({ "id": format!("r{i}"), "from": { "component": "rs", "port": format!("f{i}") }, "to": { "component": "rm", "port": format!("f{}", 7 - i) } }))
+        .chain([serde_json::json!({ "id": "rin", "from": { "component": "ff", "port": "q" }, "to": { "component": "rs", "port": "in" } })])
+        .collect();
+    Mutant::new("07-register8")
+        .rewire(("Q", "in"), ("rm", "out"))
+        .add(serde_json::json!({
+            "components": [
+                { "id": "rs", "kind": "split", "fields": [1, 1, 1, 1, 1, 1, 1, 1] },
+                { "id": "rm", "kind": "merge", "fields": [1, 1, 1, 1, 1, 1, 1, 1] },
+            ],
+            "connections": flips,
+        }))
+        .fails();
+
+    // A clear that reaches bits 0 and 1 only.
+    (2..8)
+        .fold(Mutant::new("08-counter8"), |m, i| {
+            m.rewire(("m", &format!("f{i}")), (&format!("x{i}"), "out"))
+        })
+        .fails();
+
+    // A zero flag that reads bit 6 twice and never bit 7.
+    Mutant::new("09-alu")
+        .rewire(("o3", "b"), ("sy", "f6"))
+        .fails();
 }
 
 #[test]

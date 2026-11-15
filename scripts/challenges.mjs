@@ -128,23 +128,27 @@ function adderSteps() {
 }
 
 /**
- * Steps for a clocked circuit, from a model of it: an object sets inputs with clk low; "pulse" raises clk, then
- * lowers it. Nothing else changes with clk, so each edge samples inputs that have settled. `next` gives the state
- * after a rising edge; the output is expected to show the state after every step.
+ * Steps for a clocked circuit, from a model of it. An object sets inputs with clk low; "pulse" raises clk, then
+ * lowers it; `{ high }` is a pulse that also sets inputs while clk is high. Nothing changes in the step that raises
+ * clk, so each edge samples inputs that have settled, and an input changed while clk is high must change nothing:
+ * a clock gated by such an input fails. `next` gives the state after a rising edge; the output is expected to show
+ * the state after every step. Every input starts at 0.
  */
-function clocked(output, next, ops) {
-  const inputs = {};
+function clocked(output, next, inputs, ops) {
   let state = 0;
+  const expect = () => {
+    if (!Number.isInteger(state)) throw new Error(`the model's state is ${state}`);
+    return { [output]: state };
+  };
   return ops.flatMap((op) => {
-    if (op !== "pulse") {
+    if (op !== P && !op.high) {
       Object.assign(inputs, op);
-      return [{ set: op, expect: { [output]: state } }];
+      return [{ set: op, expect: expect() }];
     }
     state = next(inputs, state);
-    return [
-      { set: { clk: 1 }, expect: { [output]: state } },
-      { set: { clk: 0 }, expect: { [output]: state } },
-    ];
+    const rise = { set: { clk: 1 }, expect: expect() };
+    if (op.high) Object.assign(inputs, op.high);
+    return [rise, ...(op.high ? [{ set: op.high, expect: expect() }] : []), { set: { clk: 0 }, expect: expect() }];
   });
 }
 const P = "pulse";
@@ -296,9 +300,15 @@ function aluSteps() {
     [0x55, 0xaa, 0],
     [255, 255, 1],
   ];
+  // Every single bit of Y alone, so a Z that misses one fails; A - 0, whose carry is 1 (nothing borrowed).
+  const bits = Array.from({ length: 8 }, (_, i) => [1 << i, 0, 0]);
+  const minusZero = [
+    [0, 0, 1],
+    [7, 0, 1],
+  ];
   const r = random(9);
   const more = Array.from({ length: 22 }, () => [r.next().value & 255, r.next().value & 255, r.next().value & 1]);
-  return [...edges, ...more].map(([A, B, sub]) => {
+  return [...edges, ...bits, ...minusZero, ...more].map(([A, B, sub]) => {
     const total = A + (sub ? ~B & 255 : B) + sub;
     return { set: { A, B, sub }, expect: { Y: total & 255, C: total >> 8, Z: (total & 255) === 0 ? 1 : 0 } };
   });
@@ -389,26 +399,64 @@ const challenges = [
   {
     file: "06-register",
     title: "One-bit register",
-    text: "Store one bit: at each rising edge of clk, Q takes D when load is 1, and keeps its value when load is 0.",
+    text: "Store one bit: Q starts at 0. At each rising edge of clk, Q takes D when load is 1, and keeps its value when load is 0.",
     parts: [...GATES, "dff"],
     definition: register1(),
-    steps: clocked("Q", holds, [{ D: 1 }, P, { load: 1 }, P, { D: 0 }, { load: 0 }, P, { load: 1 }, P, { D: 1 }, P, { load: 0 }, { D: 0 }, P]),
+    steps: clocked("Q", holds, { D: 0, load: 0 }, [
+      { D: 1 },
+      P,
+      { load: 1 },
+      P,
+      { D: 0 },
+      { load: 0 },
+      P,
+      { load: 1 },
+      P,
+      { D: 1 },
+      P,
+      { load: 0 },
+      { D: 0 },
+      P,
+      // load rising while clk is high is no edge.
+      { high: { load: 1 } },
+      P,
+    ]),
   },
   {
     file: "07-register8",
     title: "8-bit register",
-    text: "Store eight bits: at each rising edge of clk, Q takes D when load is 1, and keeps its value when load is 0.",
+    text: "Store eight bits: Q starts at 0. At each rising edge of clk, Q takes D when load is 1, and keeps its value when load is 0.",
     parts: [...GATES, "dff", "split", "merge"],
     definition: register8(),
-    steps: clocked("Q", holds, [{ D: 0xa5 }, P, { load: 1 }, P, { D: 0x3c, load: 0 }, P, { load: 1 }, P, { D: 0xff }, P, { D: 0 }, { load: 0 }, P, { load: 1 }, P]),
+    // 0x12 and 0x0f read differently with their bits in another order, so every bit must go to its own place.
+    steps: clocked("Q", holds, { D: 0, load: 0 }, [
+      { D: 0x12 },
+      P,
+      { load: 1 },
+      P,
+      { D: 0x0f, load: 0 },
+      P,
+      { load: 1 },
+      P,
+      { D: 0xff },
+      P,
+      { D: 0 },
+      { load: 0 },
+      P,
+      { load: 1 },
+      P,
+      { D: 0x5a, load: 0 },
+      { high: { load: 1 } },
+      P,
+    ]),
   },
   {
     file: "08-counter8",
     title: "8-bit counter",
-    text: "Count clock edges: at each rising edge of clk, Q goes back to 0 when clr is 1; otherwise it adds 1 when en is 1, wrapping from 255 to 0, and keeps its value when en is 0.",
+    text: "Count clock edges: Q starts at 0. At each rising edge of clk, Q goes back to 0 when clr is 1; otherwise it adds 1 when en is 1, wrapping from 255 to 0, and keeps its value when en is 0.",
     parts: [...GATES, "dff", "split", "merge"],
     definition: counter8(),
-    steps: clocked("Q", (i, q) => (i.clr ? 0 : (q + (i.en ?? 0)) & 255), [
+    steps: clocked("Q", (i, q) => (i.clr ? 0 : (q + i.en) & 255), { en: 0, clr: 0 }, [
       P,
       { en: 1 },
       ...pulses(3),
@@ -420,9 +468,19 @@ const challenges = [
       ...pulses(2),
       { clr: 1 },
       P,
-      { clr: 0 },
-      // Through 255 and round to 0, so every carry is used.
-      ...pulses(256),
+      { clr: 0, en: 0 },
+      // en rising while clk is high is no edge.
+      { high: { en: 1 } },
+      // To 255, held there, then round to 0, so every carry is used.
+      ...pulses(255),
+      { en: 0 },
+      P,
+      { en: 1 },
+      P,
+      // To 254, then cleared with en 0, so clearing reaches every bit that is set.
+      ...pulses(254),
+      { en: 0, clr: 1 },
+      P,
     ]),
   },
   {
@@ -473,7 +531,7 @@ for (const c of challenges) {
 function format(value) {
   if (!value.steps) return `${JSON.stringify(value, null, 2)}\n`;
   const steps = value.steps.map((s) => `    ${JSON.stringify(s)}`).join(",\n");
-  return `${JSON.stringify({ ...value, steps: [] }, null, 2).replace('"steps": []', `"steps": [\n${steps}\n  ]`)}\n`;
+  return `${JSON.stringify({ ...value, steps: [] }, null, 2).replace('"steps": []', () => `"steps": [\n${steps}\n  ]`)}\n`;
 }
 
 let stale = false;

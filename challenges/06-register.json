@@ -1,6 +1,6 @@
 {
   "title": "One-bit register",
-  "text": "Store one bit: at each rising edge of clk, Q takes D when load is 1, and keeps its value when load is 0.",
+  "text": "Store one bit: Q starts at 0. At each rising edge of clk, Q takes D when load is 1, and keeps its value when load is 0.",
   "definition": "register",
   "inputs": [
     {
@@ -52,6 +52,11 @@
     {"set":{"load":0},"expect":{"Q":1}},
     {"set":{"D":0},"expect":{"Q":1}},
     {"set":{"clk":1},"expect":{"Q":1}},
-    {"set":{"clk":0},"expect":{"Q":1}}
+    {"set":{"clk":0},"expect":{"Q":1}},
+    {"set":{"clk":1},"expect":{"Q":1}},
+    {"set":{"load":1},"expect":{"Q":1}},
+    {"set":{"clk":0},"expect":{"Q":1}},
+    {"set":{"clk":1},"expect":{"Q":0}},
+    {"set":{"clk":0},"expect":{"Q":0}}
   ]
 }

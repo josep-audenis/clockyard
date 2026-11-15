@@ -227,17 +227,17 @@ test("a wrong attempt names its first failing step; a part the challenge does no
 test("the one-bit register: the starter fails at the first edge that loads; the solution passes every step (ADR 0025)", async ({ page }) => {
   await page.goto("/");
   await challenges(page).getByRole("button", { name: "One-bit register" }).click();
-  await expect(challenge(page)).toContainText("at each rising edge of clk");
+  await expect(challenge(page)).toContainText("At each rising edge of clk");
   await challenge(page).getByRole("button", { name: "Check" }).click();
   // Steps 1 to 4 expect Q to stay 0; step 5 is the first rising edge with load 1.
-  await expect(checked(page)).toHaveText("Step 5 of 20 failed. With D = 1, load = 1, clk = 1: Q should be 1 but is 0.");
+  await expect(checked(page)).toHaveText("Step 5 of 25 failed. With D = 1, load = 1, clk = 1: Q should be 1 but is 0.");
 
   // The reference solution, imported as a file: it names its challenge, so the panel stays.
   page.once("dialog", (dialog) => void dialog.accept());
   await page.locator('[data-testid="import-file"]').setInputFiles(solution("06-register"));
   await expect(page.locator(".project-name")).toHaveText("One-bit register: solution");
   await challenge(page).getByRole("button", { name: "Check" }).click();
-  await expect(checked(page)).toHaveText("Passed, 20 of 20 steps.");
+  await expect(checked(page)).toHaveText("Passed, 25 of 25 steps.");
 });
 
 test("a broken link shows its reason and opens nothing (ADR 0024)", async ({ page }) => {
