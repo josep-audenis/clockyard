@@ -423,7 +423,19 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       hand. Playwright: an AND gate's link opens in another page and
       simulates the same way; the `catch` link replaces it after asking,
       and runs; a broken link shows its reason and opens nothing.
-5. ⬜ Challenges checked by behavioural tests.
+5. ⬜ Challenges checked by behavioural tests (ADR 0025, accepted): each is a
+   custom component to build, checked by `sim-core` on a test bench.
+   1. ✅ Engine: `sim_core::check` runs a challenge on a bench of its own,
+      reporting passed, the first failing step, or why it cannot run
+      (missing definition or pin, wrong width, a part not allowed, errors,
+      a loop that does not settle); `sim-wasm`'s `check`. Challenges 1–5
+      (inverter, XOR from NAND, half adder, full adder, 8-bit adder) are
+      written by `scripts/challenges.mjs` with their solutions and
+      starters; native tests pass every solution and fail every starter.
+   2. ⬜ Editor: Challenges list, panel and Check; `metadata.challenge`
+      (format 10); Playwright.
+   3. ⬜ Challenges 6–9 (one-bit register to ALU).
+   4. ⬜ Challenges 10–12 (CPU, program, output device): later, own ADR.
 6. ⬜ Waveforms.
 7. ⬜ Library and teaching: blueprints, bundled designs, material.
 
@@ -438,9 +450,9 @@ analysis, plugin system, full game campaign during the MVP.
 Phase 4 is built, with its demo. Phase 5 is planned in ADR 0020 (accepted);
 its first four increments, devices (ADR 0021), memory-mapped I/O on the
 reference CPU (ADR 0022), the game demo, Catch (ADR 0023), and sharing
-through a URL fragment (ADR 0024), are built with their demos. Next is
-increment 5, challenges checked by behavioural tests, which needs its ADR
-first.
+through a URL fragment (ADR 0024), are built with their demos. Increment 5, challenges checked by behavioural
+tests (ADR 0025, accepted), is under way: step 1, the engine, is built; next
+is step 2, the editor.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).

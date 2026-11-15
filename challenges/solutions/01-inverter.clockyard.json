@@ -1,0 +1,94 @@
+{
+  "format": "clockyard",
+  "version": 9,
+  "metadata": {
+    "name": "Inverter: solution",
+    "createdAt": "2026-11-15T12:00:00.000Z",
+    "modifiedAt": "2026-11-15T12:00:00.000Z"
+  },
+  "circuit": {
+    "components": [],
+    "junctions": [],
+    "wires": []
+  },
+  "definitions": [
+    {
+      "id": "inverter",
+      "name": "Inverter",
+      "circuit": {
+        "components": [
+          {
+            "id": "A",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "A"
+            }
+          },
+          {
+            "id": "Y",
+            "kind": "led",
+            "position": {
+              "x": 20,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "Y"
+            }
+          },
+          {
+            "id": "g",
+            "kind": "nand",
+            "position": {
+              "x": 8,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {}
+          }
+        ],
+        "junctions": [],
+        "wires": [
+          {
+            "id": "w0",
+            "from": {
+              "component": "A",
+              "port": "out"
+            },
+            "to": {
+              "component": "g",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w1",
+            "from": {
+              "component": "A",
+              "port": "out"
+            },
+            "to": {
+              "component": "g",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w2",
+            "from": {
+              "component": "g",
+              "port": "out"
+            },
+            "to": {
+              "component": "Y",
+              "port": "in"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -132,6 +132,11 @@ Rules:
   fragment, `#circuit=1.<data>`: compact JSON, deflate-raw, base64url. It is
   read back through the same validation as Import, and decompression stops at
   Import's 10 MiB limit.
+- A challenge (`challenges/`, ADR 0025) names a definition to build, its pins
+  by part ID with their widths, the primitive kinds it may use, and steps of
+  inputs and expected outputs. `sim_core::check` runs it on a bench of its
+  own (switches on the input pins, LEDs on the outputs) in a fresh
+  simulator; `sim-wasm`'s `check` takes and returns JSON.
 - `props.width` (ADR 0014) is a whole number from 1 to 32, allowed only on
   switches, LEDs and gates; it sets every port's width. 1 is the default and
   is not stored, so 1-bit circuits read as before. `props.fields` is required

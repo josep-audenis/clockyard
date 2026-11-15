@@ -1,0 +1,38 @@
+{
+  "title": "Inverter",
+  "text": "Build a NOT gate from NAND gates: Y is 1 when A is 0, and 0 when A is 1.",
+  "definition": "inverter",
+  "inputs": [
+    {
+      "name": "A",
+      "width": 1
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Y",
+      "width": 1
+    }
+  ],
+  "parts": [
+    "nand"
+  ],
+  "steps": [
+    {
+      "set": {
+        "A": 0
+      },
+      "expect": {
+        "Y": 1
+      }
+    },
+    {
+      "set": {
+        "A": 1
+      },
+      "expect": {
+        "Y": 0
+      }
+    }
+  ]
+}

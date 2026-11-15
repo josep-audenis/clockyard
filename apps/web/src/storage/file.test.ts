@@ -126,6 +126,16 @@ test.each(readdirSync(examples).filter((name) => name.endsWith(".clockyard.json"
   expect(result.ok ? "ok" : result.error).toBe("ok");
 });
 
+// The challenges' starters and solutions (ADR 0025) are project files too.
+const challenges = new URL("../../../../challenges/", import.meta.url);
+const challengeFiles = ["starters/", "solutions/"].flatMap((dir) =>
+  readdirSync(new URL(dir, challenges)).map((name) => `${dir}${name}`),
+);
+test.each(challengeFiles)("challenge file %s is a valid project file", (name) => {
+  const result = parseDocument(readFileSync(new URL(name, challenges), "utf8"));
+  expect(result.ok ? "ok" : result.error).toBe("ok");
+});
+
 test("a version 1 file is migrated: same parts and wires, no junctions", () => {
   const v1 = {
     format: "clockyard",

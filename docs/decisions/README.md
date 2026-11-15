@@ -30,6 +30,7 @@ replacement.
 | [0022](0022-memory-mapped-io.md) | Memory-mapped I/O on the reference CPU | Accepted |
 | [0023](0023-game-demo.md) | The game demo: Catch on the reference CPU | Accepted |
 | [0024](0024-url-sharing.md) | Sharing a circuit through a URL fragment | Accepted |
+| [0025](0025-challenges.md) | Challenges checked by behavioural tests | Accepted |
 
 ## Template
 

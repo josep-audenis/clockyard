@@ -85,6 +85,7 @@ clockyard/
 ├── crates/sim-core/   Pure Rust simulation engine
 ├── crates/sim-wasm/   WASM adapter over sim-core
 ├── examples/          Example project files (also test fixtures)
+├── challenges/        Challenges, their solutions and starters (ADR 0025)
 └── docs/              Architecture, simulation model, roadmap, ADRs, project brief
 ```
 

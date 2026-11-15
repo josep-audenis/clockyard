@@ -1,0 +1,202 @@
+{
+  "format": "clockyard",
+  "version": 9,
+  "metadata": {
+    "name": "XOR from NAND gates: solution",
+    "createdAt": "2026-11-15T12:00:00.000Z",
+    "modifiedAt": "2026-11-15T12:00:00.000Z"
+  },
+  "circuit": {
+    "components": [],
+    "junctions": [],
+    "wires": []
+  },
+  "definitions": [
+    {
+      "id": "xor",
+      "name": "XOR",
+      "circuit": {
+        "components": [
+          {
+            "id": "A",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "A"
+            }
+          },
+          {
+            "id": "B",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "B"
+            }
+          },
+          {
+            "id": "Y",
+            "kind": "led",
+            "position": {
+              "x": 36,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "Y"
+            }
+          },
+          {
+            "id": "n1",
+            "kind": "nand",
+            "position": {
+              "x": 8,
+              "y": 2
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "n2",
+            "kind": "nand",
+            "position": {
+              "x": 18,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "n3",
+            "kind": "nand",
+            "position": {
+              "x": 18,
+              "y": 6
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "n4",
+            "kind": "nand",
+            "position": {
+              "x": 28,
+              "y": 2
+            },
+            "rotation": 0,
+            "props": {}
+          }
+        ],
+        "junctions": [],
+        "wires": [
+          {
+            "id": "w0",
+            "from": {
+              "component": "A",
+              "port": "out"
+            },
+            "to": {
+              "component": "n1",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w1",
+            "from": {
+              "component": "B",
+              "port": "out"
+            },
+            "to": {
+              "component": "n1",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w2",
+            "from": {
+              "component": "A",
+              "port": "out"
+            },
+            "to": {
+              "component": "n2",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w3",
+            "from": {
+              "component": "n1",
+              "port": "out"
+            },
+            "to": {
+              "component": "n2",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w4",
+            "from": {
+              "component": "n1",
+              "port": "out"
+            },
+            "to": {
+              "component": "n3",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w5",
+            "from": {
+              "component": "B",
+              "port": "out"
+            },
+            "to": {
+              "component": "n3",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w6",
+            "from": {
+              "component": "n2",
+              "port": "out"
+            },
+            "to": {
+              "component": "n4",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w7",
+            "from": {
+              "component": "n3",
+              "port": "out"
+            },
+            "to": {
+              "component": "n4",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w8",
+            "from": {
+              "component": "n4",
+              "port": "out"
+            },
+            "to": {
+              "component": "Y",
+              "port": "in"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

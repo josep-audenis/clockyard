@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
-import { Engine, assemble, catalog, disassemble, initSync, max_width } from "../generated/sim-wasm/sim_wasm.js";
+import { Engine, assemble, catalog, check, disassemble, initSync, max_width } from "../generated/sim-wasm/sim_wasm.js";
 import { COMPONENT_KINDS, MAX_WIDTH, takesWidth } from "../editor/document";
 import type { CircuitDescription, Diagnostic, Result } from "../simulation/protocol";
 
@@ -219,4 +219,46 @@ test("run until an LED lights stops at that tick, through the boundary (ADR 0019
   expect(JSON.parse(engine.tick_until(100, "l"))).toEqual({ ticks: 4, rose: true, diagnostics: [] });
   expect(JSON.parse(engine.tick_until(2, "l"))).toEqual({ ticks: 2, rose: false, diagnostics: [] });
   expect(() => engine.tick_until(1, "nothing")).toThrow("no `in` port");
+});
+
+test("a challenge is checked through the boundary: passed, the first failing step, or refused (ADR 0025)", () => {
+  const inverter = (gate: string) => ({
+    components: [],
+    connections: [],
+    definitions: [
+      {
+        id: "inverter",
+        components: [
+          { id: "A", kind: "switch" },
+          { id: "g", kind: gate },
+          { id: "Y", kind: "led" },
+        ],
+        connections: [wire("w1", "A.out", "g.a"), wire("w2", "A.out", "g.b"), wire("w3", "g.out", "Y.in")],
+        inputs: [{ name: "A", component: "A" }],
+        outputs: [{ name: "Y", component: "Y" }],
+      },
+    ],
+  });
+  const challenge = {
+    definition: "inverter",
+    inputs: [{ name: "A", width: 1 }],
+    outputs: [{ name: "Y", width: 1 }],
+    parts: ["nand", "and"],
+    steps: [
+      { set: { A: 0 }, expect: { Y: 1 } },
+      { set: { A: 1 }, expect: { Y: 0 } },
+    ],
+  };
+  expect(JSON.parse(check(JSON.stringify(inverter("nand")), JSON.stringify(challenge)))).toEqual({ result: "passed", steps: 2 });
+  expect(JSON.parse(check(JSON.stringify(inverter("and")), JSON.stringify(challenge)))).toEqual({
+    result: "failed",
+    step: 0,
+    inputs: [{ name: "A", value: 0 }],
+    mismatches: [{ name: "Y", expected: 1, got: 0 }],
+  });
+  expect(JSON.parse(check(JSON.stringify(inverter("nor")), JSON.stringify(challenge)))).toEqual({
+    result: "refused",
+    reason: "This challenge allows only these parts: nand, and. The component uses: nor.",
+  });
+  expect(() => check("{}", JSON.stringify(challenge))).toThrow("invalid circuit description");
 });
