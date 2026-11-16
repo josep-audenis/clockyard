@@ -22,7 +22,7 @@ fn the_chain_inverts_once_per_gate() {
     let mut sim = load("chain");
     // 998 NOT gates: an even number, so the LED follows the switch.
     assert_eq!(value(&sim, "l", "in"), 0);
-    sim.set_input("s", 1).unwrap();
+    assert_eq!(sim.set_input("s", 1).unwrap(), None);
     assert_eq!(value(&sim, "l", "in"), 1);
 }
 
@@ -31,7 +31,7 @@ fn every_gate_of_the_fanout_follows_its_one_switch() {
     let mut sim = load("fanout");
     let leds = || (0..499).map(|i| format!("l{i}"));
     assert!(leds().all(|l| value(&sim, &l, "in") == 1));
-    sim.set_input("s", 1).unwrap();
+    assert_eq!(sim.set_input("s", 1).unwrap(), None);
     assert!(leds().all(|l| value(&sim, &l, "in") == 0));
 }
 
@@ -60,7 +60,24 @@ fn every_counter_counts_down_by_one_per_cycle() {
 }
 
 #[test]
-fn the_cpu_runs_its_program_without_a_loop_that_does_not_settle() {
+fn every_cpu_copy_runs_its_program_as_the_reference_cpu_does_alone() {
     let mut sim = load("cpu");
-    assert_eq!(sim.tick(2000), None);
+    let mut alone = common::load("reference-cpu");
+    let mut seen = std::collections::BTreeSet::new();
+    // Cycle by cycle, where each program has got to: its ROM's address, inside each copy.
+    for cycle in 0..40 {
+        assert_eq!(sim.tick(2), None);
+        assert_eq!(alone.tick(2), None);
+        let expected = value(&alone, "rom", "addr");
+        seen.insert(expected);
+        for i in 0..4 {
+            assert_eq!(
+                value(&sim, &format!("cpu{i}/rom"), "addr"),
+                expected,
+                "copy {i}, cycle {cycle}"
+            );
+        }
+    }
+    // It moved: a CPU whose clock did not reach it would sit at one address.
+    assert!(seen.len() > 1, "{seen:?}");
 }

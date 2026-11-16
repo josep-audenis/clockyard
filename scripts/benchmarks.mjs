@@ -4,7 +4,7 @@
 //   fanout    one switch driving many NOT gates, each with its LED
 //   adder     a ripple adder of full-adder instances, one bit per row
 //   counters  8-bit ripple counters of D flip-flops, all on one clock
-//   cpu       copies of the reference CPU as a component (sized by copies, as each is a whole CPU)
+//   cpu       copies of the reference CPU as a component: 4, 34 and 160 copies
 //
 //   node scripts/benchmarks.mjs           writes the 1,000-part sizes to benchmarks/ (committed)
 //   node scripts/benchmarks.mjs --all     writes every size to benchmarks/generated/ (ignored by git)
@@ -131,8 +131,9 @@ function cpu(copies) {
 }
 
 const SIZES = { "1k": 1000, "10k": 10000, "50k": 50000 };
-// Copies of the CPU for about as many engine nets as the other families have parts: one CPU is about 300.
-const CPU_COPIES = { "1k": 4, "10k": 34, "50k": 170 };
+// Copies of the CPU for about as many engine nets as the other families have parts: one CPU is about 300. 160 is the
+// most below elaboration's limit of 200,000 items (`MAX_PARTS`), which counts instances, pins and wires too.
+const CPU_COPIES = { "1k": 4, "10k": 34, "50k": 160 };
 
 function build(family, size) {
   const name = `${family}-${size}`;

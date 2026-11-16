@@ -514,9 +514,9 @@ targets, as in Phase 5.
    1. ✅ Generator, native harness, first results: the 1,000-part
       circuits committed and checked in `verify`, every size generated on
       demand; `pnpm bench:native`; `docs/performance.md`. Loads grow about
-      linearly (about 110 ms for 10,000 gates); a 50,000-gate ripple
-      settles in about 10 ms; two limits found (elaboration's 200,000
-      items, Import's 10 MB).
+      linearly (about 130 ms for 10,000 gates); a 50,000-gate ripple
+      settles in about 10 ms; ticking slows faster than size grows; two
+      limits found (elaboration's 200,000 items, Import's 10 MB).
    2. ⬜ Browser measurements (`pnpm bench`), first results against targets.
    3. ⬜ Optimizations, one per pull request, as the numbers require.
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time

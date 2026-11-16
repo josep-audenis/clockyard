@@ -73,9 +73,12 @@ What exists today:
      holds them. `--all` writes every size to `benchmarks/generated/`,
      which git ignores, so the repository does not carry tens of
      megabytes. A reference CPU elaborates to only about 300 nets, so the
-     `cpu` family is 4, 34 and 170 copies, for about as many nets as the
-     others have parts. `counters` at 50,000 parts would be an 11 MB file,
-     over Import's 10 MB limit, so it is generated at 44,000.
+     `cpu` family is 4, 34 and 160 copies, for about as many nets as the
+     others have parts; 160 is the most elaboration allows. `counters` at
+     50,000 parts would be an 11 MB file, over Import's 10 MB limit, so it
+     is generated at 44,000. `apps/web/src/storage/file.test.ts` also reads
+     each committed file with the editor's parser, so a format change
+     cannot leave them behind.
 2. **What is measured, and where.**
    - **Natively** (`cargo run --release -p sim-core --example bench`): a
      small harness with no new dependency. It runs each benchmark a few
@@ -86,10 +89,13 @@ What exists today:
    - *As built:* `pnpm bench:native` generates every size, then runs the
      harness (`crates/sim-core/examples/bench.rs`, sharing the tests'
      project-file reader). A circuit the engine refuses is a row of its
-     own. The first results showed two limits: elaboration's 200,000
-     items, which counts instances, pins and wires, refuses `adder-50k`
-     and `cpu-50k`; and Import's 10 MB caps a file at about 45,000 parts.
-     Both are recorded in `docs/performance.md`, for step 3 to weigh.
+     own. Tick rates are a median of five 200 ms runs too. The first
+     results showed two limits: elaboration's 200,000 items, which counts
+     instances, pins and wires, refuses `adder-50k`; and Import's 10 MB
+     holds a circuit with one and a half wires a part to about 45,000
+     parts. Both are recorded in `docs/performance.md`, for step 3 to
+     weigh. The 50,000-part targets can be measured on flat circuits and
+     on `cpu`, but not on `adder` until `MAX_PARTS` is revisited.
    - **In the browser** (a Playwright script, `pnpm bench`, not part of
      `verify`), on the production build. Timings are read with
      `performance.now()` around the real code paths. The script measures:
@@ -143,9 +149,10 @@ What exists today:
      fails on any measurement more than twice as slow. It is run before
      merging a change that touches the engine, sync or the canvas, and its
      result goes in the PR.
-   - Every benchmark is still loaded and run once in `verify`, as a
-     correctness check (the circuits settle, the counters count), so the
-     benchmarks never rot.
+   - Every committed benchmark (the 1,000-part sizes) is still loaded and
+     run once in `verify`, as a correctness check (the circuits compute
+     what they should, the counters count, every CPU copy runs as the
+     reference CPU does alone), so the benchmarks never rot.
 7. **Order of work.** Each step is one pull request:
    1. The generator, the native harness, and their first results in
       `docs/performance.md`.
@@ -183,9 +190,8 @@ What exists today:
 - Clockyard's limits are known rather than guessed, and written down.
 - The `shortcut:` comments about whole-scene redraws and whole-document
   syncs get a number that says whether they matter.
-- Benchmark files add a few megabytes to the repository. They are
-  generated and checked, never edited by hand. The 50,000-part ones may
-  instead be generated on demand, if their size is a problem; the as-built
-  note will say so.
+- Benchmark files add about 760 KB to the repository: only the 1,000-part
+  sizes, generated and checked, never edited by hand. Larger sizes are
+  generated on demand.
 - Increments 4 and 5 (four-state signals, the second CPU) measure their
   cost against these benchmarks, as ADR 0028 intends.
