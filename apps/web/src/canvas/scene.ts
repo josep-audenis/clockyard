@@ -1,6 +1,6 @@
 // The PixiJS circuit canvas (ADR 0007), drawn to the design system's CanvasKit
 // spec. Reads the editor and engine stores outside React and redraws on change.
-// shortcut: the whole scene is redrawn per change; move to per-object updates when profiling says so.
+// shortcut: the whole scene is redrawn per change (a pan only moves the view); per-object updates are ADR 0030 step 3.
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { create } from "zustand";
 import {
@@ -157,7 +157,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   const canvas = app.canvas;
   host.appendChild(canvas);
 
-  const world = new Container();
+  // A render group: moving it (a pan) is one transform on the GPU, not one per object below it.
+  const world = new Container({ isRenderGroup: true });
   const wires = new Graphics();
   /** Parts, each its own Graphics drawn unrotated about its centre and turned by its rotation. */
   const bodies = new Container();
@@ -203,18 +204,38 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   let pointer: { clientX: number; clientY: number } | null = null;
 
   let frame = 0;
-  const schedule = () => {
+  /** Whether the next frame draws the scene again; a frame that only moves the view (a pan) does not (ADR 0030). */
+  let dirty = false;
+  const paint = (whole: boolean) => {
+    dirty ||= whole;
     frame ||= requestAnimationFrame(() => {
       frame = 0;
-      timed("draw", () => {
-        draw();
+      const redraw = dirty;
+      dirty = false;
+      timed(redraw ? "draw" : "view", () => {
+        if (redraw) draw();
+        else placeView();
         app.render();
       });
     });
   };
+  const schedule = () => paint(true);
+  const scheduleView = () => paint(false);
 
   const cell = () => theme.size["grid-cell"];
   const px = (p: Point) => ({ x: p.x * cell(), y: p.y * cell() });
+
+  /** The view's pan and zoom, the grid under it, and the cursor: all a frame that only moves the view changes. */
+  function placeView() {
+    const { armed, armedLabel } = useEditor.getState();
+    world.position.set(view.x, view.y);
+    world.scale.set(view.zoom);
+    // Grid dots are the host's CSS background; every fourth dot when zoomed far out.
+    const step = cell() * view.zoom * (view.zoom < 0.5 ? 4 : 1);
+    host.style.backgroundSize = `${step}px ${step}px`;
+    host.style.backgroundPosition = `${view.x - step / 2}px ${view.y - step / 2}px`;
+    canvas.style.cursor = armed || armedLabel ? "crosshair" : gesture?.type === "pan" ? "grabbing" : spaceHeld ? "grab" : "default";
+  }
 
   function draw() {
     const { circuit, selection, armed, armedLabel } = useEditor.getState();
@@ -222,14 +243,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     const { color, size } = theme;
     const c = cell();
     tagBoxes.clear();
-
-    world.position.set(view.x, view.y);
-    world.scale.set(view.zoom);
-    // Grid dots are the host's CSS background; every fourth dot when zoomed far out.
-    const step = c * view.zoom * (view.zoom < 0.5 ? 4 : 1);
-    host.style.backgroundSize = `${step}px ${step}px`;
-    host.style.backgroundPosition = `${view.x - step / 2}px ${view.y - step / 2}px`;
-    canvas.style.cursor = armed || armedLabel ? "crosshair" : gesture?.type === "pan" ? "grabbing" : spaceHeld ? "grab" : "default";
+    placeView();
 
     const culprits = new Set(
       [...(loaded?.diagnostics ?? []), ...runtime].filter((d) => d.severity === "error").flatMap((d) => d.ids),
@@ -808,6 +822,12 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     window.getSelection()?.removeAllRanges();
     if (e.button === 1 || (e.button === 0 && spaceHeld)) {
       gesture = { type: "pan", last: { x: e.clientX, y: e.clientY } };
+      // What the pointer hovered no longer applies, and an armed part's preview hides while a gesture lasts. Only
+      // those change the scene: without them a pan starts with no redraw.
+      const shown = hover !== null || useCanvasHints.getState().wire !== null || editor.armed || editor.armedLabel;
+      hover = null;
+      useCanvasHints.setState({ wire: null });
+      return shown ? schedule() : scheduleView();
     } else if (e.button === 0 && editor.armedLabel) {
       // A net label (ADR 0015) at the nearest grid point. Its Name field takes the keyboard on release,
       // after the press has moved focus where it will.
@@ -871,6 +891,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       view.x += e.clientX - gesture.last.x;
       view.y += e.clientY - gesture.last.y;
       gesture.last = { x: e.clientX, y: e.clientY };
+      // Nothing in the scene changes, and nothing under the pointer is looked for while panning.
+      return scheduleView();
     } else if (gesture?.type === "move") {
       const g = gesture;
       g.moved ||= Math.hypot(e.clientX - g.start.x, e.clientY - g.start.y) > DRAG_THRESHOLD;
@@ -951,8 +973,11 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       else if (end?.end && "junction" in from && sameEnd(from, end.end)) editor.select([from.junction]);
       else if (end?.end) editor.connect(from, end.end);
     }
+    const panned = gesture?.type === "pan";
     gesture = null;
-    schedule();
+    // The end of a pan changes the cursor only, unless an armed part's or label's preview comes back.
+    if (panned && !editor.armed && !editor.armedLabel) scheduleView();
+    else schedule();
   };
 
   /** Zooms to `wanted` (clamped), keeping screen point (sx, sy) over the same world point. */

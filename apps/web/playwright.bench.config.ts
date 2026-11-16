@@ -15,6 +15,13 @@ export default defineConfig({
   // one table at the end.
   globalSetup: "./bench/setup.ts",
   globalTeardown: "./bench/summary.ts",
-  use: { ...devices["Desktop Chrome"], baseURL: `http://localhost:${port}`, viewport: { width: 1280, height: 800 } },
+  use: {
+    ...devices["Desktop Chrome"],
+    baseURL: `http://localhost:${port}`,
+    viewport: { width: 1280, height: 800 },
+    // The graphics card, as a user's browser has it: headless Chromium otherwise draws with SwiftShader, a software
+    // WebGL that makes every frame several times slower. The row records the renderer the page got.
+    launchOptions: { args: ["--enable-gpu", "--ignore-gpu-blocklist", ...(process.platform === "win32" ? ["--use-angle=d3d11"] : [])] },
+  },
   webServer: { command: `pnpm exec vite preview --port ${port} --strictPort`, url: `http://localhost:${port}`, reuseExistingServer: false },
 });
