@@ -14,7 +14,7 @@
         "kind": "clock",
         "position": {
           "x": 0,
-          "y": 0
+          "y": 13
         },
         "rotation": 0,
         "props": {
@@ -25,8 +25,8 @@
         "id": "one",
         "kind": "xnor",
         "position": {
-          "x": 6,
-          "y": 0
+          "x": 5,
+          "y": 13
         },
         "rotation": 0,
         "props": {}
@@ -35,8 +35,8 @@
         "id": "zero",
         "kind": "xor",
         "position": {
-          "x": 6,
-          "y": 6
+          "x": 5,
+          "y": 19
         },
         "rotation": 0,
         "props": {}
@@ -45,8 +45,8 @@
         "id": "zero8",
         "kind": "merge",
         "position": {
-          "x": 14,
-          "y": 6
+          "x": 11,
+          "y": 19
         },
         "rotation": 0,
         "props": {
@@ -1211,8 +1211,8 @@
         "id": "key",
         "kind": "keyboard",
         "position": {
-          "x": 1,
-          "y": 11
+          "x": 12,
+          "y": 9
         },
         "rotation": 0,
         "props": {
@@ -1317,8 +1317,8 @@
         "id": "hexhigh",
         "kind": "seg7",
         "position": {
-          "x": 1,
-          "y": 16
+          "x": 12,
+          "y": 1
         },
         "rotation": 0,
         "props": {
@@ -1329,8 +1329,8 @@
         "id": "hexlow",
         "kind": "seg7",
         "position": {
-          "x": 6,
-          "y": 16
+          "x": 17,
+          "y": 1
         },
         "rotation": 0,
         "props": {
@@ -1342,8 +1342,8 @@
       {
         "id": "key-near",
         "position": {
-          "x": 7,
-          "y": 12
+          "x": 18,
+          "y": 10
         },
         "name": "KEY"
       },
@@ -1358,8 +1358,8 @@
       {
         "id": "high-near",
         "position": {
-          "x": 0,
-          "y": 22
+          "x": 11,
+          "y": 7
         },
         "name": "HEX high"
       },
@@ -1374,8 +1374,8 @@
       {
         "id": "low-near",
         "position": {
-          "x": 5,
-          "y": 22
+          "x": 16,
+          "y": 7
         },
         "name": "HEX low"
       },

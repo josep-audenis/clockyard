@@ -179,61 +179,108 @@ for (const theme of ["dark", "light"]) {
   await wide.shot("cpu", canvas);
   await wide.context.close();
 }
-// The hero: Catch running, as a short VP9 loop. Playwright's own video is at CSS pixels, too soft,
-// so this samples frames instead: run in short slices at 1,000 Hz, pause, step to the start of a
-// fetch so every frame is at the same phase, read the cycle counter and crop the part of the
-// circuit around the screen: the screen, the score digits, the keyboard, the ROM and the wiring
-// between them. The frames are laid on a timeline of 10,000 cycles a second.
+// The hero: Catch being played, as a short VP9 loop. Playwright's own video is at CSS pixels, too
+// soft, so this samples frames instead: run in slices of about 500 cycles at 1,000 Hz, pause, step
+// to the start of a fetch so every frame is at the same phase, read the cycle counter and crop the
+// devices: the score digits, the keyboard and the screen. Between slices the script plays: it reads
+// the screen's pixels, holds Left or Right on the keyboard part until the paddle is under the
+// block, catches three, then lets one fall, which halts the CPU. The frames are laid on a timeline
+// of 10,000 cycles a second.
 // shortcut: relies on Playwright's bundled ffmpeg (image2pipe, mjpeg, libvpx-vp9); swap in a system ffmpeg if it stops.
 const root = dirname(dirname(dirname(chromium.executablePath())));
 const ffmpegDir = readdirSync(root).filter((d) => d.startsWith("ffmpeg-")).sort().pop();
 const ffmpeg = join(root, ffmpegDir, readdirSync(join(root, ffmpegDir)).find((f) => f.startsWith("ffmpeg")));
+// Reads a screenshot of the screen's pixels (64 x 32, 4 CSS pixels each): which of the 8 lanes holds
+// the paddle (row 31) and the block (the first lit row above it), or -1. Lit means the theme's
+// signal-high colour.
+const sensor = await browser.newPage();
+const sense = (png, high, grid) =>
+  sensor.evaluate(
+    async ([src, high, grid]) => {
+      const img = await new Promise((done) => Object.assign(new Image(), { onload: (e) => done(e.target), src }));
+      const g = Object.assign(document.createElement("canvas"), { width: img.width, height: img.height }).getContext("2d", { willReadFrequently: true });
+      g.fillStyle = high;
+      g.fillRect(0, 0, 1, 1);
+      const want = g.getImageData(0, 0, 1, 1).data;
+      g.drawImage(img, 0, 0);
+      const pixels = g.getImageData(0, 0, img.width, img.height).data;
+      const lit = (x, y) => {
+        const i = 4 * (Math.round(y) * img.width + Math.round(x));
+        return Math.abs(pixels[i] - want[0]) + Math.abs(pixels[i + 1] - want[1]) + Math.abs(pixels[i + 2] - want[2]) < 90;
+      };
+      if (!grid) {
+        // Calibration: the lowest lit pixels are the paddle's row, and their left end is lane 3.
+        let bottom = -1;
+        let left = img.width;
+        for (let y = 0; y < img.height; y++) for (let x = 0; x < img.width; x++) if (lit(x, y)) bottom = y;
+        for (let x = 0; x < img.width; x++) if (lit(x, bottom - 1)) left = Math.min(left, x);
+        return { x: left - 96, y: bottom + 1 - 128 };
+      }
+      const lane = (row) => [...Array(8).keys()].find((l) => lit(grid.x + l * 32 + 16, grid.y + row * 4 + 2)) ?? -1;
+      let block = -1;
+      for (let row = 0; row < 31 && block < 0; row++) block = lane(row);
+      return { paddle: lane(31), block };
+    },
+    [`data:image/png;base64,${png.toString("base64")}`, high, grid],
+  );
 for (const theme of ["dark", "light"]) {
-  const { context, page, button, readout, open } = await session(theme, { width: 1440, height: 900 }, 3);
+  const { context, page, readout, open, click } = await session(theme, { width: 1440, height: 900 }, 3);
   await open(example("catch"));
   await page.getByLabel("Speed").selectOption("1000");
-  const clip = { x: 248, y: 46, width: 742, height: 432 }; // the screen with the circuit around it, down to the score digits' labels
-  const narrow = { x: 706, y: 94, width: 268, height: 140 }; // phones: the screen alone, inside its part
+  // Buttons pressed with a click event alone: a pointer press outside the canvas takes the keys back.
+  const press = (name) => page.getByRole("button", { name, exact: true }).dispatchEvent("click");
+  const high = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--signal-high").trim());
+  const clip = { x: 436, y: 56, width: 564, height: 238 }; // the digits, the keyboard and the screen
+  const screenArea = { x: 680, y: 92, width: 305, height: 145 }; // the screen part, for reading its pixels
+  await click(14, 10); // the keyboard at (12,9) takes the keys
+  let grid = null;
+  let held = null;
   const frames = [];
-  let caught = -1;
+  let halted = -1;
   while (frames.length < 900) {
-    await button("Run").click();
-    await button("Pause").click();
+    await press("Run");
+    await page.waitForTimeout(400);
+    await press("Pause");
     // Every frame at the same phase, the start of a fetch with the clock low, so the wiring does not strobe.
     for (let i = 0; i < 4; i++) {
       const phase = `${await page.getByText(/^Cycle \d+,/).textContent()} ${await readout("LED Fetch").textContent()}`;
       if (phase.includes("clock low") && phase.endsWith("on")) break;
-      await button("Step").click();
+      await press("Step");
     }
     await page.mouse.move(1, 1);
     const cycle = Number((await page.getByText(/^Cycle \d+,/).textContent()).match(/\d+/)[0]);
-    frames.push({
-      cycle,
-      wide: await page.screenshot({ clip, type: "jpeg", quality: 92 }),
-      narrow: await page.screenshot({ clip: narrow, type: "jpeg", quality: 92 }),
-    });
-    if (caught < 0 && (await readout("Seven-segment Low").textContent()).includes("(0x06)")) caught = frames.length;
-    if (caught >= 0 && frames.length > caught + 2) break;
+    frames.push({ cycle, jpeg: await page.screenshot({ clip, type: "jpeg", quality: 92 }) });
+    // Play: steer toward the block until three are caught, then let the next one fall.
+    const pixels = await page.screenshot({ clip: screenArea, scale: "css" });
+    grid ??= await sense(pixels, high, null);
+    const { paddle, block } = await sense(pixels, high, grid);
+    const three = (await readout("Seven-segment Low").textContent()).includes("(0x4F)");
+    const want = three || block < 0 || paddle < 0 || block === paddle ? null : block < paddle ? "ArrowLeft" : "ArrowRight";
+    if (want !== held) {
+      if (held) await page.keyboard.up(held);
+      if (want) await page.keyboard.down(want);
+      held = want;
+    }
+    if (halted < 0 && (await readout("LED Halted").textContent()).endsWith("on")) halted = frames.length;
+    if (halted >= 0) break;
   }
+  if (halted < 0) throw new Error("Catch did not end: check the screen reading");
   await context.close();
   const timeline = [];
   for (let t = frames[0].cycle, i = 0; t < frames.at(-1).cycle; t += 500) {
     while (i + 1 < frames.length && frames[i + 1].cycle <= t) i++;
-    timeline.push(frames[i]);
+    timeline.push(frames[i].jpeg);
   }
-  for (let hold = 0; hold < 30; hold++) timeline.push(frames.at(-1)); // a beat and a half on the new score before the loop restarts
-  const poster = timeline.length - 1; // the last frame: the score is 01 and the next block is falling
-  for (const [crop, name] of [["wide", "hero-loop"], ["narrow", "hero-loop-narrow"]]) {
-    const dir = mkdtempSync(join(tmpdir(), "clockyard-loop-"));
-    const input = join(dir, "frames.mjpeg");
-    writeFileSync(input, Buffer.concat(timeline.map((frame) => frame[crop])));
-    const out = here(`../about/shots/${name}-${theme}`);
-    // 20 frames a second, 500 cycles apart: 10,000 cycles a second, the speed setting the game uses.
-    execFileSync(ffmpeg, ["-loglevel", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", "20", "-i", input, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "32", "-pix_fmt", "yuv420p", "-an", `${out}.webm`]);
-    writeFileSync(`${out}.jpg`, timeline[poster][crop]);
-    rmSync(dir, { recursive: true });
-    console.log("wrote", `${out}.webm`, timeline.length, "frames");
-  }
+  for (let hold = 0; hold < 40; hold++) timeline.push(frames.at(-1).jpeg); // two seconds on the miss before the loop restarts
+  const dir = mkdtempSync(join(tmpdir(), "clockyard-loop-"));
+  const input = join(dir, "frames.mjpeg");
+  writeFileSync(input, Buffer.concat(timeline));
+  const out = here(`../about/shots/hero-loop-${theme}`);
+  // 20 frames a second, 500 cycles apart: 10,000 cycles a second, the speed setting the game uses.
+  execFileSync(ffmpeg, ["-loglevel", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", "20", "-i", input, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "32", "-pix_fmt", "yuv420p", "-an", `${out}.webm`]);
+  writeFileSync(`${out}.jpg`, timeline[Math.floor(timeline.length * 0.55)]); // poster: mid-game, a block falling
+  rmSync(dir, { recursive: true });
+  console.log("wrote", `${out}.webm`, timeline.length, "frames");
 }
 await browser.close();
 

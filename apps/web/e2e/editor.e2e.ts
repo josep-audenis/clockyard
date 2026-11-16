@@ -1123,7 +1123,7 @@ test("memory-mapped I/O demo: the shipped CPU program shows the key held on the 
   await page.getByLabel("Speed").selectOption("1000");
   await button("Run").click();
   // The devices open in view; the program waits on KEY until a key is held.
-  await click(page, at(3, 12)); // the keyboard at (1,11)
+  await click(page, at(14, 10)); // the keyboard at (12,9)
   await expect(status(page)).toContainText("The keyboard has the keys");
   await page.keyboard.down("Shift");
   await page.keyboard.down("A");
@@ -1172,7 +1172,7 @@ test("game demo: in Catch the first block is caught, a miss halts the run, and a
   await button("Reset").click();
   await expect(halted).toHaveText("LED Halted: off");
   await button("Run").click();
-  await click(page, at(3, 12)); // the keyboard at (1,11)
+  await click(page, at(14, 10)); // the keyboard at (12,9)
   await expect(status(page)).toContainText("The keyboard has the keys");
   await page.keyboard.down("ArrowRight");
   await expect(halted).toHaveText("LED Halted: on", game);

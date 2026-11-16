@@ -523,6 +523,4 @@ video.loop { display: block; width: 100%; height: auto; }
   .header-row .button { height: 32px; padding: 0 10px; font-size: 13px; }
   .code { font-size: 12px; }
   .bare picture, .bare video { --fade: 14px; }
-  .loop-frame { aspect-ratio: 804 / 420; }
-  video.loop { height: 100%; object-fit: cover; }
 }

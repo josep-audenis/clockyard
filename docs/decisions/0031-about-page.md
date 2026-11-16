@@ -43,16 +43,21 @@ output, the design system as the source of truth.
    the shipped examples and a challenge solution, and writes the
    screenshots under `about/shots/` in both themes. No screenshot is drawn
    by hand; the CPU shot only hides the zoom controls. The wire legend and the
-   architecture figure are drawn in the page itself. The hero is a short loop of Catch: the script runs the CPU in
-   short slices at the 1,000 Hz setting, pauses after each, steps to the
-   start of a fetch so every frame is at the same phase, reads the cycle
-   counter and crops the part of the circuit around the screen: the
-   screen, the score digits, the keyboard, the ROM and the wiring between
-   them, so the game is seen running on gates and wires (phones get the
-   screen alone, from the same frames); the frames are then laid on a timeline
-   of 10,000 cycles a second, 20 frames a second, and encoded as VP9 WebM
-   with the ffmpeg Playwright installs. The last frame is held for a
-   moment before the loop restarts. Fig. 6's program is typed into the
+   architecture figure are drawn in the page itself. The hero is a short loop of Catch being played: the script runs
+   the CPU in slices of about 500 cycles at the 1,000 Hz setting, pauses
+   after each, steps to the start of a fetch so every frame is at the same
+   phase, reads the cycle counter and crops the devices (the score digits,
+   the keyboard and the screen). Between slices it plays: it reads the
+   screen's pixels and holds Left or Right on the keyboard part until the
+   paddle is under the block, catches three, then lets one fall, which
+   halts the CPU. Its key presses are the only input; every pixel is the
+   CPU's. The frames are laid on a timeline of 10,000 cycles a second, 20
+   frames a second, and encoded as VP9 WebM with the ffmpeg Playwright
+   installs; the miss is held for two seconds before the loop restarts.
+   For that picture the reference CPU's devices sit together at the top
+   of its sheet (`scripts/reference-cpu.mjs`): the digits with the keyboard
+   under them, then the screen, all in the view the sheet opens to, and
+   the clock and constants moved below them. Fig. 6's program is typed into the
    ROM's inspector by the script; it is not a shipped example. The script
    also records a failing Check (XOR from NAND gates with A wired straight
    to Y) and a loop that never settles (a NOR fed back into itself), so
@@ -63,7 +68,7 @@ output, the design system as the source of truth.
    format. Rerun it when the editor's look or the format changes:
    `node scripts/landing-shots.mjs http://localhost:5173` from `apps/web`.
 5. **The live figure loads the real editor on request.** A button (or a
-   click on the picture, or the hero's "Load a half adder") replaces
+   click on the picture) replaces
    a screenshot with the editor in an iframe at `../#circuit=…`, the half
    adder. Nothing loads until it is pressed, it is offered only on wide
    screens, and until the editor is clicked the wheel scrolls the page.
