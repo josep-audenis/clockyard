@@ -209,8 +209,8 @@ What exists today:
    among all the parts, on every state (quadratic), and every state was
    handled as it arrived, so they queued. Parts are now named in one
    pass per edit, and only the latest waiting state is applied:
-   `counters-10k` runs at about 2,400 cycles per second, near the
-   engine's own rate. A toggle that changes every wire is still about
+   `counters-10k` runs at about 2,400 cycles per second, about 80 % of
+   the engine's slowest native measurement. A toggle that changes every wire is still about
    1 s at 10,000 parts, mostly the redraw.
 
 ## Alternatives considered

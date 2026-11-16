@@ -213,8 +213,8 @@ graphics card (on battery, so the columns compare only with each other):
 A drag step is 2.3–4.1 times faster: it rebuilds the chunks of the wires the moved part touches. A toggle is not much
 faster: toggling the switch of `chain` or `fanout` changes every wire's value, so every chunk is rebuilt, and most of a
 toggle's 1.5–3.1 s is presumably spent outside the draw, judging by the drag's draw times; it is not yet
-measured. Running `counters-10k` at full speed still freezes the page: what the main thread does with each state
-the worker sends is measured below.
+measured. Running `counters-10k` at full speed froze the page: what the main thread does with each state the worker
+sends is measured, and fixed, below.
 
 The after columns were measured before selected wires got their own layer; the benchmark selects a part, not a wire,
 so that layer stays empty in it. The browser table above predates this step; its drag column is to be measured again
@@ -235,9 +235,13 @@ showed where a toggle and a run go:
 - **A toggle that changes every wire** (`chain`) is mostly the redraw: 935 ms in one draw, of it about 620 ms Pixi
   rebuilding its batches for the rebuilt chunks and 185 ms rebuilding the gates' shapes, whose values changed too.
 
-Now parts are named in one pass, once per edit (`partNames`), and a state is applied on the next task: states that
-arrived meanwhile are skipped, only the latest is shown, so a backlog never forms. A state that arrived before a load
-was sent is not shown, and a reset inside a skipped stretch still counts a new waveform epoch.
+Now parts are named in one pass, once per edit and definition change (`partNames`, cached), and a state is applied on
+the next task: states that arrived meanwhile are skipped and only the latest is shown, so they still queue but cost
+nothing to drop. Any other message applies a waiting state first, so messages take effect in the order they came (an
+error after a state stays the latest word). A state that arrived before a load was sent is not shown, and a reset or
+a new load inside a skipped stretch still counts a new waveform epoch. That the waiting states collapse into one relies
+on Chromium running tasks of one priority in the order they were queued, which is what was measured; a hidden tab's
+timers run about once a second, so it shows about one state a second until it is visible again.
 
 Before and after, back to back on mains power:
 
@@ -249,7 +253,8 @@ Before and after, back to back on mains power:
 | fanout-10k | 1675 | 1464 | – | – |
 | counters-10k | – | – | the page stopped answering | 2359 |
 
-`counters-10k` now runs, at about the engine's own rate natively (2,900–4,700 cycles per second), and Pause answers.
+`counters-10k` now runs, at about 80 % of the slowest native measurement of the engine alone (2,900–4,700 cycles per
+second), and Pause answers.
 The toggle times here are within run-to-run noise: the after run was slower throughout, routing on open included,
 which neither change touches. What remains of a toggle at 10,000 parts is the redraw when every wire and gate changes,
 the next candidate: Pixi rebuilding its batches, and the gates' shapes.

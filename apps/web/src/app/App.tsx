@@ -1,6 +1,6 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { definitionName } from "../canvas/layout";
+import { definitionName, definitionsVersion } from "../canvas/layout";
 import { mountCanvas, useCanvasHints, viewControls } from "../canvas/scene";
 import {
   contains,
@@ -1789,10 +1789,17 @@ function partName(components: CircuitComponent[], part: CircuitComponent) {
 }
 
 /**
+ * Names by parts array, while definitions (whose names name custom parts) are unchanged: built once per edit, however
+ * many names are asked for (a waveform's lanes read them every frame).
+ */
+const namesOf = new WeakMap<CircuitComponent[], { definitions: number; names: Map<string, string> }>();
+/**
  * Every part's name (see `partName`), in one pass: a list of many parts named one by one would count among all the
  * parts once per part, which at thousands of LEDs held each engine state up for seconds (ADR 0030).
  */
 function partNames(components: CircuitComponent[]): Map<string, string> {
+  const cached = namesOf.get(components);
+  if (cached?.definitions === definitionsVersion()) return cached.names;
   const counts = new Map<string, number>();
   const names = new Map<string, string>();
   for (const part of components) {
@@ -1803,6 +1810,7 @@ function partNames(components: CircuitComponent[]): Map<string, string> {
     counts.set(same, n);
     names.set(part.id, part.props.label ? `${kind} ${part.props.label}` : `${kind} ${n}`);
   }
+  namesOf.set(components, { definitions: definitionsVersion(), names });
   return names;
 }
 
@@ -1810,7 +1818,7 @@ function partNames(components: CircuitComponent[]): Map<string, string> {
 function Readout() {
   const components = useEditor((s) => s.circuit.components);
   // Named once per edit, not per state.
-  const names = useMemo(() => partNames(components), [components]);
+  const names = partNames(components);
   const loaded = useSim((s) => s.loaded);
   const nets = useSim((s) => s.nets);
   const stale = useSim((s) => s.stale);
@@ -1897,7 +1905,7 @@ function RunControls() {
   const components = useEditor((s) => s.circuit.components);
   // Any 1-bit LED on the open sheet can stop a run: an instruction step, a breakpoint, run to halt (ADR 0019).
   const leds = components.filter((c) => c.kind === "led" && (c.props.width ?? 1) === 1);
-  const names = useMemo(() => partNames(components), [components]);
+  const names = partNames(components);
   // A choice whose LED is gone (deleted, or another sheet opened) goes back to a plain run.
   const chosen = leds.some((c) => c.id === until) ? until : null;
   useEffect(() => {

@@ -71,6 +71,7 @@ test("watched memories are read once a frame however many states arrive, a newly
   watchMemory(new Map([["s", 128]])); // the same screens: nothing new to read
   const state = { type: "state", nets: new Uint32Array(1), diagnostics: [], time: 1, running: true } as unknown as Result;
   for (let i = 0; i < 3; i++) worker.reply(state);
+  vi.advanceTimersByTime(0);
   expect(reads()).toEqual([]);
   vi.advanceTimersByTime(20);
   expect(reads()).toHaveLength(1);
@@ -132,7 +133,25 @@ test("states that arrive faster than the page shows them are applied once, as th
   vi.runAllTimers();
   expect(useSim.getState().time).toBe(4);
   unsubscribe();
+
+  // The load answered, then its states: a new circuit is a new epoch, even when its time is not below the last shown.
+  worker.reply({ type: "loaded", portNets: {}, wireNets: {} } as unknown as Result);
+  const before = useSim.getState().epoch;
+  worker.reply(state(7));
+  vi.runAllTimers();
+  expect(useSim.getState()).toMatchObject({ time: 7, epoch: before + 1 });
+
+  // Any other message applies a waiting state first: an error after a state stays the latest word.
+  worker.reply(state(9));
+  worker.reply({ type: "error", message: "boom", running: false });
+  vi.runAllTimers();
+  expect(useSim.getState()).toMatchObject({ time: 9, running: false, status: "error", error: "boom" });
+
+  // A state still waiting when the engine stops is not shown.
+  worker.reply(state(11));
   stop();
+  vi.runAllTimers();
+  expect(useSim.getState().time).toBe(9);
   useEditor.setState(editor, true);
   vi.useRealTimers();
 });
