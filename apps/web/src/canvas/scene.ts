@@ -454,11 +454,13 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   /** Texts drawn this frame; the rest are removed once it is drawn. */
   const seen = new Set<string>();
   /** A text at world point (x, y) in the canvas-label style, reused across frames by `key`. */
-  function put(key: string, value: string, x: number, y: number, anchor: Point, fill = theme.color["ink-muted"]) {
+  function put(key: string, value: string, x: number, y: number, anchor: Point, fill = theme.color["ink-muted"], halo = false) {
     seen.add(key);
     let text = texts.get(key);
     if (!text) {
-      const style = { fontFamily: theme.mono, fontSize: 11, fontWeight: "500", fill } as const;
+      // A caption on the bench gets a halo in the ground colour, so a wire passing behind it does not strike it through.
+      const stroke = halo ? ({ color: theme.color.bench, width: 3, join: "round" } as const) : undefined;
+      const style = { fontFamily: theme.mono, fontSize: 11, fontWeight: "500", fill, stroke } as const;
       // shortcut: rendered at twice the device ratio, so labels soften beyond 2x zoom; switch to BitmapText if that bothers.
       text = new Text({ text: value, style, resolution: 2 * window.devicePixelRatio });
       texts.set(key, text);
@@ -474,14 +476,14 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   // a custom component also shows its definition's name (unless labelled) and its pin names inside.
   function drawLabels(components: CircuitComponent[]) {
     const c = cell();
-    const label = (key: string, value: string, x: number, y: number, anchor: Point, angle = 0) => {
-      put(key, value, x * c, y * c, anchor).angle = angle;
+    const label = (key: string, value: string, x: number, y: number, anchor: Point, angle = 0, halo = false) => {
+      put(key, value, x * c, y * c, anchor, undefined, halo).angle = angle;
     };
     for (const component of components) {
       const layout = layoutOf(component);
       const { x, y } = component.position;
       const caption = component.props.label ?? (component.kind === "custom" ? definitionName(component.definition) : undefined);
-      if (caption) label(component.id, caption, x + layout.width / 2, y + layout.height + 6 / c, { x: 0.5, y: 0 });
+      if (caption) label(component.id, caption, x + layout.width / 2, y + layout.height + 6 / c, { x: 0.5, y: 0 }, 0, true);
       if (component.kind !== "custom" && component.kind !== "dff" && !isMemory(component.kind) && !isFielded(component.kind)) continue;
       // A chip's pin names, or a splitter's or merger's bit ranges ("7:4"), just inside the body,
       // facing in from the side the port is on.
@@ -1139,12 +1141,18 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     schedule();
   };
   scheme.addEventListener("change", onScheme);
+  // Labels drawn before IBM Plex Mono arrived used a fallback face; draw them again once it has.
+  let stopped = false;
+  void document.fonts?.load(`500 11px ${theme.mono}`).then(() => {
+    if (!stopped) onScheme();
+  });
 
   const unsubscribe = [useEditor.subscribe(schedule), useSim.subscribe(schedule)];
   schedule();
 
   const bind = () => Object.assign(viewControls, { fit, zoomBy });
   const stop = () => {
+    stopped = true;
     unsubscribe.forEach((stop) => stop());
     // Only this canvas's: one discarded during start-up never bound its own (see the caller).
     if (viewControls.fit === fit) {

@@ -1785,7 +1785,11 @@ function ValueField({ part }: { part: CircuitComponent }) {
 
 /** A part's label, or its kind and position among parts of that kind ("Switch 2"). */
 function partName(components: CircuitComponent[], part: CircuitComponent) {
-  if (part.props.label) return `${kindName(part)} ${part.props.label}`;
+  // A label that only repeats the kind ("Clock" on a clock) is not said twice.
+  if (part.props.label) {
+    const kind = kindName(part);
+    return kind !== undefined && part.props.label.toLowerCase() === kind.toLowerCase() ? kind : `${kind} ${part.props.label}`;
+  }
   // Numbered among parts called the same, so registers and 1-bit flip-flops count apart.
   const same = components.filter((c) => c.kind === part.kind && c.definition === part.definition && kindName(c) === kindName(part));
   return `${kindName(part)} ${same.indexOf(part) + 1}`;

@@ -21,7 +21,7 @@ const browser = await chromium.launch();
 const links = {};
 
 async function session(theme, viewport = { width: 1440, height: 900 }, scale = 2) {
-  const context = await browser.newContext({ viewport, deviceScaleFactor: scale, colorScheme: theme });
+  const context = await browser.newContext({ viewport, deviceScaleFactor: scale, colorScheme: theme, locale: "en-GB" });
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const page = await context.newPage();
   const button = (name) => page.getByRole("button", { name, exact: true });
@@ -35,6 +35,15 @@ async function session(theme, viewport = { width: 1440, height: 900 }, scale = 2
     const p = await at(x, y);
     await page.mouse.click(p.x, p.y);
   };
+  const drag = async (from, to) => {
+    const a = await at(...from);
+    const b = await at(...to);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move(b.x, b.y, { steps: 5 });
+    await page.mouse.up();
+  };
+  page.on("dialog", (dialog) => void dialog.accept()); // "Replace the current circuit?" when an example or challenge opens
   const open = async (file) => {
     await page.goto(base);
     await page.locator('[data-testid="import-file"]').setInputFiles(file);
@@ -54,18 +63,19 @@ async function session(theme, viewport = { width: 1440, height: 900 }, scale = 2
     await page.waitForTimeout(200);
     links[name] = new URL(await page.evaluate(() => navigator.clipboard.readText())).hash.slice(1);
   };
-  return { context, page, button, inspector, readout, click, open, shot, link };
+  return { context, page, button, inspector, readout, click, drag, open, shot, link };
 }
 
 for (const theme of ["dark", "light"]) {
   const s = await session(theme);
-  const { page, button, inspector, click, open, shot, link } = s;
+  const { page, button, inspector, click, drag, open, shot, link } = s;
 
   // Half adder, as the live figure's poster: the frame is 1180 x 620.
   await page.setViewportSize({ width: 1180, height: 620 });
   await open(example("half-adder"));
   await button("Fit").click(); // as the page does once the live editor loads
   await shot("live");
+  await shot("live-narrow", { x: 232, y: 45, width: 668, height: 548 }); // the canvas alone, for phones
   await link("half-adder"); // after the shot: Copy link shows a notice in the toolbar
   await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -74,7 +84,7 @@ for (const theme of ["dark", "light"]) {
   await link("4-bit-adder");
   for (const [x, y] of [[1, 1], [1, 21], [5, 4], [5, 14], [1, 7]]) await click(x, y);
   await click(30, 40); // empty canvas: clear the selection
-  await shot("adder", { x: 248, y: 60, width: 520, height: 640 });
+  await shot("adder", { x: 248, y: 60, width: 520, height: 770 }); // down to the Cout LED
 
   // Waveforms: the 8-bit counter, clock and register watched, stepped twelve cycles.
   await open(example("8-bit-counter"));
@@ -86,7 +96,11 @@ for (const theme of ["dark", "light"]) {
   await inspector.getByRole("button", { name: "Watch", exact: true }).click();
   for (let i = 0; i < 12; i++) await button("Step").click();
   await click(30, 30); // empty canvas: clear the selection
-  await shot("waveforms-circuit", { x: 232, y: 45, width: 700, height: 250 });
+  // Zoomed 1.3x about the counter's top-left corner, so its labels read at the size the page shows them.
+  await page.mouse.move(256, 55);
+  await page.mouse.wheel(0, -Math.log(1.3) / 0.0015);
+  await page.waitForTimeout(300);
+  await shot("waveforms-circuit", { x: 256, y: 55, width: Math.round(610 * 1.3), height: Math.round(230 * 1.3) });
   const waves = await page.getByRole("region", { name: "WAVEFORMS" }).boundingBox();
   await shot("waveforms", { ...waves, width: 520 });
 
@@ -101,9 +115,9 @@ for (const theme of ["dark", "light"]) {
   await button("Assemble").click();
   await page.waitForTimeout(300);
   const label = await inspector.getByText("Assembly", { exact: true }).boundingBox();
-  const listing = await inspector.getByRole("region", { name: "Disassembly" }).boundingBox();
+  const assemble = await inspector.getByRole("button", { name: "Assemble", exact: true }).boundingBox();
   const side = await inspector.boundingBox();
-  await shot("program", { x: side.x, y: label.y - 12, width: side.width, height: listing.y + listing.height + 12 - (label.y - 12) });
+  await shot("program", { x: side.x, y: label.y - 12, width: side.width, height: assemble.y + assemble.height + 14 - (label.y - 12) }); // the source and its result
   await page.setViewportSize({ width: 1440, height: 900 });
 
   await open(example("catch"));
@@ -119,10 +133,37 @@ for (const theme of ["dark", "light"]) {
   await click(30, 30); // empty canvas: clear the selection
   await challenge.getByRole("button", { name: "Check" }).click();
   await page.getByText(/^Passed/).waitFor();
-  await shot("challenge-circuit", { x: 232, y: 45, width: 560, height: 260 });
+  await shot("challenge-circuit", { x: 232, y: 45, width: 600, height: 260 }); // room past the LEDs for the page's edge fade
   const panel = await challenge.boundingBox();
   await shot("challenge", panel);
+
+  // A failing Check: XOR from NAND gates with A wired straight to Y, so the bench names the step.
+  await page.goto(base);
+  await page.getByRole("region", { name: "CHALLENGES" }).getByRole("button", { name: "XOR from NAND gates" }).click();
+  await page.getByRole("navigation", { name: "Sheet" }).filter({ hasText: "XOR" }).waitFor();
+  await drag([2, 1], [36, 1]);
+  await click(30, 30);
+  await challenge.getByRole("button", { name: "Check" }).click();
+  await challenge.locator(".challenge-result").filter({ hasText: /failed/ }).waitFor();
+  await shot("check-failed", await challenge.boundingBox());
   await s.context.close();
+
+  // A loop that never settles: a NOR fed back into itself while its other input is 0.
+  const loop = await session(theme);
+  await loop.page.goto(base);
+  const parts = loop.page.getByRole("complementary", { name: "Parts" });
+  await parts.getByRole("button", { name: /^Switch\b/ }).click(); // its name includes the shortcut key
+  await loop.click(1, 1);
+  await parts.getByRole("button", { name: "NOR", exact: true }).click();
+  await loop.click(8, 4); // a NOR at (6,2): a (6,3), b (6,5), out (10,4)
+  await loop.drag([2, 1], [6, 3]);
+  await loop.drag([10, 4], [6, 5]);
+  await loop.click(30, 30);
+  await loop.page.getByRole("status").filter({ hasText: "Unstable" }).waitFor();
+  await loop.shot("unstable-circuit", { x: 256, y: 72, width: 240, height: 150 });
+  const bar = await loop.page.getByRole("status").boundingBox();
+  await loop.shot("unstable-status", { x: 0, y: bar.y - 4, width: 560, height: bar.height + 8 }); // the message, not the whole bar
+  await loop.context.close();
 
   // The whole CPU, running, fitted to a wide canvas.
   const wide = await session(theme, { width: 2560, height: 1240 }, 1.5);
@@ -137,18 +178,21 @@ for (const theme of ["dark", "light"]) {
   await wide.shot("cpu", canvas);
   await wide.context.close();
 }
-// The hero: Catch running, as a short VP9 loop at the page's 2x scale. Playwright's own video
-// is 1x, so this samples frames instead: run in short slices at 1,000 Hz, pause, read the cycle
-// counter and take a JPEG. The frames are then laid on a timeline of 10,000 cycles a second.
+// The hero: Catch running, as a short VP9 loop. Playwright's own video is at CSS pixels, too soft,
+// so this samples frames instead: run in short slices at 1,000 Hz, pause, step to the start of a
+// fetch so every frame is at the same phase, read the cycle counter and crop the part of the
+// circuit around the screen: the screen, the score digits, the keyboard, the ROM and the wiring
+// between them. The frames are laid on a timeline of 10,000 cycles a second.
 // shortcut: relies on Playwright's bundled ffmpeg (image2pipe, mjpeg, libvpx-vp9); swap in a system ffmpeg if it stops.
 const root = dirname(dirname(dirname(chromium.executablePath())));
 const ffmpegDir = readdirSync(root).filter((d) => d.startsWith("ffmpeg-")).sort().pop();
 const ffmpeg = join(root, ffmpegDir, readdirSync(join(root, ffmpegDir)).find((f) => f.startsWith("ffmpeg")));
 for (const theme of ["dark", "light"]) {
-  const { context, page, button, readout, open } = await session(theme);
+  const { context, page, button, readout, open } = await session(theme, { width: 1440, height: 900 }, 3);
   await open(example("catch"));
   await page.getByLabel("Speed").selectOption("1000");
-  const clip = { x: 270, y: 80, width: 730, height: 390 }; // the keyboard, the digits and the screen
+  const clip = { x: 248, y: 46, width: 752, height: 440 }; // the screen with the circuit around it, down to the score digits' labels
+  const narrow = { x: 704, y: 92, width: 264, height: 144 }; // phones: the screen alone, inside its part
   const frames = [];
   let caught = -1;
   while (frames.length < 900) {
@@ -162,7 +206,11 @@ for (const theme of ["dark", "light"]) {
     }
     await page.mouse.move(1, 1);
     const cycle = Number((await page.getByText(/^Cycle \d+,/).textContent()).match(/\d+/)[0]);
-    frames.push({ cycle, jpeg: await page.screenshot({ clip, type: "jpeg", quality: 94 }) });
+    frames.push({
+      cycle,
+      wide: await page.screenshot({ clip, type: "jpeg", quality: 92 }),
+      narrow: await page.screenshot({ clip: narrow, type: "jpeg", quality: 92 }),
+    });
     if (caught < 0 && (await readout("Seven-segment Low").textContent()).includes("(0x06)")) caught = frames.length;
     if (caught >= 0 && frames.length > caught + 2) break;
   }
@@ -170,18 +218,21 @@ for (const theme of ["dark", "light"]) {
   const timeline = [];
   for (let t = frames[0].cycle, i = 0; t < frames.at(-1).cycle; t += 500) {
     while (i + 1 < frames.length && frames[i + 1].cycle <= t) i++;
-    timeline.push(frames[i].jpeg);
+    timeline.push(frames[i]);
   }
-  for (let hold = 0; hold < 30; hold++) timeline.push(frames.at(-1).jpeg); // a beat and a half on the new score before the loop restarts
-  const dir = mkdtempSync(join(tmpdir(), "clockyard-loop-"));
-  const input = join(dir, "frames.mjpeg");
-  writeFileSync(input, Buffer.concat(timeline));
-  const out = here(`../about/shots/hero-loop-${theme}`);
-  // 20 frames a second, 500 cycles apart: 10,000 cycles a second, the speed setting the game uses.
-  execFileSync(ffmpeg, ["-loglevel", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", "20", "-i", input, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "32", "-pix_fmt", "yuv420p", "-an", `${out}.webm`]);
-  writeFileSync(`${out}.jpg`, timeline[Math.floor(timeline.length * 0.4)]); // poster: the block mid-fall
-  rmSync(dir, { recursive: true });
-  console.log("wrote", `${out}.webm`, timeline.length, "frames");
+  for (let hold = 0; hold < 30; hold++) timeline.push(frames.at(-1)); // a beat and a half on the new score before the loop restarts
+  const poster = Math.floor(timeline.length * 0.4); // the block mid-fall
+  for (const [crop, name] of [["wide", "hero-loop"], ["narrow", "hero-loop-narrow"]]) {
+    const dir = mkdtempSync(join(tmpdir(), "clockyard-loop-"));
+    const input = join(dir, "frames.mjpeg");
+    writeFileSync(input, Buffer.concat(timeline.map((frame) => frame[crop])));
+    const out = here(`../about/shots/${name}-${theme}`);
+    // 20 frames a second, 500 cycles apart: 10,000 cycles a second, the speed setting the game uses.
+    execFileSync(ffmpeg, ["-loglevel", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", "20", "-i", input, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "32", "-pix_fmt", "yuv420p", "-an", `${out}.webm`]);
+    writeFileSync(`${out}.jpg`, timeline[poster][crop]);
+    rmSync(dir, { recursive: true });
+    console.log("wrote", `${out}.webm`, timeline.length, "frames");
+  }
 }
 await browser.close();
 

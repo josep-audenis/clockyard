@@ -519,7 +519,7 @@ targets, as in Phase 5.
 
 ## Outside the phases
 
-- ✅ An about page at `/about/` (ADR 0030): what Clockyard is, every figure a
+- ✅ An about page at `/about/` (ADR 0031): what Clockyard is, every figure a
   capture of the real editor made by `apps/web/scripts/landing-shots.mjs`,
   the half adder loadable in place, and a recording of Catch.
 

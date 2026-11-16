@@ -1,11 +1,14 @@
-/* The about page. Colours, radii and type families come from the design system
-   tokens (ADR 0008); the larger type sizes here are the page's own. Amber
-   (signal-high) still means a logic 1 and nothing else: buttons are blue. */
+/* The about page. Colours, radii and families come from the design system tokens
+   (ADR 0008); display sizes and IBM Plex Sans Condensed for headings follow its "Pages"
+   section. Amber (signal-high) means a logic 1 and nothing else: actions are blue, and
+   dashes stay reserved for X and Z signals. */
 @import "../src/styles/tokens.css";
 @import "@fontsource/ibm-plex-sans/latin-400.css";
 @import "@fontsource/ibm-plex-sans/latin-500.css";
 @import "@fontsource/ibm-plex-sans/latin-600.css";
 @import "@fontsource/ibm-plex-sans/latin-400-italic.css";
+@import "@fontsource/ibm-plex-sans-condensed/latin-500.css";
+@import "@fontsource/ibm-plex-sans-condensed/latin-600.css";
 @import "@fontsource/ibm-plex-mono/latin-400.css";
 @import "@fontsource/ibm-plex-mono/latin-500.css";
 @import "@fontsource/ibm-plex-mono/latin-600.css";
@@ -73,12 +76,13 @@ kbd {
   border-radius: var(--radius-sm);
 }
 
-h1, h2, h3 { margin: 0; font-weight: 600; text-wrap: balance; }
+h1, h2, h3, h4 { margin: 0; font-weight: 600; text-wrap: balance; }
+h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.01em; }
 p { margin: 0; text-wrap: pretty; }
 em { font-style: italic; }
+strong { font-weight: 600; color: var(--ink); }
 
 .wrap { max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); }
-
 .phone-only { display: none; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .skip { position: absolute; left: -9999px; }
@@ -121,40 +125,25 @@ em { font-style: italic; }
 .site-nav a { color: var(--ink-muted); font-size: 14px; text-decoration: none; }
 .site-nav a:hover { color: var(--ink); }
 
-/* Hero, on the canvas's own dot grid */
-.hero {
-  position: relative;
-  padding: 104px 0 var(--section);
-  background-image: radial-gradient(var(--bench-grid) 1.2px, transparent 1.4px);
-  background-size: 16px 16px;
-  background-position: 8px 8px;
-}
-.hero::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, transparent 0, transparent 35%, var(--bench) 70%);
-  pointer-events: none;
-}
-.hero .wrap { position: relative; }
+/* Hero: headline, one line of copy, the actions, then the game across the full width. */
+.hero { padding: 52px 0 72px; }
 .hero h1 {
-  font-size: clamp(42px, 6.6vw, 80px);
-  line-height: 1;
-  letter-spacing: -0.025em;
-  max-width: 17ch;
+  font-size: clamp(44px, 6.4vw, 84px);
+  line-height: 0.98;
+  letter-spacing: -0.015em;
+  max-width: 19ch;
 }
-.lede {
-  margin-top: 28px;
-  max-width: 60ch;
-  font-size: clamp(17px, 1.6vw, 20px);
-  line-height: 1.55;
-  color: var(--ink-muted);
-  text-wrap: balance;
+.lede { margin-top: 24px; font-size: clamp(18px, 1.6vw, 21px); line-height: 1.5; color: var(--ink); max-width: 52ch; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.hero-note { margin-top: 16px; font-size: 14px; color: var(--ink-muted); }
+.shot.hero-fig { margin-top: 40px; }
+@media (prefers-reduced-motion: no-preference) {
+  /* The headline rises in once; nothing else moves on load. */
+  .hero h1 { animation: rise 520ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
 }
-.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
-.fineprint { margin-top: 16px; font-size: 14px; color: var(--ink-muted); }
 
-/* Screenshots */
+/* Figures */
 .shot { margin: 0; }
 .frame {
   position: relative;
@@ -163,96 +152,78 @@ em { font-style: italic; }
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
 }
-.shot-hero { margin-top: 64px; }
+.frame-stack > * + * { border-top: 1px solid var(--line); }
+/* A crop of the canvas needs no box: it shares the page's colour and grid, and its edges fade out. */
+.frame.bare { overflow: visible; background: none; border: 0; border-radius: 0; }
+.bare picture, .bare video {
+  --fade: 28px;
+  mask-image:
+    linear-gradient(to right, transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent),
+    linear-gradient(to bottom, transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent);
+  mask-composite: intersect;
+}
 .shot figcaption {
-  margin-top: 14px;
-  max-width: 76ch;
+  margin-top: 12px;
+  max-width: 78ch;
   font-size: 14px;
   line-height: 1.55;
   color: var(--ink-muted);
 }
 .shot figcaption a { white-space: nowrap; }
-.fig {
-  font: 500 12px/1 var(--font-mono);
-  color: var(--ink);
-  margin-right: 8px;
-}
+.fig { font: 500 12px/1 var(--font-mono); color: var(--ink); margin-right: 8px; }
 
-/* Sections */
-.try, .chapter, .layer, .engine, .facts, .closing { border-top: 1px solid var(--line); padding: var(--section) 0; }
-.chapter { padding-bottom: 0; }
-/* The four layers are one chapter: no rule between them. */
-.chapter > .layer { border-top: 0; padding-top: 0; }
-.statement, .chapter-head h2, .section-head h2, .try-head h2, .closing h2 {
-  font-size: clamp(30px, 3.4vw, 44px);
-  line-height: 1.08;
-  letter-spacing: -0.025em;
+/* The recording: its poster sits over it until it plays, so a still frame shows in the page's theme. */
+.loop-frame { position: relative; }
+video.loop { display: block; width: 100%; height: auto; }
+.loop-poster { position: absolute; inset: 0; z-index: 1; }
+.loop-poster img { width: 100%; height: 100%; object-fit: cover; }
+.loop-frame.is-playing .loop-poster { display: none; }
+/* Figures with a control: the caption on the left, the control on the right. */
+.hero-fig figcaption, .live figcaption { display: flex; gap: 24px; justify-content: space-between; align-items: start; max-width: none; }
+.hero-fig .cap, .live .cap { max-width: 78ch; }
+.loop-toggle { flex: none; height: 28px; padding: 0 12px; font-size: 13px; }
+
+/* Sections: one rule between them, starting at an input port like the mark's wire. Headings sit over their lede. */
+.try, .chapter, .engine, .facts, .closing { position: relative; border-top: 1px solid var(--line); padding: var(--section) 0; }
+.try::before, .chapter::before, .engine::before, .facts::before, .closing::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: max(calc(var(--gutter) - 5px), calc((100% - var(--wrap)) / 2 - 5px));
+  width: 9px;
+  height: 9px;
+  background: var(--bench);
+  border: 2px solid var(--line-strong);
+  border-radius: var(--radius-full);
 }
-.chapter-head { display: grid; grid-template-columns: 4fr 7fr; gap: 56px; align-items: start; padding-bottom: 72px; }
-.chapter-head p { font-size: 18px; color: var(--ink-muted); max-width: 60ch; }
-/* The four layers: one chapter, numbered like the steps of a datasheet. */
-.layer-title {
-  display: flex;
-  align-items: baseline;
-  gap: 18px;
-  margin-bottom: 40px;
-  font-size: clamp(26px, 2.8vw, 34px);
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-}
-.layer-no { font: 400 0.82em/1 var(--font-mono); letter-spacing: 0; color: var(--ink-muted); }
-.note { margin-top: 20px; color: var(--ink-muted); font-size: 15px; }
-.layer-grid { display: grid; grid-template-columns: 4fr 7fr; gap: 56px; align-items: start; }
-.layer-grid-flip { grid-template-columns: 7fr 4fr; }
-.layer-lede { font-size: 19px; line-height: 1.55; color: var(--ink); }
-.prose { display: grid; gap: 18px; font-size: 16px; color: var(--ink-muted); }
-.frame-stack > * + * { border-top: 1px solid var(--line); }
-.wave-scroll { overflow-x: auto; background: var(--panel); }
-.wave-scroll img { width: 100%; }
+.try h2, .chapter-head h2, .engine h2, .facts h2, .closing h2 { font-size: clamp(32px, 3.8vw, 48px); line-height: 1.04; }
+.section-lede { margin-top: 14px; max-width: 64ch; font-size: 18px; line-height: 1.55; color: var(--ink); }
+.note { margin-top: 18px; color: var(--ink-muted); font-size: 14px; }
+.note code { padding: 0; color: var(--ink); background: none; border: 0; }
 
 /* Try it */
-.try-head { margin-bottom: 32px; }
-.try-head p { margin-top: 12px; font-size: 18px; color: var(--ink-muted); max-width: 70ch; }
+.live { margin-top: 32px; }
 .live-frame { aspect-ratio: 1180 / 620; }
 .live-frame picture, .live-frame img { width: 100%; height: 100%; object-fit: cover; }
 .live-frame.has-start picture { cursor: pointer; }
-.live-frame.has-start::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: color-mix(in srgb, var(--bench) 40%, transparent);
-  pointer-events: none;
-}
-/* Low on the canvas, below the circuit. */
-.live-start { position: absolute; left: 48%; top: 84%; transform: translate(-50%, -50%); z-index: 1; box-shadow: var(--shadow-pop); }
-.live-start:active { transform: translate(-50%, calc(-50% + 1px)); }
+.live-start { flex: none; }
 .live-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
-.live-open { display: block; width: 100%; height: 100%; }
 
-/* Spec rows: a datasheet, divided by hairlines */
-.spec { margin: 32px 0 0; display: grid; }
-.spec > div {
-  display: grid;
-  grid-template-columns: 112px 1fr;
-  gap: 16px;
-  padding: 13px 0;
-  border-top: 1px solid var(--line);
-}
-.spec > div:last-child { border-bottom: 1px solid var(--line); }
-.spec dt { font: 500 12px/24px var(--font-mono); color: var(--ink-muted); }
-.spec dd { margin: 0; font-size: 15px; line-height: 24px; }
-.spec-machine { margin-top: 0; }
-.spec dd.isa { display: flex; flex-wrap: wrap; gap: 6px; }
+/* What you build: one chapter, four layers, each laid out its own way. */
+.chapter { padding-bottom: 0; }
+.chapter-head { padding-bottom: 64px; }
+.chapter-head .note { margin-top: 12px; }
+.layer { padding-bottom: var(--section); }
+.layer h3 { font-size: clamp(26px, 2.8vw, 34px); line-height: 1.1; }
+.layer-lede { margin-top: 12px; font-size: 17px; line-height: 1.6; color: var(--ink); }
+.layer-lede.narrow { max-width: 66ch; }
+.notes { display: grid; gap: 14px; margin-top: 22px; font-size: 15px; line-height: 1.6; color: var(--ink-muted); }
 
-/* Wire legend: drawn like the canvas */
-.legend {
-  margin: 32px 0 0;
-  padding: 16px 18px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-}
-.legend figcaption { font-size: 11px; font-weight: 600; line-height: 16px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); }
+/* Gates and wires: text beside the adder */
+.split { display: grid; grid-template-columns: 5fr 7fr; gap: 56px; align-items: start; }
+.split .layer-text { position: sticky; top: 32px; }
+.legend { margin: 28px 0 0; padding-top: 18px; border-top: 1px solid var(--line); }
+.legend figcaption { font: 500 12px/16px var(--font-mono); color: var(--ink-muted); }
 .legend ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
 .legend li { display: grid; grid-template-columns: 72px 36px 1fr; align-items: center; gap: 12px; font-size: 14px; line-height: 20px; color: var(--ink-muted); }
 .legend svg { width: 72px; height: 12px; overflow: visible; }
@@ -260,8 +231,37 @@ em { font-style: italic; }
 .legend code.v1 { color: var(--signal-high); background: var(--signal-high-soft); border-color: transparent; }
 .legend code.vb { color: var(--signal-bus); }
 
-/* The CPU map: outlines over the screenshot, numbered and keyed in the caption */
-.shot-wide { margin-top: 64px; }
+/* Time: the counter and its waveform beside the text */
+.time-grid { display: grid; grid-template-columns: 7fr 5fr; gap: 56px; align-items: start; }
+.time-text .layer-lede { margin-top: 12px; }
+/* Text comes first in the reading order; on wide screens the figure sits to its left. */
+@media (min-width: 961px) { .time-grid > .shot, .program-row > .shot-program { order: -1; } }
+.wave-scroll:focus-visible, .map-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.wave-scroll { overflow-x: auto; background: var(--panel); }
+.wave-scroll img { width: 100%; }
+
+/* A computer: the specification as a grid of values, then the map with its key beside it */
+.specs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  margin: 32px 0 0;
+  background: var(--line);
+  border-block: 1px solid var(--line);
+}
+.specs > div { padding: 18px 20px 20px; background: var(--bench); }
+.specs > .wide { grid-column: span 2; }
+.specs dt { font: 500 12px/16px var(--font-mono); color: var(--ink-muted); }
+.specs dd { margin: 8px 0 0; font-size: 14px; line-height: 1.5; color: var(--ink-muted); }
+.spec-value { display: block; margin-bottom: 4px; font: 500 21px/1.3 var(--font-mono); color: var(--ink); }
+.specs code { padding: 0; font-size: 0.93em; color: var(--ink); background: none; border: 0; }
+.specs dd.isa { font: 500 15px/1.7 var(--font-mono); color: var(--ink); word-spacing: 0.5em; }
+.specs dd.isa code { font-size: inherit; }
+.shot-map { margin-top: 48px; }
+.map-row { display: grid; gap: 20px; }
+.map-row > * { min-width: 0; }
+.map-scroll { min-width: 0; }
+
 .blocks { list-style: none; margin: 0; padding: 0; counter-reset: block; }
 .blocks[hidden] { display: block; } /* hidden only without CSS, where the bare numbers would be clutter */
 .blocks li {
@@ -286,19 +286,12 @@ em { font-style: italic; }
   background: var(--ink);
   border-radius: var(--radius-sm) 0 var(--radius-sm) 0;
 }
-.key {
-  margin: 16px 0 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: key;
-  columns: 2 260px;
-  column-gap: 32px;
-}
-.key li { counter-increment: key; display: flex; gap: 10px; align-items: baseline; padding: 3px 0; color: var(--ink); break-inside: avoid; }
+.key { margin: 0; padding: 0; list-style: none; counter-reset: key; display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 24px; font-size: 14px; }
+.key li { counter-increment: key; display: flex; gap: 10px; align-items: baseline; padding: 4px 0; color: var(--ink); cursor: default; }
 .key li::before {
   content: counter(key);
   flex: none;
-  min-width: 20px;
+  min-width: 22px;
   padding: 2px 4px;
   font: 600 11px/1 var(--font-mono);
   text-align: center;
@@ -306,62 +299,155 @@ em { font-style: italic; }
   background: var(--ink);
   border-radius: var(--radius-sm);
 }
-.shot figcaption:has(.key) { max-width: none; }
-.key li { cursor: default; border-radius: var(--radius-sm); }
-.key li:hover::before { background: var(--accent); color: var(--on-accent); }
 .key-hint { color: var(--ink-muted); }
 @media (hover: none) { .key-hint { display: none; } }
-.blocks li:hover { border-style: solid; border-width: 2px; background: color-mix(in srgb, var(--ink) 10%, transparent); }
-/* ...and pointing at a block on the map marks its key entry. */
-.shot-wide:has(.blocks li:nth-child(11):hover) .key li:nth-child(11)::before,
-.shot-wide:has(.blocks li:nth-child(12):hover) .key li:nth-child(12)::before,
-.shot-wide:has(.blocks li:nth-child(13):hover) .key li:nth-child(13)::before,
-.shot-wide:has(.blocks li:nth-child(1):hover) .key li:nth-child(1)::before,
-.shot-wide:has(.blocks li:nth-child(2):hover) .key li:nth-child(2)::before,
-.shot-wide:has(.blocks li:nth-child(3):hover) .key li:nth-child(3)::before,
-.shot-wide:has(.blocks li:nth-child(4):hover) .key li:nth-child(4)::before,
-.shot-wide:has(.blocks li:nth-child(5):hover) .key li:nth-child(5)::before,
-.shot-wide:has(.blocks li:nth-child(6):hover) .key li:nth-child(6)::before,
-.shot-wide:has(.blocks li:nth-child(7):hover) .key li:nth-child(7)::before,
-.shot-wide:has(.blocks li:nth-child(8):hover) .key li:nth-child(8)::before,
-.shot-wide:has(.blocks li:nth-child(9):hover) .key li:nth-child(9)::before,
-.shot-wide:has(.blocks li:nth-child(10):hover) .key li:nth-child(10)::before { background: var(--accent); color: var(--on-accent); }
-/* Point at a key entry and its block lights up on the map. */
-.shot-wide:has(.key li:nth-child(11):hover) .blocks li:nth-child(11),
-.shot-wide:has(.key li:nth-child(12):hover) .blocks li:nth-child(12),
-.shot-wide:has(.key li:nth-child(13):hover) .blocks li:nth-child(13),
-.shot-wide:has(.key li:nth-child(1):hover) .blocks li:nth-child(1),
-.shot-wide:has(.key li:nth-child(2):hover) .blocks li:nth-child(2),
-.shot-wide:has(.key li:nth-child(3):hover) .blocks li:nth-child(3),
-.shot-wide:has(.key li:nth-child(4):hover) .blocks li:nth-child(4),
-.shot-wide:has(.key li:nth-child(5):hover) .blocks li:nth-child(5),
-.shot-wide:has(.key li:nth-child(6):hover) .blocks li:nth-child(6),
-.shot-wide:has(.key li:nth-child(7):hover) .blocks li:nth-child(7),
-.shot-wide:has(.key li:nth-child(8):hover) .blocks li:nth-child(8),
-.shot-wide:has(.key li:nth-child(9):hover) .blocks li:nth-child(9),
-.shot-wide:has(.key li:nth-child(10):hover) .blocks li:nth-child(10) {
-  border-style: solid;
-  border-width: 2px;
-  background: color-mix(in srgb, var(--ink) 10%, transparent);
+/* Pointing is the viewer's own action, so its outline is accent: the map dims, the block is outlined. */
+.map picture { transition: opacity 120ms ease-out; }
+.shot-map:has(.key li:hover, .blocks li:hover) .map picture { opacity: 0.45; }
+.blocks li:hover,
+.shot-map:has(.key li:nth-child(1):hover) .blocks li:nth-child(1),
+.shot-map:has(.key li:nth-child(2):hover) .blocks li:nth-child(2),
+.shot-map:has(.key li:nth-child(3):hover) .blocks li:nth-child(3),
+.shot-map:has(.key li:nth-child(4):hover) .blocks li:nth-child(4),
+.shot-map:has(.key li:nth-child(5):hover) .blocks li:nth-child(5),
+.shot-map:has(.key li:nth-child(6):hover) .blocks li:nth-child(6),
+.shot-map:has(.key li:nth-child(7):hover) .blocks li:nth-child(7),
+.shot-map:has(.key li:nth-child(8):hover) .blocks li:nth-child(8),
+.shot-map:has(.key li:nth-child(9):hover) .blocks li:nth-child(9),
+.shot-map:has(.key li:nth-child(10):hover) .blocks li:nth-child(10),
+.shot-map:has(.key li:nth-child(11):hover) .blocks li:nth-child(11),
+.shot-map:has(.key li:nth-child(12):hover) .blocks li:nth-child(12),
+.shot-map:has(.key li:nth-child(13):hover) .blocks li:nth-child(13) {
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
+.key li:hover::before,
+.shot-map:has(.blocks li:nth-child(1):hover) .key li:nth-child(1)::before,
+.shot-map:has(.blocks li:nth-child(2):hover) .key li:nth-child(2)::before,
+.shot-map:has(.blocks li:nth-child(3):hover) .key li:nth-child(3)::before,
+.shot-map:has(.blocks li:nth-child(4):hover) .key li:nth-child(4)::before,
+.shot-map:has(.blocks li:nth-child(5):hover) .key li:nth-child(5)::before,
+.shot-map:has(.blocks li:nth-child(6):hover) .key li:nth-child(6)::before,
+.shot-map:has(.blocks li:nth-child(7):hover) .key li:nth-child(7)::before,
+.shot-map:has(.blocks li:nth-child(8):hover) .key li:nth-child(8)::before,
+.shot-map:has(.blocks li:nth-child(9):hover) .key li:nth-child(9)::before,
+.shot-map:has(.blocks li:nth-child(10):hover) .key li:nth-child(10)::before,
+.shot-map:has(.blocks li:nth-child(11):hover) .key li:nth-child(11)::before,
+.shot-map:has(.blocks li:nth-child(12):hover) .key li:nth-child(12)::before,
+.shot-map:has(.blocks li:nth-child(13):hover) .key li:nth-child(13)::before { background: var(--accent); color: var(--on-accent); }
+@media (prefers-reduced-motion: reduce) { .map picture { transition: none; } }
 
-/* Programs */
-.program-row { display: grid; grid-template-columns: 1fr 300px; gap: 56px; margin-top: 88px; align-items: start; }
-.program-text { display: grid; gap: 16px; color: var(--ink-muted); font-size: 16px; }
-.program-text h4 { margin: 0; font-size: 22px; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; color: var(--ink); }
-.program-text h4 + p { font-size: 19px; line-height: 1.55; color: var(--ink); }
-.shot-program { max-width: 300px; }
-/* The recording: its poster sits over it until it plays, so a still frame shows in the page's theme. */
-.loop-frame { position: relative; }
-video.loop { display: block; width: 100%; height: auto; }
-.loop-poster { position: absolute; inset: 0; z-index: 1; }
-.loop-poster img { width: 100%; height: 100%; object-fit: cover; }
-.loop-frame.is-playing .loop-poster { display: none; }
-.loop-toggle { position: absolute; bottom: 12px; right: 12px; z-index: 2; height: 28px; padding: 0 10px; font-size: 12px; background: var(--panel); }
-.run-local h3 { font-size: 20px; letter-spacing: -0.01em; }
-.howto { padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); color: var(--ink); font-size: 15px; }
+/* Programs: the inspector beside the text, both from the top */
+.program-head { margin-top: 72px; font-size: 22px; line-height: 1.2; }
+.program-row { display: grid; grid-template-columns: 280px 1fr; gap: 56px; margin-top: 20px; align-items: start; }
+.program-text { display: grid; gap: 16px; max-width: 66ch; color: var(--ink-muted); font-size: 16px; }
+.program-text > p:first-child { font-size: 17px; line-height: 1.6; color: var(--ink); }
+.howto { color: var(--ink-muted); font-size: 15px; }
+
+/* Challenges: a ladder drawn as a wire on the canvas, with an 8px input port on each rung */
+.ladder {
+  list-style: none;
+  margin: 32px 0 0;
+  padding: 0;
+  counter-reset: rung;
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+}
+.ladder { grid-template-rows: auto auto; }
+.ladder li { counter-increment: rung; position: relative; padding: 24px 10px 0 0; display: grid; grid-row: span 2; grid-template-rows: subgrid; row-gap: 4px; align-content: start; }
+.ladder li::before { content: ""; position: absolute; top: 7px; left: 0; right: 0; height: 2px; background: var(--signal-low); }
+.ladder li:last-child::before { width: 0; }
+.ladder li::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  background: var(--bench);
+  border: 2px solid var(--line-strong);
+  border-radius: var(--radius-full);
+}
+.ladder span { font-weight: 600; font-size: 15px; line-height: 1.3; }
+.ladder span::before { content: counter(rung, decimal-leading-zero) " "; font: 500 12px/1 var(--font-mono); color: var(--ink-muted); }
+.ladder small { font-size: 13px; line-height: 1.4; color: var(--ink-muted); }
+.ladder-note { margin-top: 16px; font-size: 14px; color: var(--ink-muted); }
+.checks { display: grid; gap: 40px; margin-top: 48px; }
+.checks > * { min-width: 0; }
+.check { display: grid; grid-template-columns: minmax(0, 1fr) 279px; gap: 16px 32px; align-items: center; }
+.check-failed .panel-shot { grid-column: 2; grid-row: 1; }
+.check-failed figcaption { grid-column: 1; grid-row: 1; align-self: end; }
+.check > * { min-width: 0; }
+.check figcaption { grid-column: 1 / -1; margin-top: 0; }
+.panel-shot { width: 279px; }
+
+/* How it works: the two threads drawn like parts on the canvas */
+.arch { margin: 36px 0 0; }
+.arch-board {
+  display: grid;
+  grid-template-columns: 1fr 240px 1fr;
+  grid-template-rows: auto auto auto;
+  row-gap: 12px;
+  grid-template-areas: "main . worker" "doc wire1 wasm" "editor wire2 wasm";
+}
+.arch-main { grid-area: main; }
+.arch-worker { grid-area: worker; }
+.arch-doc { grid-area: doc; }
+.arch-editor { grid-area: editor; }
+.arch-wasm { grid-area: wasm; }
+.to-worker { grid-area: wire1; }
+.to-page { grid-area: wire2; }
+.arch-where { font: 500 12px/16px var(--font-mono); color: var(--ink-muted); }
+.part { position: relative; display: grid; gap: 4px; padding: 14px 16px; background: var(--panel-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); }
+.part strong { font: 600 14px/1.4 var(--font-mono); }
+.part span { font-size: 14px; line-height: 1.5; color: var(--ink-muted); }
+.part-outer { padding-bottom: 16px; }
+.part-outer > .part { margin-top: 12px; background: var(--panel); }
+.arch-wire { position: relative; align-self: center; margin: 0; padding-bottom: 10px; font: 400 12px/1.4 var(--font-mono); color: var(--ink-muted); text-align: center; text-wrap: balance; }
+/* Each wire runs from a filled output port to an input ring, as the canvas draws them. */
+.arch-wire::after {
+  content: "";
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  bottom: -3px;
+  height: 8px;
+  background:
+    radial-gradient(circle 4px, var(--signal-low) 3.5px, transparent 4px) var(--out) 50% / 8px 8px no-repeat,
+    radial-gradient(circle 4px, var(--bench) 2px, var(--signal-low) 2.5px 3.5px, transparent 4px) var(--in) 50% / 8px 8px no-repeat,
+    linear-gradient(var(--signal-low), var(--signal-low)) center / calc(100% - 8px) 2px no-repeat;
+}
+.to-worker { --out: 0%; --in: 100%; }
+.to-page { --out: 100%; --in: 0%; }
+.arch figcaption { margin-top: 12px; max-width: 78ch; font-size: 14px; color: var(--ink-muted); }
+.engine-notes { display: grid; grid-template-columns: 6fr 5fr; gap: 56px; align-items: start; margin-top: 48px; }
+.engine-notes > * { min-width: 0; }
+.principles { display: grid; gap: 22px; font-size: 15px; line-height: 1.6; color: var(--ink-muted); }
+.principles strong { display: block; margin-bottom: 4px; font: 600 18px/1.3 var(--font-display); }
+.shot-unstable .bare img { max-width: min(100%, 320px); }
+.status-shot { margin-top: 12px; }
+
+/* Privacy and status */
+.facts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
+.prose { display: grid; gap: 16px; margin-top: 20px; font-size: 16px; color: var(--ink-muted); }
+/* The phases as a wire with an 8px port each: filled (an output) when done, a ring while in progress. */
+.phases { list-style: none; margin: 24px 0 0; padding: 0; }
+.phases li { position: relative; display: grid; grid-template-columns: 72px 1fr; gap: 12px; padding: 0 0 18px 28px; font-size: 15px; line-height: 1.45; }
+.phases li::before { content: ""; position: absolute; left: 5px; top: 8px; bottom: -8px; width: 2px; background: var(--signal-low); }
+.phases li:last-child::before { display: none; }
+.phases li::after { content: ""; position: absolute; left: 2px; top: 5px; width: 8px; height: 8px; border-radius: var(--radius-full); }
+.phases .done::after { background: var(--ink-muted); }
+.phases .now::after { background: var(--bench); border: 2px solid var(--ink); }
+.ph { font: 400 12px/1.6 var(--font-mono); color: var(--ink-muted); }
+
+/* Closing */
+.closing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start; }
+.closing h2 ~ p { margin-top: 18px; font-size: 18px; color: var(--ink); max-width: 46ch; line-height: 1.7; }
+.closing h2 ~ p + p { margin-top: 10px; }
+.run-local { padding-top: 6px; }
+.run-local h3 { font-size: 20px; }
 .code {
-  margin: 0;
+  margin: 14px 0 0;
   padding: 16px 18px;
   font-size: 13px;
   line-height: 20px;
@@ -371,186 +457,77 @@ video.loop { display: block; width: 100%; height: auto; }
   border-radius: var(--radius-md);
   overflow-x: auto;
 }
-
-/* Challenges: one ladder, bottom rung first */
-.challenges { list-style: none; margin: 48px 0 0; padding: 0; counter-reset: ch; columns: 2 420px; column-gap: 56px; }
-.challenges li {
-  counter-increment: ch;
-  display: grid;
-  grid-template-columns: 40px 1fr auto;
-  align-items: baseline;
-  gap: 12px;
-  padding: 11px 0;
-  border-bottom: 1px solid var(--line);
-  break-inside: avoid;
-}
-.challenges li::before { content: counter(ch, decimal-leading-zero); font: 500 12px/1 var(--font-mono); color: var(--ink-muted); }
-.challenges span { font-weight: 500; }
-.challenges small { font-size: 13px; color: var(--ink-muted); text-align: right; }
-.challenge-intro { display: grid; gap: 16px; max-width: 72ch; margin-bottom: 48px; }
-.challenge-intro .note { margin-top: 4px; }
-.challenge-grid { display: grid; grid-template-columns: 7fr 5fr; gap: 48px; align-items: start; margin-top: 8px; }
-.challenge-grid .challenges { margin-top: 0; columns: auto; }
-.frame-pair { display: grid; grid-template-columns: 1120fr 558fr; background: var(--bench); }
-.frame-pair picture { min-width: 0; }
-.frame-pair picture:last-child { border-left: 1px solid var(--line); }
-
-/* How it works: the two threads drawn like parts on the canvas */
-.section-head { margin-bottom: 40px; }
-.section-head p { margin-top: 16px; font-size: 18px; color: var(--ink-muted); max-width: 70ch; }
-.arch { margin: 0; }
-.arch-board {
-  display: grid;
-  grid-template-columns: 1fr 220px 1fr;
-  align-items: center;
-  padding: 24px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background-color: var(--bench);
-  background-image: radial-gradient(var(--bench-grid) 1.2px, transparent 1.4px);
-  background-size: 16px 16px;
-}
-/* A thread is a boundary round its parts, not a panel. (Dashes are kept for X and Z signals.) */
-.arch-zone {
-  display: grid;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-md);
-}
-.arch-where { font-size: 11px; font-weight: 600; line-height: 16px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); }
-.part {
-  position: relative;
-  display: grid;
-  gap: 4px;
-  padding: 14px 16px;
-  background: var(--panel-raised);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-}
-.part strong { font: 600 14px/1.4 var(--font-mono); }
-.part span { font-size: 14px; line-height: 1.5; color: var(--ink-muted); }
-.arch-wires { list-style: none; margin: 0; padding: 0; display: grid; gap: 28px; }
-.arch-wires { padding: 0 14px; }
-.arch-wires li {
-  text-wrap: balance;
-  position: relative;
-  padding-bottom: 10px;
-  font: 400 12px/1.4 var(--font-mono);
-  color: var(--ink-muted);
-  text-align: center;
-}
-/* The wire, with an output port (filled) at one end and an input port (ring) at the other. */
-.arch-wires li::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 2px;
-  background: var(--signal-low);
-}
-.arch-wires li::before {
-  content: "";
-  position: absolute;
-  bottom: -3px;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-full);
-  z-index: 1;
-}
-.to-worker::before { right: -4px; background: var(--bench); border: 2px solid var(--signal-low); }
-.to-page::before { left: -4px; background: var(--bench); border: 2px solid var(--signal-low); }
-.to-worker .arrow::before { content: "→"; }
-.to-page .arrow::before { content: "←"; }
-.arch figcaption { margin-top: 14px; max-width: 76ch; font-size: 14px; color: var(--ink-muted); }
-.spec-principles { margin-top: 40px; }
-.spec-principles > div { grid-template-columns: 160px 1fr; gap: 24px; padding: 16px 0; }
-.spec-principles dt { font: 600 16px/26px var(--font-sans); color: var(--ink); }
-.spec-principles dd { font-size: 16px; line-height: 26px; color: var(--ink-muted); }
-
-/* Privacy and status, side by side */
-.facts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
-.facts .statement { font-size: clamp(24px, 2.4vw, 30px); }
-.facts-prose { margin-top: 24px; }
-.facts .phases { margin-top: 28px; }
-.phases { list-style: none; margin: 0; padding: 0; }
-.phases li {
-  display: grid;
-  grid-template-columns: 72px 1fr auto;
-  gap: 16px;
-  align-items: baseline;
-  padding: 12px 0;
-  border-top: 1px solid var(--line);
-  font-size: 15px;
-}
-.phases li:last-child { border-bottom: 1px solid var(--line); }
-.ph { font: 400 12px/1 var(--font-mono); color: var(--ink-muted); }
-.ps { display: inline-flex; align-items: center; gap: 8px; font: 500 12px/1 var(--font-mono); white-space: nowrap; }
-.ps::before { content: ""; width: 8px; height: 8px; border-radius: var(--radius-full); }
-.done .ps { color: var(--ok); }
-.done .ps::before { background: var(--ok); }
-.now .ps { color: var(--ink); }
-.now .ps::before { box-sizing: border-box; border: 2px solid var(--ink-muted); }
-
-/* Closing */
-.closing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start; }
-.closing h2 ~ p { margin-top: 20px; font-size: 18px; color: var(--ink-muted); max-width: 46ch; line-height: 1.8; }
-.closing h2 ~ p + p { margin-top: 12px; line-height: 1.6; }
-.run-local { padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); }
-.run-local .code { margin-top: 14px; }
-.run-local .note { margin-top: 14px; font-size: 14px; }
+.run-local .note { margin-top: 14px; }
 
 /* Footer */
 .site-footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
 .footer-row { display: flex; gap: 48px; justify-content: space-between; align-items: start; }
-.footer-row p { max-width: 64ch; font-size: 14px; color: var(--ink-muted); }
+.footer-row p { max-width: 60ch; font-size: 14px; color: var(--ink-muted); }
+.footer-row .footer-mark { flex: none; display: flex; gap: 10px; align-items: flex-start; font: 400 13px/1.5 var(--font-mono); }
+.footer-mark svg { flex: none; margin-top: 2px; }
+.lockup-name { display: block; font: 600 15px/1.4 var(--font-mono); color: var(--ink); }
 .footer-row nav { display: flex; gap: 20px; flex-wrap: wrap; }
 .footer-row nav a { font-size: 14px; color: var(--ink-muted); text-decoration: none; }
 .footer-row nav a:hover { color: var(--ink); }
 
 /* Grid items may shrink below their content (long code lines scroll instead). */
-.layer-grid > *, .program-row > *, .challenge-grid > *, .challenge-intro > *, .chapter-head > *, .closing-grid > *, .section-head > *, .facts-grid > *, .try-head > * { min-width: 0; }
+.split > *, .time-grid > *, .program-row > *, .closing-grid > *, .facts-grid > * { min-width: 0; }
 
+@media (max-width: 1080px) {
+  .ladder { grid-template-columns: repeat(3, 1fr); row-gap: 28px; }
+  .ladder li:nth-child(3n)::before { width: 0; }
+  .key { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+}
 @media (max-width: 960px) {
-  :root { --section: 80px; }
-  .layer-grid, .layer-grid-flip, .challenge-grid, .section-head, .closing-grid, .facts-grid, .try-head, .challenge-intro, .program-row, .chapter-head { grid-template-columns: 1fr; gap: 32px; }
-  .facts-grid { row-gap: 72px; }
-      .wave-scroll img { min-width: 560px; }
-  .layer-grid-flip > .shot { order: 2; }
-  .arch-board { grid-template-columns: 1fr; gap: 16px; }
-  .arch-wires { gap: 8px; padding: 0 12px; }
-  .arch-wires li { padding-bottom: 0; }
-  .arch-wires li::before, .arch-wires li::after { display: none; }
-  .to-worker .arrow::before { content: "↓"; }
-  .to-page .arrow::before { content: "↑"; }
-  .header-row { justify-content: space-between; }
+  :root { --section: 72px; }
+  .split, .time-grid, .program-row, .closing-grid, .facts-grid, .engine-notes { grid-template-columns: 1fr; gap: 32px; }
+  .split .layer-text { position: static; }
+  .specs { grid-template-columns: repeat(2, 1fr); }
+  .wave-scroll img { min-width: 520px; }
+  .arch-board { grid-template-columns: 1fr; grid-template-areas: "main" "doc" "editor" "wire1" "wire2" "worker" "wasm"; }
+  .arch-wire { padding: 0 12px; text-align: left; }
+  .arch-wire::after { display: none; }
+  .to-worker::before { content: "↓ "; }
+  .to-page::before { content: "↑ "; }
+  .shot-program { max-width: 300px; }
+  .shot-unstable { max-width: 420px; }
 }
 @media (max-width: 760px) {
   .site-nav { display: none; }
+  .header-row { justify-content: space-between; }
 }
 @media (max-width: 720px) {
-  /* The editor is desktop-first: no live frame on small screens. */
+  /* The editor is desktop-first: no button to load it into the page on small screens. */
   .wide-only { display: none; }
   .phone-only { display: inline; }
+  /* The map keeps its numbers and scrolls sideways at a readable size. */
+  .map-scroll { overflow-x: auto; margin-right: calc(-1 * var(--gutter)); }
+  .map-scroll .map { width: 760px; }
 }
 @media (max-width: 640px) {
-  :root { --gutter: 16px; --section: 64px; }
-  .hero { padding-top: 56px; }
-  .shot-hero { margin-top: 48px; }
-  .layer-title { margin-bottom: 28px; }
-  .frame-pair { grid-template-columns: 1fr; }
-  .frame-pair picture:last-child { border-left: 0; border-top: 1px solid var(--line); }
-  .spec > div, .spec-principles > div { grid-template-columns: 1fr; gap: 2px; }
-  .challenges li { grid-template-columns: 32px 1fr; }
-  .challenges small { grid-column: 2; text-align: left; }
-  .phases li { grid-template-columns: 1fr auto; }
-  .ph { grid-column: 1 / -1; }
+  :root { --gutter: 16px; --section: 56px; }
+  .hero { padding-top: 40px; }
+  .specs > div { padding: 16px 14px 18px; }
+  .spec-value { font-size: 24px; }
+  .ladder { grid-template-columns: 1fr; row-gap: 0; }
+  .ladder li { padding: 0 0 16px 28px; }
+  .ladder li::before { top: 8px; bottom: -8px; left: 5px; right: auto; width: 2px; height: auto; }
+  .ladder li:nth-child(3n)::before { width: 2px; }
+  .ladder li:last-child::before { display: none; }
+  .ladder li::after { top: 4px; left: 2px; }
+  .key-hint { display: none; }
+  .key { grid-template-columns: 1fr 1fr; }
+  .live-frame { aspect-ratio: 1336 / 1096; }
+  .check { grid-template-columns: 1fr; }
+  .check-failed .panel-shot, .check-failed figcaption { grid-column: 1; }
+  .check-failed figcaption { grid-row: 2; }
+  .status-shot { display: none; } /* too small to read here; the caption quotes it */
+  .ladder li { grid-row: auto; grid-template-rows: none; }
+  .phases li { grid-template-columns: 1fr; gap: 2px; }
   .footer-row { flex-direction: column; gap: 24px; }
   .header-row .button { height: 32px; padding: 0 10px; font-size: 13px; }
-  .blocks { display: none; } /* too small to point at on a phone; the key still lists the blocks */
-  .key-hint, .blocks, .blocks[hidden] { display: none; } /* outlines too small to point at on a phone; the key stays as a list */
-  .key li::before { display: none; }
-  .loop-toggle { height: 24px; padding: 0 8px; font-size: 11px; bottom: 8px; right: 8px; }
-  .wave-scroll { mask-image: linear-gradient(to right, #000 85%, transparent); }
+  .code { font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .bare picture, .bare video { --fade: 14px; }
+  .loop-frame { aspect-ratio: 792 / 432; }
+  video.loop { height: 100%; object-fit: cover; }
 }
