@@ -6,7 +6,7 @@ import { normalizeNotes, type CircuitDocument } from "../editor/document";
 import { withContents } from "../editor/blueprints";
 import { liveDefinitions, mainCircuit, useEditor, type EditorState } from "../editor/store";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "./file";
-import { browserStorage, type LibraryEntry, type ProjectSummary, type Storage } from "./projects";
+import { browserStorage, libraryKey, type LibraryEntry, type ProjectSummary, type Storage } from "./projects";
 
 export type ProjectsState = {
   /** null while storage is opening; false when the browser refuses it, with `reason`. */
@@ -204,10 +204,10 @@ export async function saveToLibrary(definition: string): Promise<boolean> {
     circuit: { components: [], junctions: [], wires: [] },
     definitions,
   });
-  const id = useProjects.getState().library.find((e) => e.name === component.name)?.id ?? crypto.randomUUID();
   try {
-    await storage.putLibrary({ id, name: component.name, savedAt: now, text });
-    useProjects.setState({ library: await storage.library(), error: null });
+    await storage.putLibrary({ id: libraryKey(component.name), name: component.name, savedAt: now, text });
+    // The open project's save state (`error`) is not this operation's to clear.
+    useProjects.setState({ library: await storage.library() });
     return true;
   } catch (error) {
     useProjects.setState({ error: `Not saved to the library: ${message(error)}` });
@@ -222,13 +222,15 @@ export function libraryDocument(entry: LibraryEntry): CircuitDocument {
   return result.document;
 }
 
-export async function removeFromLibrary(id: string) {
-  if (!storage) return;
+/** Removes a library entry; why it could not be removed, or null. */
+export async function removeFromLibrary(id: string): Promise<string | null> {
+  if (!storage) return "the browser keeps no storage for the page";
   try {
     await storage.removeLibrary(id);
-    useProjects.setState({ library: await storage.library(), error: null });
+    useProjects.setState({ library: await storage.library() });
+    return null;
   } catch (error) {
-    useProjects.setState({ error: `Could not remove it from the library: ${message(error)}` });
+    return message(error);
   }
 }
 
@@ -243,10 +245,26 @@ export async function recordPass(challenge: string) {
   }
 }
 
-export async function clearProgress() {
+/** Forgets every challenge passed; why it could not, or null. */
+export async function clearProgress(): Promise<string | null> {
+  if (!storage) return "the browser keeps no storage for the page";
+  try {
+    await storage.clearProgress();
+    useProjects.setState({ progress: {} });
+    return null;
+  } catch (error) {
+    return message(error);
+  }
+}
+
+/** Reads the project list, the library and progress again: another tab may have changed them. */
+async function refresh() {
   if (!storage) return;
-  await storage.clearProgress();
-  useProjects.setState({ progress: {} });
+  try {
+    useProjects.setState({ projects: await storage.projects(), library: await storage.library(), progress: await storage.progress() });
+  } catch {
+    // What is shown stays as it was; the next save or reload reads them again.
+  }
 }
 
 /** Whether replacing the circuit on screen loses nothing: it will be saved first (`openDocument` asks if that fails). */
@@ -271,6 +289,8 @@ export async function connectStorage({ open = browserStorage, reopen = true }: {
   });
   const hidden = () => {
     if (document.visibilityState === "hidden") void flush();
+    // Back to this tab: what another tab saved, removed or cleared shows here too.
+    else void refresh();
   };
   const leaving = () => void flush();
   // A page has a document; a unit test of this module does not.

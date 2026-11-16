@@ -4,7 +4,10 @@
 
 export type ProjectRecord = { id: string; name: string; modifiedAt: string; revision: number; text: string };
 export type ProjectSummary = Omit<ProjectRecord, "text">;
-/** A component saved to the library: `text` is a project file whose definitions are it and those it contains. */
+/**
+ * A component saved to the library: `text` is a project file whose definitions are it and those it contains. `id` is
+ * `libraryKey(name)`, so saving a name again replaces its entry, whichever tab saved it.
+ */
 export type LibraryEntry = { id: string; name: string; savedAt: string; text: string };
 
 /** What the app needs from storage. */
@@ -33,6 +36,9 @@ export interface Storage {
 }
 
 const byName = (a: LibraryEntry, b: LibraryEntry) => a.name.localeCompare(b.name);
+
+/** A library entry's key: its name, so that "Full adder" and "full adder" are one entry. */
+export const libraryKey = (name: string) => name.normalize("NFC").toLowerCase();
 
 const newestFirst = (a: ProjectSummary, b: ProjectSummary) => (a.modifiedAt < b.modifiedAt ? 1 : a.modifiedAt > b.modifiedAt ? -1 : 0);
 const summary = ({ id, name, modifiedAt, revision }: ProjectRecord): ProjectSummary => ({ id, name, modifiedAt, revision });
@@ -133,8 +139,11 @@ export async function browserStorage(): Promise<Storage> {
     markPassed: async (challenge, at) => {
       const transaction = db.transaction("progress", "readwrite");
       const progress = transaction.objectStore("progress");
-      // Kept if already there: the first pass's time stays.
-      progress.add({ id: challenge, passedAt: at }).onerror = (e) => e.preventDefault();
+      // Kept if already there, the first pass's time staying: looked up first, so no error event reaches the transaction.
+      const known = progress.getKey(challenge);
+      known.onsuccess = () => {
+        if (known.result === undefined) progress.add({ id: challenge, passedAt: at });
+      };
       await committed(transaction);
     },
     clearProgress: async () => {

@@ -114,6 +114,11 @@ Today a circuit lives only in the page:
      saves it; the dialog's list has two groups, Examples and Your
      library, and a library entry chosen there can be removed. A library
      entry's text is read with `parseDocument`, like any source.
+   - *As built (review):* an entry's key is its name in lower case, so
+     "Full adder" and "full adder" are one entry and saving a name again
+     replaces it in any tab. A renamed component saves as a new entry; the
+     old one stays until removed. The library and progress are read again
+     when the tab comes back into view, so another tab's changes show.
 6. **Challenge progress.**
    - A check that passes records the challenge in `progress`.
    - The Challenges list marks passed ones, and the panel says when the
@@ -121,7 +126,9 @@ Today a circuit lives only in the page:
    - Nothing else depends on it, and *Clear progress* empties it.
    - *As built:* a passed challenge's button ends with a ✓ named
      "passed", and *Clear progress* under the list asks first. A failure
-     to record progress is ignored: the check still says it passed.
+     to record progress is ignored: the check still says it passed. Any
+     document naming its challenge counts, an imported reference solution
+     included: progress is local, for the learner's own use.
 7. **When storage is not available.** This covers storage blocked by the
    browser, a private window that refuses it, or a full quota.
    - The editor works as it does today: nothing is saved, the question

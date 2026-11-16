@@ -254,7 +254,11 @@ test("a component saved to the library comes with what it contains, replaces one
     circuit: { components: [{ id: "i", kind: "custom" as const, definition: "inv", position: { x: 0, y: 0 }, rotation: 0 as const, props: {} }], junctions: [], wires: [] },
   };
   useEditor.setState({ definitions: [inner, outer] });
+  // Saved twice at once (a double click), and again under another case: one entry all the same.
+  expect(await Promise.all([saveToLibrary("buf"), saveToLibrary("buf")])).toEqual([true, true]);
+  useEditor.setState({ definitions: [inner, { ...outer, name: "BUFFER" }] });
   expect(await saveToLibrary("buf")).toBe(true);
+  useEditor.setState({ definitions: [inner, outer] });
   expect(await saveToLibrary("buf")).toBe(true);
   const { library } = useProjects.getState();
   expect(library.map((e) => e.name)).toEqual(["Buffer"]);
@@ -264,7 +268,7 @@ test("a component saved to the library comes with what it contains, replaces one
   expect(shelf.definitions.map((d) => d.id)).toEqual(["inv", "buf"]);
   // In another project, as Add components takes it.
   expect(addDefinitions([], shelf.definitions, ["buf"]).added.map((d) => d.name)).toEqual(["Inverter", "Buffer"]);
-  await removeFromLibrary(entry.id);
+  expect(await removeFromLibrary(entry.id)).toBeNull();
   expect(useProjects.getState().library).toEqual([]);
   expect(await storage.library()).toEqual([]);
 });
@@ -282,7 +286,19 @@ test("a challenge passed is remembered with its first time, survives a reload, a
   useProjects.setState(projects, true);
   await connect(storage);
   expect(Object.keys(useProjects.getState().progress)).toEqual(["01-inverter"]);
-  await clearProgress();
+  expect(await clearProgress()).toBeNull();
   expect(useProjects.getState().progress).toEqual({});
   expect(await storage.progress()).toEqual({});
+});
+
+test("a library save or removal leaves the open project's save error alone, and a failed removal says why", async () => {
+  const storage = memoryStorage();
+  storage.removeLibrary = () => Promise.reject(new Error("locked"));
+  await connect(storage);
+  useEditor.setState({ definitions: [{ id: "a", name: "A", circuit: { components: [], junctions: [], wires: [] } }] });
+  useProjects.setState({ error: "Not saved: the quota is full" });
+  expect(await saveToLibrary("a")).toBe(true);
+  expect(useProjects.getState().error).toBe("Not saved: the quota is full");
+  expect(await removeFromLibrary("a")).toBe("locked");
+  expect(useProjects.getState().library).toHaveLength(1);
 });

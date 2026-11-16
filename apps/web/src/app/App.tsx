@@ -39,6 +39,7 @@ import type { AsmError, Report } from "../simulation/protocol";
 import { MAX_DOCUMENT_BYTES, parseDocument, serializeDocument } from "../storage/file";
 import { CHALLENGES, findChallenge, reportText, starterDocument, type ChallengeEntry } from "../storage/challenges";
 import { EXAMPLES, exampleDocument } from "../storage/examples";
+import { libraryKey } from "../storage/projects";
 import { LINK_KEY, linkFragment, readLinkFragment } from "../storage/link";
 import {
   clearProgress,
@@ -358,11 +359,17 @@ function PartsLibrary() {
   // The component library (ADR 0029), where the browser keeps storage.
   const stored = useProjects((s) => s.available === true);
   const [kept, setKept] = useState<string | null>(null);
+  // One save at a time, so a double click cannot ask twice or save twice.
+  const keeping = useRef(false);
   const keep = async (name: string, id: string) => {
+    if (keeping.current) return;
+    keeping.current = true;
     setKept(null);
-    const replacing = useProjects.getState().library.some((e) => e.name === name);
-    if (replacing && !window.confirm(`Replace ${name} in your library? Projects that already added it keep their copy.`)) return;
-    if (await saveToLibrary(id)) setKept(`${name} ${replacing ? "replaced" : "saved"} in your library.`);
+    const replacing = useProjects.getState().library.some((e) => e.id === libraryKey(name));
+    if (!replacing || window.confirm(`Replace ${name} in your library? Projects that already added it keep their copy.`)) {
+      if (await saveToLibrary(id)) setKept(`${name} ${replacing ? "replaced" : "saved"} in your library.`);
+    }
+    keeping.current = false;
   };
   const deleteChip = (id: string, name: string) => {
     setRefused(id);
@@ -429,7 +436,7 @@ function PartsLibrary() {
                   {stored && (
                     <button
                       type="button"
-                      className="chip-delete type-label"
+                      className="chip-delete chip-save type-label"
                       aria-label={`Save ${d.name} to your library`}
                       title={`Save ${d.name} to your library, with the components it contains`}
                       onClick={() => void keep(d.name, d.id)}
@@ -456,9 +463,11 @@ function PartsLibrary() {
             {error}
           </p>
         )}
-        <p className="field-hint" aria-live="polite">
-          {kept}
-        </p>
+        {stored && (
+          <p className="field-hint" aria-live="polite">
+            {kept}
+          </p>
+        )}
         <AddComponents />
       </section>
       <ChallengeList />
@@ -863,7 +872,7 @@ function ChallengeList() {
           type="button"
           className="button type-label challenge-clear"
           onClick={() => {
-            if (window.confirm("Clear which challenges you passed in this browser?")) void clearProgress();
+            if (window.confirm("Clear your challenge progress in this browser?")) void clearProgress();
           }}
         >
           Clear progress
@@ -947,6 +956,10 @@ function AddComponents() {
         type="button"
         className="button type-label add-components"
         onClick={() => {
+          // A fresh choice each time: a library entry saved again since would otherwise be added as it was.
+          setExample("");
+          setSource(null);
+          setPicked([]);
           setMessage(null);
           dialog.current?.showModal();
         }}
@@ -959,7 +972,8 @@ function AddComponents() {
           Add components
         </h2>
         <p className="type-body dialog-text">
-          Copy components from another circuit into this one. Pick a bundled example or a project file; it is read, not opened.
+          Copy components from another circuit into this one. Pick a bundled example, a component from your library, or a project
+          file; it is read, not opened.
         </p>
         <div className="dialog-row">
           <label className="field-label" htmlFor={`${id}-example`}>
@@ -1041,13 +1055,16 @@ function AddComponents() {
             <button
               type="button"
               className="button type-label"
-              onClick={() => {
+              onClick={async () => {
                 if (!window.confirm(`Remove ${shelf.name} from your library? Projects that already added it keep their copy.`)) return;
-                void removeFromLibrary(shelf.id);
+                const failed = await removeFromLibrary(shelf.id);
+                if (failed) return setMessage({ text: `Could not remove ${shelf.name} from your library: ${failed}`, error: true });
                 setExample("");
                 setSource(null);
                 setPicked([]);
                 setMessage({ text: `${shelf.name} removed from your library.`, error: false });
+                // This button goes with the entry: focus moves on instead of falling back to the page.
+                close.current?.focus();
               }}
             >
               Remove from library

@@ -795,3 +795,8 @@ input.project-name:focus-visible {
   width: 100%;
   margin-top: var(--space-2);
 }
+
+/* Saving to the library is not destructive: no red on hover, unlike delete. */
+.chip-save:hover {
+  color: var(--accent);
+}
