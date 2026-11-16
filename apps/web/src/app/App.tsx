@@ -41,9 +41,14 @@ import { CHALLENGES, findChallenge, reportText, starterDocument, type ChallengeE
 import { EXAMPLES, exampleDocument } from "../storage/examples";
 import { LINK_KEY, linkFragment, readLinkFragment } from "../storage/link";
 import {
+  clearProgress,
   connectStorage,
   currentDocument,
   deleteProject,
+  libraryDocument,
+  recordPass,
+  removeFromLibrary,
+  saveToLibrary,
   newCircuit,
   openDocument,
   openProject,
@@ -350,6 +355,15 @@ function PartsLibrary() {
   // The chip whose delete was refused; the reason is kept current, and goes once it no longer holds.
   const [refused, setRefused] = useState<string | null>(null);
   const error = useEditor((s) => (refused ? deleteRefusal(s, refused) : null));
+  // The component library (ADR 0029), where the browser keeps storage.
+  const stored = useProjects((s) => s.available === true);
+  const [kept, setKept] = useState<string | null>(null);
+  const keep = async (name: string, id: string) => {
+    setKept(null);
+    const replacing = useProjects.getState().library.some((e) => e.name === name);
+    if (replacing && !window.confirm(`Replace ${name} in your library? Projects that already added it keep their copy.`)) return;
+    if (await saveToLibrary(id)) setKept(`${name} ${replacing ? "replaced" : "saved"} in your library.`);
+  };
   const deleteChip = (id: string, name: string) => {
     setRefused(id);
     if (deleteRefusal(useEditor.getState(), id) || !window.confirm(`Delete the component ${name}? This cannot be undone.`)) return;
@@ -412,6 +426,17 @@ function PartsLibrary() {
                   >
                     {d.name}
                   </button>
+                  {stored && (
+                    <button
+                      type="button"
+                      className="chip-delete type-label"
+                      aria-label={`Save ${d.name} to your library`}
+                      title={`Save ${d.name} to your library, with the components it contains`}
+                      onClick={() => void keep(d.name, d.id)}
+                    >
+                      ⇩
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="chip-delete type-label"
@@ -431,6 +456,9 @@ function PartsLibrary() {
             {error}
           </p>
         )}
+        <p className="field-hint" aria-live="polite">
+          {kept}
+        </p>
         <AddComponents />
       </section>
       <ChallengeList />
@@ -803,6 +831,7 @@ function ProjectsPanel() {
 
 /** Opens a challenge's starter (ADR 0025), asking first as Import does, on the sheet of the component to build. */
 function ChallengeList() {
+  const progress = useProjects((s) => s.progress);
   const start = async ({ name, challenge }: ChallengeEntry) => {
     // Bundled and proved to open by challenges.test.ts.
     const document = starterDocument(name);
@@ -820,10 +849,26 @@ function ChallengeList() {
             {/* Numbered: they are an order to work through, and a chip may share a title. */}
             <button type="button" className="part-tile type-label" onClick={() => void start(entry)}>
               {i + 1}. {entry.challenge.title}
+              {progress[entry.name] && (
+                <span className="challenge-done" role="img" aria-label="passed">
+                  ✓
+                </span>
+              )}
             </button>
           </li>
         ))}
       </ol>
+      {Object.keys(progress).length > 0 && (
+        <button
+          type="button"
+          className="button type-label challenge-clear"
+          onClick={() => {
+            if (window.confirm("Clear which challenges you passed in this browser?")) void clearProgress();
+          }}
+        >
+          Clear progress
+        </button>
+      )}
     </section>
   );
 }
@@ -840,8 +885,11 @@ function AddComponents() {
   const picker = useRef<HTMLInputElement>(null);
   const close = useRef<HTMLButtonElement>(null);
   const id = useId();
-  // The example chosen, kept so that arrow keys on the closed list step through the examples (Windows fires change on each).
+  // The source chosen, `example:name` or `library:id`, kept so that arrow keys on the closed list step through them
+  // (Windows fires change on each).
   const [example, setExample] = useState("");
+  const library = useProjects((s) => s.library);
+  const shelf = example.startsWith("library:") ? library.find((e) => `library:${e.id}` === example) : undefined;
   const [source, setSource] = useState<{ title: string; definitions: Definition[] } | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
@@ -915,24 +963,38 @@ function AddComponents() {
         </p>
         <div className="dialog-row">
           <label className="field-label" htmlFor={`${id}-example`}>
-            From an example
+            From an example or your library
           </label>
           <select
             id={`${id}-example`}
             className="input"
             value={example}
             onChange={(e) => {
-              setExample(e.target.value);
-              const entry = EXAMPLES.find((x) => x.name === e.target.value);
+              const value = e.target.value;
+              setExample(value);
+              const entry = EXAMPLES.find((x) => `example:${x.name}` === value);
+              const kept = library.find((x) => `library:${x.id}` === value);
               if (entry) void choose(entry.title, () => exampleDocument(entry.name));
+              else if (kept) void choose(kept.name, async () => libraryDocument(kept));
             }}
           >
             <option value="">Choose…</option>
-            {EXAMPLES.map(({ name, title }) => (
-              <option key={name} value={name}>
-                {title}
-              </option>
-            ))}
+            <optgroup label="Examples">
+              {EXAMPLES.map(({ name, title }) => (
+                <option key={name} value={`example:${name}`}>
+                  {title}
+                </option>
+              ))}
+            </optgroup>
+            {library.length > 0 && (
+              <optgroup label="Your library">
+                {library.map((e) => (
+                  <option key={e.id} value={`library:${e.id}`}>
+                    {e.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
           <button type="button" className="button type-label" onClick={() => picker.current?.click()}>
             From a file…
@@ -975,6 +1037,22 @@ function AddComponents() {
           {message?.text}
         </p>
         <div className="dialog-actions">
+          {shelf && (
+            <button
+              type="button"
+              className="button type-label"
+              onClick={() => {
+                if (!window.confirm(`Remove ${shelf.name} from your library? Projects that already added it keep their copy.`)) return;
+                void removeFromLibrary(shelf.id);
+                setExample("");
+                setSource(null);
+                setPicked([]);
+                setMessage({ text: `${shelf.name} removed from your library.`, error: false });
+              }}
+            >
+              Remove from library
+            </button>
+          )}
           <button type="button" className="button type-label" disabled={picked.length === 0} onClick={add}>
             Add
           </button>
@@ -1066,6 +1144,7 @@ function ChallengePanel() {
   // With the circuits it checked: any edit to them since makes it out of date, and it is no longer shown.
   const [checked, setChecked] = useState<{ report: Report; circuits: Circuit[] } | null>(null);
   const checking = useRef(false);
+  const progress = useProjects((s) => s.progress);
   const current = checked?.circuits.length === circuits.length && checked.circuits.every((c, i) => c === circuits[i]) ? checked.report : null;
   if (!entry) return null;
   const { challenge } = entry;
@@ -1079,6 +1158,7 @@ function ChallengePanel() {
     const definitions = liveDefinitions(state);
     const report = await check(project(mainCircuit(state), definitions), challenge);
     checking.current = false;
+    if (report.result === "passed") void recordPass(entry.name);
     setChecked({ report, circuits: definitions.map((d) => d.circuit) });
   };
   return (
@@ -1089,6 +1169,7 @@ function ChallengePanel() {
       <div className="inspector-body">
         <p className="type-label inspector-kind">{challenge.title}</p>
         <p className="type-body challenge-text">{challenge.text}</p>
+        {progress[entry.name] && <p className="type-caption challenge-text">{`First passed ${when(progress[entry.name] ?? "")}.`}</p>}
         {built && sheet !== built.id && (
           <button type="button" className="button type-label" onClick={() => useEditor.getState().openSheet(built.id)}>
             Open {built.name}

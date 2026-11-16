@@ -1422,3 +1422,38 @@ test("where the browser keeps no storage, the editor still works, says so, and a
   await expect.poll(() => asked).toBe("Replace the current circuit? Changes since your last export will be lost.");
   await expect(page.getByRole("list", { name: "Inputs and outputs" })).toContainText("Switch 1");
 });
+
+test("a component saved to the library is added to another project, and a passed challenge stays marked (ADR 0029)", async ({ page }) => {
+  await page.goto("/");
+  const parts = page.getByRole("complementary", { name: "Parts" });
+  await page.getByRole("region", { name: "EXAMPLES" }).getByRole("button", { name: "4-bit adder" }).click();
+  await parts.getByRole("button", { name: "Save Full adder to your library" }).click();
+  await expect(parts).toContainText("Full adder saved in your library.");
+  // Saving it again replaces it, after asking.
+  let asked = "";
+  page.once("dialog", (dialog) => {
+    asked = dialog.message();
+    void dialog.accept();
+  });
+  await parts.getByRole("button", { name: "Save Full adder to your library" }).click();
+  await expect(parts).toContainText("Full adder replaced in your library.");
+  expect(asked).toBe("Replace Full adder in your library? Projects that already added it keep their copy.");
+
+  await page.getByRole("button", { name: "New circuit" }).click();
+  await parts.getByRole("button", { name: "Add components…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add components" });
+  await dialog.getByLabel("From an example or your library").selectOption({ label: "Full adder" });
+  await dialog.getByRole("checkbox", { name: "Full adder" }).check();
+  await dialog.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(dialog).toContainText("Added Full adder.");
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(parts.locator(".chip-list .part-tile", { hasText: "Full adder" })).toHaveCount(1);
+
+  // The inverter, solved by its reference solution: checked, it is marked passed, and stays so after a reload.
+  await page.locator('[data-testid="import-file"]').setInputFiles(solution("01-inverter"));
+  await page.getByRole("region", { name: "CHALLENGE", exact: true }).getByRole("button", { name: "Check" }).click();
+  await expect(page.getByRole("region", { name: "CHALLENGE", exact: true })).toContainText("First passed");
+  await page.reload();
+  await expect(challenges(page).getByRole("button", { name: "1. Inverter passed" })).toBeVisible();
+  await expect(challenges(page).getByRole("button", { name: "2. XOR from NAND gates" })).not.toContainText("✓");
+});

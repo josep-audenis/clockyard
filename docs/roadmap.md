@@ -490,7 +490,7 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
 A project phase after the brief's five: increments with their own ADRs and
 targets, as in Phase 5.
 
-1. ⬜ Local persistence (ADR 0029, accepted): projects in IndexedDB as
+1. ✅ Local persistence (ADR 0029, accepted): projects in IndexedDB as
    project files, autosave after a second and when hidden, recent projects
    with New, rename and delete, a copy when another tab saved first, a
    component library for *Add components*, and challenge progress.
@@ -501,7 +501,12 @@ targets, as in Phase 5.
       first, and the old question before replacing only where nothing can
       be saved. Playwright: a reload restores, New and reopen, delete, two
       tabs, and a browser without storage.
-   2. ⬜ Library and challenge progress.
+   2. ✅ Library and challenge progress: a chip saves to the library with
+      what it contains, *Add components* lists the library next to the
+      examples (and removes entries), and a passed challenge is ticked and
+      remembered, with *Clear progress*. Playwright: the 4-bit adder's full
+      adder saved, replaced after asking, and added to a new project; the
+      inverter passed stays ticked after a reload.
 2. ⬜ Benchmarks: generated circuits of thousands to tens of thousands of
    parts, measured natively and in the browser; optimize what they show.
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
@@ -529,8 +534,8 @@ challenges 10 to 12 wait for their own ADR. Increment 6, waveforms of
 watched wires recorded by the engine (ADR 0026), and increment 7, examples
 in the editor with notes and components added from other files (ADR 0027),
 are built too, which completes the plan of ADR 0020. Phase 6 is planned in
-ADR 0028 (accepted); its first increment, local persistence (ADR 0029),
-has its first step built: projects and autosave.
+ADR 0028 (accepted); its first increment, local persistence (ADR 0029), is
+built. Next is increment 2, benchmarks, which has no ADR yet.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is

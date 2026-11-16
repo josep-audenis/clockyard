@@ -110,11 +110,18 @@ Today a circuit lives only in the page:
    - **Using.** *Add components* gets a third source, "Your library", next
      to examples and files. Adding from it follows ADR 0027's rules.
    - **Managing.** Entries are deleted from the same dialog.
+   - *As built (step 2):* a chip's ⇩ button, "Save … to your library",
+     saves it; the dialog's list has two groups, Examples and Your
+     library, and a library entry chosen there can be removed. A library
+     entry's text is read with `parseDocument`, like any source.
 6. **Challenge progress.**
    - A check that passes records the challenge in `progress`.
    - The Challenges list marks passed ones, and the panel says when the
      challenge was first passed.
    - Nothing else depends on it, and *Clear progress* empties it.
+   - *As built:* a passed challenge's button ends with a ✓ named
+     "passed", and *Clear progress* under the list asks first. A failure
+     to record progress is ignored: the check still says it passed.
 7. **When storage is not available.** This covers storage blocked by the
    browser, a private window that refuses it, or a full quota.
    - The editor works as it does today: nothing is saved, the question
