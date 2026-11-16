@@ -159,6 +159,12 @@ export function connectEngine(): () => void {
   let latest: { message: Extract<Result, { type: "state" }>; loads: number; current: boolean; rewound: boolean } | null = null;
   let arrived = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // A state was shown in this burst of messages: the ones after it wait for the next task, and only the latest is shown.
+  let holding = false;
+  const release = () => {
+    holding = false;
+    applyState();
+  };
   // The load the shown state belongs to: a state of another load starts a new epoch, whatever its time.
   let shownLoads = -1;
   /**
@@ -167,7 +173,6 @@ export function connectEngine(): () => void {
    * up. Any other message applies a waiting state first, so messages still take effect in the order they came.
    */
   const applyState = () => {
-    clearTimeout(timer);
     const state = latest;
     latest = null;
     if (!state) return;
@@ -252,12 +257,19 @@ export function connectEngine(): () => void {
       case "state": {
         // Loads still unanswered: this state describes the circuit before them.
         const current = pending === 0;
-        const rewound = current && latest?.current === true && latest.loads === loads && (latest.rewound || message.time < arrived);
+        // Time went back since the last state of this load seen, shown or held (a reset), or in one held before it.
+        const rewound = current && (message.time < arrived || (latest?.current === true && latest.loads === loads && latest.rewound));
         if (current) arrived = message.time;
-        // Applied after the messages already waiting (Chromium runs tasks of one priority in the order they were queued),
-        // so a run of states is shown once, as its latest. A hidden tab's timers run about once a second.
-        if (!latest) timer = setTimeout(applyState, 0);
         latest = { message, loads, current, rewound };
+        // The first state of a burst is shown at once (a toggle's answer waits for nothing); those after it wait for a
+        // task queued after the messages already waiting (Chromium runs tasks of one priority in the order they were
+        // queued), so a backlog is shown as its latest. A hidden tab's timers run about once a second.
+        if (!holding) {
+          holding = true;
+          // Queued first, so a failure while showing this state cannot leave the next ones held for good.
+          timer = setTimeout(release, 0);
+          applyState();
+        }
         break;
       }
     }
@@ -305,6 +317,7 @@ export function connectEngine(): () => void {
     // A state of this worker waiting to be shown is not: the next worker's describe its own circuit.
     clearTimeout(timer);
     latest = null;
+    holding = false;
     send = null;
     // A new worker watches nothing until told.
     watchedWires = [];

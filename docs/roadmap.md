@@ -538,6 +538,10 @@ targets, as in Phase 5.
          list of inputs and outputs was quadratic), and only the latest
          waiting state applied. `counters-10k` runs at about 2,400 cycles
          per second instead of freezing the page.
+      4. ✅ The first engine state of a burst shown at once, so a toggle's
+         readout no longer waits a frame (`chain-1k` 82 → 22 ms in an
+         interleaved comparison); runs on this machine compared
+         interleaved, since one run varies up to two times.
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.

@@ -122,16 +122,20 @@ test("states that arrive faster than the page shows them are applied once, as th
   const unsubscribe = useSim.subscribe((s, before) => {
     if (s.time !== before.time) applied.push(s.time);
   });
-  // A backlog: only its latest is shown. A reset inside it (time back to 0) still counts a new epoch.
-  for (const time of [12, 0, 4]) worker.reply(state(time));
+  // The first state of a burst is shown at once; the rest of the burst only as its latest. A reset inside the held ones
+  // (time back to 0) still counts a new epoch, though the run is past the shown time again by the latest.
+  worker.reply(state(12));
+  expect(applied).toEqual([12]);
+  for (const time of [0, 20]) worker.reply(state(time));
   vi.runAllTimers();
-  expect(applied).toEqual([4]);
-  expect(useSim.getState()).toMatchObject({ time: 4, epoch: epoch + 1, running: true });
+  expect(applied).toEqual([12, 20]);
+  expect(useSim.getState()).toMatchObject({ time: 20, epoch: epoch + 1, running: true });
   // A state waiting when a load is sent describes the circuit before it: its nets are not shown.
-  worker.reply(state(5));
+  worker.reply(state(21));
+  worker.reply(state(22));
   useEditor.setState({ circuit: { components: [], junctions: [], wires: [{ id: "x", from: { junction: "a" }, to: { junction: "b" } }] } });
   vi.runAllTimers();
-  expect(useSim.getState().time).toBe(4);
+  expect(useSim.getState().time).toBe(21);
   unsubscribe();
 
   // The load answered, then its states: a new circuit is a new epoch, even when its time is not below the last shown.
@@ -142,16 +146,30 @@ test("states that arrive faster than the page shows them are applied once, as th
   expect(useSim.getState()).toMatchObject({ time: 7, epoch: before + 1 });
 
   // Any other message applies a waiting state first: an error after a state stays the latest word.
+  worker.reply(state(8));
   worker.reply(state(9));
   worker.reply({ type: "error", message: "boom", running: false });
   vi.runAllTimers();
   expect(useSim.getState()).toMatchObject({ time: 9, running: false, status: "error", error: "boom" });
 
+  // A failure while one state is shown does not hold the next ones for good.
+  const failing = useSim.subscribe((s) => {
+    if (s.time === 30) throw new Error("subscriber");
+  });
+  expect(() => worker.reply(state(30))).toThrow("subscriber");
+  failing();
+  worker.reply(state(31));
+  vi.runAllTimers();
+  worker.reply(state(32));
+  expect(useSim.getState().time).toBe(32);
+  vi.runAllTimers();
+
   // A state still waiting when the engine stops is not shown.
+  worker.reply(state(10));
   worker.reply(state(11));
   stop();
   vi.runAllTimers();
-  expect(useSim.getState().time).toBe(9);
+  expect(useSim.getState().time).toBe(10);
   useEditor.setState(editor, true);
   vi.useRealTimers();
 });
