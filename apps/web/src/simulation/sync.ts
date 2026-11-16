@@ -7,6 +7,7 @@ import { startSimulation } from "./client";
 import type { AsmError, Challenge, CircuitDescription, Command, Diagnostic, Report, Result, Stopped } from "./protocol";
 
 export type Loaded = Extract<Result, { type: "loaded" }>;
+export type Waves = Extract<Result, { type: "waves" }>;
 
 export type SimState = {
   status: "loading" | "ready" | "error";
@@ -29,6 +30,8 @@ export type SimState = {
   until: string | null;
   /** Each memory's words last asked for with `readMemory`, by component ID, as the engine reported them (ADRs 0018, 0021). */
   memory: Record<string, Uint32Array>;
+  /** The watched wires' record, as last read (ADR 0026); null while nothing is watched or before the first read. */
+  waves: Waves | null;
 };
 
 /** Run speeds offered, in cycles per second (ADR 0017). */
@@ -47,6 +50,7 @@ export const useSim = create<SimState>()(() => ({
   speed: 2,
   until: null,
   memory: {},
+  waves: null,
 }));
 
 /** Sends a command to the worker, once `connectEngine` has started it. */
@@ -66,14 +70,17 @@ export function setUntil(until: string | null) {
 
 /** Memories read after every state, by ID, with how many words of each (ADR 0021: the screens on the sheet). */
 let watched = new Map<string, number>();
+/** Wires whose record is read after every state (ADR 0026). */
+let watchedWires: string[] = [];
 let reading = 0;
 
-/** Reads every watched memory once, on the next animation frame however many states arrive before it. */
+/** Reads every watched memory and the waveforms once, on the next animation frame however many states arrive before it. */
 function readWatched() {
   if (reading) return;
   const read = () => {
     reading = 0;
     for (const [component, count] of watched) readMemory(component, count);
+    if (watchedWires.length > 0) send?.({ type: "readWaves" });
   };
   // A frame where there are frames; a worker test or a server render has none.
   reading = typeof requestAnimationFrame === "function" ? requestAnimationFrame(read) : Number(setTimeout(read, 16));
@@ -177,6 +184,10 @@ export function connectEngine(): () => void {
         if (!same) useSim.setState(({ memory }) => ({ memory: { ...memory, [message.component]: message.words } }));
         break;
       }
+      case "waves":
+        // A record read before the latest load describes the circuit before it.
+        if (pending === 0 && watchedWires.length > 0) useSim.setState({ waves: message });
+        break;
       case "state":
         // Running or not is the worker's, whatever circuit the state describes.
         useSim.setState({ running: message.running, stopped: message.stopped ?? null });
@@ -209,6 +220,15 @@ export function connectEngine(): () => void {
     const changed = Object.fromEntries(Object.entries(inputs).filter(([component, value]) => sent[component] !== value));
     if (Object.keys(changed).length > 0) client.send({ type: "setInputs", values: changed });
     sent = inputs;
+    // After the load, so the worker resolves the wires in the circuit they belong to; it watches them again on every
+    // later load by itself.
+    const wires = state.watches.filter((id) => circuit.wires.some((w) => w.id === id));
+    if (wires.join() !== watchedWires.join()) {
+      watchedWires = wires;
+      client.send({ type: "watch", wires });
+      if (wires.length === 0) useSim.setState({ waves: null });
+      else readWatched();
+    }
   };
   send = client.send;
   sync(useEditor.getState());
@@ -216,6 +236,8 @@ export function connectEngine(): () => void {
   return () => {
     unsubscribe();
     send = null;
+    // A new worker watches nothing until told.
+    watchedWires = [];
     // Nothing will answer what is still awaited.
     for (const [request, resolve] of awaiting) resolve({ type: "error", message: "the engine stopped", request });
     awaiting.clear();

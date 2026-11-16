@@ -1179,3 +1179,51 @@ test("game demo: in Catch the first block is caught, a miss halts the run, and a
   await click(page, at(35, 5));
   await expect(contents).toContainText("0x00 0x00 0x00 0x3C 0x00 0x00 0x00 0xFF"); // the block in lane 3, the paddle in lane 7
 });
+
+test("waveforms: the 8-bit counter stepped three times reads 0x00 to 0x03, and a cursor reads any tick (ADR 0026)", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("8-bit-counter"));
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  const at = await grid(page);
+  await click(page, at(1, 7)); // Count on
+  await expectStates(page, { "Switch Count": 1 });
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  const waves = page.getByRole("region", { name: "WAVEFORMS" });
+  await expect(waves).toHaveCount(0);
+
+  // Watch the clock's wire and the register's output, both before any step.
+  await click(page, at(18, 9));
+  await inspector.getByRole("button", { name: "Watch", exact: true }).click();
+  await click(page, at(28, 1));
+  await inspector.getByRole("button", { name: "Watch", exact: true }).click();
+  await expect(inspector.getByRole("button", { name: "Stop watching" })).toBeVisible();
+  const rows = waves.getByRole("listitem");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText("Clock Clockoff");
+  await expect(rows.nth(1)).toContainText("Register Value q0 (0x00)");
+
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Step", exact: true }).click();
+  await expect(waves.getByText("Now: tick 6")).toBeVisible();
+  await expect(rows.nth(1)).toContainText("3 (0x03)");
+  // Each value the register held for a whole cycle is written in its band; 0x00 lasted one tick, too short for text.
+  await expect(waves.locator(".wave-text")).toHaveText(["01", "02", "03"]);
+  await expect(waves.locator(".wave-bit")).toHaveAttribute("d", /^M0 20H12V4H24V20H36V4H48V20H60V4H72V20H84$/);
+
+  // A cursor at tick 2, in cycle 1: the register reads 1, the clock low. Left twice reaches tick 0.
+  const lanes = waves.getByLabel(/^Waveform lanes/);
+  await lanes.click({ position: { x: 2.5 * 12, y: 30 } });
+  await expect(waves.getByText("Cursor: tick 2, cycle 1")).toBeVisible();
+  await expect(rows.nth(1)).toContainText("1 (0x01)");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  await expect(waves.getByText("Cursor: tick 0, cycle 0")).toBeVisible();
+  await expect(rows.nth(1)).toContainText("0 (0x00)");
+  await page.keyboard.press("Escape");
+  await expect(waves.getByText("Now: tick 6")).toBeVisible();
+
+  // Stopping the last watch hides the panel.
+  await waves.getByRole("button", { name: "Stop watching Register Value q" }).click();
+  await expect(rows).toHaveCount(1);
+  await waves.getByRole("button", { name: "Stop watching Clock Clock" }).click();
+  await expect(waves).toHaveCount(0);
+});

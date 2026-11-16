@@ -223,7 +223,9 @@ type Command =
   | { type: "readMemory"; component: string; count: number } // a memory's first count words (ADRs 0018, 0021: every screen on the sheet, once a frame)
   | { type: "assemble"; request: number; source: string }    // reference-CPU assembly (ADR 0019)
   | { type: "disassemble"; request: number; words: number[] }
-  | { type: "check"; request: number; circuit: CircuitDescription; challenge: Challenge }; // a bench of its own (ADR 0025)
+  | { type: "check"; request: number; circuit: CircuitDescription; challenge: Challenge } // a bench of its own (ADR 0025)
+  | { type: "watch"; wires: string[] } // record these wires' nets, again from every later load (ADR 0026)
+  | { type: "readWaves" };             // what is recorded (once a frame while a wire is watched)
 
 // worker → main
 type Result =
@@ -239,6 +241,7 @@ type Result =
   | { type: "assembled"; request: number; words: number[]; errors: { line: number; message: string }[] }
   | { type: "disassembled"; request: number; lines: string[] }
   | { type: "checked"; request: number; report: Report } // passed, failed (first step) or refused (why)
+  | { type: "waves"; time: number; nets: number[]; traces: Float64Array[] } // per net: [t0, v0, t1, v1, …], transferred
   | { type: "error"; message: string; load?: true; running?: boolean; request?: number }; // load: answers a load; running: after the failure; request: answers that request
 ```
 

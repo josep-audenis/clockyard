@@ -57,7 +57,14 @@ export type Command =
   /** ROM words as assembly, one line each, answered with `disassembled` carrying the same `request`. */
   | { type: "disassemble"; request: number; words: number[] }
   /** Runs a challenge's steps on a bench of its own (ADR 0025), answered with `checked` carrying the same `request`. */
-  | { type: "check"; request: number; circuit: CircuitDescription; challenge: Challenge };
+  | { type: "check"; request: number; circuit: CircuitDescription; challenge: Challenge }
+  /**
+   * Records these wires' nets from now on, and again from the start of every later load (ADR 0026). Wires
+   * of one net record once; a wire the loaded circuit lacks records nothing.
+   */
+  | { type: "watch"; wires: string[] }
+  /** What is recorded so far, answered with `waves`. */
+  | { type: "readWaves" };
 
 /** A challenge as `challenges/NN-name.json` holds it (ADR 0025); the engine reads all but the title and text. */
 export type Challenge = {
@@ -115,6 +122,11 @@ export type Result =
   | { type: "assembled"; request: number; words: number[]; errors: AsmError[] }
   | { type: "disassembled"; request: number; lines: string[] }
   | { type: "checked"; request: number; report: Report }
+  /**
+   * `nets`: the watched nets, each once; `traces[i]`: net `nets[i]`'s changes as `[t0, v0, t1, v1, …]`, oldest
+   * first, the first in force when the 4,096-tick window starts (ADR 0026). `time`: ticks, as in `state`.
+   */
+  | { type: "waves"; time: number; nets: number[]; traces: Float64Array[] }
   /** `words`: empty when the component is not a memory or nothing is loaded. */
   | { type: "memory"; component: string; words: Uint32Array }
   /**

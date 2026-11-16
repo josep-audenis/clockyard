@@ -124,6 +124,13 @@ export type EditorState = {
    */
   setFields: (id: string, fields: number[]) => void;
   toggle: (id: string) => void;
+  /**
+   * Wire IDs on this sheet whose nets the waveform panel shows, in the order watched (ADR 0026). View state:
+   * never saved, and cleared with the switch positions when the sheet changes.
+   */
+  watches: string[];
+  /** Watches a wire, at most `MAX_WATCHES`, or stops watching it. */
+  watch: (wire: string, on: boolean) => void;
   /** Sets a wide switch's value, already checked against its width. Not an edit, like a toggle. */
   setInput: (id: string, value: number) => void;
   /** Arms a part, width bits wide (1 unless given). */
@@ -397,7 +404,10 @@ function canConnect(circuit: Circuit, from: Endpoint, to: Endpoint) {
 }
 
 /** What a sheet starts with: nothing selected, armed or switched on. */
-const fresh = { selection: [], inputs: {}, armed: null, armedDefinition: null, armedLabel: false };
+const fresh = { selection: [], inputs: {}, armed: null, armedDefinition: null, armedLabel: false, watches: [] };
+
+/** Traces the waveform panel shows at most (ADR 0026). */
+export const MAX_WATCHES = 16;
 
 /** Every definition as it is now: the open one's circuit is the one being edited. */
 export function liveDefinitions(state: Pick<EditorState, "definitions" | "sheet" | "circuit">): Definition[] {
@@ -873,6 +883,12 @@ export const useEditor = create<EditorState>()((set, get) => ({
   armedRotation: 0,
   turnArmed: (turn) => set(({ armedRotation }) => ({ armedRotation: ((armedRotation + 90 * turn + 360) % 360) as typeof armedRotation })),
   toggle: (id) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: inputs[id] === 1 ? 0 : 1 } })),
+  watches: [],
+  watch: (wire, on) =>
+    set(({ watches }) => {
+      if (on) return watches.includes(wire) || watches.length >= MAX_WATCHES ? {} : { watches: [...watches, wire] };
+      return { watches: watches.filter((w) => w !== wire) };
+    }),
   setInput: (id, value) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: value } })),
   arm: (kind, width = 1) => set({ armed: kind, armedWidth: width, armedDefinition: null, armedRotation: 0, armedLabel: false }),
   armChip: (definition) => set({ armed: "custom", armedWidth: 1, armedDefinition: definition, armedRotation: 0, armedLabel: false }),

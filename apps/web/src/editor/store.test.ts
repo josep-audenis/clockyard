@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 import { endOwner, sameEnd, type Circuit } from "./document";
 import { contains } from "./document";
-import { liveDefinitions, mainCircuit, useEditor } from "./store";
+import { liveDefinitions, mainCircuit, MAX_WATCHES, useEditor } from "./store";
 import { layoutOf, pinLabel } from "../canvas/layout";
 
 const initial = useEditor.getState();
@@ -1230,4 +1230,27 @@ test("a screen that grows is refused when a port would land on a junction, as pl
   expect(useEditor.getState().circuit.components.find((c) => c.id === s)?.props.columns).toBeUndefined();
   setColumns(s, 48); // out at (15, 1): free
   expect(useEditor.getState().circuit.components.find((c) => c.id === s)?.props.columns).toBe(48);
+});
+
+test("watching keeps wires in order, at most MAX_WATCHES, and a new sheet or document starts with none (ADR 0026)", () => {
+  const { watch } = useEditor.getState();
+  watch("a", true);
+  watch("b", true);
+  watch("a", true);
+  expect(useEditor.getState().watches).toEqual(["a", "b"]);
+  watch("a", false);
+  expect(useEditor.getState().watches).toEqual(["b"]);
+  for (let i = 0; i < MAX_WATCHES + 3; i++) watch(`w${i}`, true);
+  expect(useEditor.getState().watches).toHaveLength(MAX_WATCHES);
+
+  useEditor.setState({ definitions: [{ id: "d", name: "Inner", circuit: initial.circuit }] });
+  watch("x", true);
+  useEditor.getState().openSheet("d");
+  expect(useEditor.getState().watches).toEqual([]);
+  watch("y", true);
+  useEditor.getState().closeSheet();
+  expect(useEditor.getState().watches).toEqual([]);
+  watch("z", true);
+  useEditor.getState().load({ format: "clockyard", version: 10, metadata: initial.metadata, circuit: initial.circuit, definitions: [] });
+  expect(useEditor.getState().watches).toEqual([]);
 });

@@ -1,7 +1,7 @@
 import init, { assemble, check, disassemble, Engine } from "../generated/sim-wasm/sim_wasm.js";
 import type { Command, Diagnostic, Result, Stopped } from "../simulation/protocol";
 
-const reply = (result: Result) => postMessage(result);
+const reply = (result: Result, transfer: Transferable[] = []) => postMessage(result, { transfer });
 
 // Every command awaits the same promise, so commands still run in arrival order.
 let engine: Engine | null = null;
@@ -32,6 +32,17 @@ let run: {
 
 /** Port nets of the circuit loaded now (empty when it failed validation): whether a run's LED exists. */
 let ports: Record<string, unknown> = {};
+
+/** The wires to record (ADR 0026), and the loaded circuit's nets of them, each once, as the engine records them. */
+let watching: string[] = [];
+let watchedNets: number[] = [];
+let wireNets: Record<string, number> = {};
+
+/** Starts the engine's record of the watched wires' nets, as they are in the circuit loaded now. */
+const watch = () => {
+  watchedNets = [...new Set(watching.flatMap((wire) => wireNets[wire] ?? []))];
+  if (engine && hasCircuit) engine.watch(Uint32Array.from(watchedNets));
+};
 
 /** The last settle's runtime diagnostics, sent again by run and pause so they do not clear an unstable report. */
 let last: Diagnostic[] = [];
@@ -121,6 +132,9 @@ onmessage = async (event: MessageEvent<Command>) => {
         reply({ type: "loaded", ...loaded });
         answered = true;
         ports = loaded.portNets;
+        // Recorded from the load's own time 0, before any slice can tick.
+        wireNets = loaded.wireNets;
+        watch();
         state(runtime);
         // The editor sends the switch values next: no slice may tick between the two (ADR 0017 item 4).
         if (run) {
@@ -157,6 +171,16 @@ onmessage = async (event: MessageEvent<Command>) => {
         pause();
         state(hasCircuit ? JSON.parse(engine.reset()) : []);
         break;
+      case "watch":
+        watching = command.wires;
+        watch();
+        break;
+      case "readWaves": {
+        const loaded = engine;
+        const traces = watchedNets.map((_, i) => loaded.wave(i) ?? new Float64Array());
+        reply({ type: "waves", time: engine.time(), nets: watchedNets, traces }, traces.map((t) => t.buffer));
+        break;
+      }
       case "readMemory":
         reply({ type: "memory", component: command.component, words: engine.memory(command.component, command.count) ?? new Uint32Array() });
         break;

@@ -45,6 +45,9 @@ The ticks between two frames are only ever seen inside the engine.
    - At most 16 traces per sheet.
    - Watches are kept per sheet in the editor, as view state. They are not
      saved in the file (see Alternatives).
+   - *As built (step 2):* watches belong to the sheet on screen and are
+     cleared when another sheet or a document opens, as switch positions
+     are, since that sheet's simulation starts again too.
 2. **The engine records the traces.**
    - `Simulator::watch(nets)` sets the nets to record and clears the
      record.
@@ -79,6 +82,11 @@ The ticks between two frames are only ever seen inside the engine.
    - The editor sends `readWaves` once per animation frame while a trace is
      shown, as it reads memories for screens. A paused simulation therefore
      costs nothing.
+   - *As built (step 2):* `watch` carries wire IDs, not net indices. The
+     worker resolves them against each load's `wireNets` and watches again
+     as it answers the load, before any slice can tick, so a record always
+     starts at the load's tick 0. The editor sends `watch` only when the
+     list of watched wires changes.
 4. **The waveform panel.**
    - It sits below the canvas and appears once a wire is watched.
    - Each row has a name, a value and a lane. A 1-bit trace is a high and
@@ -87,10 +95,16 @@ The ticks between two frames are only ever seen inside the engine.
    - The time axis ends at the current tick and is labelled in cycles. A
      fixed scale of 8 pixels per tick shows the most recent ticks that fit
      the panel.
+   - *As built:* 12 pixels per tick, and a band shows the hex digits
+     without `0x`, so an 8-bit value fits in one cycle; the value column
+     shows it in full. Every fifth rising edge is labelled with its cycle.
    - Hovering or clicking a lane places a cursor at a tick, and each row's
      value column then shows that tick's value. Left and Right move the
      cursor by one tick and Escape removes it. Without a cursor the column
      shows the current value.
+   - *As built:* a click places the cursor, not hovering, so the mouse and
+     the keys never move it against each other. A click right of the last
+     tick places it at the current tick.
    - Each row has a button to stop watching. The wire's inspector has a
      Watch and Stop watching toggle.
    - The panel is drawn as SVG in the DOM, not in the PixiJS canvas. It is
@@ -103,6 +117,12 @@ The ticks between two frames are only ever seen inside the engine.
    and press Step three times. The panel shows three clock pulses, and the
    bus reads `0x00`, `0x01`, `0x02`, `0x03`. A cursor placed in the second
    cycle reads `0x01`. A Playwright test does exactly this.
+
+   *As built:* the bus is watched on `w-out`, which leaves the register on
+   the same net as `w-q`. The test checks the clock's line, the bands
+   `01`, `02` and `03` (`0x00` lasts one tick, too short for text), a
+   cursor at tick 2 (cycle 1) reading `0x01`, and at tick 0 reading
+   `0x00`.
 6. **Performance.** Recording costs one comparison per watched net per
    settle. Step 1 measures the reference CPU's run speed with no traces and
    with 16, and records both numbers here. It optimizes only if the
@@ -168,6 +188,9 @@ The ticks between two frames are only ever seen inside the engine.
 - At high speeds, 4,096 ticks pass in well under a second. The panel is
   for looking at a paused or slow simulation, or the last moments before a
   pause. Scrolling back further would need a larger window.
+- Watching another wire, or stopping one, starts every trace's record
+  again from that tick, since `watch` replaces the whole record. Watch
+  everything first, then run or step.
 - Wires inside an instance are not watchable from the main sheet. Opening
   the definition's sheet watches that sheet's own simulation (ADR 0012),
   not the instance placed in the main circuit.
