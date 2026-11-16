@@ -126,6 +126,8 @@ export type EditorState = {
    */
   setFields: (id: string, fields: number[]) => void;
   toggle: (id: string) => void;
+  /** Names the document, as a label is normalized, at most 64 characters; blank is "Untitled". Outside undo. */
+  rename: (name: string) => void;
   /** Sets the document's notes (ADR 0027), cut to `MAX_NOTES` characters; outside undo, like the name. */
   setNotes: (text: string) => void;
   /**
@@ -902,6 +904,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   armedRotation: 0,
   turnArmed: (turn) => set(({ armedRotation }) => ({ armedRotation: ((armedRotation + 90 * turn + 360) % 360) as typeof armedRotation })),
   toggle: (id) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: inputs[id] === 1 ? 0 : 1 } })),
+  rename: (name) => set(({ metadata }) => ({ metadata: { ...metadata, name: [...normalizeLabel(name)].slice(0, 64).join("").trim() || "Untitled" } })),
   setNotes: (text) => set(({ metadata }) => ({ metadata: { ...metadata, notes: [...text].slice(0, MAX_NOTES).join("") || undefined } })),
   watches: [],
   watch: (wire, on) =>

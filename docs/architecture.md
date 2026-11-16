@@ -131,6 +131,17 @@ Rules:
   junctions and wires, wires must reference existing parts and junctions, and
   positions are whole numbers within ±1,000,000 grid cells. Port names are checked by the engine on load.
   Switch positions and wide switch values are transient and never saved.
+- Projects (`storage/projects.ts`, `storage/persist.ts`, ADR 0029) are kept
+  in this browser's IndexedDB, database `clockyard`: `projects` holds
+  `{ id, name, modifiedAt, revision, text }`, `text` being exactly what
+  Export writes, read back through `parseDocument`; `meta` remembers the
+  last project. Autosave writes the open document a second after its last
+  change that Export would write differently, and when the page is hidden;
+  a document opened from elsewhere becomes a project at its first change. A
+  save stores only over the revision this tab last read or wrote, in one
+  transaction; otherwise the work is saved as a new project, "Name (copy)".
+  Every opener (Import, a link, an example, a starter, a project, New)
+  goes through `openDocument`, which saves the document it replaces first.
 - A link (`storage/link.ts`, ADR 0024) carries the same document in its
   fragment, `#circuit=1.<data>`: compact JSON, deflate-raw, base64url. It is
   read back through the same validation as Import, and decompression stops at

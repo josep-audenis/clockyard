@@ -485,6 +485,33 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       and in challenge 5's starter it arrives as "8-bit adder 2" with
       "Full adder 2", a second add adding nothing.
 
+## Phase 6 — Persistence, scale and depth (ADR 0028, accepted)
+
+A project phase after the brief's five: increments with their own ADRs and
+targets, as in Phase 5.
+
+1. ⬜ Local persistence (ADR 0029, accepted): projects in IndexedDB as
+   project files, autosave after a second and when hidden, recent projects
+   with New, rename and delete, a copy when another tab saved first, a
+   component library for *Add components*, and challenge progress.
+   1. ✅ Projects, autosave, the Projects panel, tabs, unavailable storage:
+      IndexedDB with project files as text, a save a second after a change
+      and when the page is hidden, the last project reopened on load, New
+      circuit, open, rename and delete, a copy when another tab saved
+      first, and the old question before replacing only where nothing can
+      be saved. Playwright: a reload restores, New and reopen, delete, two
+      tabs, and a browser without storage.
+   2. ⬜ Library and challenge progress.
+2. ⬜ Benchmarks: generated circuits of thousands to tens of thousands of
+   parts, measured natively and in the browser; optimize what they show.
+3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
+   and the waveform record; a file opens fitted to its circuit.
+4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
+5. ⬜ Four-state signals: `X`, `Z`, a multiple-driver rule, a tri-state
+   buffer.
+6. ⬜ A second reference CPU: bit operations and call/return, specification
+   first.
+
 ## Out of scope (for now)
 
 Backend, accounts, multiplayer, cloud storage, marketplace, analog/transistor
@@ -501,12 +528,11 @@ increment 5, challenges 1 to 9 checked by behavioural tests (ADR 0025);
 challenges 10 to 12 wait for their own ADR. Increment 6, waveforms of
 watched wires recorded by the engine (ADR 0026), and increment 7, examples
 in the editor with notes and components added from other files (ADR 0027),
-are built too, which completes the plan of ADR 0020. What comes next needs
-a new plan: candidates are autosave and a library kept in the browser,
-challenges 10 to 12, and a richer CPU.
+are built too, which completes the plan of ADR 0020. Phase 6 is planned in
+ADR 0028 (accepted); its first increment, local persistence (ADR 0029),
+has its first step built: projects and autosave.
 Rough edges still open:
 
-- No autosave yet (a later IndexedDB item).
 - Wires kept after an edit can stay longer than needed until the file is
   opened again (by design, ADR 0011).
 - Routing does not yet avoid label tags (ADR 0015).

@@ -36,10 +36,20 @@ import { withContents } from "../editor/blueprints";
 import { deleteRefusal, liveDefinitions, liveWatches, mainCircuit, MAX_WATCHES, useEditor } from "../editor/store";
 import { assemble, check, connectEngine, control, disassemble, readMemory, setSpeed, setUntil, SPEEDS, useSim, type Loaded } from "../simulation/sync";
 import type { AsmError, Report } from "../simulation/protocol";
-import { FORMAT_VERSION, MAX_DOCUMENT_BYTES, parseDocument, serializeDocument } from "../storage/file";
+import { MAX_DOCUMENT_BYTES, parseDocument, serializeDocument } from "../storage/file";
 import { CHALLENGES, findChallenge, reportText, starterDocument, type ChallengeEntry } from "../storage/challenges";
 import { EXAMPLES, exampleDocument } from "../storage/examples";
-import { linkFragment, readLinkFragment } from "../storage/link";
+import { LINK_KEY, linkFragment, readLinkFragment } from "../storage/link";
+import {
+  connectStorage,
+  currentDocument,
+  deleteProject,
+  newCircuit,
+  openDocument,
+  openProject,
+  replacingIsSafe,
+  useProjects,
+} from "../storage/persist";
 
 /** `label` is not a part: it places a named junction (ADR 0015). */
 /** A parts-panel tile; `width` arms the part that wide (a Register is an 8-bit D flip-flop). */
@@ -114,6 +124,17 @@ const SHORTCUTS = new Map(LIBRARY.flatMap(({ parts }) => parts.flatMap(({ kind, 
 const MOD = navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl";
 export function App() {
   useEffect(() => connectEngine(), []);
+  // Projects in this browser (ADR 0029); a link in the address opens instead of the last project.
+  useEffect(() => {
+    let stop: (() => void) | undefined;
+    let gone = false;
+    const reopen = !new URLSearchParams(window.location.hash.slice(1)).has(LINK_KEY);
+    void connectStorage({ reopen }).then((disconnect) => (gone ? disconnect() : (stop = disconnect)));
+    return () => {
+      gone = true;
+      stop?.();
+    };
+  }, []);
 
   return (
     <div className="shell">
@@ -148,24 +169,40 @@ export function App() {
   );
 }
 
-/** The whole document, whichever sheet is open: the main circuit and every definition as it is now. */
-function currentDocument(): CircuitDocument {
-  const state = useEditor.getState();
-  return {
-    format: "clockyard",
-    version: FORMAT_VERSION,
-    // Notes are kept as typed while being edited; the file has them as Import would read them.
-    metadata: { ...state.metadata, notes: normalizeNotes(state.metadata.notes ?? "") || undefined, modifiedAt: new Date().toISOString() },
-    circuit: mainCircuit(state),
-    definitions: liveDefinitions(state),
-  };
-}
-
-/** Asks before an opened file or link replaces a circuit that has parts. */
+/** Asks before an opened file or link replaces a circuit that has parts, unless it is saved in this browser (ADR 0029). */
 function mayReplace(): boolean {
+  if (replacingIsSafe()) return true;
   const state = useEditor.getState();
   const replacing = mainCircuit(state).components.length > 0 || state.definitions.length > 0 || normalizeNotes(state.metadata.notes ?? "") !== "";
   return !replacing || window.confirm("Replace the current circuit? Changes since your last export will be lost.");
+}
+
+/** The open project's name (ADR 0029), edited in place; Enter or leaving the field keeps it, Escape does not. */
+function ProjectName({ saved }: { saved: string }) {
+  const [draft, setDraft] = useState(saved);
+  const cancelled = useRef(false);
+  return (
+    <input
+      className="project-name type-label"
+      aria-label="Project name"
+      value={draft}
+      maxLength={64}
+      spellCheck={false}
+      onChange={(e) => setDraft(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          cancelled.current = true;
+          e.currentTarget.blur();
+        }
+      }}
+      onBlur={() => {
+        if (!cancelled.current && draft !== saved) useEditor.getState().rename(draft);
+        cancelled.current = false;
+        setDraft(saved);
+      }}
+    />
+  );
 }
 
 /** Above this, Copy link warns that some apps cut links (ADR 0024). */
@@ -196,7 +233,7 @@ function FileActions() {
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
       if (!result.ok) return report(`Could not open the link: ${result.error}`, true);
       if (asking && !mayReplace()) return;
-      useEditor.getState().load(result.document);
+      await openDocument(result.document);
       report(null);
     };
     void open(false);
@@ -241,13 +278,13 @@ function FileActions() {
     const result = parseDocument(await file.text());
     if (!result.ok) return report(`Could not open ${file.name}: ${result.error}`, true);
     if (!mayReplace()) return;
-    useEditor.getState().load(result.document);
+    await openDocument(result.document);
     report(null);
   };
 
   return (
     <div className="file-actions">
-      <span className="project-name type-label">{name}</span>
+      <ProjectName key={name} saved={name} />
       {error && (
         <span className="file-error type-caption" role="alert" title={error}>
           {error}
@@ -332,6 +369,7 @@ function PartsLibrary() {
 
   return (
     <aside className="parts" aria-label="Parts">
+      <ProjectsPanel />
       {LIBRARY.map(({ title, parts }) => (
         <section key={title} className="panel">
           <h2 className="type-heading panel-title">{title.toUpperCase()}</h2>
@@ -704,15 +742,73 @@ function ZoomControls() {
   );
 }
 
+/** "16 Nov, 09:30": when a project changed, in the reader's own locale. */
+const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+/**
+ * Projects kept in this browser (ADR 0029): New circuit, and every saved project, newest first, to open or delete.
+ * The work in it is saved as it changes; Export keeps a copy anywhere else.
+ */
+function ProjectsPanel() {
+  const { available, reason, projectId, projects } = useProjects();
+  return (
+    <section className="panel" aria-labelledby="projects-title">
+      <h2 id="projects-title" className="type-heading panel-title">
+        PROJECTS
+      </h2>
+      <button type="button" className="button type-label projects-new" onClick={() => void (mayReplace() && newCircuit())}>
+        New circuit
+      </button>
+      {available === false ? (
+        <p className="type-caption parts-empty" role="alert">
+          {`Not saved in this browser: ${reason ?? "storage is not available"}. Export to keep your work.`}
+        </p>
+      ) : (
+        <>
+          {projects.length > 0 && (
+            <ul className="chip-list">
+              {projects.map((p) => (
+                <li key={p.id} className="chip-row">
+                  <button
+                    type="button"
+                    className="part-tile type-label project-tile"
+                    aria-current={p.id === projectId ? "true" : undefined}
+                    title={`Changed ${when(p.modifiedAt)}`}
+                    onClick={() => void (p.id !== projectId && openProject(p.id))}
+                  >
+                    <span className="project-tile-name">{p.name}</span>
+                    <span className="type-caption project-tile-when">{when(p.modifiedAt)}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="chip-delete type-label"
+                    aria-label={`Delete project ${p.name}`}
+                    title={`Delete project ${p.name}`}
+                    onClick={() => {
+                      if (window.confirm(`Delete the project ${p.name} from this browser? This cannot be undone.`)) void deleteProject(p.id);
+                    }}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="type-caption parts-empty">Saved in this browser as you work. Export keeps a copy anywhere else.</p>
+        </>
+      )}
+    </section>
+  );
+}
+
 /** Opens a challenge's starter (ADR 0025), asking first as Import does, on the sheet of the component to build. */
 function ChallengeList() {
-  const start = ({ name, challenge }: ChallengeEntry) => {
+  const start = async ({ name, challenge }: ChallengeEntry) => {
     // Bundled and proved to open by challenges.test.ts.
     const document = starterDocument(name);
     if (!mayReplace()) return;
-    const { load, openSheet } = useEditor.getState();
-    load(document);
-    openSheet(challenge.definition);
+    await openDocument(document);
+    useEditor.getState().openSheet(challenge.definition);
   };
   return (
     <section className="panel" aria-labelledby="challenges-title">
@@ -723,7 +819,7 @@ function ChallengeList() {
         {CHALLENGES.map((entry, i) => (
           <li key={entry.name}>
             {/* Numbered: they are an order to work through, and a chip may share a title. */}
-            <button type="button" className="part-tile type-label" onClick={() => start(entry)}>
+            <button type="button" className="part-tile type-label" onClick={() => void start(entry)}>
               {i + 1}. {entry.challenge.title}
             </button>
           </li>
@@ -902,7 +998,7 @@ function ExampleList() {
     setProblem(null);
     try {
       const document = await exampleDocument(name);
-      if (me === latest.current && mayReplace()) useEditor.getState().load(document);
+      if (me === latest.current && mayReplace()) await openDocument(document);
     } catch (error) {
       // Bundled and proved to open by examples.test.ts; what remains is the file failing to load.
       setProblem(`Could not open the example: ${error instanceof Error ? error.message : String(error)}`);
@@ -1643,6 +1739,26 @@ const PLAIN: Record<string, string> = {
   invalidId: "An ID contains a slash, which is kept for parts inside components.",
 };
 
+/** Whether the open project is saved (ADR 0029); not announced while all is well, as it changes with every edit. */
+function SaveStatus() {
+  const { available, savedAt, copied, error, projectId } = useProjects();
+  if (available === false) return <span className="status-save status-warn">Not saved in this browser</span>;
+  if (error)
+    return (
+      <span className="status-save status-warn" role="alert">
+        {error}
+      </span>
+    );
+  if (copied)
+    return (
+      <span className="status-save status-warn" role="alert">
+        Another tab changed this project, so this work was saved as a copy.
+      </span>
+    );
+  if (!projectId || !savedAt) return null;
+  return <span className="status-save">{`Saved ${when(savedAt)}`}</span>;
+}
+
 /** Undo and Redo, for those who do not know the shortcuts. */
 function HistoryControls() {
   const canUndo = useEditor((s) => s.past.length > 0);
@@ -1803,6 +1919,7 @@ function StatusBar() {
           {message}
         </span>
       </div>
+      <SaveStatus />
       {clocked && (
         <span className="status-cycle">
           Cycle {Math.floor((time + 1) / 2)}, clock {time % 2 === 1 ? "high" : "low"}
