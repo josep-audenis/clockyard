@@ -161,7 +161,7 @@ for (const theme of ["dark", "light"]) {
   await loop.drag([10, 4], [6, 5]);
   await loop.click(30, 30);
   await loop.page.getByRole("status").filter({ hasText: "Unstable" }).waitFor();
-  await loop.shot("unstable-circuit", { x: 256, y: 72, width: 240, height: 150 });
+  await loop.shot("unstable-circuit", { x: 240, y: 66, width: 370, height: 160 }); // at the page's canvas scale beside its status line
   const bar = await loop.page.getByRole("status").boundingBox();
   await loop.shot("unstable-status", { x: 0, y: bar.y - 4, width: 490, height: bar.height + 8 }); // the message, not the whole bar
   await loop.context.close();
@@ -230,7 +230,7 @@ for (const theme of ["dark", "light"]) {
   // Buttons pressed with a click event alone: a pointer press outside the canvas takes the keys back.
   const press = (name) => page.getByRole("button", { name, exact: true }).dispatchEvent("click");
   const high = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--signal-high").trim());
-  const clip = { x: 436, y: 56, width: 564, height: 238 }; // the digits, the keyboard and the screen
+  const clip = { x: 436, y: 56, width: 564, height: 240 }; // the digits, the keyboard and the screen
   const screenArea = { x: 680, y: 92, width: 305, height: 145 }; // the screen part, for reading its pixels
   await click(14, 10); // the keyboard at (12,9) takes the keys
   let grid = null;

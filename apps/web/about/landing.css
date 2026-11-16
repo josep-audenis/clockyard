@@ -179,6 +179,11 @@ video.loop { display: block; width: 100%; height: auto; }
 .loop-poster img { width: 100%; height: 100%; object-fit: cover; }
 .loop-frame.is-playing .loop-poster { display: none; }
 /* Figures with a control: the caption on the left, the control on the right. */
+.hero-fig .bare video, .hero-fig .bare picture {
+  mask-image:
+    linear-gradient(to right, transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent),
+    linear-gradient(to bottom, transparent, #000 var(--fade), #000 calc(100% - 6px), transparent);
+}
 .hero-fig figcaption, .live figcaption { display: flex; gap: 24px; justify-content: space-between; align-items: start; max-width: none; }
 .hero-fig .cap, .live .cap { max-width: 78ch; }
 .loop-toggle { flex: none; height: 28px; padding: 0 12px; font-size: 13px; }
@@ -247,6 +252,7 @@ video.loop { display: block; width: 100%; height: auto; }
 .specs dd { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-muted); }
 .spec-value { margin-right: 8px; font: 500 17px/1.3 var(--font-mono); color: var(--ink); }
 .specs code { padding: 0; font-size: 0.93em; color: var(--ink); background: none; border: 0; }
+.specs > .wide { grid-column: 1 / -1; }
 .specs dd.isa { font: 500 15px/1.7 var(--font-mono); color: var(--ink); word-spacing: 0.5em; }
 .specs dd.isa code { font-size: inherit; }
 .shot-map { margin-top: 48px; }
@@ -330,7 +336,7 @@ video.loop { display: block; width: 100%; height: auto; }
 @media (prefers-reduced-motion: reduce) { .map picture { transition: none; } }
 
 /* Programs: the inspector beside the text, both from the top */
-.program-head { margin-top: 72px; font-size: clamp(22px, 2.2vw, 26px); line-height: 1.2; }
+.program-head { margin-top: 72px; font: 500 13px/16px var(--font-mono); letter-spacing: 0; color: var(--ink-muted); }
 .program-row { display: grid; grid-template-columns: 280px 1fr; gap: 56px; margin-top: 20px; align-items: start; }
 .program-text { display: grid; gap: 16px; max-width: 66ch; color: var(--ink-muted); font-size: 16px; }
 .program-text > p:first-child { font-size: 17px; line-height: 1.6; color: var(--ink); }
@@ -368,7 +374,7 @@ video.loop { display: block; width: 100%; height: auto; }
 .checks > * { min-width: 0; }
 .check { display: grid; grid-template-columns: subgrid; grid-template-rows: subgrid; row-gap: 12px; }
 .check-passed { grid-column: 1 / -1; grid-row: 1 / 5; }
-.check-passed .bare { grid-column: 1; grid-row: 1 / 5; align-self: center; }
+.check-passed .bare { grid-column: 1; grid-row: 1 / 5; align-self: start; }
 .check-passed .panel-shot { grid-column: 2; grid-row: 1; }
 .check-passed figcaption { grid-column: 2; grid-row: 2; margin-bottom: 28px; }
 .check-failed { grid-column: 2; grid-row: 3 / 5; }
@@ -419,8 +425,8 @@ video.loop { display: block; width: 100%; height: auto; }
 .engine-notes > * { min-width: 0; }
 .principles { display: grid; gap: 22px; font-size: 15px; line-height: 1.6; color: var(--ink-muted); }
 .principles strong { display: block; margin-bottom: 4px; font: 600 18px/1.3 var(--font-display); }
-.shot-unstable .bare img { max-width: min(100%, 320px); }
-.status-shot { margin-top: 12px; max-width: 490px; }
+.shot-unstable { max-width: 490px; }
+.status-shot { margin-top: 12px; }
 
 /* Privacy and status */
 .facts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
@@ -477,6 +483,7 @@ video.loop { display: block; width: 100%; height: auto; }
   :root { --section: 72px; }
   .split, .time-grid, .program-row, .closing-grid, .facts-grid, .engine-notes { grid-template-columns: 1fr; gap: 32px; }
   .split .layer-text { position: static; }
+  .facts-grid { gap: 64px; }
   .specs { grid-template-columns: repeat(2, 1fr); }
   .wave-scroll img { min-width: 520px; }
   .arch-board { grid-template-columns: 1fr; grid-template-areas: "main" "doc" "editor" "wire1" "wire2" "worker" "wasm"; }
@@ -485,7 +492,6 @@ video.loop { display: block; width: 100%; height: auto; }
   .to-worker::before { content: "↓ "; }
   .to-page::before { content: "↑ "; }
   .shot-program { max-width: 300px; }
-  .shot-unstable { max-width: 420px; }
 }
 @media (max-width: 760px) {
   .site-nav { display: none; }
@@ -523,4 +529,9 @@ video.loop { display: block; width: 100%; height: auto; }
   .header-row .button { height: 32px; padding: 0 10px; font-size: 13px; }
   .code { font-size: 12px; }
   .bare picture, .bare video { --fade: 14px; }
+  /* The recording cropped to the screen, the part the game is on; its control under the caption. */
+  .loop-frame { aspect-ratio: 4 / 3; }
+  video.loop, .loop-poster img { height: 100%; object-fit: cover; object-position: 100% 50%; }
+  .hero-fig figcaption, .live figcaption { display: block; }
+  .loop-toggle, .live-start { margin-top: 12px; }
 }

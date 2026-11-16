@@ -106,7 +106,7 @@
         "definition": "reg8",
         "position": {
           "x": 36,
-          "y": 12
+          "y": 14
         },
         "rotation": 0,
         "props": {
@@ -119,7 +119,7 @@
         "definition": "reg8",
         "position": {
           "x": 36,
-          "y": 20
+          "y": 22
         },
         "rotation": 0,
         "props": {

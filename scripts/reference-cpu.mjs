@@ -164,8 +164,8 @@ const components = [
   // Fetch: ROM[PC] into IR, PC + 1 into PC.
   part("rom", "rom", 22, 14, { label: "Program", width: 16, data: [0x20ff, 0x9000, 0x30fc, 0x30fe, 0x10ff, 0x30fd, 0x8000], source: program }),
   part("romsplit", "split", 30, 14, { fields: [8, 8] }),
-  chip("irl", "reg8", 36, 12, { label: "IR low" }),
-  chip("irh", "reg8", 36, 20, { label: "IR high" }),
+  chip("irl", "reg8", 36, 14, { label: "IR low" }),
+  chip("irh", "reg8", 36, 22, { label: "IR high" }),
   part("irmerge", "merge", 44, 16, { fields: [8, 8] }),
   part("irled", "led", 50, 16, { label: "IR", width: 16 }),
   part("opsplit", "split", 44, 24, { fields: [4, 4] }),
