@@ -507,8 +507,18 @@ targets, as in Phase 5.
       remembered, with *Clear progress*. Playwright: the 4-bit adder's full
       adder saved, replaced after asking, and added to a new project; the
       inverter passed stays ticked after a reload.
-2. ⬜ Benchmarks: generated circuits of thousands to tens of thousands of
-   parts, measured natively and in the browser; optimize what they show.
+2. ⬜ Benchmarks (ADR 0030, accepted): generated circuits of about 1,000,
+   10,000 and 50,000 parts (gate chain, fan-out, wide adder, counters, CPU
+   parts), measured natively and in the browser, with results and targets
+   in `docs/performance.md`; optimize what they show unmet.
+   1. ✅ Generator, native harness, first results: the 1,000-part
+      circuits committed and checked in `verify`, every size generated on
+      demand; `pnpm bench:native`; `docs/performance.md`. Loads grow about
+      linearly (about 110 ms for 10,000 gates); a 50,000-gate ripple
+      settles in about 10 ms; two limits found (elaboration's 200,000
+      items, Import's 10 MB).
+   2. ⬜ Browser measurements (`pnpm bench`), first results against targets.
+   3. ⬜ Optimizations, one per pull request, as the numbers require.
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
@@ -535,7 +545,7 @@ watched wires recorded by the engine (ADR 0026), and increment 7, examples
 in the editor with notes and components added from other files (ADR 0027),
 are built too, which completes the plan of ADR 0020. Phase 6 is planned in
 ADR 0028 (accepted); its first increment, local persistence (ADR 0029), is
-built. Next is increment 2, benchmarks, which has no ADR yet.
+built. Increment 2, benchmarks (ADR 0030), has its native step built.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
