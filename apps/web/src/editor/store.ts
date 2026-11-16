@@ -38,6 +38,7 @@ import {
   type Props,
   type Wire,
 } from "./document";
+import { addDefinitions, type Added } from "./blueprints";
 
 type Point = { x: number; y: number };
 
@@ -151,6 +152,11 @@ export type EditorState = {
    * none given, such a selection is refused. Returns why it cannot, or null.
    */
   makeComponent: (name: string, engine?: EngineView) => string | null;
+  /**
+   * Adds the definitions `picked` from another document's `source`, and those they contain (ADR 0027,
+   * `addDefinitions`). Outside undo history, like every definition change (ADR 0012).
+   */
+  addComponents: (source: Definition[], picked: string[]) => Added;
   /** Renames a definition (`normalizeName`). Outside undo history, like every definition change (ADR 0012). */
   renameDefinition: (id: string, name: string) => void;
   /**
@@ -556,6 +562,12 @@ export const useEditor = create<EditorState>()((set, get) => ({
     return null;
   },
 
+  addComponents: (source, picked) => {
+    const result = addDefinitions(liveDefinitions(get()), source, picked);
+    // The open sheet's definition stays as it is in `definitions`; added ones never replace one.
+    if (result.added.length > 0) set(({ definitions }) => ({ definitions: [...definitions, ...result.added] }));
+    return result;
+  },
   renameDefinition: (id, name) =>
     set((s) => {
       const text = normalizeName(name);

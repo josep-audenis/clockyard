@@ -392,6 +392,7 @@ function PartsLibrary() {
             {error}
           </p>
         )}
+        <AddComponents />
       </section>
       <ChallengeList />
       <ExampleList />
@@ -728,6 +729,157 @@ function ChallengeList() {
         ))}
       </ol>
     </section>
+  );
+}
+
+/** "A, B and C". */
+const list = (items: string[]) => new Intl.ListFormat("en").format(items);
+
+/**
+ * Components from another document (ADR 0027): a project file or a bundled example is read, never opened, and the
+ * components ticked come into this document with those they contain. The rules for IDs and names are `addDefinitions`.
+ */
+function AddComponents() {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const id = useId();
+  const [source, setSource] = useState<{ title: string; definitions: Definition[] } | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
+  // Only the latest choice of source is shown, whichever finishes loading first.
+  const latest = useRef(0);
+
+  const choose = async (title: string, read: () => Promise<CircuitDocument>) => {
+    const me = ++latest.current;
+    setMessage(null);
+    try {
+      const document = await read();
+      if (me !== latest.current) return;
+      setSource({ title, definitions: document.definitions });
+      setPicked([]);
+      if (document.definitions.length === 0) setMessage({ text: `${title} has no components.`, error: false });
+    } catch (error) {
+      if (me !== latest.current) return;
+      setSource(null);
+      setMessage({ text: error instanceof Error ? error.message : String(error), error: true });
+    }
+  };
+  const readFile = async (file: File) => {
+    if (file.size > MAX_DOCUMENT_BYTES) throw new Error(`Could not read ${file.name}: it is too large to be a Clockyard circuit.`);
+    const result = parseDocument(await file.text());
+    if (!result.ok) throw new Error(`Could not read ${file.name}: ${result.error}`);
+    return result.document;
+  };
+  const add = () => {
+    if (!source) return;
+    const { added, reused } = useEditor.getState().addComponents(source.definitions, picked);
+    const text = [
+      added.length > 0 && `Added ${list(added.map((d) => d.name))}.`,
+      reused.length > 0 && `${list(reused.map((d) => d.name))} ${reused.length === 1 ? "was" : "were"} already here.`,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    setMessage({ text, error: false });
+    setPicked([]);
+  };
+  // What each component contains, by name, so the list says what comes along.
+  const contents = (definition: Definition) => {
+    const names = new Set<string>();
+    for (const c of definition.circuit.components) {
+      const inner = c.kind === "custom" ? source?.definitions.find((d) => d.id === c.definition) : undefined;
+      if (inner) names.add(inner.name);
+    }
+    return [...names];
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        className="button type-label add-components"
+        onClick={() => {
+          setMessage(null);
+          dialog.current?.showModal();
+        }}
+      >
+        Add components…
+      </button>
+      {/* Keys typed here are the dialog's, not part shortcuts. */}
+      <dialog ref={dialog} className="dialog" aria-labelledby={`${id}-title`} onKeyDown={(e) => e.stopPropagation()}>
+        <h2 id={`${id}-title`} className="type-title dialog-title">
+          Add components
+        </h2>
+        <p className="type-body dialog-text">
+          Copy components from another circuit into this one. Pick a bundled example or a project file; it is read, not opened.
+        </p>
+        <div className="dialog-row">
+          <label className="field-label" htmlFor={`${id}-example`}>
+            From an example
+          </label>
+          <select
+            id={`${id}-example`}
+            className="input"
+            value=""
+            onChange={(e) => {
+              const entry = EXAMPLES.find((x) => x.name === e.target.value);
+              if (entry) void choose(entry.title, () => exampleDocument(entry.name));
+            }}
+          >
+            <option value="">Choose…</option>
+            {EXAMPLES.map(({ name, title }) => (
+              <option key={name} value={name}>
+                {title}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="button type-label" onClick={() => picker.current?.click()}>
+            From a file…
+          </button>
+          <input
+            ref={picker}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            data-testid="components-file"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void choose(file.name, () => readFile(file));
+            }}
+          />
+        </div>
+        {source && source.definitions.length > 0 && (
+          <fieldset className="dialog-choices">
+            <legend className="type-label">{`Components in ${source.title}`}</legend>
+            {source.definitions.map((d) => {
+              const inner = contents(d);
+              return (
+                <label key={d.id} className="dialog-choice type-body">
+                  <input
+                    type="checkbox"
+                    checked={picked.includes(d.id)}
+                    onChange={(e) => setPicked((p) => (e.target.checked ? [...p, d.id] : p.filter((x) => x !== d.id)))}
+                  />
+                  {d.name}
+                  {inner.length > 0 && <span className="type-caption dialog-hint">{` with ${list(inner)}`}</span>}
+                </label>
+              );
+            })}
+          </fieldset>
+        )}
+        <p className={`type-body dialog-text${message?.error ? " field-error" : ""}`} aria-live="polite">
+          {message?.text}
+        </p>
+        <div className="dialog-actions">
+          <button type="button" className="button type-label" disabled={picked.length === 0} onClick={add}>
+            Add
+          </button>
+          <button type="button" className="button type-label" onClick={() => dialog.current?.close()}>
+            Close
+          </button>
+        </div>
+      </dialog>
+    </>
   );
 }
 

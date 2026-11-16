@@ -1264,3 +1264,61 @@ test("examples open from the list with their notes; notes edited here travel in 
   await other.goto(await page.evaluate(() => navigator.clipboard.readText()));
   await expect(other.getByRole("textbox", { name: "Notes" })).toHaveValue("Mine now.\n\nSecond paragraph.");
 });
+
+test("components come from an example: its 8-bit adder, with the full adder inside, adds in a new circuit (ADR 0027)", async ({ page }) => {
+  await page.goto("/");
+  const parts = page.getByRole("complementary", { name: "Parts" });
+  await parts.getByRole("button", { name: "Add components…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add components" });
+  await dialog.getByLabel("From an example").selectOption({ label: "8-bit counter" });
+  const choices = dialog.getByRole("group", { name: "Components in 8-bit counter" });
+  await expect(choices.getByRole("checkbox")).toHaveCount(2);
+  await choices.getByRole("checkbox", { name: "8-bit adder with Full adder" }).check();
+  await dialog.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(dialog).toContainText("Added Full adder and 8-bit adder.");
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).toBeHidden();
+
+  // Placed, then opened on its own sheet, which simulates it: A at (0,0) and B at (0,12) as in the 8-bit adder example.
+  const at = await grid(page);
+  // A chip, not the example of the same name in the Examples list.
+  await parts.locator(".chip-list").getByRole("button", { name: "8-bit adder", exact: true }).click();
+  await click(page, at(10, 4));
+  await page.getByRole("complementary", { name: "Inspector" }).getByRole("button", { name: "Edit component" }).click();
+  const value = page.getByLabel("Value");
+  await click(page, at(2.5, 1));
+  await value.fill("200");
+  await value.press("Enter");
+  await click(page, at(2.5, 13));
+  await value.fill("100");
+  await value.press("Enter");
+  await expect(readout(page, "LED Sum")).toHaveText("LED Sum: 44 (0x2C)");
+  await expect(readout(page, "LED Cout")).toHaveText("LED Cout: on");
+});
+
+test("components whose IDs are taken by others arrive under new IDs and numbered names, and adding again adds nothing (ADR 0027)", async ({ page }) => {
+  await page.goto("/");
+  // Challenge 5's starter has its own 8-bit adder (pins only) and full adder, under the example's IDs.
+  await challenges(page).getByRole("button", { name: "5. 8-bit adder" }).click();
+  const parts = page.getByRole("complementary", { name: "Parts" });
+  const dialog = page.getByRole("dialog", { name: "Add components" });
+  const addAdder = async () => {
+    await parts.getByRole("button", { name: "Add components…" }).click();
+    await dialog.getByLabel("From an example").selectOption({ label: "8-bit counter" });
+    await dialog.getByRole("checkbox", { name: "8-bit adder with Full adder" }).check();
+    await dialog.getByRole("button", { name: "Add", exact: true }).click();
+  };
+  await addAdder();
+  await expect(dialog).toContainText("Added Full adder 2 and 8-bit adder 2.");
+  await dialog.getByRole("button", { name: "Close" }).click();
+  const chips = parts.locator(".chip-list .part-tile");
+  // The open sheet is the starter's 8-bit adder, which is not offered as a chip on itself.
+  await expect(chips).toHaveText(["Full adder", "Full adder 2", "8-bit adder 2"]);
+  await addAdder();
+  await expect(dialog).toContainText("Full adder 2 and 8-bit adder 2 were already here.");
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(chips).toHaveCount(3);
+  // The challenge still checks its own 8-bit adder, which is unchanged: its starter still fails.
+  await challenge(page).getByRole("button", { name: "Check" }).click();
+  await expect(checked(page)).toHaveText(/^Step \d+ of 32 failed\./);
+});
