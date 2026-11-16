@@ -141,7 +141,7 @@ strong { font-weight: 600; color: var(--ink); }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
 .hero-act .actions { margin-top: 0; }
 .hero-note { margin-top: 12px; font-size: 14px; color: var(--ink-muted); max-width: 36ch; }
-.shot.hero-fig { margin-top: 36px; }
+.shot.hero-fig { margin-top: 0; }
 @media (max-width: 760px) {
   .hero-row { grid-template-columns: 1fr; }
   .hero-act { text-align: left; }
@@ -207,7 +207,8 @@ video.loop { display: block; width: 100%; height: auto; }
   border: 2px solid var(--line-strong);
   border-radius: var(--radius-full);
 }
-.try h2, .chapter-head h2, .engine h2, .facts h2, .closing h2 { font-size: clamp(36px, 5vw, 68px); line-height: 0.98; letter-spacing: -0.015em; }
+.try h2, .engine h2, .facts h2 { font-size: clamp(30px, 3.4vw, 44px); line-height: 1.04; }
+.chapter-head h2, .closing h2 { font-size: clamp(36px, 5vw, 68px); line-height: 0.98; letter-spacing: -0.015em; }
 .section-lede { margin-top: 14px; max-width: 64ch; font-size: 18px; line-height: 1.55; color: var(--ink); }
 .note { margin-top: 18px; color: var(--ink-muted); font-size: 14px; }
 .note code { padding: 0; color: var(--ink); background: none; border: 0; }
@@ -555,21 +556,21 @@ main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw
 .trace {
   --port: min(calc(50vw + var(--wrap) / 2), calc(100vw - var(--gutter)));
   position: relative;
-  height: 44px;
-  margin: 32px calc(50% - 50vw) 0;
+  height: 30px;
+  margin: 36px calc(50% - 50vw) 0;
 }
 .trace::before { content: ""; position: absolute; left: 0; bottom: 0; width: var(--port); height: 2px; background: var(--signal-low); }
 .trace-name { position: absolute; left: max(var(--gutter), calc((100vw - var(--wrap)) / 2)); bottom: 10px; font: 500 12px/1 var(--font-mono); color: var(--ink-muted); }
 .trace-port { position: absolute; left: calc(var(--port) - 1px); bottom: -4px; width: 10px; height: 10px; border: 2px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bench); transition: background-color 120ms, border-color 120ms; }
-.trace-pulse { position: absolute; bottom: 0; left: 0; width: 132px; height: 36px; border: 3px solid var(--signal-high); border-bottom: 0; opacity: 0; }
+.trace-pulse { position: absolute; bottom: -1px; left: 0; width: 160px; height: 4px; background: var(--signal-high); opacity: 0; }
 @media (prefers-reduced-motion: no-preference) {
   .trace.is-arrived .trace-port { animation: port-hit 700ms ease-out; }
   @keyframes port-hit { 0%, 45% { background: var(--signal-high); border-color: var(--signal-high); } }
   .trace-pulse { animation: pulse-travel 1100ms cubic-bezier(0.5, 0, 0.3, 1) 400ms both; }
   @keyframes pulse-travel {
-    0% { opacity: 1; transform: translateX(-132px); }
+    0% { opacity: 1; transform: translateX(-160px); }
     92% { opacity: 1; }
-    100% { opacity: 0; transform: translateX(calc(var(--port) - 132px)); }
+    100% { opacity: 0; transform: translateX(calc(var(--port) - 160px)); }
   }
 }
 
@@ -577,8 +578,7 @@ main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw
 .spine { position: absolute; left: calc(var(--spine-x) - 1px); width: 2px; background: var(--signal-low); pointer-events: none; }
 /* Its start under the clock line: an input port, as the canvas draws one; the spine is its own net. */
 .spine::before { content: ""; position: absolute; top: 8px; left: -4px; width: 10px; height: 10px; border: 2px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bench); z-index: 1; }
-.spine-lit { position: absolute; left: -0.5px; width: 3px; top: 0; height: var(--lit, 0px); background: var(--signal-high); }
-@media (prefers-reduced-motion: no-preference) { .spine-lit { transition: height 320ms cubic-bezier(0.3, 0, 0.2, 1); } }
+.spine-lit { position: absolute; left: -0.5px; width: 3px; top: var(--lit-top, 0px); height: var(--lit, 0px); background: var(--signal-high); }
 .try, .chapter, .engine, .facts, .closing { --port-x: var(--spine-x); }
 .try::before, .chapter::before, .engine::before, .facts::before, .closing::before { z-index: 1; transition: background-color 160ms, border-color 160ms; }
 .is-reached::before { background: var(--signal-high) !important; border-color: var(--signal-high) !important; }
@@ -596,9 +596,6 @@ main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw
   pointer-events: none;
 }
 .is-reached::after { transform: scaleX(1); }
-@media (prefers-reduced-motion: no-preference) {
-  .try::after, .chapter::after, .engine::after, .facts::after, .closing::after { transition: transform 450ms cubic-bezier(0.3, 0, 0.2, 1); }
-}
 
 /* Section numbers on seven-segment digits, lit when the signal reaches the section. */
 .seg { display: block; height: 30px; width: auto; margin-bottom: 14px; overflow: visible; }
@@ -643,20 +640,35 @@ main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw
 .rom-words b { font: 400 11px/1 var(--font-mono); white-space: nowrap; color: var(--ink-muted); }
 .rom-words .pc { color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
 .rom-words .pc b { color: var(--ink); }
+.rom-words .exec { color: var(--bench); background: var(--ink); }
+.rom-words .exec i, .rom-words .exec b { color: var(--bench); }
 /* Stepping: a tall track the stage sticks in; the frames replace the still; the map fits the screen. */
-.cpu-run.is-scrub .cpu-track { height: 260vh; }
+.cpu-run.is-scrub .cpu-track { height: 200vh; }
 .cpu-run.is-scrub .cpu-stage { position: sticky; top: 80px; }
 .cpu-run.is-scrub .cpu-steps { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
 .cpu-run.is-scrub .map { width: min(100%, calc((100vh - 250px) * 3072 / 1752)); margin-inline: auto; }
-.cpu-run.is-scrub .map picture { visibility: hidden; }
-/* Still: the capture mid-game, and the whole ROM. */
+.cpu-run.is-scrub .map picture { opacity: 0; }
+.cpu-loupes { display: none; }
+.cpu-run.is-scrub .cpu-stage { display: grid; grid-template-columns: minmax(0, 1fr) 280px; column-gap: 24px; align-items: start; margin-inline: calc(50% - 50vw); padding-inline: max(calc(var(--spine-x) + 28px), calc((100vw - 1760px) / 2)); }
+.cpu-run.is-scrub .map-scroll { margin-inline: 0; padding-inline: 0; }
+.cpu-run.is-scrub .cpu-stage > :not(.map-scroll, .cpu-loupes) { grid-column: 1 / -1; }
+.cpu-run.is-scrub .cpu-loupes { display: grid; gap: 14px; padding-top: 24px; }
+.loupe { position: relative; overflow: hidden; aspect-ratio: calc(var(--w) * 3072) / calc(var(--h) * 1752); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bench); }
+.loupe video { position: absolute; width: calc(100% * 100 / var(--w)); max-width: none; left: calc(-100% * var(--l) / var(--w)); top: calc(-100% * var(--t) / var(--h)); }
+.loupe span { position: absolute; left: 6px; bottom: 6px; padding: 2px 6px; font: 500 11px/1.3 var(--font-mono); color: var(--ink-muted); background: var(--bench); border-radius: var(--radius-sm); }
+.cpu-run.is-scrub .blocks { opacity: 0.4; transition: opacity 120ms; }
+.cpu-run.is-scrub:has(.key li:hover, .blocks li:hover) .blocks { opacity: 1; }
+/* Still: the capture mid-game, and the whole ROM as a strip to scroll by hand. */
 [data-static] .cpu-readout, [data-static] .rom-head, .cpu-run:not(.is-scrub) .scrub-note { display: none; }
-[data-static] .rom-strip { mask-image: none; }
-[data-static] .rom-words { flex-wrap: wrap; width: auto; transform: none; }
+[data-static] .rom-strip { mask-image: none; overflow-x: auto; }
+[data-static] .rom-words { transform: none; }
 
 /* The closing: the first pulse in three captures. */
 .first-pulse { grid-column: 1 / -1; }
 .first-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.first-steps.is-pending > * { opacity: 0.25; transition: opacity 200ms ease-out; }
+.first-steps.is-pending > .is-on { opacity: 1; }
+@media print { .first-steps.is-pending > * { opacity: 1; } }
 @media (max-width: 760px) { .first-steps { grid-template-columns: 1fr; } }
 
 /* The ladder lights the rungs passed in this browser. */

@@ -82,24 +82,29 @@ output, the design system as the source of truth.
 7. **The page is drawn in the editor's own signals.** A clock line under
    the headline ends in the recording's input port; on load one pulse runs
    along it, and the recording starts when it arrives. A wire down the
-   margin (the spine) joins every section's port, and scrolling drives a 1
-   down it: a section it reaches has its port and its wire high and its
-   number, on seven-segment digits, lit. Figs. 3 and 7 open on a capture
+   margin (the spine) joins every section's port, and scrolling moves a 1
+   down it like a shift register: only the segment between the last port
+   passed and the next is high, and only that section's port, rule and
+   number (on seven-segment digits) are lit. Figs. 3 and 7 open on a capture
    with every switch off and settle into the documented one when in view.
    Fig. 5 is the whole CPU stepping from Reset: on wide screens, with
    motion allowed, scrolling through it steps 64 frames, one per clock
    cycle, captured from the running editor by the script (a keyframe every
    16 frames keeps the video under 1 MB and any frame quick to seek to). Under it, Catch's
    ROM is a tape under a read head, each word with its address and its
-   line of assembly; the word under the head is the one the program
-   counter points at in that frame, recorded with it. Otherwise the
+   line of assembly. Each frame records the cycle, whether the CPU is
+   fetching or executing (the Fetch LED) and the program counter: the
+   word being fetched is outlined, the one executing (fetched the cycle
+   before) filled. Two enlarged views, cut from the same recording, show
+   the screen and the score digits. Otherwise the
    mid-game capture and the whole ROM stand still. The challenge ladder marks the
    challenges passed in this browser, read from the editor's IndexedDB
    store (ADR 0029) read-only, in the editor's own passed colour. Amber
    still means a 1, and nothing glows. With reduced motion there is no
    pulse, no settle and no stepping: the ROM is shown whole and still.
-   The closing shows the literal first pulse in three captures: two
-   switches, an AND gate and an LED placed by their keys, wired, and lit.
+   The closing shows the literal first pulse in three captures, which
+   come on in turn in view: two switches, an AND gate and an LED placed
+   by their keys, wired, and lit.
 
 ## Consequences
 

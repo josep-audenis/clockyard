@@ -343,7 +343,7 @@ wires, none bundled or tested; accepted). Built in six steps:
    through RAM is assembled in the editor; one instruction step is two cycles;
    run until Halted, the output shows 15. ADR 0019 accepted.
 
-## Phase 5 — Computer-building sandbox
+## Phase 5 — Computer-building sandbox ✅
 
 Goal: a complete product.
 

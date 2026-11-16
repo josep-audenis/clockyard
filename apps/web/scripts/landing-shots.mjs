@@ -189,7 +189,8 @@ for (const theme of ["dark", "light"]) {
       await wide.page.mouse.move(1, 1);
       const now = await counter.textContent();
       const pc = Number((await wide.readout("LED PC").textContent()).match(/\((0x[0-9A-F]+)\)/i)[1]);
-      frames.push({ now, pc, jpeg: await wide.page.screenshot({ clip: box, type: "jpeg", quality: 90 }) });
+      const fetch = (await wide.readout("LED Fetch").textContent()).endsWith("on");
+      frames.push({ now, pc, fetch, jpeg: await wide.page.screenshot({ clip: box, type: "jpeg", quality: 90 }) });
       await wide.button("Step").click();
       for (let wait = 0; wait < 200 && (await counter.textContent()) === now; wait++) await wide.page.waitForTimeout(5);
       await wide.page.waitForTimeout(60);
@@ -202,7 +203,7 @@ for (const theme of ["dark", "light"]) {
     writeFileSync(`${out}.jpg`, frames[0].jpeg);
     rmSync(dir, { recursive: true });
     if (frames[0].pc !== 0 || !frames[0].now.startsWith("Cycle 0")) throw new Error(`frames start at ${frames[0].now}, PC ${frames[0].pc}`);
-    if (theme === "dark") steps.push(...frames.map(({ now, pc }) => `${pc}|${now}`));
+    if (theme === "dark") steps.push(...frames.map(({ now, pc, fetch }) => `${pc}|${now.match(/\d+/)[0]}|${fetch ? "fetch" : "execute"}`));
     console.log("wrote", `${out}.webm`, frames.length, "frames");
     await wide.open(example("catch"));
   }
@@ -233,7 +234,7 @@ for (const theme of ["dark", "light"]) {
   await click(30, 30);
   const area = async () => {
     const box = await page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
-    return { x: box.x + 16, y: box.y + 16, width: 18 * 16, height: 9 * 16 };
+    return { x: box.x + 16, y: box.y + 16, width: 20 * 16, height: 9 * 16 };
   };
   await shot("first-placed", await area());
   await drag([2, 1], [6, 3]);
