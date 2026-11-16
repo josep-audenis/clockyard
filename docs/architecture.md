@@ -143,6 +143,18 @@ Rules:
   the challenges and starters (`storage/challenges.ts`); starting one loads
   its starter with `metadata.challenge` set (format 10), and the panel's
   Check sends the whole document to the worker's `check`.
+- Notes (`metadata.notes`, format 11, ADR 0027) are plain text: line endings
+  become `\n`, control and bidi characters other than line breaks and tabs
+  are dropped, blank space around is trimmed, and more than 4,000 characters
+  is refused. The examples are bundled lazily (`storage/examples.ts`).
+- Import refuses a component that contains itself, directly or through
+  others (ADR 0027).
+- Components from another document (`editor/blueprints.ts`, ADR 0027): the
+  picked definitions and those they contain are copied in, contained ones
+  first. One already here with the same contents (keys in any order) under
+  the same ID, or one numbered from it, is reused; any other keeps its ID if free,
+  else takes `id-2`, `id-3`, …, and the copies that contain it are rewired
+  to it. A name already used gets ` 2`, ` 3`, …, cut to fit 32 characters.
 - `props.width` (ADR 0014) is a whole number from 1 to 32, allowed only on
   switches, LEDs and gates; it sets every port's width. 1 is the default and
   is not stored, so 1-bit circuits read as before. `props.fields` is required

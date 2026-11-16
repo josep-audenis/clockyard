@@ -19,10 +19,12 @@ then the reference CPU of ADR 0019, built from Clockyard parts and checked
 against its specification after every cycle, its assembler, *Run until* an
 LED for instruction steps (and breakpoints the user wires), and the program
 editor (PRs #42 and #47–#51). The demo, a program that sums 1 to 5 through RAM and shows 15
-on the output, runs in Playwright. Phase 5 (the computer-building sandbox) is
-in progress: devices (ADR 0021), memory-mapped I/O on the reference CPU
-(ADR 0022), the game demo, Catch (ADR 0023), and sharing a circuit by link
-(ADR 0024) are done.
+on the output, runs in Playwright. Phase 5 (the computer-building sandbox)
+has the seven increments of its plan (ADR 0020) built: devices
+(ADR 0021), memory-mapped I/O on the reference CPU (ADR 0022), the game demo,
+Catch (ADR 0023), sharing a circuit by link (ADR 0024), challenges 1 to 9
+(ADR 0025), waveforms (ADR 0026), and examples with notes and components
+from other files (ADR 0027).
 
 **Phase 3 — ✅ done.** Clocks, flip-flops and virtual time (ADR 0017): the
 engine and parts (PR #40), then run/pause/step/reset, the cycle counter and
@@ -467,7 +469,7 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       record starts at the load's tick 0. Playwright: the 8-bit counter,
       stepped three times, shows bands `01` to `03` and reads `0x00` to
       `0x03` at the cursor.
-7. ⬜ Library and teaching (ADR 0027, accepted): examples listed in the
+7. ✅ Library and teaching (ADR 0027, accepted): examples listed in the
    editor with notes, and components added from another file or example.
    1. ✅ Notes: `metadata.notes` (format 11), plain text of at most 4,000
       characters, in a Notes panel under the inspector; notes in every
@@ -475,9 +477,13 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       challenges, each file loaded when opened. Playwright: the 4-bit adder
       opens from the list with its notes, another example asks before it
       replaces it, and notes edited here travel in a link.
-   2. ⬜ Add components from a file or an example: same ID and contents
-      reused, otherwise a fresh ID; names numbered. Playwright: an 8-bit
-      adder from the counter example adds in a new circuit.
+   2. ✅ Add components from a file or an example: a dialog under Chips;
+      identical contents under the same or a numbered ID reused, otherwise
+      the ID is kept if free or numbered, and containers are rewired; names
+      numbered. Import now refuses components that contain themselves.
+      Playwright: the counter example's 8-bit adder adds in a new circuit,
+      and in challenge 5's starter it arrives as "8-bit adder 2" with
+      "Full adder 2", a second add adding nothing.
 
 ## Out of scope (for now)
 
@@ -493,8 +499,11 @@ reference CPU (ADR 0022), the game demo, Catch (ADR 0023), and sharing
 through a URL fragment (ADR 0024), are built with their demos, and so is
 increment 5, challenges 1 to 9 checked by behavioural tests (ADR 0025);
 challenges 10 to 12 wait for their own ADR. Increment 6, waveforms of
-watched wires recorded by the engine (ADR 0026), is built too. Next is
-increment 7, library and teaching, which has no ADR yet.
+watched wires recorded by the engine (ADR 0026), and increment 7, examples
+in the editor with notes and components added from other files (ADR 0027),
+are built too, which completes the plan of ADR 0020. What comes next needs
+a new plan: candidates are autosave and a library kept in the browser,
+challenges 10 to 12, and a richer CPU.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).

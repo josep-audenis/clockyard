@@ -98,11 +98,37 @@ What exists today:
      component added by mistake is deleted from Chips.
    - It is a document operation only: the engine sees the new definitions
      at the next load, as it does any definition.
+   - *As built (step 2):* a definition already here with identical
+     contents is reused under the same ID, or under one an earlier add
+     numbered from it (`full-adder-2`), so adding the same components twice
+     adds nothing. Contents alone never match: two empty or pins-only
+     components are different work in progress. The parser now refuses a
+     document whose components contain themselves, directly or through
+     others, for Import and links too; such a file could never be built,
+     and its copies would point at this document's own components. While
+     the dialog is open, the editor's keyboard shortcuts are off. A fresh ID is the old one with
+     `-2`, `-3`, … rather than a random one. The dialog is a modal
+     `<dialog>` under Chips: an example picked from a list, or a file read
+     with Import's size limit and parser, then a checkbox per component,
+     each saying which components it contains. It reports what was added
+     and what was already here. The rules are in
+     `apps/web/src/editor/blueprints.ts`.
 4. **The library is files, for now.** A user's own collection of
    components is a document that holds them, exported as a file. *Add
    components* is how it is used. A library kept in the browser waits for
    local storage, which arrives with autosave and its own ADR.
 5. **Target.**
+
+   *As built:* the bundled examples' full adders and 8-bit adders turned
+   out to be identical copies, so adding one from another example reuses
+   it. The case of the same ID with other contents is shown with
+   challenge 5 instead, whose starter has its own `adder8` and
+   `full-adder`: adding the 8-bit counter's 8-bit adder there brings
+   "Full adder 2" and "8-bit adder 2" under new IDs, and adding it again
+   adds nothing. In a new circuit, the added 8-bit adder is placed and
+   opened on its own sheet, where 200 + 100 reads 44 with the carry out.
+   Unit tests cover the ID and name rules.
+
    - Open the 4-bit adder from the Examples list, and read in its notes
      how the full adder is reused.
    - Start a new circuit. *Add components* from the 8-bit counter example
@@ -115,6 +141,9 @@ What exists today:
      original.
    - Playwright tests do exactly this. A unit test covers the ID and name
      rules.
+   - *(Superseded by the as-built note above: the examples' full adders
+     are identical, and the added adder is checked on its own sheet
+     rather than wired in the main circuit.)*
 6. **Order of work.** Each step is one pull request:
    1. Notes:
       - `metadata.notes` and format 11, with a migration test;
@@ -161,6 +190,9 @@ What exists today:
 - Definitions can now come from elsewhere, so a document may hold two
   components with the same name until one is renamed. Names stay labels,
   and IDs stay the identity (ADR 0013).
+- A challenge checks its component by ID, so deleting the starter's
+  component and adding a finished one under that ID passes it. Challenges
+  are for learning, not grading, so this is left open.
 - A component added from a file is a copy. Editing the source file later
   changes nothing here, and nothing tracks where a component came from.
 - Not yet:
