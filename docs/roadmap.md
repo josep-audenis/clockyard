@@ -451,7 +451,7 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       challenge (format 10). Playwright: the one-bit register's starter fails
       at its first loading edge, and its solution, imported, passes.
    4. ⬜ Challenges 10–12 (CPU, program, output device): later, own ADR.
-6. ⬜ Waveforms (ADR 0026, accepted): watched wires recorded per tick by
+6. ✅ Waveforms (ADR 0026, accepted): watched wires recorded per tick by
    the engine, in a window of 4,096 ticks, and drawn in a panel below the
    canvas.
    1. ✅ The engine: `watch`, `waves` and `wave(i)` in `sim-core`; `watch`
@@ -460,8 +460,13 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       one replaces it, the window keeps the value in force, a reset or load
       clears it. Recording 16 traces costs nothing measurable on the
       reference CPU (about 120,000 cycles per second natively).
-   2. ⬜ The editor: Watch on a wire, the panel and its cursor. Playwright:
-      the 8-bit counter, stepped three times, reads `0x00` to `0x03`.
+   2. ✅ The editor: Watch in a wire's inspector (at most 16), a waveform
+      panel under the canvas with a lane per net (a line for one bit, a band
+      with hex digits for a bus), and a cursor placed by a click and moved by
+      Left and Right. The worker watches the wires again on every load, so a
+      record starts at the load's tick 0. Playwright: the 8-bit counter,
+      stepped three times, shows bands `01` to `03` and reads `0x00` to
+      `0x03` at the cursor.
 7. ⬜ Library and teaching: blueprints, bundled designs, material.
 
 ## Out of scope (for now)
@@ -477,7 +482,9 @@ its first four increments, devices (ADR 0021), memory-mapped I/O on the
 reference CPU (ADR 0022), the game demo, Catch (ADR 0023), and sharing
 through a URL fragment (ADR 0024), are built with their demos, and so is
 increment 5, challenges 1 to 9 checked by behavioural tests (ADR 0025);
-challenges 10 to 12 wait for their own ADR. Next is increment 6, waveforms.
+challenges 10 to 12 wait for their own ADR. Increment 6, waveforms of
+watched wires recorded by the engine (ADR 0026), is built too. Next is
+increment 7, library and teaching, which has no ADR yet.
 Rough edges still open:
 
 - No autosave yet (a later IndexedDB item).

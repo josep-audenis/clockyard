@@ -554,3 +554,105 @@ pre.memory-words {
 .challenge-passed {
   color: var(--ok);
 }
+
+/* The canvas over the waveform panel (ADR 0026); the panel takes only the height its rows need. */
+.canvas-column {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.waves {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  max-height: 40vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+
+.waves-names {
+  padding: 0 var(--space-2);
+  border-right: 1px solid var(--line);
+}
+
+/* Heights match the lanes: a 20px axis, then 24px per row. */
+.waves-time {
+  height: 20px;
+  margin: 0;
+  padding-top: 2px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.waves-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.waves-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 24px;
+}
+
+.waves-name {
+  min-width: 8em;
+  white-space: nowrap;
+}
+
+.waves-value {
+  min-width: 7em;
+  font-variant-numeric: tabular-nums;
+}
+
+.waves-remove {
+  height: 20px;
+  min-width: 20px;
+  padding: 0;
+  border-color: transparent;
+}
+
+.waves-lanes {
+  overflow: hidden;
+}
+
+.waves-lanes:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.waves-lanes svg {
+  display: block;
+  cursor: crosshair;
+}
+
+.wave-bit {
+  fill: none;
+  stroke: var(--signal-high);
+  stroke-width: 1.5;
+}
+
+.wave-bus {
+  fill: var(--signal-high-soft);
+  stroke: var(--signal-bus);
+  stroke-width: 1;
+}
+
+.wave-text {
+  fill: var(--ink);
+  font: 500 11px var(--font-mono);
+}
+
+.wave-axis {
+  fill: var(--ink-muted);
+  font: 400 11px var(--font-sans);
+}
+
+.wave-cursor {
+  stroke: var(--accent);
+  stroke-width: 1;
+}

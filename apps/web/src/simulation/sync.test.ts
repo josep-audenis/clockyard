@@ -13,6 +13,7 @@ vi.mock("./client", () => ({
 }));
 
 const { connectEngine, useSim, watchMemory } = await import("./sync");
+const { useEditor } = await import("../editor/store");
 
 test("a load the engine fails on answers that load: the error shows, nothing stays loaded or pending", () => {
   const stop = connectEngine();
@@ -100,4 +101,56 @@ test("why a run stopped is the worker's latest word on it, and a pause gives non
   state(false);
   expect(useSim.getState().stopped).toBeNull();
   stop();
+});
+
+test("waveforms: watch follows the load it belongs to, a sent load drops the record, and so does the last unwatch (ADR 0026)", () => {
+  vi.useFakeTimers();
+  const before = useEditor.getState();
+  const stop = connectEngine();
+  worker.reply({ type: "loaded", portNets: {}, wireNets: {} } as unknown as Result);
+  worker.sent.length = 0;
+  const waves = (time: number) => ({ type: "waves", time, nets: [1], traces: [new Float64Array([0, 1])] }) as Result;
+  const circuit = {
+    components: [
+      { id: "s", kind: "switch" as const, position: { x: 0, y: 0 }, rotation: 0 as const, props: {} },
+      { id: "l", kind: "led" as const, position: { x: 4, y: 0 }, rotation: 0 as const, props: {} },
+    ],
+    junctions: [],
+    wires: [{ id: "w", from: { component: "s", port: "out" }, to: { component: "l", port: "in" } }],
+  };
+
+  // A new circuit and a watch in one change: the load goes first, so the worker resolves the wire in it.
+  useEditor.setState({ circuit, watches: ["w", "gone"] });
+  expect(worker.sent.map((c) => c.type)).toEqual(["load", "watch"]);
+  expect(worker.sent[1]).toEqual({ type: "watch", wires: ["w"] });
+  // Read once a frame; a reply while the load is unanswered describes the circuit before it.
+  vi.advanceTimersByTime(20);
+  expect(worker.sent.at(-1)).toEqual({ type: "readWaves" });
+  worker.reply(waves(3));
+  expect(useSim.getState().waves).toBeNull();
+  worker.reply({ type: "loaded", portNets: {}, wireNets: { w: 1 } } as unknown as Result);
+  worker.reply(waves(4));
+  expect(useSim.getState().waves?.time).toBe(4);
+
+  // An edit sends a load: the old record goes at once.
+  useEditor.setState({ circuit: { ...circuit, components: circuit.components.slice(0, 1), wires: [] } });
+  expect(useSim.getState().waves).toBeNull();
+  // The wire is gone with it, so nothing is watched any more.
+  expect(worker.sent.at(-1)).toEqual({ type: "watch", wires: [] });
+  worker.reply({ type: "loaded", portNets: {}, wireNets: {} } as unknown as Result);
+  worker.reply(waves(5));
+  expect(useSim.getState().waves).toBeNull();
+
+  // Time going back (a load or a reset) counts a new epoch.
+  const state = (time: number) => ({ type: "state", nets: new Uint32Array(1), diagnostics: [], time, running: false }) as unknown as Result;
+  worker.reply(state(6));
+  const epoch = useSim.getState().epoch;
+  worker.reply(state(8));
+  expect(useSim.getState().epoch).toBe(epoch);
+  worker.reply(state(0));
+  expect(useSim.getState().epoch).toBe(epoch + 1);
+
+  stop();
+  useEditor.setState(before, true);
+  vi.useRealTimers();
 });

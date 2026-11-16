@@ -262,3 +262,18 @@ test("a challenge is checked through the boundary: passed, the first failing ste
   });
   expect(() => check("{}", JSON.stringify(challenge))).toThrow("invalid circuit description");
 });
+
+test("a watched net's record crosses as interleaved times and values; an unknown net is refused (ADR 0026)", () => {
+  const engine = new Engine();
+  const loaded = JSON.parse(engine.load(JSON.stringify(andDemo))) as Loaded;
+  const out = loaded.wireNets.w3 ?? -1;
+  const a = loaded.wireNets.w1 ?? -1;
+  engine.watch(Uint32Array.from([out, a]));
+  engine.set_inputs(JSON.stringify({ a: 1, b: 1 }));
+  engine.tick(3);
+  engine.set_inputs(JSON.stringify({ b: 0 }));
+  expect(Array.from(engine.wave(0) ?? [])).toEqual([0, 1, 3, 0]);
+  expect(Array.from(engine.wave(1) ?? [])).toEqual([0, 1]);
+  expect(engine.wave(2)).toBeUndefined();
+  expect(() => engine.watch([loaded.netCount])).toThrow(`there is no net ${loaded.netCount}`);
+});

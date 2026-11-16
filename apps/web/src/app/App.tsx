@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { definitionName } from "../canvas/layout";
 import { mountCanvas, useCanvasHints, viewControls } from "../canvas/scene";
 import {
   contains,
+  endOwner,
   fieldsProblem,
   hex,
   DEFAULT_ADDRESS,
@@ -29,8 +30,8 @@ import {
   type ComponentKind,
   type PartKind,
 } from "../editor/document";
-import { deleteRefusal, liveDefinitions, mainCircuit, useEditor } from "../editor/store";
-import { assemble, check, connectEngine, control, disassemble, readMemory, setSpeed, setUntil, SPEEDS, useSim } from "../simulation/sync";
+import { deleteRefusal, liveDefinitions, liveWatches, mainCircuit, MAX_WATCHES, useEditor } from "../editor/store";
+import { assemble, check, connectEngine, control, disassemble, readMemory, setSpeed, setUntil, SPEEDS, useSim, type Loaded } from "../simulation/sync";
 import type { AsmError, Report } from "../simulation/protocol";
 import { FORMAT_VERSION, MAX_DOCUMENT_BYTES, parseDocument, serializeDocument } from "../storage/file";
 import { CHALLENGES, findChallenge, reportText, starterDocument, type ChallengeEntry } from "../storage/challenges";
@@ -131,7 +132,10 @@ export function App() {
       </header>
       <div className="workspace">
         <PartsLibrary />
-        <Canvas />
+        <div className="canvas-column">
+          <Canvas />
+          <WavePanels />
+        </div>
         <Inspector />
         <Readout />
       </div>
@@ -458,6 +462,200 @@ function Canvas() {
   );
 }
 
+/** Pixels per tick, and a lane's height, on the waveform panel (ADR 0026). */
+const TICK_PX = 12;
+const LANE_HEIGHT = 24;
+/** Height of the time axis above the lanes. */
+const AXIS_HEIGHT = 20;
+/** Cycles between labels on the time axis: 5 cycles are 120 pixels. */
+const CYCLE_LABELS = 5;
+
+/**
+ * In a trace as the worker sends it, `[t0, v0, t1, v1, …]`, the index of the last change at or before `tick`, or -1
+ * when the record starts later. A binary search: a trace holds up to 4,097 changes, read every frame.
+ */
+function changeAt(trace: Float64Array, tick: number): number {
+  let [low, high, found] = [0, (trace.length >> 1) - 1, -1];
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    if ((trace[2 * middle] ?? Infinity) <= tick) [found, low] = [middle, middle + 1];
+    else high = middle - 1;
+  }
+  return found;
+}
+
+/** What a trace held at `tick`; nothing before its record began. */
+function valueAt(trace: Float64Array, tick: number): number | undefined {
+  const i = changeAt(trace, tick);
+  return i < 0 ? undefined : trace[2 * i + 1];
+}
+
+/** A trace's name: its net label, else the part driving it with the port unless that is `out`, else the wire's ID. */
+function traceName(circuit: Circuit, loaded: Loaded, net: number, wire: string): string {
+  const onNet = circuit.wires.filter((w) => loaded.wireNets[w.id] === net);
+  const label = circuit.junctions.find((j) => j.name && onNet.some((w) => endOwner(w.from) === j.id || endOwner(w.to) === j.id));
+  if (label?.name) return label.name;
+  const part = circuit.components.find((c) => c.id === loaded.netDrivers[net]);
+  if (!part) return wire;
+  const port = Object.entries(loaded.portNets[part.id] ?? {}).find(([, n]) => n === net)?.[0];
+  const name = partName(circuit.components, part);
+  return port && port !== "out" ? `${name} ${port}` : name;
+}
+
+/** One lane: a 1-bit trace as a high and low line, a wider one as a band with each value's hex digits where they fit. */
+function Lane({ trace, width, start, end }: { trace: Float64Array; width: number; start: number; end: number }) {
+  // From the change in force at `start`: keyed by the tick each began, so a band keeps its element as time scrolls.
+  const segments: { tick: number; x0: number; x1: number; value: number }[] = [];
+  for (let i = Math.max(0, changeAt(trace, start)); 2 * i < trace.length; i++) {
+    const [tick = 0, value = 0] = [trace[2 * i], trace[2 * i + 1]];
+    if (tick > end) break;
+    const to = Math.min(trace[2 * i + 2] ?? end + 1, end + 1);
+    const from = Math.max(tick, start);
+    if (to > from) segments.push({ tick, x0: (from - start) * TICK_PX, x1: (to - start) * TICK_PX, value });
+  }
+  const [top, bottom, middle] = [4, LANE_HEIGHT - 4, LANE_HEIGHT / 2];
+  if (width === 1) {
+    const d = segments.map(({ x0, x1, value }, i) => `${i ? "V" : `M${x0} `}${value ? top : bottom}H${x1}`).join("");
+    return <path className="wave-bit" d={d} />;
+  }
+  return segments.map(({ tick, x0, x1, value }) => {
+    // Without `0x`, so an 8-bit value fits in one cycle; the value column has it in full.
+    const text = hex(value, width).slice(2);
+    return (
+      <g key={tick}>
+        <polygon
+          className="wave-bus"
+          points={`${x0 + 1},${middle} ${x0 + 3},${top} ${x1 - 3},${top} ${x1 - 1},${middle} ${x1 - 3},${bottom} ${x0 + 3},${bottom}`}
+        />
+        {x1 - x0 >= text.length * 7 + 8 && (
+          <text className="wave-text" x={(x0 + x1) / 2} y={middle} textAnchor="middle" dominantBaseline="central">
+            {text}
+          </text>
+        )}
+      </g>
+    );
+  });
+}
+
+/** The waveform panel, started afresh whenever time goes back (a load or a reset), so no cursor outlives its record. */
+function WavePanels() {
+  const epoch = useSim((s) => s.epoch);
+  return <WavePanel key={epoch} />;
+}
+
+/**
+ * The watched wires' recorded values over ticks (ADR 0026), drawn from the engine's record alone. A click places a
+ * cursor; Left and Right move it a tick, Escape removes it; the value column shows the cursor's tick, or now.
+ */
+function WavePanel() {
+  const watches = useEditor(useShallow(liveWatches));
+  const circuit = useEditor((s) => s.circuit);
+  const watch = useEditor((s) => s.watch);
+  const loaded = useSim((s) => s.loaded);
+  const waves = useSim((s) => s.waves);
+  const stale = useSim((s) => s.stale);
+  const [cursor, setCursor] = useState<number | null>(null);
+  const [lanes, setLanes] = useState<HTMLDivElement | null>(null);
+  const [laneWidth, setLaneWidth] = useState(0);
+  const help = useId();
+  useEffect(() => {
+    if (!lanes) return;
+    const observer = new ResizeObserver(() => setLaneWidth(lanes.clientWidth));
+    observer.observe(lanes);
+    return () => observer.disconnect();
+  }, [lanes]);
+  if (watches.length === 0) return null;
+
+  // One row per net, named by the first wire watched on it; its × stops watching every wire on that net.
+  const rows: { wires: string[]; net: number; width: number }[] = [];
+  for (const wire of watches) {
+    const net = loaded?.wireNets[wire];
+    if (net === undefined) continue;
+    const row = rows.find((r) => r.net === net);
+    if (row) row.wires.push(wire);
+    else rows.push({ wires: [wire], net, width: loaded?.wireWidths[wire] ?? 1 });
+  }
+  const time = waves?.time ?? 0;
+  const start = Math.max(0, time + 1 - Math.max(1, Math.floor(laneWidth / TICK_PX)));
+  // A cursor scrolled out of the window is gone; a run under way does not drag it along.
+  const at = cursor !== null && cursor >= start && cursor <= time ? cursor : null;
+  const where = at === null ? `now, tick ${time}` : `tick ${at}, cycle ${Math.floor((at + 1) / 2)}`;
+  const trace = (net: number) => (stale || !waves ? undefined : waves.traces[waves.nets.indexOf(net)]);
+  const height = AXIS_HEIGHT + rows.length * LANE_HEIGHT;
+  const tickAt = (e: ReactMouseEvent<HTMLDivElement>) =>
+    Math.min(time, start + Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / TICK_PX));
+  const onKeyDown = (e: ReactKeyboardEvent) => {
+    const step = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+    if (step) setCursor(Math.min(Math.max((at ?? time) + step, start), time));
+    else if (e.key === "Escape") setCursor(null);
+    else return;
+    // Not the canvas's too: Escape there clears the selection.
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  // Rising edges every few cycles, labelled with their cycle number.
+  const cycles: number[] = [];
+  for (let c = Math.max(1, Math.ceil((start + 1) / 2 / CYCLE_LABELS)) * CYCLE_LABELS; 2 * c - 1 <= time; c += CYCLE_LABELS) cycles.push(c);
+
+  return (
+    <section className="waves" aria-label="Waveforms">
+      <div className="waves-names">
+        <p className="type-label waves-time">{at === null ? `Now: tick ${time}` : `Cursor: tick ${at}, cycle ${Math.floor((at + 1) / 2)}`}</p>
+        <p id={help} className="visually-hidden">
+          Click a lane to place the cursor. Left and Right move it a tick, Escape removes it.
+        </p>
+        <ul className="waves-rows">
+          {rows.map(({ wires, net, width }) => {
+            const name = loaded ? traceName(circuit, loaded, net, wires[0] ?? "") : (wires[0] ?? "");
+            const t = trace(net);
+            const value = t && valueAt(t, at ?? time);
+            return (
+              <li key={net} className="waves-row">
+                <span className="type-label waves-name">{name}</span>
+                <span className="type-value waves-value">{value === undefined ? "unknown" : showValue(value, width)}</span>
+                <button type="button" className="button waves-remove" aria-label={`Stop watching ${name}`} onClick={() => wires.forEach((w) => watch(w, false))}>
+                  ×
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      <div
+        ref={setLanes}
+        className="waves-lanes"
+        tabIndex={0}
+        role="slider"
+        aria-label="Waveform cursor"
+        aria-describedby={help}
+        aria-valuemin={start}
+        aria-valuemax={time}
+        aria-valuenow={at ?? time}
+        aria-valuetext={where}
+        onKeyDown={onKeyDown}
+        onClick={(e) => setCursor(tickAt(e))}
+      >
+        <svg width={(time + 1 - start) * TICK_PX} height={height} aria-hidden="true">
+          {cycles.map((c) => (
+            <text key={c} className="wave-axis" x={(2 * c - 1 - start) * TICK_PX} y={12}>
+              {c}
+            </text>
+          ))}
+          {rows.map(({ net, width }, i) => {
+            const t = trace(net);
+            return (
+              <g key={net} transform={`translate(0 ${AXIS_HEIGHT + i * LANE_HEIGHT})`}>
+                {t && <Lane trace={t} width={width} start={start} end={time} />}
+              </g>
+            );
+          })}
+          {at !== null && <line className="wave-cursor" x1={(at - start + 0.5) * TICK_PX} x2={(at - start + 0.5) * TICK_PX} y1={0} y2={height} />}
+        </svg>
+      </div>
+    </section>
+  );
+}
+
 /** On an empty sheet with nothing armed: how to start. */
 function EmptyHint() {
   const show = useEditor((s) => s.circuit.components.length === 0 && s.circuit.junctions.length === 0 && !s.armed && !s.armedLabel);
@@ -604,6 +802,7 @@ function Inspector() {
                 Reset route
               </button>
             )}
+            <WatchToggle wire={wire.id} />
           </div>
         ) : junction ? (
           <JunctionProperties key={`${junction.id}:${junction.name ?? ""}`} junction={junction} />
@@ -615,6 +814,21 @@ function Inspector() {
       </section>
       <ChallengePanel />
     </aside>
+  );
+}
+
+/** Shows a wire's net in the waveform panel, or stops (ADR 0026). */
+function WatchToggle({ wire }: { wire: string }) {
+  const watching = useEditor((s) => s.watches.includes(wire));
+  const full = useEditor((s) => liveWatches(s).length >= MAX_WATCHES);
+  const watch = useEditor((s) => s.watch);
+  return (
+    <>
+      <button type="button" className="button type-label" disabled={!watching && full} onClick={() => watch(wire, !watching)}>
+        {watching ? "Stop watching" : "Watch"}
+      </button>
+      {!watching && full && <p className="type-body inspector-empty">{`At most ${MAX_WATCHES} wires can be watched.`}</p>}
+    </>
   );
 }
 

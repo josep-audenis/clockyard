@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 import { endOwner, sameEnd, type Circuit } from "./document";
 import { contains } from "./document";
-import { liveDefinitions, mainCircuit, useEditor } from "./store";
+import { liveDefinitions, liveWatches, mainCircuit, MAX_WATCHES, useEditor } from "./store";
 import { layoutOf, pinLabel } from "../canvas/layout";
 
 const initial = useEditor.getState();
@@ -1230,4 +1230,43 @@ test("a screen that grows is refused when a port would land on a junction, as pl
   expect(useEditor.getState().circuit.components.find((c) => c.id === s)?.props.columns).toBeUndefined();
   setColumns(s, 48); // out at (15, 1): free
   expect(useEditor.getState().circuit.components.find((c) => c.id === s)?.props.columns).toBe(48);
+});
+
+test("watching keeps wires in order, at most MAX_WATCHES live ones, and a new sheet or document starts with none (ADR 0026)", () => {
+  // MAX_WATCHES + 3 wires, each from its own switch to its own LED.
+  const wires = Array.from({ length: MAX_WATCHES + 3 }, (_, i) => {
+    const { add, connect } = useEditor.getState();
+    const s = add("switch", { x: 0, y: 4 * i });
+    const l = add("led", { x: 6, y: 4 * i });
+    return connect(port(s, "out"), port(l, "in")) ?? "";
+  });
+  const [a = "", b = "", c = ""] = wires;
+  const { watch } = useEditor.getState();
+  watch(a, true);
+  watch(b, true);
+  watch(a, true);
+  expect(useEditor.getState().watches).toEqual([a, b]);
+  watch(a, false);
+  expect(useEditor.getState().watches).toEqual([b]);
+  // A deleted wire's watch stays for undo, but is not live and takes no place.
+  useEditor.getState().remove([b]);
+  expect(useEditor.getState().watches).toEqual([b]);
+  expect(liveWatches(useEditor.getState())).toEqual([]);
+  useEditor.getState().undo();
+  expect(liveWatches(useEditor.getState())).toEqual([b]);
+  useEditor.getState().remove([b]);
+  watch(c, true);
+  expect(useEditor.getState().watches).toEqual([c]);
+  for (const w of wires) watch(w, true);
+  expect(useEditor.getState().watches).toHaveLength(MAX_WATCHES);
+
+  useEditor.setState({ definitions: [{ id: "d", name: "Inner", circuit: initial.circuit }] });
+  useEditor.getState().openSheet("d");
+  expect(useEditor.getState().watches).toEqual([]);
+  useEditor.setState({ watches: ["y"] });
+  useEditor.getState().closeSheet();
+  expect(useEditor.getState().watches).toEqual([]);
+  useEditor.setState({ watches: ["z"] });
+  useEditor.getState().load({ format: "clockyard", version: 10, metadata: initial.metadata, circuit: initial.circuit, definitions: [] });
+  expect(useEditor.getState().watches).toEqual([]);
 });
