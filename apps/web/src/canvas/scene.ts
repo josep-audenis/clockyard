@@ -822,6 +822,12 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     window.getSelection()?.removeAllRanges();
     if (e.button === 1 || (e.button === 0 && spaceHeld)) {
       gesture = { type: "pan", last: { x: e.clientX, y: e.clientY } };
+      // What the pointer hovered no longer applies, and an armed part's preview hides while a gesture lasts. Only
+      // those change the scene: without them a pan starts with no redraw.
+      const shown = hover !== null || useCanvasHints.getState().wire !== null || editor.armed || editor.armedLabel;
+      hover = null;
+      useCanvasHints.setState({ wire: null });
+      return shown ? schedule() : scheduleView();
     } else if (e.button === 0 && editor.armedLabel) {
       // A net label (ADR 0015) at the nearest grid point. Its Name field takes the keyboard on release,
       // after the press has moved focus where it will.
@@ -969,8 +975,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     }
     const panned = gesture?.type === "pan";
     gesture = null;
-    // The end of a pan changes the cursor only.
-    if (panned) scheduleView();
+    // The end of a pan changes the cursor only, unless an armed part's or label's preview comes back.
+    if (panned && !editor.armed && !editor.armedLabel) scheduleView();
     else schedule();
   };
 

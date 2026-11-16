@@ -190,9 +190,9 @@ What exists today:
       empty and the increment closes at step 2.
 
    *As built (step 3, first):* a pan moves the view without drawing the
-   scene again (a Pixi render group), 2.5–4 times faster at 10,000
-   parts, still under 30 fps: Pixi's render of every object, off screen
-   too, is what remains. `pnpm bench` now asks Chromium for the graphics
+   scene again (a Pixi render group), 2.5–5 times faster at 10,000
+   parts, still under 30 fps: what remains is Pixi's render, likely of
+   every object, off screen too (not yet profiled). `pnpm bench` now asks Chromium for the graphics
    card, since SwiftShader's frame rates are not what a user sees.
 
 ## Alternatives considered

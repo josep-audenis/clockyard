@@ -124,7 +124,7 @@ Read so:
   the `cpu` family, whose sheet holds only a few instances and no wires, opens 47,000 nets in 0.8 s, engine included.
   Every family with thousands of parts and wires on its sheet spends almost all its open in drawing, and most of that
   in routing every wire.
-- **Panning redraws the whole scene** on every frame: 5–12 frames a second at 1,000 parts, about 1 at 10,000, while
+- **Panning redraws the whole scene** on every frame (before step 3's first optimization, below): 5–12 frames a second at 1,000 parts, about 1 at 10,000, while
   `cpu` keeps 60. Some of that is the software renderer, but the drag's redraw (next) is the same whole-scene cost on
   the CPU, and panning changes nothing but the view, so it need not redraw anything.
 - **A drag step redraws everything too**: 11–25 ms at 1,000 parts and 130–260 ms at 10,000. The sync that the
@@ -146,7 +146,7 @@ Read so:
 |---|---|---|
 | 10,000 parts open in under 2 s | 9–20 s for flat circuits; 0.25 s for `cpu` | no |
 | A toggle or an edit shows within 100 ms at 10,000 parts | toggle 1.7–4.6 s; a drag step 130–260 ms | no |
-| Panning at 30 fps or more at 10,000 parts | 0.7–1.5 fps (software WebGL) | no |
+| Panning at 30 fps or more at 10,000 parts | 0.7–1.5 fps (software WebGL); 5–12 fps on the graphics card after step 3's first optimization | no |
 | 50,000 parts open in under 10 s, edits under 1 s | 2.8–10 minutes for flat circuits; 0.8 s for `cpu-50k` (edits not measured) | no |
 | Run speed on `counters-10k` recorded | the page stopped answering | no |
 | The reference CPU keeps 10,000 cycles per second | about 9,600 (`cpu-1k`, four CPUs; reads a few per cent low) | yes |
@@ -178,10 +178,12 @@ back to back on 2026-11-16 on the same machine, on the Iris Xe graphics card:
 | adder-10k | 2.0 | 5.0 |
 | cpu-1k | 60 | 60 |
 
-Every 1,000-part size now pans at the display's 60 frames a second. At 10,000 parts it is 2.5–4 times faster but
-still under the 30 fps target. What is left is Pixi's own render of every object, even off screen: a pan frame takes
-35–45 ms of main-thread time for `chain-10k` and about 110 ms for `adder-10k`, with nothing drawn. Culling what is off
-screen is the next candidate for panning.
+`chain-1k` now pans at the display's 60 frames a second, and so did every 1,000-part benchmark in a full run on
+the graphics card after the change (on battery, below). At 10,000 parts a pan is 2.5–5 times faster but still under
+the 30 fps target. A pan frame still takes 35–45 ms of main-thread time for `chain-10k` and about 110 ms for
+`adder-10k` (`clockyard:view`), with nothing drawn; that time is Pixi's render, most likely its walk over every object,
+off screen too (not yet profiled). Culling what is off screen is the next candidate for
+panning.
 
 The laptop ran on battery during these runs, and they were slower overall than the table above (routing, which the
 change does not touch, took about twice as long), so only the before and after columns compare with each other. The
