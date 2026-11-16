@@ -126,12 +126,12 @@ strong { font-weight: 600; color: var(--ink); }
 .site-nav a:hover { color: var(--ink); }
 
 /* Hero: headline, one line of copy, the actions, then the game across the full width. */
-.hero { padding: 52px 0 72px; }
+.hero { padding: 36px 0 72px; }
 .hero h1 {
-  font-size: clamp(46px, 7.2vw, 112px);
-  line-height: 0.9;
+  font-size: clamp(44px, 6.2vw, 92px);
+  line-height: 0.92;
   letter-spacing: -0.02em;
-  max-width: 14ch;
+  max-width: 24ch;
 }
 .hero-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 64px; align-items: start; margin-top: 28px; }
 .hero-act { text-align: right; }
@@ -147,11 +147,6 @@ strong { font-weight: 600; color: var(--ink); }
   .hero-act { text-align: left; }
   .hero-act .actions { justify-content: flex-start; }
   .hero-note { margin-left: 0; }
-}
-@media (prefers-reduced-motion: no-preference) {
-  /* The headline rises in once; nothing else moves on load. */
-  .hero h1 { animation: rise 520ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-  @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
 }
 
 /* Figures */
@@ -428,8 +423,8 @@ video.loop { display: block; width: 100%; height: auto; }
 }
 .to-worker { --out: 0%; --in: 100%; }
 .to-page { --out: 100%; --in: 0%; }
-.to-worker::before { content: "→ "; }
-.to-page::before { content: "← "; }
+.to-worker::before { content: "→ " / ""; }
+.to-page::before { content: "← " / ""; }
 .arch figcaption { margin-top: 12px; max-width: 78ch; font-size: 14px; color: var(--ink-muted); }
 .engine-notes { display: grid; grid-template-columns: 6fr 5fr; gap: 56px; align-items: start; margin-top: 48px; }
 .engine-notes > * { min-width: 0; }
@@ -499,8 +494,8 @@ video.loop { display: block; width: 100%; height: auto; }
   .arch-board { grid-template-columns: 1fr; grid-template-areas: "main" "doc" "editor" "wire1" "wire2" "worker" "wasm"; }
   .arch-wire { padding: 0 12px; text-align: left; }
   .arch-wire::after { display: none; }
-  .to-worker::before { content: "↓ "; }
-  .to-page::before { content: "↑ "; }
+  .to-worker::before { content: "↓ " / ""; }
+  .to-page::before { content: "↑ " / ""; }
   .shot-program { max-width: 300px; }
 }
 @media (max-width: 760px) {
@@ -557,31 +552,29 @@ main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw
   --port: min(calc(50vw + var(--wrap) / 2), calc(100vw - var(--gutter)));
   position: relative;
   height: 30px;
-  margin: 36px calc(50% - 50vw) 0;
+  margin: 20px calc(50% - 50vw) 0;
 }
 .trace::before { content: ""; position: absolute; left: 0; bottom: 0; width: var(--port); height: 2px; background: var(--signal-low); }
 .trace-name { position: absolute; left: max(var(--gutter), calc((100vw - var(--wrap)) / 2)); bottom: 10px; font: 500 12px/1 var(--font-mono); color: var(--ink-muted); }
 .trace-port { position: absolute; left: calc(var(--port) - 1px); bottom: -4px; width: 10px; height: 10px; border: 2px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bench); transition: background-color 120ms, border-color 120ms; }
-.trace-pulse { position: absolute; bottom: -1px; left: 0; width: 160px; height: 4px; background: var(--signal-high); opacity: 0; }
 @media (prefers-reduced-motion: no-preference) {
-  .trace.is-arrived .trace-port { animation: port-hit 700ms ease-out; }
-  @keyframes port-hit { 0%, 45% { background: var(--signal-high); border-color: var(--signal-high); } }
-  .trace-pulse { animation: pulse-travel 1100ms cubic-bezier(0.5, 0, 0.3, 1) 400ms both; }
-  @keyframes pulse-travel {
-    0% { opacity: 1; transform: translateX(-160px); }
-    92% { opacity: 1; }
-    100% { opacity: 0; transform: translateX(calc(var(--port) - 160px)); }
-  }
+  .trace::before { animation: clk-high 360ms steps(1, end) 500ms both; }
+  @keyframes clk-high { from { height: 4px; bottom: -1px; background: var(--signal-high); } to { height: 2px; bottom: 0; background: var(--signal-low); } }
+  .trace.is-arrived .trace-port { animation: port-hit 360ms steps(1, end); }
+  @keyframes port-hit { from { background: var(--signal-high); border-color: var(--signal-high); } }
 }
-
 /* The spine: one wire down the margin, through every section's port. Scrolling drives a 1 down it. */
 .spine { position: absolute; left: calc(var(--spine-x) - 1px); width: 2px; background: var(--signal-low); pointer-events: none; }
 /* Its start under the clock line: an input port, as the canvas draws one; the spine is its own net. */
 .spine::before { content: ""; position: absolute; top: 8px; left: -4px; width: 10px; height: 10px; border: 2px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bench); z-index: 1; }
-.spine-lit { position: absolute; left: -0.5px; width: 3px; top: var(--lit-top, 0px); height: var(--lit, 0px); background: var(--signal-high); }
+.spine-lit { position: absolute; left: -0.5px; width: 3px; top: var(--lit-top, 0px); height: var(--lit, 0px); background: var(--signal-high); opacity: 0; }
+.spine-lit.is-firing { animation: fire 420ms steps(1, end); }
+@keyframes fire { from { opacity: 1; } to { opacity: 0; } }
 .try, .chapter, .engine, .facts, .closing { --port-x: var(--spine-x); }
 .try::before, .chapter::before, .engine::before, .facts::before, .closing::before { z-index: 1; transition: background-color 160ms, border-color 160ms; }
-.is-reached::before { background: var(--signal-high) !important; border-color: var(--signal-high) !important; }
+.is-latched::before { background: var(--ink); border-color: var(--ink); }
+.is-firing::before { animation: fire-port 420ms steps(1, end); }
+@keyframes fire-port { from { background: var(--signal-high); border-color: var(--signal-high); } }
 /* A reached section's wire goes high, from its port across the page, and low again above it. */
 .try::after, .chapter::after, .engine::after, .facts::after, .closing::after {
   content: "";
@@ -595,17 +588,8 @@ main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw
   transform-origin: left;
   pointer-events: none;
 }
-.is-reached::after { transform: scaleX(1); }
-
-/* Section numbers on seven-segment digits, lit when the signal reaches the section. */
-.seg { display: block; height: 30px; width: auto; margin-bottom: 14px; overflow: visible; }
-.seg rect { fill: color-mix(in srgb, var(--line) 30%, transparent); transition: fill 120ms ease-out; }
-.seg rect.on { fill: var(--line-strong); }
-.is-reached .seg rect.on { fill: var(--signal-high); }
-@media (min-width: 1400px) {
-  /* In the margin, level with the heading, left of the spine. */
-  .seg { position: absolute; margin: 0; left: calc(var(--spine-x) - 66px); height: 44px; }
-}
+.is-firing::after { animation: fire-rule 420ms steps(1, end); }
+@keyframes fire-rule { from { transform: scaleX(1); } to { transform: scaleX(1); opacity: 0; } }
 
 /* Figs. 3 and 7: the capture as it opens, over the documented one, until it settles. */
 .settle-off { display: none; }
@@ -632,7 +616,10 @@ main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw
   border-block: 1px solid var(--line);
   mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
 }
-.rom-head { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--line-strong); }
+.rom-head { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; z-index: 1; }
+.rom-head::before, .rom-head::after { content: ""; position: absolute; left: -4px; border: 5px solid transparent; }
+.rom-head::before { top: 0; border-top-color: var(--ink); }
+.rom-head::after { bottom: 0; border-bottom-color: var(--ink); }
 .rom-words { position: relative; display: flex; gap: 10px; width: max-content; transform: translateX(var(--shift, 0px)); }
 @media (prefers-reduced-motion: no-preference) { .rom-words { transition: transform 160ms ease-out; } }
 .rom-words > span { display: grid; justify-items: center; gap: 3px; padding: 6px 8px; min-width: 76px; border-radius: var(--radius-sm); background: var(--bench); font: 500 17px/1 var(--font-mono); color: var(--ink-muted); }
@@ -648,28 +635,32 @@ main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw
 .cpu-run.is-scrub .cpu-steps { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
 .cpu-run.is-scrub .map { width: min(100%, calc((100vh - 250px) * 3072 / 1752)); margin-inline: auto; }
 .cpu-run.is-scrub .map picture { opacity: 0; }
-.cpu-loupes { display: none; }
-.cpu-run.is-scrub .cpu-stage { display: grid; grid-template-columns: minmax(0, 1fr) 280px; column-gap: 24px; align-items: start; margin-inline: calc(50% - 50vw); padding-inline: max(calc(var(--spine-x) + 28px), calc((100vw - 1760px) / 2)); }
+.cpu-loupe { display: none; margin: 0; }
+.cpu-run.is-scrub .cpu-stage { display: grid; grid-template-columns: minmax(0, 1fr) 300px; column-gap: 24px; align-items: start; margin-inline: calc(50% - 50vw); padding-inline: max(calc(var(--spine-x) + 28px), calc((100vw - var(--wrap)) / 2)); }
 .cpu-run.is-scrub .map-scroll { margin-inline: 0; padding-inline: 0; }
-.cpu-run.is-scrub .cpu-stage > :not(.map-scroll, .cpu-loupes) { grid-column: 1 / -1; }
-.cpu-run.is-scrub .cpu-loupes { display: grid; gap: 14px; padding-top: 24px; }
-.loupe { position: relative; overflow: hidden; aspect-ratio: calc(var(--w) * 3072) / calc(var(--h) * 1752); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bench); }
-.loupe video { position: absolute; width: calc(100% * 100 / var(--w)); max-width: none; left: calc(-100% * var(--l) / var(--w)); top: calc(-100% * var(--t) / var(--h)); }
-.loupe span { position: absolute; left: 6px; bottom: 6px; padding: 2px 6px; font: 500 11px/1.3 var(--font-mono); color: var(--ink-muted); background: var(--bench); border-radius: var(--radius-sm); }
-.cpu-run.is-scrub .blocks { opacity: 0.4; transition: opacity 120ms; }
+.cpu-run.is-scrub .cpu-stage > :not(.map-scroll, .cpu-loupe) { grid-column: 1 / -1; }
+.cpu-run.is-scrub .cpu-loupe { display: block; padding-top: 24px; }
+.loupe { position: relative; overflow: hidden; height: 260px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bench); }
+.loupe video { position: absolute; max-width: none; }
+.cpu-loupe figcaption { margin-top: 8px; font: 500 12px/1.4 var(--font-mono); color: var(--ink-muted); }
+.cpu-loupe [data-loupe] { color: var(--ink); }
+.cpu-readout [data-uses] { color: var(--accent); }
+.cpu-run.is-scrub .blocks li { opacity: 0.18; }
+.cpu-run.is-scrub .blocks li.is-used { opacity: 1; border: 2px solid var(--accent); }
 .cpu-run.is-scrub:has(.key li:hover, .blocks li:hover) .blocks { opacity: 1; }
 /* Still: the capture mid-game, and the whole ROM as a strip to scroll by hand. */
-[data-static] .cpu-readout, [data-static] .rom-head, .cpu-run:not(.is-scrub) .scrub-note { display: none; }
+[data-static] .cpu-readout, [data-static] .rom-head, .cpu-run:not(.is-scrub) .scrub-note, .cpu-run.is-scrub .still-note { display: none; }
 [data-static] .rom-strip { mask-image: none; overflow-x: auto; }
 [data-static] .rom-words { transform: none; }
 
 /* The closing: the first pulse in three captures. */
-.first-pulse { grid-column: 1 / -1; }
-.first-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.first-steps.is-pending > * { opacity: 0.25; transition: opacity 200ms ease-out; }
-.first-steps.is-pending > .is-on { opacity: 1; }
-@media print { .first-steps.is-pending > * { opacity: 1; } }
-@media (max-width: 760px) { .first-steps { grid-template-columns: 1fr; } }
+.first-pulse { align-self: center; }
+.first-steps { display: grid; }
+.first-steps > * { grid-area: 1 / 1; }
+.first-steps > :not(:last-child) { visibility: hidden; }
+.first-steps[data-step] > * { visibility: hidden; }
+.first-steps[data-step="0"] > :nth-child(1), .first-steps[data-step="1"] > :nth-child(2), .first-steps[data-step="2"] > :nth-child(3) { visibility: visible; }
+@media print { .first-steps > :last-child { visibility: visible !important; } }
 
 /* The ladder lights the rungs passed in this browser. */
 .ladder li.passed::before { background: var(--ok); }

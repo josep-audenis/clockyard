@@ -199,7 +199,7 @@ for (const theme of ["dark", "light"]) {
     const input = join(dir, "frames.mjpeg");
     writeFileSync(input, Buffer.concat(frames.map((f) => f.jpeg)));
     const out = here(`../about/shots/cpu-steps-${theme}`);
-    execFileSync(ffmpeg, ["-loglevel", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", "10", "-i", input, "-vf", "scale=2304:-2", "-c:v", "libvpx-vp9", "-g", "16", "-b:v", "0", "-crf", "36", "-pix_fmt", "yuv420p", "-an", `${out}.webm`]);
+    execFileSync(ffmpeg, ["-loglevel", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", "10", "-i", input, "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libvpx-vp9", "-g", "16", "-b:v", "0", "-crf", "38", "-pix_fmt", "yuv420p", "-an", `${out}.webm`]);
     writeFileSync(`${out}.jpg`, frames[0].jpeg);
     rmSync(dir, { recursive: true });
     if (frames[0].pc !== 0 || !frames[0].now.startsWith("Cycle 0")) throw new Error(`frames start at ${frames[0].now}, PC ${frames[0].pc}`);
