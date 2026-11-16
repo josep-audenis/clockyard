@@ -214,6 +214,13 @@ What exists today:
    the engine's slowest native measurement. A toggle that changes every wire was still about
    1 s at 10,000 parts in that measurement, mostly the redraw.
 
+   *As built (step 3, fourth):* single runs on the development laptop
+   vary up to two times however quiet it looks, so changes are compared
+   interleaved (A, B, A, B). That found the latest-state handling had
+   delayed a toggle's readout by a frame or two; the first state of a
+   burst is now shown at once (`chain-1k` 82 → 22 ms, `chain-10k`
+   460 → 70 ms to the readout, the canvas's redraw after it unchanged).
+
 ## Alternatives considered
 
 - **Criterion for the native benchmarks.** It gives better statistics, but

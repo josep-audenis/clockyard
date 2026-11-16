@@ -85,7 +85,8 @@ dash.
 - **Open**: Import of the file until the engine has answered the load and sent its first settled state
   (`clockyard:engine-ready`), and two frames have been drawn since. *Routing* and *drawing* are the main thread's share
   of it; routing happens inside drawing, so drawing includes it.
-- **Toggle**: a click on a switch until the readout says it is on, which follows the engine's settle.
+- **Toggle**: a click on a switch until the readout says it is on, which follows the engine's settle. The readout
+  is updated before the canvas is drawn again, so the canvas's redraw is not in it.
 - **Drag**: a part moved two cells in ten pointer steps: the median redraw, and the median sync (projecting the document
   and comparing it, ADR 0005), per step.
 - **Pan**: frames per second while the view is dragged with the middle button.
@@ -110,8 +111,8 @@ autosave at 1,000 parts (`chain-1k` 14 → 109 ms, `adder-1k` 10 → 47 ms) and 
 on open (71 → 176 ms), `counters-10k`'s pan (20 → 8.6 fps) and `chain-1k`'s toggle (54 → 119 ms).
 
 This run is the baseline for now, which makes `bench:check` loose: a real slowdown of two times or more measured on a
-quiet machine could pass against it. It is to be replaced by a run on a quiet machine, which would also tell whether
-the six are load or regressions.
+quiet machine could pass against it. A run on a quiet machine did not settle the six; an interleaved comparison did
+(section 4 below).
 
 | Benchmark | Open, ms | Of it: routing, ms | Of it: drawing, ms | Toggle, ms | Drag: draw, ms | Drag: sync, ms | Pan, fps | Cycles per second | Autosave, ms |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -280,6 +281,43 @@ second), and Pause answers.
 The toggle times here are within run-to-run noise: the after run was slower throughout, routing on open included,
 which neither change touches. What remains of a toggle at 10,000 parts is the redraw when every wire and gate changes,
 the next candidate: Pixi rebuilding its batches, and the gates' shapes.
+
+### 4. Comparing on this machine, and the first state of a burst
+
+A run on a quiet machine (under 12 % of the processor for two and a half minutes first, on mains power) did not settle
+the six measurements above: its numbers moved up to two times in both directions against both earlier runs, and the
+native harness ran two to five times faster than the native table, so the load that can be seen is not what moves them
+(the processor's clock and which of its cores run Chromium are likely, not verified). A single run's numbers on this
+laptop are only good for differences of more than two times.
+
+What is reliable is an interleaved comparison: the two builds measured alternately, A, B, A, B, minutes apart. Done for
+the code before steps 3.2 and 3.3 against after them:
+
+| Measurement | Before, two runs | After, two runs |
+|---|---:|---:|
+| `chain-1k` toggle, ms | 36, 44 | 88, 89 |
+| `chain-10k` toggle, ms | 831, 716 | 613, 572 |
+| `chain-1k` autosave, ms | 12, 7 | 8, 9 |
+| `chain-10k` autosave, ms | 169, 175 | 40, 57 |
+| `chain-10k` drag draw, ms | 116, 129 | 57, 48 |
+| `cpu-10k` cycles per second | 3,056, 2,923 | 3,000, 2,284 |
+
+So of the six, autosave at 1,000 parts and `cpu-10k`'s run speed are not regressions, and `chain-1k`'s toggle was one:
+since step 3.3 every state waited for a timer task, so the readout and the redraw could slip a frame or two.
+
+Now the first state of a burst is applied at once; states that arrive before the next task are held, and only the
+latest is shown then. A backlog still collapses, at the cost of one more state shown per burst. Interleaved, the code
+before this change against after it:
+
+| Measurement | Before, two runs | After, two runs |
+|---|---:|---:|
+| `chain-1k` toggle, ms | 82, 82 | 20, 24 |
+| `chain-10k` toggle, ms | 457, 466 | 70, 68 |
+| `counters-10k` cycles per second | 4,379, 3,694 | 4,510, 3,960 |
+
+The toggle is measured to the readout, which now updates before the canvas is drawn again; the canvas still takes the
+redraw after it, a few hundred milliseconds at 10,000 parts when every wire changes, which this benchmark does not see.
+Drags, autosaves and pans were the same on both sides. The table above predates this change.
 
 ## Earlier measurements
 
