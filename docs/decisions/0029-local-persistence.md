@@ -35,6 +35,7 @@ Today a circuit lives only in the page:
 1. **Projects are kept in the browser's IndexedDB, as project files.**
    - **Stores.** One database, `clockyard`, with:
      - `projects`: `{ id, name, modifiedAt, revision, text }`;
+     - `meta`: the last project used;
      - `library`: one entry per saved component;
      - `progress`: one entry per challenge passed.
    - **Text.** `text` is exactly what Export writes. Opening a project
@@ -82,6 +83,16 @@ Today a circuit lives only in the page:
      project, an example, a starter, a link or a file no longer asks before
      it replaces the circuit. The question stays when the work could not
      be saved.
+   - *As built (review):* every opener saves the circuit it replaces
+     first. If that save fails (a full quota, say), it asks before
+     replacing, naming the error, and keeps the circuit if the answer is
+     no. A link or file opened is replaced without a question like any
+     other unchanged document, since it can be opened again. Reopening the
+     last project on load gives way to anything opened or changed
+     meanwhile. Deleting the last project used clears it, so the next load
+     neither reopens it nor reports it missing. Saves also run on
+     `pagehide`, besides the page being hidden. Names read from files are
+     normalized as a rename stores them.
 4. **Two tabs.**
    - Each project carries a `revision`. A tab saves only over the revision
      it last read or wrote.

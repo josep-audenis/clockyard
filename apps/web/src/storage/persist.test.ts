@@ -22,6 +22,13 @@ const connect = async (storage: Storage, reopen = true) => {
   stop = await connectStorage({ open: async () => storage, reopen });
 };
 const addSwitch = () => useEditor.getState().add("switch", { x: 0, y: 0 });
+const emptyDocument: CircuitDocument = {
+  format: "clockyard",
+  version: 11,
+  metadata: { name: "Empty", createdAt: "x", modifiedAt: "x" },
+  circuit: { components: [], junctions: [], wires: [] },
+  definitions: [],
+};
 const stored = async (storage: Storage, id: string) => {
   const result = parseDocument((await storage.project(id))?.text ?? "");
   if (!result.ok) throw new Error(result.error);
@@ -157,4 +164,68 @@ test("a failed save says so and leaves the document as it is", async () => {
   await flush();
   expect(useProjects.getState().error).toBe("Not saved: the quota is full");
   expect(useEditor.getState().circuit.components).toHaveLength(1);
+});
+
+test("a circuit whose save failed is replaced only if the user agrees, and stays otherwise (ADR 0029)", async () => {
+  const storage = memoryStorage();
+  storage.save = () => Promise.reject(new Error("the quota is full"));
+  await connect(storage);
+  addSwitch();
+  const other: CircuitDocument = { ...emptyDocument, metadata: { ...emptyDocument.metadata, name: "Other" } };
+  const asked: string[] = [];
+  expect(await openDocument(other, undefined, { ask: (error) => (asked.push(error), false) })).toBe(false);
+  expect(asked).toEqual(["Not saved: the quota is full"]);
+  expect(useEditor.getState().circuit.components).toHaveLength(1);
+  expect(useProjects.getState().error).toBe("Not saved: the quota is full");
+  expect(await openDocument(other, undefined, { ask: () => true })).toBe(true);
+  expect(useEditor.getState().metadata.name).toBe("Other");
+});
+
+test("the last project reopens only onto the page as it loaded: a document opened meanwhile wins", async () => {
+  const storage = memoryStorage();
+  await connect(storage);
+  addSwitch();
+  useEditor.getState().rename("Last");
+  await flush();
+  stop();
+
+  useEditor.setState(editor, true);
+  // Reading the project takes a while; a file is opened in the meantime.
+  const read = storage.project.bind(storage);
+  storage.project = async (id) => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    return read(id);
+  };
+  const connecting = connectStorage({ open: async () => storage });
+  await openDocument({ ...emptyDocument, metadata: { ...emptyDocument.metadata, name: "Imported" } });
+  stop = await connecting;
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(useEditor.getState().metadata.name).toBe("Imported");
+});
+
+test("deleting the last project used means it is neither reopened nor reported missing on the next load", async () => {
+  const storage = memoryStorage();
+  await connect(storage);
+  addSwitch();
+  await flush();
+  await deleteProject(useProjects.getState().projectId ?? "");
+  stop();
+  useEditor.setState(editor, true);
+  useProjects.setState(projects, true);
+  await connect(storage);
+  expect(useProjects.getState().error).toBeNull();
+  expect(useEditor.getState().circuit.components).toEqual([]);
+});
+
+test("a save that throws before reaching storage does not stop later saves", async () => {
+  const storage = memoryStorage();
+  const save = storage.save.bind(storage);
+  let fail = true;
+  storage.save = (record, base) => (fail ? Promise.reject(new Error("once")) : save(record, base));
+  await connect(storage);
+  addSwitch();
+  expect(await flush()).toBe(false);
+  fail = false;
+  expect(await flush()).toBe(true);
+  expect(await storage.projects()).toHaveLength(1);
 });

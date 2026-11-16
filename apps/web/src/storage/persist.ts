@@ -56,33 +56,37 @@ let revision = 0;
 /** The open document's content as last opened or saved: a change is anything else. */
 let baseline = "";
 let timer: ReturnType<typeof setTimeout> | undefined;
-/** Saves run one after another, so two never race for one revision. */
-let queue: Promise<void> = Promise.resolve();
+/** Saves and deletes run one after another, so two never race for one revision. Never rejects. */
+let queue: Promise<boolean> = Promise.resolve(true);
+/** Counts documents opened, so an open that waited (the last project, on load) never replaces one opened since. */
+let opens = 0;
 
-async function save() {
-  if (!storage) return;
-  const document = currentDocument();
-  const content = contentOf(document);
-  if (content === baseline) return;
-  const { projectId } = useProjects.getState();
-  const id = projectId ?? crypto.randomUUID();
-  const record = (doc: CircuitDocument, rev: number) => ({
-    id: doc === document ? id : crypto.randomUUID(),
-    name: doc.metadata.name,
-    modifiedAt: doc.metadata.modifiedAt,
-    revision: rev,
-    text: serializeDocument(doc),
-  });
+const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+/** Saves the open document if it changed. False when it could not be saved; true when saved, or nothing to save. */
+async function save(): Promise<boolean> {
+  // No storage: the question before replacing a circuit is asked instead (`replacingIsSafe`).
+  if (!storage) return true;
   try {
-    const mine = record(document, revision + 1);
-    let saved = mine;
+    const document = currentDocument();
+    const content = contentOf(document);
+    if (content === baseline) return true;
+    const { projectId } = useProjects.getState();
+    const record = (doc: CircuitDocument, id: string, rev: number) => ({
+      id,
+      name: doc.metadata.name,
+      modifiedAt: doc.metadata.modifiedAt,
+      revision: rev,
+      text: serializeDocument(doc),
+    });
+    let saved = record(document, projectId ?? crypto.randomUUID(), revision + 1);
     let copied = false;
-    if (!(await storage.save(mine, projectId ? revision : 0))) {
+    if (!(await storage.save(saved, projectId ? revision : 0))) {
       // Another tab saved or deleted this project since: this tab's work becomes a project of its own.
       const name = `${document.metadata.name} (copy)`;
       const copy = { ...document, metadata: { ...document.metadata, name } };
-      saved = record(copy, 1);
-      await storage.save(saved, 0);
+      saved = record(copy, crypto.randomUUID(), 1);
+      if (!(await storage.save(saved, 0))) throw new Error("the copy could not be stored");
       copied = true;
       useEditor.setState(({ metadata }) => ({ metadata: { ...metadata, name } }));
       baseline = contentOf(copy);
@@ -92,31 +96,45 @@ async function save() {
     revision = saved.revision;
     await storage.setLast(saved.id);
     useProjects.setState({ projectId: saved.id, savedAt: saved.modifiedAt, copied, error: null, projects: await storage.projects() });
+    return true;
   } catch (error) {
     // The document in memory is untouched: the next change, or the page being hidden, tries again.
-    useProjects.setState({ error: `Not saved: ${error instanceof Error ? error.message : String(error)}` });
+    useProjects.setState({ error: `Not saved: ${message(error)}` });
+    return false;
   }
 }
 
-/** Saves now if anything changed, after any save under way. */
-export function flush(): Promise<void> {
+/** Saves now if anything changed, after any save under way. False when it could not be saved. */
+export function flush(): Promise<boolean> {
   clearTimeout(timer);
   timer = undefined;
   queue = queue.then(save);
   return queue;
 }
 
+/** Asks whether to replace a circuit whose last save failed, losing its changes. */
+const askToDiscard = (error: string) =>
+  typeof window !== "undefined" && window.confirm(`${error}. Replace this circuit anyway? Its changes since your last export will be lost.`);
+
 /**
- * Opens `document` in the editor, after saving the one it replaces. `project`: the saved project it is, with the
- * revision read; without one it becomes a project at its first change.
+ * Opens `document` in the editor, after saving the one it replaces; if that save fails, only once `ask` says yes.
+ * `project`: the saved project it is, with the revision read; without one it becomes a project at its first change.
+ * `onlyIf`: checked last, after the save, so an open that waited can still give way. True when it opened.
  */
-export async function openDocument(document: CircuitDocument, project?: { id: string; revision: number }) {
-  await flush();
+export async function openDocument(
+  document: CircuitDocument,
+  project?: { id: string; revision: number },
+  { onlyIf, ask = askToDiscard }: { onlyIf?: () => boolean; ask?: (error: string) => boolean } = {},
+): Promise<boolean> {
+  if (!(await flush()) && !ask(useProjects.getState().error ?? "Not saved")) return false;
+  if (onlyIf && !onlyIf()) return false;
+  opens++;
   useEditor.getState().load(document);
   revision = project?.revision ?? 0;
   baseline = contentOf(currentDocument());
   useProjects.setState({ projectId: project?.id ?? null, savedAt: project ? document.metadata.modifiedAt : null, copied: false, error: null });
   if (project) await storage?.setLast(project.id).catch(() => undefined);
+  return true;
 }
 
 /** An empty, unsaved circuit. */
@@ -131,32 +149,38 @@ export function newCircuit() {
   });
 }
 
-/** Opens a saved project; a project that no longer opens says why and stays stored, untouched. */
-export async function openProject(id: string) {
+/** Opens a saved project; one that no longer opens says why and stays stored, untouched. */
+export async function openProject(id: string, onlyIf?: () => boolean) {
   const record = await storage?.project(id);
   if (!record) return useProjects.setState({ error: "That project is no longer here: another tab may have deleted it." });
   const result = parseDocument(record.text);
   if (!result.ok) return useProjects.setState({ error: `Could not open ${record.name}: ${result.error}` });
-  await openDocument(result.document, { id, revision: record.revision });
+  await openDocument(result.document, { id, revision: record.revision }, { onlyIf });
 }
 
 /** Deletes a saved project; the circuit on screen, if it was that one, stays and is saved anew at its next change. */
-export async function deleteProject(id: string) {
-  if (!storage) return;
-  await queue;
-  try {
-    await storage.remove(id);
-    if (useProjects.getState().projectId === id) {
-      revision = 0;
-      useProjects.setState({ projectId: null, savedAt: null });
+export function deleteProject(id: string): Promise<boolean> {
+  queue = queue.then(async () => {
+    if (!storage) return true;
+    try {
+      await storage.remove(id);
+      // Not reopened on the next load, and not reported missing either.
+      if ((await storage.last()) === id) await storage.setLast("");
+      if (useProjects.getState().projectId === id) {
+        revision = 0;
+        useProjects.setState({ projectId: null, savedAt: null });
+      }
+      useProjects.setState({ projects: await storage.projects(), error: null });
+      return true;
+    } catch (error) {
+      useProjects.setState({ error: `Could not delete: ${message(error)}` });
+      return false;
     }
-    useProjects.setState({ projects: await storage.projects(), error: null });
-  } catch (error) {
-    useProjects.setState({ error: `Could not delete: ${error instanceof Error ? error.message : String(error)}` });
-  }
+  });
+  return queue;
 }
 
-/** Whether replacing the circuit on screen loses nothing: it is saved, or will be before it goes. */
+/** Whether replacing the circuit on screen loses nothing: it will be saved first (`openDocument` asks if that fails). */
 export const replacingIsSafe = () => useProjects.getState().available === true;
 
 /**
@@ -165,19 +189,8 @@ export const replacingIsSafe = () => useProjects.getState().available === true;
  */
 export async function connectStorage({ open = browserStorage, reopen = true }: { open?: () => Promise<Storage>; reopen?: boolean } = {}) {
   baseline = contentOf(currentDocument());
-  let opened: Storage;
-  try {
-    opened = await open();
-  } catch (error) {
-    useProjects.setState({ available: false, reason: error instanceof Error ? error.message : String(error) });
-    return () => undefined;
-  }
-  storage = opened;
-  useProjects.setState({ available: true, reason: null, projects: await storage.projects() });
-  const last = reopen ? await storage.last() : undefined;
-  // Unless something was opened meanwhile, which then wins.
-  if (last && contentOf(currentDocument()) === baseline) await openProject(last);
-
+  const before = opens;
+  // Changes are watched from the start, so one made while storage opens is saved once it has.
   let seen = useEditor.getState();
   const unsubscribe = useEditor.subscribe((state) => {
     // Only what Export writes: switch positions, the selection or the view never save.
@@ -190,14 +203,32 @@ export async function connectStorage({ open = browserStorage, reopen = true }: {
   const hidden = () => {
     if (document.visibilityState === "hidden") void flush();
   };
+  const leaving = () => void flush();
   // A page has a document; a unit test of this module does not.
   const page = typeof document === "undefined" ? undefined : document;
   page?.addEventListener("visibilitychange", hidden);
-  return () => {
+  if (typeof window !== "undefined") window.addEventListener("pagehide", leaving);
+  let opened: Storage | null = null;
+  const stop = () => {
     unsubscribe();
     page?.removeEventListener("visibilitychange", hidden);
-    clearTimeout(timer);
+    if (typeof window !== "undefined") window.removeEventListener("pagehide", leaving);
     // A later connection (React runs effects twice in development) keeps its own storage.
-    if (storage === opened) storage = null;
+    if (opened && storage === opened) storage = null;
   };
+
+  try {
+    opened = await open();
+  } catch (error) {
+    useProjects.setState({ available: false, reason: message(error) });
+    return stop;
+  }
+  storage = opened;
+  useProjects.setState({ available: true, reason: null, projects: await opened.projects() });
+  const last = reopen ? await opened.last() : undefined;
+  // Only onto the page as it loaded: nothing opened, nothing changed meanwhile, which would win.
+  const untouched = () => opens === before && contentOf(currentDocument()) === baseline;
+  if (last && untouched() && (await opened.project(last))) await openProject(last, untouched);
+  else void flush();
+  return stop;
 }

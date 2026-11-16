@@ -807,8 +807,7 @@ function ChallengeList() {
     // Bundled and proved to open by challenges.test.ts.
     const document = starterDocument(name);
     if (!mayReplace()) return;
-    await openDocument(document);
-    useEditor.getState().openSheet(challenge.definition);
+    if (await openDocument(document)) useEditor.getState().openSheet(challenge.definition);
   };
   return (
     <section className="panel" aria-labelledby="challenges-title">
@@ -1752,7 +1751,7 @@ function SaveStatus() {
   if (copied)
     return (
       <span className="status-save status-warn" role="alert">
-        Another tab changed this project, so this work was saved as a copy.
+        Another tab changed or deleted this project, so this work was saved as a copy.
       </span>
     );
   if (!projectId || !savedAt) return null;

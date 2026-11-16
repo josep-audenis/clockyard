@@ -34,7 +34,7 @@ replacement.
 | [0026](0026-waveforms.md) | Waveforms: watched wires recorded by the engine | Accepted |
 | [0027](0027-library-and-teaching.md) | Library and teaching: examples in the editor, notes, and components from other files | Accepted |
 | [0028](0028-phase-6-plan.md) | Phase 6: what comes after the Phase 5 plan | Accepted |
-| [0029](0029-local-persistence.md) | Local persistence: projects, autosave and a component library in the browser | Proposed |
+| [0029](0029-local-persistence.md) | Local persistence: projects, autosave and a component library in the browser | Accepted |
 
 ## Template
 

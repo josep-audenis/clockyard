@@ -75,13 +75,14 @@ test("build two switches → AND → LED by hand, move a part, save and reload",
   await set(1, 1);
   await expectStates(page, { "LED 1": 1 });
 
-  // Save, reload the page, import the file: the circuit comes back; switch positions do not.
+  // Export, start a new circuit, import the file: the circuit comes back; switch positions do not.
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export" }).click();
   const saved = await download;
   expect(saved.suggestedFilename()).toBe("untitled.clockyard.json");
   const file = await saved.path();
   await page.reload();
+  await page.getByRole("button", { name: "New circuit" }).click();
   await expect(status(page)).toContainText("No circuit");
   await page.locator('[data-testid="import-file"]').setInputFiles(file);
   await expect(status(page)).toContainText("Settled");
@@ -465,6 +466,8 @@ test("label parts in the inspector; labels name pins in the readout and status b
   await page.getByRole("button", { name: "Export" }).click();
   const file = await (await download).path();
   await page.reload();
+  await page.getByRole("button", { name: "New circuit" }).click();
+  await expect(status(page)).toContainText("No circuit");
   await page.locator('[data-testid="import-file"]').setInputFiles(file);
   await expectStates(page, { "Switch A": 0, "LED sum": 0 });
   await expect(status(page)).toContainText("(AND half)");
@@ -1361,6 +1364,23 @@ test("work is kept in the browser: a reload brings it back, New starts another, 
   expect(asked).toBe("Delete the project Untitled from this browser? This cannot be undone.");
 });
 
+/** The revision of every project the page's browser has stored, read straight from IndexedDB. */
+const storedRevisions = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<number[]>((resolve, reject) => {
+        const request = indexedDB.open("clockyard");
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const all = request.result.transaction("projects").objectStore("projects").getAll();
+          all.onsuccess = () => {
+            request.result.close();
+            resolve((all.result as { revision: number }[]).map((p) => p.revision));
+          };
+        };
+      }),
+  );
+
 test("a project another tab saved first is not overwritten: this tab's work becomes a copy (ADR 0029)", async ({ page, context }) => {
   await page.goto("/");
   const at = await grid(page);
@@ -1375,11 +1395,12 @@ test("a project another tab saved first is not overwritten: this tab's work beco
   const there = await grid(other);
   await other.keyboard.press("l");
   await click(other, there(8, 2));
-  await expect(other.locator(".status-save")).toHaveText(/^Saved /);
+  // Stored by the other tab: its revision is 2 (the status says Saved as soon as a project opens).
+  await expect.poll(() => storedRevisions(other)).toEqual([2]);
 
   await page.keyboard.press("n");
   await click(page, at(8, 8));
-  await expect(page.locator(".status-save")).toHaveText("Another tab changed this project, so this work was saved as a copy.");
+  await expect(page.locator(".status-save")).toHaveText("Another tab changed or deleted this project, so this work was saved as a copy.");
   await expect(page.getByLabel("Project name")).toHaveValue("Untitled (copy)");
   await expect(page.getByRole("region", { name: "PROJECTS" }).getByRole("listitem")).toHaveCount(2);
 });
