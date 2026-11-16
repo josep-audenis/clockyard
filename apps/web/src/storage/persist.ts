@@ -2,6 +2,7 @@
 // once when the page is hidden. A document opened from an example, a starter, a link or a file becomes a project at
 // its first change. If another tab saved the project since this one read it, this tab's work is saved as a copy.
 import { create } from "zustand";
+import { since } from "../bench";
 import { normalizeNotes, type CircuitDocument } from "../editor/document";
 import { withContents } from "../editor/blueprints";
 import { liveDefinitions, mainCircuit, useEditor, type EditorState } from "../editor/store";
@@ -73,6 +74,16 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 /** Saves the open document if it changed. False when it could not be saved; true when saved, or nothing to save. */
 async function save(): Promise<boolean> {
   // No storage: the question before replacing a circuit is asked instead (`replacingIsSafe`).
+  if (!storage) return true;
+  const start = performance.now();
+  try {
+    return await saveNow();
+  } finally {
+    since("save", start);
+  }
+}
+
+async function saveNow(): Promise<boolean> {
   if (!storage) return true;
   try {
     const document = currentDocument();

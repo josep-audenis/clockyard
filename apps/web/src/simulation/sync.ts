@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { project } from "../editor/document";
 import { liveDefinitions, liveWatches, useEditor, type EditorState } from "../editor/store";
 import { startSimulation } from "./client";
+import { since, timed } from "../bench";
 import type { AsmError, Challenge, CircuitDescription, Command, Diagnostic, Report, Result, Stopped } from "./protocol";
 
 export type Loaded = Extract<Result, { type: "loaded" }>;
@@ -172,6 +173,8 @@ export function connectEngine(): () => void {
       // A reply means the engine works again, so an earlier command error no longer applies.
       case "loaded":
         pending--;
+        // From sending the load to its answer: the worker's parse, elaboration, compile and first settle, and the copies.
+        since("engine-load", loadSent);
         useSim.setState({ loaded: message, status: "ready", error: null });
         break;
       case "assembled":
@@ -205,7 +208,9 @@ export function connectEngine(): () => void {
 
   let description = "";
   let sent: EditorState["inputs"] = {};
-  const sync = (state: EditorState) => {
+  let loadSent = 0;
+  const sync = (state: EditorState) => timed("sync", () => syncNow(state));
+  const syncNow = (state: EditorState) => {
     const { circuit, inputs } = state;
     // Moving a part changes only geometry, so the engine keeps its state. The open sheet (main or a
     // definition) is what is simulated, with every definition as it is now.
@@ -216,6 +221,7 @@ export function connectEngine(): () => void {
       pending++;
       // The record describes the circuit before this one, its nets numbered differently.
       useSim.setState({ stale: true, waves: null });
+      loadSent = performance.now();
       client.send({ type: "load", circuit: projected });
       sent = {};
     }

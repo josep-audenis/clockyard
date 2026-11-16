@@ -9,7 +9,7 @@
       "vite/client"
     ]
   },
-  "include": [
+  "include": ["bench", "playwright.bench.config.ts", 
     "vite.config.ts",
     "playwright.config.ts",
     "src/**/*.test.ts",

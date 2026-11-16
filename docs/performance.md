@@ -74,8 +74,74 @@ Read so:
 
 ## Browser
 
-To be measured in ADR 0030 step 2 (`pnpm bench`): opening, toggling, moving a wire until drawn, panning frame times,
-run speed and autosave, against the targets of ADR 0030 item 4.
+`pnpm bench` (the WASM module, every size generated, a production build, then `bench/browser.bench.ts` in Playwright's
+Chromium at 1280 × 800, one page at a time). `BENCH_SIZES=1k,10k` limits the sizes. The app records where the time goes
+as `clockyard:` User Timing measures, only when its address has `?bench`.
+
+- **Open**: Import of the file until the status says Settled and two frames have been drawn. *Routing* and *drawing* are
+  the main thread's share of it; routing happens inside drawing, so drawing includes it.
+- **Toggle**: a click on a switch until the readout says it is on, which follows the engine's settle and a redraw.
+- **Drag**: a part moved two cells in ten pointer steps: the median redraw, and the median sync (projecting the document
+  and comparing it, ADR 0005), per step.
+- **Pan**: frames per second while the view is dragged with the middle button.
+- **Cycles per second**: Run at the top speed (10,000) for two seconds.
+- **Autosave**: one save of the project after the drag (ADR 0029).
+
+Measured 2026-11-16 on an Intel Core i7-13700H, 16 GB, Windows 11, Playwright 1.64.1's Chromium:
+
+| Benchmark | Open, ms | Of it: routing, ms | Of it: drawing, ms | Toggle, ms | Drag: draw, ms | Drag: sync, ms | Pan, fps | Cycles per second | Autosave, ms |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| chain-1k | 396 | 98 | 285 | 255 | 10.7 | 0.4 | 12 | – | 10 |
+| chain-10k | 8678 | 6234 | 7436 | 1787 | 119.8 | 5.5 | 1 | – | – |
+| chain-50k | 277829 | – | – | – | – | – | – | – | – |
+| fanout-1k | 1250 | 388 | 591 | 675 | 20.7 | 0.6 | 4 | – | – |
+| fanout-10k | 32299 | 17969 | 20510 | 8111 | 341.8 | 9.6 | 0 | – | – |
+| fanout-50k | 365554 | – | – | – | – | – | – | – | – |
+| adder-1k | 814 | 153 | 408 | 295 | 17.8 | 0.5 | 8 | – | 7 |
+| adder-10k | 17282 | 8419 | 10575 | – | – | – | – | – | – |
+| adder-50k (refused: too large) | 356622 | – | – | – | – | – | – | – | – |
+| counters-1k | 800 | 198 | 482 | – | 29.5 | 0.4 | 8 | 8994 | 8 |
+| counters-10k | 16981 | 11874 | 14264 | – | 335.6 | 6.3 | 1 | – | – |
+| counters-50k | 344925 | – | – | – | 2151.7 | 47.1 | – | – | – |
+| cpu-1k | 187 | 0 | 47 | – | 0.6 | 0.3 | 60 | 9654 | 8 |
+| cpu-10k | 286 | 0 | 98 | – | 1.3 | 0.5 | 60 | 1922 | 7 |
+| cpu-50k | 333 | – | – | – | 3.2 | 0.3 | 30 | 549 | 7 |
+
+The 50,000-part rows come from an earlier run of the same script, which measured little more than the open: every later
+step takes minutes at that size. A dash elsewhere is a step that timed out (10,000-part pans run at about one frame a
+second, and the steps after them often ran out of time) or does not apply.
+
+Read so:
+
+- **The main thread is the bottleneck, not the engine.** The same circuits load natively in 10–450 ms (above), and the
+  `cpu` family, whose sheet holds only a few instances and no wires, opens 47,000 nets in a third of a second. Every
+  family with thousands of parts and wires on its sheet spends almost all its open in drawing, and most of that in
+  routing every wire.
+- **Panning redraws the whole scene** on every frame: 12 frames a second at 1,000 parts, 1 at 10,000. Panning changes
+  nothing but the view, so it need not redraw anything.
+- **A drag step redraws everything too**, 10–30 ms at 1,000 parts and 120–340 ms at 10,000. The sync that the
+  `shortcut:` comment suspected is small: under 10 ms at 10,000 parts.
+- **Refusing a circuit takes as long as opening it.** `adder-50k` is routed and drawn for six minutes before the
+  engine's "too large" is shown.
+- **Autosave is cheap**: under 10 ms.
+- **Run speed** in the browser matches the engine's at 1,000 parts (about 9,000 cycles per second against the 10,000
+  asked); larger circuits run at what the engine allows.
+
+### Against the targets (ADR 0030 item 4)
+
+| Target | Measured | Met |
+|---|---|---|
+| 10,000 parts open in under 2 s | 8.7–32 s for flat circuits; 0.3 s for `cpu` | no |
+| A toggle or an edit shows within 100 ms at 10,000 parts | toggle 1.8–8 s; a drag step 120–340 ms | no |
+| Panning at 30 fps or more at 10,000 parts | 0–1 fps | no |
+| 50,000 parts open in under 10 s, edits under 1 s | 4.5–6 minutes; a drag step 2 s | no |
+| The reference CPU keeps 10,000 cycles per second | about 9,650 (`cpu-1k`, four CPUs) | yes |
+
+Step 3 of ADR 0030 optimizes, in the order these numbers point: panning without redrawing, then drawing only what an
+edit changed, then routing only the wires it touched.
+
+`pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
+twice as bad; `node scripts/bench-check.mjs --update` makes the last run the baseline.
 
 ## Earlier measurements
 
