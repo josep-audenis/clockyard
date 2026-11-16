@@ -221,7 +221,8 @@ function readDocument(data: unknown): CircuitDocument {
     format: "clockyard",
     version: FORMAT_VERSION,
     metadata: {
-      name: text(metadata.name, "metadata.name"),
+      // As the toolbar's rename stores it: no control or bidi characters, at most 64 characters, never blank.
+      name: [...normalizeLabel(text(metadata.name, "metadata.name"))].slice(0, 64).join("").trim() || "Untitled",
       createdAt: text(metadata.createdAt, "metadata.createdAt"),
       modifiedAt: text(metadata.modifiedAt, "metadata.modifiedAt"),
       // Kept even when this version has no such challenge; the editor then shows no panel for it.

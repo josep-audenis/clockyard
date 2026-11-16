@@ -75,13 +75,14 @@ test("build two switches → AND → LED by hand, move a part, save and reload",
   await set(1, 1);
   await expectStates(page, { "LED 1": 1 });
 
-  // Save, reload the page, import the file: the circuit comes back; switch positions do not.
+  // Export, start a new circuit, import the file: the circuit comes back; switch positions do not.
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export" }).click();
   const saved = await download;
   expect(saved.suggestedFilename()).toBe("untitled.clockyard.json");
   const file = await saved.path();
   await page.reload();
+  await page.getByRole("button", { name: "New circuit" }).click();
   await expect(status(page)).toContainText("No circuit");
   await page.locator('[data-testid="import-file"]').setInputFiles(file);
   await expect(status(page)).toContainText("Settled");
@@ -132,10 +133,10 @@ test("a circuit shared by link opens in another page and simulates the same way 
   await click(other, at(1, 6));
   await expectStates(other, { "Switch 1": 1, "Switch 2": 1, "LED 1": 1 });
 
-  // A second link opened in the same tab asks before replacing the circuit, then opens and runs.
-  page.once("dialog", (dialog) => void dialog.accept());
+  // A second link opened in the same tab replaces the circuit without asking, since work is saved in the browser
+  // (ADR 0029), then opens and runs.
   await page.locator('[data-testid="import-file"]').setInputFiles(example("catch"));
-  await expect(page.locator(".project-name")).toHaveText("Catch");
+  await expect(page.getByLabel("Project name")).toHaveValue("Catch");
   const game = await copied(page);
   let asked = "";
   other.once("dialog", (dialog) => {
@@ -143,8 +144,8 @@ test("a circuit shared by link opens in another page and simulates the same way 
     void dialog.accept();
   });
   await other.goto(game);
-  await expect(other.locator(".project-name")).toHaveText("Catch");
-  expect(asked).toBe("Replace the current circuit? Changes since your last export will be lost.");
+  await expect(other.getByLabel("Project name")).toHaveValue("Catch");
+  expect(asked).toBe("");
   expect(new URL(other.url()).hash).toBe("");
   await other.getByLabel("Speed").selectOption("1000");
   await other.getByRole("button", { name: "Run", exact: true }).click();
@@ -233,9 +234,8 @@ test("the one-bit register: the starter fails at the first edge that loads; the 
   await expect(checked(page)).toHaveText("Step 5 of 25 failed. With D = 1, load = 1, clk = 1: Q should be 1 but is 0.");
 
   // The reference solution, imported as a file: it names its challenge, so the panel stays.
-  page.once("dialog", (dialog) => void dialog.accept());
   await page.locator('[data-testid="import-file"]').setInputFiles(solution("06-register"));
-  await expect(page.locator(".project-name")).toHaveText("One-bit register: solution");
+  await expect(page.getByLabel("Project name")).toHaveValue("One-bit register: solution");
   await challenge(page).getByRole("button", { name: "Check" }).click();
   await expect(checked(page)).toHaveText("Passed, 25 of 25 steps.");
 });
@@ -466,6 +466,8 @@ test("label parts in the inspector; labels name pins in the readout and status b
   await page.getByRole("button", { name: "Export" }).click();
   const file = await (await download).path();
   await page.reload();
+  await page.getByRole("button", { name: "New circuit" }).click();
+  await expect(status(page)).toContainText("No circuit");
   await page.locator('[data-testid="import-file"]').setInputFiles(file);
   await expectStates(page, { "Switch A": 0, "LED sum": 0 });
   await expect(status(page)).toContainText("(AND half)");
@@ -834,7 +836,7 @@ test("an 8-bit switch wired to a 1-bit LED is a width mismatch until the LED is 
 test("two labels named go join a far switch and LED; renaming one leaves both unmatched", async ({ page }) => {
   await page.goto("/");
   const at = await grid(page);
-  const name = page.getByLabel("Name");
+  const name = page.getByLabel("Name", { exact: true });
   const label = page.getByRole("button", { name: "Label", exact: true });
   await page.keyboard.press("s");
   await click(page, at(1, 1)); // switch at (0,0), out (2,1)
@@ -1245,15 +1247,9 @@ test("examples open from the list with their notes; notes edited here travel in 
   await expect(notes).toHaveValue(/^Four full adders in a chain add two 4-bit numbers/);
   await expect(page.getByRole("list", { name: "Inputs and outputs" })).toContainText("LED Cout");
 
-  // Another example asks before it replaces this one.
-  // The example loads before it asks, so each answer waits for its own question.
-  let asked = page.waitForEvent("dialog");
+  // Another example replaces it without asking: the work on screen is saved in the browser (ADR 0029). Where it
+  // cannot be, the question stays (the persistence tests).
   await examples.getByRole("button", { name: "AND gate" }).click();
-  await (await asked).dismiss();
-  await expect(notes).toHaveValue(/^Four full adders/);
-  asked = page.waitForEvent("dialog");
-  await examples.getByRole("button", { name: "AND gate" }).click();
-  await (await asked).accept();
   await expect(notes).toHaveValue(/^The simplest circuit/);
   await expect(status(page)).toContainText("Settled");
 
@@ -1325,4 +1321,104 @@ test("components whose IDs are taken by others arrive under new IDs and numbered
   // The challenge still checks its own 8-bit adder, which is unchanged: its starter still fails.
   await challenge(page).getByRole("button", { name: "Check" }).click();
   await expect(checked(page)).toHaveText(/^Step \d+ of 32 failed\./);
+});
+
+test("work is kept in the browser: a reload brings it back, New starts another, and the list reopens the first (ADR 0029)", async ({ page }) => {
+  await page.goto("/");
+  const projects = page.getByRole("region", { name: "PROJECTS" });
+  const name = page.getByLabel("Project name");
+  const saved = page.locator(".status-save");
+  await expect(projects).toContainText("Saved in this browser as you work.");
+  const at = await grid(page);
+  await page.keyboard.press("s");
+  await click(page, at(2, 2));
+  await name.fill("Bench");
+  await name.press("Enter");
+  await expect(saved).toHaveText(/^Saved /);
+  await expect(projects.getByRole("button", { name: /^Bench/ })).toHaveAttribute("aria-current", "true");
+
+  await page.reload();
+  await expect(name).toHaveValue("Bench");
+  await expect(page.getByRole("list", { name: "Inputs and outputs" })).toContainText("Switch 1");
+
+  // A new circuit is not a project until it changes; the first is still listed and reopens.
+  await projects.getByRole("button", { name: "New circuit" }).click();
+  await expect(name).toHaveValue("Untitled");
+  await expect(page.getByRole("list", { name: "Inputs and outputs" })).not.toContainText("Switch 1");
+  await expect(projects.getByRole("listitem")).toHaveCount(1);
+  await page.keyboard.press("l");
+  await click(page, at(2, 2));
+  await expect(projects.getByRole("listitem")).toHaveCount(2);
+  await projects.getByRole("button", { name: /^Bench/ }).click();
+  await expect(name).toHaveValue("Bench");
+  await expect(page.getByRole("list", { name: "Inputs and outputs" })).toContainText("Switch 1");
+
+  // Deleting asks first; the circuit on screen stays.
+  let asked = "";
+  page.once("dialog", (dialog) => {
+    asked = dialog.message();
+    void dialog.accept();
+  });
+  await projects.getByRole("button", { name: "Delete project Untitled" }).click();
+  await expect(projects.getByRole("listitem")).toHaveCount(1);
+  expect(asked).toBe("Delete the project Untitled from this browser? This cannot be undone.");
+});
+
+/** The revision of every project the page's browser has stored, read straight from IndexedDB. */
+const storedRevisions = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<number[]>((resolve, reject) => {
+        const request = indexedDB.open("clockyard");
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const all = request.result.transaction("projects").objectStore("projects").getAll();
+          all.onsuccess = () => {
+            request.result.close();
+            resolve((all.result as { revision: number }[]).map((p) => p.revision));
+          };
+        };
+      }),
+  );
+
+test("a project another tab saved first is not overwritten: this tab's work becomes a copy (ADR 0029)", async ({ page, context }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  await page.keyboard.press("s");
+  await click(page, at(2, 2));
+  await expect(page.locator(".status-save")).toHaveText(/^Saved /);
+
+  // The same project, open in a second tab, changed there first.
+  const other = await context.newPage();
+  await other.goto("/");
+  await expect(other.getByLabel("Project name")).toHaveValue("Untitled");
+  const there = await grid(other);
+  await other.keyboard.press("l");
+  await click(other, there(8, 2));
+  // Stored by the other tab: its revision is 2 (the status says Saved as soon as a project opens).
+  await expect.poll(() => storedRevisions(other)).toEqual([2]);
+
+  await page.keyboard.press("n");
+  await click(page, at(8, 8));
+  await expect(page.locator(".status-save")).toHaveText("Another tab changed or deleted this project, so this work was saved as a copy.");
+  await expect(page.getByLabel("Project name")).toHaveValue("Untitled (copy)");
+  await expect(page.getByRole("region", { name: "PROJECTS" }).getByRole("listitem")).toHaveCount(2);
+});
+
+test("where the browser keeps no storage, the editor still works, says so, and asks before replacing (ADR 0029)", async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(window, "indexedDB", { value: undefined }));
+  await page.goto("/");
+  await expect(page.getByRole("region", { name: "PROJECTS" })).toContainText("Not saved in this browser: this browser keeps no storage for the page.");
+  await expect(page.locator(".status-save")).toHaveText("Not saved in this browser");
+  const at = await grid(page);
+  await page.keyboard.press("s");
+  await click(page, at(2, 2));
+  let asked = "";
+  page.once("dialog", (dialog) => {
+    asked = dialog.message();
+    void dialog.dismiss();
+  });
+  await page.getByRole("region", { name: "EXAMPLES" }).getByRole("button", { name: "AND gate" }).click();
+  await expect.poll(() => asked).toBe("Replace the current circuit? Changes since your last export will be lost.");
+  await expect(page.getByRole("list", { name: "Inputs and outputs" })).toContainText("Switch 1");
 });

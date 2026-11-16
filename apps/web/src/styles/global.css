@@ -725,3 +725,62 @@ pre.memory-words {
   justify-content: flex-end;
   gap: var(--space-2);
 }
+
+/* Projects (ADR 0029): New circuit, then each saved project with when it changed. */
+.projects-new {
+  width: 100%;
+  margin-bottom: var(--space-2);
+}
+
+.project-tile {
+  flex-direction: column;
+  align-items: flex-start;
+  height: auto;
+  min-height: var(--control-height);
+  padding-block: var(--space-1);
+}
+
+.project-tile[aria-current="true"] {
+  border-color: var(--accent);
+}
+
+.project-tile-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-tile-when {
+  color: var(--ink-muted);
+}
+
+input.project-name {
+  min-width: 8em;
+  max-width: 20em;
+  padding: 0 var(--space-2);
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+}
+
+input.project-name:hover,
+input.project-name:focus {
+  border-color: var(--line);
+  outline: none;
+}
+
+input.project-name:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.status-save {
+  margin-left: auto;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.status-warn {
+  color: var(--caution);
+}
