@@ -1234,3 +1234,33 @@ test("waveforms: the 8-bit counter stepped three times reads 0x00 to 0x03, and a
   await waves.getByRole("button", { name: "Stop watching Clock Clock" }).click();
   await expect(waves).toHaveCount(0);
 });
+
+test("examples open from the list with their notes; notes edited here travel in a link (ADR 0027)", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/");
+  const examples = page.getByRole("region", { name: "EXAMPLES" });
+  const notes = page.getByRole("textbox", { name: "Notes" });
+  await expect(notes).toHaveValue("");
+  await examples.getByRole("button", { name: "4-bit adder" }).click();
+  await expect(notes).toHaveValue(/^Four full adders in a chain add two 4-bit numbers/);
+  await expect(page.getByRole("list", { name: "Inputs and outputs" })).toContainText("LED Cout");
+
+  // Another example asks before it replaces this one.
+  // The example loads before it asks, so each answer waits for its own question.
+  let asked = page.waitForEvent("dialog");
+  await examples.getByRole("button", { name: "AND gate" }).click();
+  await (await asked).dismiss();
+  await expect(notes).toHaveValue(/^Four full adders/);
+  asked = page.waitForEvent("dialog");
+  await examples.getByRole("button", { name: "AND gate" }).click();
+  await (await asked).accept();
+  await expect(notes).toHaveValue(/^The simplest circuit/);
+  await expect(status(page)).toContainText("Settled");
+
+  await notes.fill("Mine now.\n\nSecond paragraph.");
+  await page.getByRole("button", { name: "Copy link" }).click();
+  await expect(page.locator(".file-notice")).toHaveText(/^Link copied/);
+  const other = await context.newPage();
+  await other.goto(await page.evaluate(() => navigator.clipboard.readText()));
+  await expect(other.getByRole("textbox", { name: "Notes" })).toHaveValue("Mine now.\n\nSecond paragraph.");
+});

@@ -1,10 +1,11 @@
 {
   "format": "clockyard",
-  "version": 6,
+  "version": 11,
   "metadata": {
     "name": "AND gate",
     "createdAt": "2026-11-06T12:00:00.000Z",
-    "modifiedAt": "2026-11-06T12:00:00.000Z"
+    "modifiedAt": "2026-11-06T12:00:00.000Z",
+    "notes": "The simplest circuit: two switches feed an AND gate, and its output lights an LED.\n\nClick a switch to turn it on. The LED lights only while both switches are on. A wire glows while it carries a 1, so you can follow each switch's signal to the LED.\n\nTry: select the AND gate, press Delete, and place an OR gate (press O, then click) where it was. Wire it the same way: now either switch lights the LED."
   },
   "circuit": {
     "components": [

@@ -467,7 +467,17 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       record starts at the load's tick 0. Playwright: the 8-bit counter,
       stepped three times, shows bands `01` to `03` and reads `0x00` to
       `0x03` at the cursor.
-7. ⬜ Library and teaching: blueprints, bundled designs, material.
+7. ⬜ Library and teaching (ADR 0027, accepted): examples listed in the
+   editor with notes, and components added from another file or example.
+   1. ✅ Notes: `metadata.notes` (format 11), plain text of at most 4,000
+      characters, in a Notes panel under the inspector; notes in every
+      example, which are format 11 now; and an Examples list under the
+      challenges, each file loaded when opened. Playwright: the 4-bit adder
+      opens from the list with its notes, another example asks before it
+      replaces it, and notes edited here travel in a link.
+   2. ⬜ Add components from a file or an example: same ID and contents
+      reused, otherwise a fresh ID; names numbered. Playwright: an 8-bit
+      adder from the counter example adds in a new circuit.
 
 ## Out of scope (for now)
 

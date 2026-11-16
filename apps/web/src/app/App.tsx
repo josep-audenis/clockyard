@@ -17,8 +17,10 @@ import {
   takesWidth,
   widthOf,
   MAX_LABEL,
+  MAX_NOTES,
   MAX_WIDTH,
   maxValue,
+  normalizeNotes,
   parseValue,
   project,
   showValue,
@@ -35,6 +37,7 @@ import { assemble, check, connectEngine, control, disassemble, readMemory, setSp
 import type { AsmError, Report } from "../simulation/protocol";
 import { FORMAT_VERSION, MAX_DOCUMENT_BYTES, parseDocument, serializeDocument } from "../storage/file";
 import { CHALLENGES, findChallenge, reportText, starterDocument, type ChallengeEntry } from "../storage/challenges";
+import { EXAMPLES, exampleDocument } from "../storage/examples";
 import { linkFragment, readLinkFragment } from "../storage/link";
 
 /** `label` is not a part: it places a named junction (ADR 0015). */
@@ -150,7 +153,8 @@ function currentDocument(): CircuitDocument {
   return {
     format: "clockyard",
     version: FORMAT_VERSION,
-    metadata: { ...state.metadata, modifiedAt: new Date().toISOString() },
+    // Notes are kept as typed while being edited; the file has them as Import would read them.
+    metadata: { ...state.metadata, notes: normalizeNotes(state.metadata.notes ?? "") || undefined, modifiedAt: new Date().toISOString() },
     circuit: mainCircuit(state),
     definitions: liveDefinitions(state),
   };
@@ -159,7 +163,7 @@ function currentDocument(): CircuitDocument {
 /** Asks before an opened file or link replaces a circuit that has parts. */
 function mayReplace(): boolean {
   const state = useEditor.getState();
-  const replacing = mainCircuit(state).components.length > 0 || state.definitions.length > 0;
+  const replacing = mainCircuit(state).components.length > 0 || state.definitions.length > 0 || normalizeNotes(state.metadata.notes ?? "") !== "";
   return !replacing || window.confirm("Replace the current circuit? Changes since your last export will be lost.");
 }
 
@@ -390,6 +394,7 @@ function PartsLibrary() {
         )}
       </section>
       <ChallengeList />
+      <ExampleList />
       <div className="type-caption parts-hint">
         <p>Pick a part or press its key, then click the canvas to place it. Esc cancels.</p>
         <details>
@@ -726,6 +731,75 @@ function ChallengeList() {
   );
 }
 
+/** The bundled examples, from a gate to a game (ADR 0027); each opens as Import opens a file, asking before it replaces a circuit. */
+function ExampleList() {
+  const [problem, setProblem] = useState<string | null>(null);
+  // Only the latest click opens: a second click, or another example's file loading sooner, never asks twice.
+  const latest = useRef(0);
+  const open = async (name: string) => {
+    const me = ++latest.current;
+    setProblem(null);
+    try {
+      const document = await exampleDocument(name);
+      if (me === latest.current && mayReplace()) useEditor.getState().load(document);
+    } catch (error) {
+      // Bundled and proved to open by examples.test.ts; what remains is the file failing to load.
+      setProblem(`Could not open the example: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+  return (
+    <section className="panel" aria-labelledby="examples-title">
+      <h2 id="examples-title" className="type-heading panel-title">
+        EXAMPLES
+      </h2>
+      <ol className="challenge-list">
+        {EXAMPLES.map(({ name, title }) => (
+          <li key={name}>
+            <button type="button" className="part-tile type-label" onClick={() => void open(name)}>
+              {title}
+            </button>
+          </li>
+        ))}
+      </ol>
+      {problem && (
+        <p className="type-body field-error" role="alert">
+          {problem}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** The document's notes (ADR 0027): plain text that travels with the file and its link, edited in place, outside undo. */
+function NotesPanel() {
+  const notes = useEditor((s) => s.metadata.notes ?? "");
+  const id = useId();
+  return (
+    <section className="panel" aria-labelledby={`${id}-title`}>
+      <h2 id={`${id}-title`} className="type-heading panel-title">
+        NOTES
+      </h2>
+      <div className="inspector-body">
+        <label className="visually-hidden" htmlFor={`${id}-notes`}>
+          Notes
+        </label>
+        <textarea
+          id={`${id}-notes`}
+          aria-describedby={`${id}-hint`}
+          className="input notes"
+          rows={8}
+          value={notes}
+          placeholder="What this circuit does, and what to try."
+          onChange={(e) => useEditor.getState().setNotes(e.target.value)}
+        />
+        <p id={`${id}-hint`} className="field-hint">
+          {`Plain text, saved with the file and in links, up to ${MAX_NOTES.toLocaleString("en")} characters. A blank line starts a new paragraph.`}
+        </p>
+      </div>
+    </section>
+  );
+}
+
 /** The challenge the document was started from: its text and Check (ADR 0025). The engine decides; this shows its report. */
 function ChallengePanel() {
   const entry = useEditor((s) => findChallenge(s.metadata.challenge));
@@ -813,6 +887,7 @@ function Inspector() {
         )}
       </section>
       <ChallengePanel />
+      <NotesPanel />
     </aside>
   );
 }

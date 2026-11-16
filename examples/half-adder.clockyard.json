@@ -1,10 +1,11 @@
 {
   "format": "clockyard",
-  "version": 6,
+  "version": 11,
   "metadata": {
     "name": "Half adder",
     "createdAt": "2026-11-06T12:00:00.000Z",
-    "modifiedAt": "2026-11-07T12:00:00.000Z"
+    "modifiedAt": "2026-11-07T12:00:00.000Z",
+    "notes": "A half adder adds two bits. Sum is A XOR B; Carry is A AND B, the bit carried into the next column.\n\nEach switch fans out through a junction to both gates. The labels A, B, Sum and Carry name the parts, and the readout names them the same way.\n\nTry: 1 + 1 gives Sum 0 and Carry 1, binary 10. Select both gates with their switches and LEDs and use Make component in the inspector: the labelled switches and LEDs become the new component's pins."
   },
   "circuit": {
     "components": [

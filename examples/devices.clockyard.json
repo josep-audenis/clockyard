@@ -1,10 +1,11 @@
 {
   "format": "clockyard",
-  "version": 9,
+  "version": 11,
   "metadata": {
     "name": "Devices",
     "createdAt": "2026-11-13T12:00:00.000Z",
-    "modifiedAt": "2026-11-13T12:00:00.000Z"
+    "modifiedAt": "2026-11-13T12:00:00.000Z",
+    "notes": "A keyboard, two seven-segment digits and a 32 by 32 screen.\n\nPress Run, click the keyboard, and hold a key. Its 8-bit code shows in hex on the two digits: a splitter takes it into two 4-bit halves, and each half picks a word from a 16-word ROM that lights the right segments.\n\nThe code is also written into the screen's memory at its own address on every clock rise, so each printable key lights its own pixels."
   },
   "circuit": {
     "components": [

@@ -1,10 +1,11 @@
 {
   "format": "clockyard",
-  "version": 7,
+  "version": 11,
   "metadata": {
     "name": "8-bit counter",
     "createdAt": "2026-11-08T12:00:00.000Z",
-    "modifiedAt": "2026-11-08T12:00:00.000Z"
+    "modifiedAt": "2026-11-08T12:00:00.000Z",
+    "notes": "A register holds an 8-bit value. On each rising edge of the clock it takes the 8-bit adder's output, which is its own value plus Add, plus 1 when Count is on.\n\nTurn Count on, then press Step in the toolbar: each step is one clock cycle, and Q goes up by one. Run counts on its own at the chosen speed, and Reset sets the register and time back to 0.\n\nTurn Count off and set Add to 2 to count in twos. To see the clock and the count over time, select the wire into the register's clock input and press Watch in the inspector, then do the same for the wire out of the register."
   },
   "circuit": {
     "components": [

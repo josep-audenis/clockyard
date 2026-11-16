@@ -5,8 +5,11 @@ test fixture: the Rust and frontend test suites load them and check their
 behavior through the real engine. Expected outputs live in tests, never baked
 into the example files.
 
-Examples are written in format version 9 (`devices`, `reference-cpu`, `catch`), 7 (ADRs 0010, 0012, 0013, 0014, 0015 and 0017) or 6; the current format is 10 (ADR 0025), and older versions open unchanged. Load one with
-**Import** in the editor. `crates/sim-core/tests/examples.rs` checks their
+Examples are written in format version 11 (ADR 0027): each carries its own notes in
+`metadata.notes`, saying what it shows and what to try, which the editor's Notes panel shows. Open
+one from the **Examples** list in the editor, which orders them from the AND gate to Catch;
+Import opens the files too. `apps/web/src/storage/examples.ts` lists them, and its test fails if a file is missing
+from the list or its title differs from the file's own name. `crates/sim-core/tests/examples.rs` checks their
 outputs natively, `apps/web/src/storage/file.test.ts` checks every file parses,
 and the Playwright tests in `apps/web/e2e/` drive them in the browser.
 
