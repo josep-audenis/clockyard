@@ -18,6 +18,8 @@
     "prepare": "git config core.hooksPath .githooks",
     "verify": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && node scripts/reference-cpu.mjs --check && node scripts/challenges.mjs --check && node scripts/benchmarks.mjs --check && cargo test --workspace && pnpm wasm && pnpm lint && pnpm typecheck && pnpm --filter web test && pnpm --filter web build && pnpm --filter web e2e",
     "test:e2e": "pnpm wasm && pnpm --filter web e2e",
+    "bench": "pnpm wasm && node scripts/benchmarks.mjs --all && pnpm --filter web bench",
+    "bench:check": "node scripts/bench-check.mjs",
     "bench:native": "node scripts/benchmarks.mjs --all && cargo run --release -q -p sim-core --example bench"
   }
 }

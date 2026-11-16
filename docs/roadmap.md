@@ -517,7 +517,12 @@ targets, as in Phase 5.
       linearly (about 130 ms for 10,000 gates); a 50,000-gate ripple
       settles in about 10 ms; ticking slows faster than size grows; two
       limits found (elaboration's 200,000 items, Import's 10 MB).
-   2. ⬜ Browser measurements (`pnpm bench`), first results against targets.
+   2. ✅ Browser measurements (`pnpm bench`, `pnpm bench:check`), first
+      results against targets: only the reference CPU's run speed is met.
+      Opening 10,000 parts takes 9–20 s, a toggle 1.7–4.6 s, panning runs
+      at about one frame a second, a drag step redraws everything, and
+      running `counters-10k` at full speed froze the page; the engine and
+      sync are cheap. Routing and drawing on the main thread are the cost.
    3. ⬜ Optimizations, one per pull request, as the numbers require.
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
@@ -545,7 +550,8 @@ watched wires recorded by the engine (ADR 0026), and increment 7, examples
 in the editor with notes and components added from other files (ADR 0027),
 are built too, which completes the plan of ADR 0020. Phase 6 is planned in
 ADR 0028 (accepted); its first increment, local persistence (ADR 0029), is
-built. Increment 2, benchmarks (ADR 0030), has its native step built.
+built. Increment 2, benchmarks (ADR 0030), has its measurements built;
+step 3 optimizes the canvas, which they show is the bottleneck.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
