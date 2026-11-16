@@ -524,6 +524,9 @@ targets, as in Phase 5.
       running `counters-10k` at full speed froze the page; the engine and
       sync are cheap. Routing and drawing on the main thread are the cost.
    3. ⬜ Optimizations, one per pull request, as the numbers require.
+      1. ✅ Panning without redrawing: 60 fps at 1,000 parts, 2.5–4
+         times faster at 10,000 (5–12 fps); benchmarks on the graphics
+         card from now on.
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.

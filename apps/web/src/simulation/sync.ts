@@ -102,10 +102,6 @@ export function readMemory(component: string, count: number) {
   send?.({ type: "readMemory", component, count });
 }
 
-/** When each unanswered load was sent, oldest first, and when the latest answered one was (ADR 0030's timings). */
-const loadsSent: number[] = [];
-let answered: number | null = null;
-
 /** Replies awaited by request number: the assembler's answers come back in any order with other results. */
 let requests = 0;
 const awaiting = new Map<number, (result: Result) => void>();
@@ -153,6 +149,10 @@ export function setSpeed(speed: number) {
 export function connectEngine(): () => void {
   // Loads sent but not yet answered; states arriving meanwhile describe an older circuit.
   let pending = 0;
+  // When each of them was sent, oldest first, and when the latest answered one was (ADR 0030's timings). Per worker:
+  // a worker stopped with loads unanswered (React's double mount in development) leaves none behind.
+  const loadsSent: number[] = [];
+  let answered: number | null = null;
   const client = startSimulation((message) => {
     switch (message.type) {
       case "ready":

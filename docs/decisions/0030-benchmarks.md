@@ -189,6 +189,12 @@ What exists today:
       measurements show unmet. If the targets are all met, this step is
       empty and the increment closes at step 2.
 
+   *As built (step 3, first):* a pan moves the view without drawing the
+   scene again (a Pixi render group), 2.5–4 times faster at 10,000
+   parts, still under 30 fps: Pixi's render of every object, off screen
+   too, is what remains. `pnpm bench` now asks Chromium for the graphics
+   card, since SwiftShader's frame rates are not what a user sees.
+
 ## Alternatives considered
 
 - **Criterion for the native benchmarks.** It gives better statistics, but

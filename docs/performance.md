@@ -158,6 +158,35 @@ edit or a state changed, then routing only the wires an edit touched.
 twice as bad (and worse by more than 5), or one the run lost; `node scripts/bench-check.mjs --update` makes the last run
 the baseline. The baseline is this table's run.
 
+## Optimizations (ADR 0030 step 3)
+
+### 1. Panning without redrawing
+
+A pan used to redraw the whole scene on every pointer move. Now a frame that only moves the view sets the world's
+transform and renders: the world is a Pixi render group, so moving it is one transform, and nothing is drawn again
+(`clockyard:view` measures such a frame, `clockyard:draw` a redraw).
+
+From here on `pnpm bench` asks Chromium for the graphics card (`--enable-gpu`, `--ignore-gpu-blocklist`, and ANGLE on
+Direct3D 11 on Windows) instead of SwiftShader, so its frame rates are what a user sees. Before and after, measured
+back to back on 2026-11-16 on the same machine, on the Iris Xe graphics card:
+
+| Benchmark | Pan before, fps | Pan after, fps |
+|---|---:|---:|
+| chain-1k | 30 | 60 |
+| chain-10k | 3.5 | 12 |
+| fanout-10k | 2.5 | 12 |
+| adder-10k | 2.0 | 5.0 |
+| cpu-1k | 60 | 60 |
+
+Every 1,000-part size now pans at the display's 60 frames a second. At 10,000 parts it is 2.5–4 times faster but
+still under the 30 fps target. What is left is Pixi's own render of every object, even off screen: a pan frame takes
+35–45 ms of main-thread time for `chain-10k` and about 110 ms for `adder-10k`, with nothing drawn. Culling what is off
+screen is the next candidate for panning.
+
+The laptop ran on battery during these runs, and they were slower overall than the table above (routing, which the
+change does not touch, took about twice as long), so only the before and after columns compare with each other. The
+table above and the baseline are to be measured again on mains power, with the graphics card.
+
 ## Earlier measurements
 
 - The reference CPU runs at the 10,000 cycles per second setting in the browser, about 9,950 measured (ADR 0019).
