@@ -1276,7 +1276,11 @@ test("components come from an example: its 8-bit adder, with the full adder insi
   await choices.getByRole("checkbox", { name: "8-bit adder with Full adder" }).check();
   await dialog.getByRole("button", { name: "Add", exact: true }).click();
   await expect(dialog).toContainText("Added Full adder and 8-bit adder.");
+  // Focus moved to Close; a part's shortcut key does nothing behind the dialog.
+  await expect(dialog.getByRole("button", { name: "Close" })).toBeFocused();
+  await page.keyboard.press("n");
   await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(parts.getByRole("button", { name: /^NOT/ })).toHaveAttribute("aria-pressed", "false");
   await expect(dialog).toBeHidden();
 
   // Placed, then opened on its own sheet, which simulates it: A at (0,0) and B at (0,12) as in the 8-bit adder example.

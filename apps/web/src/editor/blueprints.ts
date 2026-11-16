@@ -1,22 +1,37 @@
 // Components added from another document (ADR 0027): the picked definitions and those they contain, merged into
-// this document's. A definition already here with the same contents is reused, by preference the one with the same
-// ID, so adding twice adds nothing; any other gets an ID of its own, and the added definitions that contain it are
-// rewritten to it. A name already here is numbered.
+// this document's. A definition already here with the same contents under the same ID, or under one numbered from it
+// by an earlier add (`id-2`), is reused, so adding twice adds nothing; contents alone never match, since two empty or
+// pins-only components are different work in progress. Any other definition gets an ID of its own, and the added
+// definitions that contain it are rewritten to it. A name already here is numbered.
 import { MAX_LABEL, type Circuit, type Definition } from "./document";
 
-/** `picked` and every definition they contain, contained ones first, each once. */
-function withContents(source: Definition[], picked: string[]): Definition[] {
+/**
+ * `picked` and every definition they contain, contained ones first, each once. Iterative, so a deep chain cannot
+ * overflow the stack; a source that reached here has no definition containing itself (`parseDocument`).
+ */
+export function withContents(source: Definition[], picked: string[]): Definition[] {
   const byId = new Map(source.map((d) => [d.id, d]));
   const order: Definition[] = [];
   const seen = new Set<string>();
-  const visit = (id: string) => {
-    const definition = byId.get(id);
-    if (!definition || seen.has(id)) return;
+  for (const id of picked) {
+    const start = byId.get(id);
+    if (!start || seen.has(id)) continue;
     seen.add(id);
-    for (const c of definition.circuit.components) if (c.kind === "custom" && c.definition) visit(c.definition);
-    order.push(definition);
-  };
-  picked.forEach(visit);
+    const path = [{ definition: start, next: 0 }];
+    for (let top = path.at(-1); top; top = path.at(-1)) {
+      const inner = top.definition.circuit.components[top.next++];
+      if (!inner) {
+        order.push(top.definition);
+        path.pop();
+        continue;
+      }
+      const child = inner.kind === "custom" && inner.definition ? byId.get(inner.definition) : undefined;
+      if (child && !seen.has(child.id)) {
+        seen.add(child.id);
+        path.push({ definition: child, next: 0 });
+      }
+    }
+  }
   return order;
 }
 
@@ -61,12 +76,15 @@ export function addDefinitions(target: Definition[], source: Definition[], picke
   const takenIds = new Set(target.map((d) => d.id));
   const takenNames = new Set(target.map((d) => d.name));
   const result: Added = { added: [], reused: [] };
+  const contentsHere = new Map(target.map((d) => [d, canonical(d.circuit)]));
   for (const definition of withContents(source, picked)) {
     // Contained ones come first, so their IDs here are known.
     const circuit = rewire(definition.circuit, ids);
     const contents = canonical(circuit);
-    const same = (d: Definition) => canonical(d.circuit) === contents;
-    const here = target.find((d) => d.id === definition.id && same(d)) ?? target.find(same);
+    // `id-2`, `id-3`, …: where an earlier add put it.
+    const numbered = (d: Definition) => d.id.startsWith(`${definition.id}-`) && /^\d+$/.test(d.id.slice(definition.id.length + 1));
+    const same = (d: Definition) => contentsHere.get(d) === contents;
+    const here = target.find((d) => d.id === definition.id && same(d)) ?? target.find((d) => numbered(d) && same(d));
     if (here) {
       ids.set(definition.id, here.id);
       result.reused.push(here);

@@ -213,6 +213,7 @@ function readDocument(data: unknown): CircuitDocument {
     circuit: readCircuit(object(d.circuit, `${where} circuit`), `${where}: `, definitionIds),
   }));
 
+  refuseRecursion(definitions);
   const main = readCircuit(circuit, "", definitionIds);
   if (version < 4) pinPortsById([main, ...definitions.map((d) => d.circuit)], definitions);
 
@@ -238,6 +239,37 @@ function readNotes(value: unknown): { notes?: string } {
   const notes = normalizeNotes(text(value, "metadata.notes"));
   if ([...notes].length > MAX_NOTES) throw new Error(`metadata.notes is longer than ${MAX_NOTES} characters.`);
   return notes ? { notes } : {};
+}
+
+/**
+ * Refuses a definition that contains itself, directly or through others: it could never be built, and copying it into
+ * another document (ADR 0027) would leave it pointing at that document's own components. Iterative, so a deep chain
+ * cannot overflow the stack.
+ */
+function refuseRecursion(definitions: Definition[]) {
+  const inner = new Map(
+    definitions.map((d) => [d.id, [...new Set(d.circuit.components.flatMap((c) => (c.kind === "custom" && c.definition ? [c.definition] : [])))]]),
+  );
+  // Absent: not reached yet; "open": on the path being followed; "done": every definition inside it checked.
+  const state = new Map<string, "open" | "done">();
+  for (const root of definitions) {
+    if (state.has(root.id)) continue;
+    state.set(root.id, "open");
+    const path: { id: string; next: number }[] = [{ id: root.id, next: 0 }];
+    for (let top = path.at(-1); top; top = path.at(-1)) {
+      const child = inner.get(top.id)?.[top.next++];
+      if (child === undefined) {
+        state.set(top.id, "done");
+        path.pop();
+      } else if (state.get(child) === "open") {
+        const name = definitions.find((d) => d.id === child)?.name ?? child;
+        throw new Error(`The component ${name} contains itself, so it could never be built.`);
+      } else if (!state.has(child) && inner.has(child)) {
+        state.set(child, "open");
+        path.push({ id: child, next: 0 });
+      }
+    }
+  }
 }
 
 /** A challenge's file name, such as `01-inverter` (ADR 0025). */

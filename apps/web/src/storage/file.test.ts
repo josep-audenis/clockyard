@@ -250,6 +250,18 @@ test("a version 7 file is migrated: only the version changes; memories round-tri
   expect(ram.ok && ram.document.circuit.components[0]?.props).toEqual({ width: 8 });
 });
 
+test("a component that contains itself, directly or through another, is refused by name (ADR 0027)", () => {
+  const custom = (id: string, definition: string) => ({ id, kind: "custom", definition, position: { x: 0, y: 0 }, rotation: 0, props: {} });
+  const doc = (definitions: unknown[]) => JSON.stringify({ ...document, definitions });
+  const loop = [
+    { id: "a", name: "Alpha", circuit: { components: [custom("x", "b")], junctions: [], wires: [] } },
+    { id: "b", name: "Beta", circuit: { components: [custom("y", "a")], junctions: [], wires: [] } },
+  ];
+  expect(parseDocument(doc(loop))).toEqual({ ok: false, error: "The component Alpha contains itself, so it could never be built." });
+  const self = [{ id: "s", name: "Self", circuit: { components: [custom("x", "s")], junctions: [], wires: [] } }];
+  expect(parseDocument(doc(self))).toEqual({ ok: false, error: "The component Self contains itself, so it could never be built." });
+});
+
 test("a version 10 file is migrated: only the version changes; notes round-trip in 11 as plain text (ADR 0027)", () => {
   const v10 = { ...document, version: 10 };
   expect(parseDocument(JSON.stringify(v10))).toEqual({ ok: true, document });

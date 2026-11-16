@@ -19,8 +19,8 @@ then the reference CPU of ADR 0019, built from Clockyard parts and checked
 against its specification after every cycle, its assembler, *Run until* an
 LED for instruction steps (and breakpoints the user wires), and the program
 editor (PRs #42 and #47–#51). The demo, a program that sums 1 to 5 through RAM and shows 15
-on the output, runs in Playwright. Phase 5 (the computer-building sandbox) is
-in progress: the seven increments of its plan (ADR 0020) are done: devices
+on the output, runs in Playwright. Phase 5 (the computer-building sandbox)
+has the seven increments of its plan (ADR 0020) built: devices
 (ADR 0021), memory-mapped I/O on the reference CPU (ADR 0022), the game demo,
 Catch (ADR 0023), sharing a circuit by link (ADR 0024), challenges 1 to 9
 (ADR 0025), waveforms (ADR 0026), and examples with notes and components
@@ -478,8 +478,9 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       opens from the list with its notes, another example asks before it
       replaces it, and notes edited here travel in a link.
    2. ✅ Add components from a file or an example: a dialog under Chips;
-      identical contents reused (the same ID first), otherwise the ID is
-      kept if free or numbered, and containers are rewired; names numbered.
+      identical contents under the same or a numbered ID reused, otherwise
+      the ID is kept if free or numbered, and containers are rewired; names
+      numbered. Import now refuses components that contain themselves.
       Playwright: the counter example's 8-bit adder adds in a new circuit,
       and in challenge 5's starter it arrives as "8-bit adder 2" with
       "Full adder 2", a second add adding nothing.

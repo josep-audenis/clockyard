@@ -32,6 +32,7 @@ import {
   type ComponentKind,
   type PartKind,
 } from "../editor/document";
+import { withContents } from "../editor/blueprints";
 import { deleteRefusal, liveDefinitions, liveWatches, mainCircuit, MAX_WATCHES, useEditor } from "../editor/store";
 import { assemble, check, connectEngine, control, disassemble, readMemory, setSpeed, setUntil, SPEEDS, useSim, type Loaded } from "../simulation/sync";
 import type { AsmError, Report } from "../simulation/protocol";
@@ -321,7 +322,7 @@ function PartsLibrary() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
-      if (e.ctrlKey || e.metaKey || e.altKey || typing) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || typing || document.querySelector("dialog[open]")) return;
       const kind = SHORTCUTS.get(e.key.toUpperCase());
       if (kind && kind !== "label") useEditor.getState().arm(kind);
     };
@@ -357,7 +358,7 @@ function PartsLibrary() {
         <h2 className="type-heading panel-title">CHIPS</h2>
         {chips.length === 0 ? (
           <p className="type-caption parts-empty">
-            Select a circuit with labelled switches and LEDs, then use Make component in the inspector.
+            Select a circuit with labelled switches and LEDs, then use Make component in the inspector, or add components from an example or a file.
           </p>
         ) : (
           <ul className="chip-list">
@@ -742,7 +743,10 @@ const list = (items: string[]) => new Intl.ListFormat("en").format(items);
 function AddComponents() {
   const dialog = useRef<HTMLDialogElement>(null);
   const picker = useRef<HTMLInputElement>(null);
+  const close = useRef<HTMLButtonElement>(null);
   const id = useId();
+  // The example chosen, kept so that arrow keys on the closed list step through the examples (Windows fires change on each).
+  const [example, setExample] = useState("");
   const [source, setSource] = useState<{ title: string; definitions: Definition[] } | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
@@ -751,6 +755,9 @@ function AddComponents() {
 
   const choose = async (title: string, read: () => Promise<CircuitDocument>) => {
     const me = ++latest.current;
+    // The list goes while the next loads, so nothing is ticked in, or added from, the source before it.
+    setSource(null);
+    setPicked([]);
     setMessage(null);
     try {
       const document = await read();
@@ -773,24 +780,23 @@ function AddComponents() {
   const add = () => {
     if (!source) return;
     const { added, reused } = useEditor.getState().addComponents(source.definitions, picked);
+    const names = (ds: Definition[]) => [...new Set(ds.map((d) => d.name))];
     const text = [
-      added.length > 0 && `Added ${list(added.map((d) => d.name))}.`,
-      reused.length > 0 && `${list(reused.map((d) => d.name))} ${reused.length === 1 ? "was" : "were"} already here.`,
+      added.length > 0 && `Added ${list(names(added))}.`,
+      reused.length > 0 && `${list(names(reused))} ${names(reused).length === 1 ? "was" : "were"} already here.`,
     ]
       .filter(Boolean)
       .join(" ");
     setMessage({ text, error: false });
     setPicked([]);
+    // Add is disabled now that nothing is ticked: focus moves on instead of falling back to the page.
+    close.current?.focus();
   };
-  // What each component contains, by name, so the list says what comes along.
-  const contents = (definition: Definition) => {
-    const names = new Set<string>();
-    for (const c of definition.circuit.components) {
-      const inner = c.kind === "custom" ? source?.definitions.find((d) => d.id === c.definition) : undefined;
-      if (inner) names.add(inner.name);
-    }
-    return [...names];
-  };
+  // Everything each component brings along, at any depth, so the list says what comes with it.
+  const contents = (definition: Definition) =>
+    withContents(source?.definitions ?? [], [definition.id])
+      .filter((d) => d.id !== definition.id)
+      .map((d) => d.name);
 
   return (
     <>
@@ -819,8 +825,9 @@ function AddComponents() {
           <select
             id={`${id}-example`}
             className="input"
-            value=""
+            value={example}
             onChange={(e) => {
+              setExample(e.target.value);
               const entry = EXAMPLES.find((x) => x.name === e.target.value);
               if (entry) void choose(entry.title, () => exampleDocument(entry.name));
             }}
@@ -844,7 +851,9 @@ function AddComponents() {
             onChange={(e) => {
               const file = e.target.files?.[0];
               e.target.value = "";
-              if (file) void choose(file.name, () => readFile(file));
+              if (!file) return;
+              setExample("");
+              void choose(file.name, () => readFile(file));
             }}
           />
         </div>
@@ -874,7 +883,7 @@ function AddComponents() {
           <button type="button" className="button type-label" disabled={picked.length === 0} onClick={add}>
             Add
           </button>
-          <button type="button" className="button type-label" onClick={() => dialog.current?.close()}>
+          <button ref={close} type="button" className="button type-label" onClick={() => dialog.current?.close()}>
             Close
           </button>
         </div>

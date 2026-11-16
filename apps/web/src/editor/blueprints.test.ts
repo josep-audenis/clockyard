@@ -62,6 +62,27 @@ test("a numbered name still fits the longest name a component may have", () => {
   expect(added[0]?.name).toBe(`${"x".repeat(30)} 2`);
 });
 
+test("contents alone never match: an empty component here is not taken for another empty one", () => {
+  const todo: Definition = { id: "reg", name: "Register (todo)", circuit: circuit() };
+  const cpu: Definition = { id: "cpu", name: "CPU", circuit: circuit(instance("u", "alu")) };
+  const alu: Definition = { id: "alu", name: "ALU (todo)", circuit: circuit() };
+  const { added, reused } = addDefinitions([todo], [alu, cpu], ["cpu"]);
+  expect(reused).toEqual([]);
+  expect(added.map((d) => d.id)).toEqual(["alu", "cpu"]);
+  expect(added[1]?.circuit.components[0]).toMatchObject({ definition: "alu" });
+});
+
+test("a long chain of components is followed without running out of stack", () => {
+  const chain: Definition[] = Array.from({ length: 20000 }, (_, i) => ({
+    id: `d${i}`,
+    name: `D${i}`,
+    circuit: i === 0 ? circuit(gate("g")) : circuit(instance("x", `d${i - 1}`)),
+  }));
+  const { added } = addDefinitions([], chain, ["d19999"]);
+  expect(added).toHaveLength(20000);
+  expect(added[0]?.id).toBe("d0");
+});
+
 test("adding the same components again adds nothing: a copy here under another ID counts as the same", () => {
   const other: Definition = { id: "inv", name: "Inverter", circuit: circuit(pin("A", "switch"), pin("Y", "led")) };
   const first = addDefinitions([other], source, ["buf"]);
