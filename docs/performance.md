@@ -152,7 +152,7 @@ Read so:
 | The reference CPU keeps 10,000 cycles per second | about 9,600 (`cpu-1k`, four CPUs; reads a few per cent low) | yes |
 
 Step 3 of ADR 0030 optimizes, in the order these numbers point: panning without redrawing (done, below), then drawing
-only what an edit or a state changed, then routing only the wires an edit touched.
+only what an edit or a state changed (the wires done, below), then routing only the wires an edit touched.
 
 `pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
 twice as bad (and worse by more than 5), or one the run lost; `node scripts/bench-check.mjs --update` makes the last run
@@ -184,6 +184,33 @@ pans at 60 frames a second, and the 10,000-part ones at 8.6–30. A pan frame st
 drawn: 35–45 ms for `chain-10k` and about 110 ms for `adder-10k` (`clockyard:view`, on battery). That is Pixi's render,
 most likely its walk over every object, off screen too (not yet profiled). Culling what is off screen is the next
 candidate for panning.
+
+### 2. Rebuilding only the wires that changed
+
+Every redraw used to rebuild one `Graphics` holding every wire, and Pixi turns its strokes into triangles again when it
+renders. A profile of a drag step at 10,000 parts (temporary measures, on battery) showed where the time went: 40–65 ms
+building the wires, 20–30 ms checking the parts (their shapes are already cached; this step leaves them), and 180–300 ms in
+`app.render()`, most of it the wires' triangles.
+
+Now the wires are drawn in chunks of about 64, by a hash of the wire's ID, so adding or removing a wire moves no other.
+A chunk is rebuilt only when one of its wires looks different (its route, width, colour, transparency, selection or
+bus width); junction dots and tags, which are few, are drawn whole as before. Before and after, back to back on the
+graphics card (on battery, so the columns compare only with each other):
+
+| Benchmark | Drag draw before, ms | Drag draw after, ms | Toggle before, ms | Toggle after, ms |
+|---|---:|---:|---:|---:|
+| counters-1k | 65.6 | 24.7 | – | – |
+| chain-10k | 307.8 | 102.6 | 1792 | 1518 |
+| fanout-10k | 415.4 | 101.0 | 3244 | 3148 |
+| adder-10k | 559.4 | 242.9 | 3289 | 2452 |
+| counters-10k | 667.1 | 172.3 | – | – |
+
+A drag step is 2.3–4 times faster: it rebuilds the chunks of the wires the moved part touches. A toggle is not much
+faster: toggling the switch of `chain` or `fanout` changes every wire's value, so every chunk is rebuilt, and most of a
+toggle's 1.5–3 s is spent outside the draw, not yet measured. Running `counters-10k` at full speed still freezes the
+page, so what the main thread does with each state the worker sends is the next thing to measure.
+
+The browser table above predates this step; its drag column is to be measured again on mains power.
 
 ## Earlier measurements
 

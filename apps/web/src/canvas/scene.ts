@@ -1,6 +1,7 @@
 // The PixiJS circuit canvas (ADR 0007), drawn to the design system's CanvasKit
 // spec. Reads the editor and engine stores outside React and redraws on change.
-// shortcut: the whole scene is redrawn per change (a pan only moves the view); per-object updates are ADR 0030 step 3.
+// shortcut: every change still walks the whole scene (a pan only moves the view; parts and wire chunks are rebuilt only
+// when they look different); further per-object updates are ADR 0030 step 3.
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { create } from "zustand";
 import {
@@ -129,6 +130,15 @@ type Gesture =
 /** Shape ID of the placement preview; never a document ID (those are UUIDs). */
 const GHOST = "placement-preview";
 
+/** About how many wires share a chunk: few enough that rebuilding one is cheap, enough that there are few to render. */
+const WIRES_PER_CHUNK = 64;
+/** The chunk a wire is drawn in, of `count` (a power of two): by its ID, so adding or removing a wire moves no other. */
+function chunkOf(id: string, count: number): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return h & (count - 1);
+}
+
 /** Where a part placed at `p` goes: centred on the pointer, turned by `rotation`. */
 function placement(part: Pick<CircuitComponent, "kind" | "rotation" | "definition" | "props">, p: Point): Point {
   const { width, height } = layoutOf(part);
@@ -159,6 +169,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
 
   // A render group: moving it (a pan) is one transform on the GPU, not one per object below it.
   const world = new Container({ isRenderGroup: true });
+  /** Wires, in chunks: each a Graphics of the wires whose IDs hash to it, rebuilt only when one of them looks different. */
+  const wireChunks = new Container();
+  const chunks: { g: Graphics; look: string }[] = [];
+  /** Junction dots, label tags and bus value tags, over the wires; few, so drawn whole each time. */
   const wires = new Graphics();
   /** Parts, each its own Graphics drawn unrotated about its centre and turned by its rotation. */
   const bodies = new Container();
@@ -178,7 +192,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   let themeVersion = 0;
   const overlay = new Graphics();
   const labels = new Container();
-  world.addChild(wires, bodies, labels, overlay);
+  world.addChild(wireChunks, wires, bodies, labels, overlay);
   /** Label text objects by component ID, reused across redraws. */
   const texts = new Map<string, Text>();
   app.stage.addChild(world);
@@ -264,6 +278,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     overlay.clear();
     seen.clear();
 
+    // Each wire's look, by chunk (ADR 0030): a chunk whose wires all look as they did is not built again, so an edit or
+    // a state rebuilds the chunks of the wires it changed, not every wire.
+    const count = 2 ** Math.max(0, Math.ceil(Math.log2(circuit.wires.length / WIRES_PER_CHUNK)));
+    const groups = new Map<number, { looks: string[]; draws: ((g: Graphics) => void)[] }>();
     for (const wire of circuit.wires) {
       const points = paths.get(wire.id)?.map(px);
       if (!points) continue;
@@ -272,23 +290,27 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       // CanvasKit: a bus has one width and colour whatever it carries; a slash tag gives its width, a hex tag on hover its value.
       const lit = bits === 1 && value !== null && value !== 0;
       const width = bits > 1 ? size["bus-width"] : lit ? size["wire-width-high"] : size["wire-width"];
-      if (selected.has(wire.id)) {
-        polyline(wires, points).stroke({ width: width + 2 * size["select-width"], color: color.select, cap: "round", join: "round" });
-      }
-      polyline(wires, points).stroke({
-        width,
-        color: culprits.has(wire.id) ? color.danger : bits > 1 ? color["signal-bus"] : lit ? color["signal-high"] : color["signal-low"],
-        alpha: value === null ? 0.5 : 1,
-        cap: "round",
-        join: "round",
-      });
+      const tone = culprits.has(wire.id) ? color.danger : bits > 1 ? color["signal-bus"] : lit ? color["signal-high"] : color["signal-low"];
+      const alpha = value === null ? 0.5 : 1;
+      const chosen = selected.has(wire.id);
       const [a, b] = points;
-      if (bits > 1 && a && b) {
-        // The slash crosses the middle of the first segment, with the width just past it.
-        const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        const across = a.y === b.y ? { x: 4, y: -8 } : { x: 8, y: -4 };
-        const bus = { width: 1.5, color: color["signal-bus"], cap: "round" } as const;
-        wires.moveTo(m.x - across.x, m.y - across.y).lineTo(m.x + across.x, m.y + across.y).stroke(bus);
+      // The slash crosses the middle of the first segment, with the width just past it.
+      const m = a && b && bits > 1 ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null;
+      const n = chunkOf(wire.id, count);
+      const group = groups.get(n) ?? { looks: [], draws: [] };
+      groups.set(n, group);
+      group.looks.push(`${points.map((p) => `${p.x},${p.y}`).join(" ")}|${width}|${tone}|${alpha}|${chosen}|${bits}`);
+      group.draws.push((g) => {
+        if (chosen) polyline(g, points).stroke({ width: width + 2 * size["select-width"], color: color.select, cap: "round", join: "round" });
+        polyline(g, points).stroke({ width, color: tone, alpha, cap: "round", join: "round" });
+        if (m && a && b) {
+          const across = a.y === b.y ? { x: 4, y: -8 } : { x: 8, y: -4 };
+          g.moveTo(m.x - across.x, m.y - across.y)
+            .lineTo(m.x + across.x, m.y + across.y)
+            .stroke({ width: 1.5, color: color["signal-bus"], cap: "round" });
+        }
+      });
+      if (m) {
         put(`${wire.id}:bits`, String(bits), m.x + 6, m.y - 6, { x: 0, y: 1 }, color["signal-bus"]);
         if (hovered === wire.id && value !== null) {
           tags.push(() => {
@@ -301,6 +323,21 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
         }
       }
     }
+    for (let n = 0; n < count; n++) {
+      let chunk = chunks[n];
+      if (!chunk) {
+        chunk = { g: new Graphics(), look: "" };
+        chunks.push(chunk);
+        wireChunks.addChild(chunk.g);
+      }
+      const group = groups.get(n);
+      const look = `${themeVersion}|${group?.looks.join(";") ?? ""}`;
+      if (chunk.look === look) continue;
+      chunk.look = look;
+      chunk.g.clear();
+      for (const drawWire of group?.draws ?? []) drawWire(chunk.g);
+    }
+    for (const chunk of chunks.splice(count)) chunk.g.destroy();
     for (const tag of tags) tag();
 
     // ADR 0015: a named junction is a tag beside its dot, on the first side (right, left, below, above)
