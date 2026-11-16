@@ -195,7 +195,8 @@ What exists today:
    every object, off screen too (not yet profiled). `pnpm bench` now asks Chromium for the graphics
    card, since SwiftShader's frame rates are not what a user sees. On
    it, the panning target is met for `chain` and `fanout` (30 fps) but
-   not `counters` (20) or `adder` (8.6).
+   not `counters` (20) or `adder` (8.6), in that run; a later, loaded
+   run met it for `chain` only.
 
    *As built (step 3, second):* wires are drawn in chunks of about 64,
    by a hash of their IDs, and a chunk is rebuilt only when one of its
@@ -210,8 +211,8 @@ What exists today:
    handled as it arrived, so they queued. Parts are now named in one
    pass per edit, and only the latest waiting state is applied:
    `counters-10k` runs at about 2,400 cycles per second, about 80 % of
-   the engine's slowest native measurement. A toggle that changes every wire is still about
-   1 s at 10,000 parts, mostly the redraw.
+   the engine's slowest native measurement. A toggle that changes every wire was still about
+   1 s at 10,000 parts in that measurement, mostly the redraw.
 
 ## Alternatives considered
 

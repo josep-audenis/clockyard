@@ -1,7 +1,8 @@
 # Performance
 
 Measured, not guessed (brief §9, §10; ADR 0030). Each table says where and when it was measured. Timings vary between
-runs on a development machine by 10–20 %; a range is given where it matters.
+runs on a quiet development machine by 10–20 %, and by two times or more while other work runs on it; a range is given
+where it matters, and a table says when its run was loaded.
 
 ## Benchmark circuits
 
@@ -31,7 +32,8 @@ runs, with the range.
 - **Switch change**: one switch flipped and settled. For the adder, every A bit is on first, so the carry ripples
   through every bit.
 - **Ticks per second**: ticks in chunks of 64, as the worker runs them, for 200 ms a run. A clock cycle is two ticks.
-  Rates vary more between runs than loads do, by up to a third.
+  Rates vary more between runs than loads do: by up to a third within this table's run, and a later re-run on the same
+  machine gave about twice these rates, so compare native runs only made close together.
 
 Measured 2026-11-16 on an Intel Core i7-13700H, 16 GB, Windows 11, Rust 1.99.1:
 
@@ -93,67 +95,87 @@ dash.
   asynchronous, so it includes any wait behind the main thread's drawing.
 - At 50,000 parts only the open is measured: every later step takes minutes there.
 
-Measured 2026-11-16, after step 3's first optimization (panning without redrawing, below), on an Intel Core i7-13700H,
-16 GB, Windows 11, on mains power, with Playwright 1.64.1's Chromium drawing on the Intel Iris Xe graphics card
-(Direct3D 11). The first results, before that step, were measured with SwiftShader, a software WebGL; they are in this
-file's history.
+Measured 2026-11-16, after step 3's first three optimizations (below), on an Intel Core i7-13700H, 16 GB, Windows 11,
+on mains power, with Playwright 1.64.1's Chromium drawing on the Intel Iris Xe graphics card (Direct3D 11). Earlier
+tables, before those steps and first with SwiftShader, a software WebGL, are in this file's history.
+
+Other work ran on the machine during this run (30–40 % of the processor), so this table is loaded and noisy: a
+recheck straight after it, with the code unchanged, opened `chain-10k` in 15.3 s (routing 12.1 s) against 9.2 s here,
+and ran `cpu-10k` at 2,036 cycles per second against 1,569 here.
+
+Against the previous baseline (the run before steps 3.2 and 3.3), `bench:check` failed this run on ten measurements.
+Four are about twice as slow and fit the load: `counters-50k`'s open, routing and drawing (routing, which no change
+touched, took 2.1 times as long) and `cpu-50k`'s drawing. Six go further and are not explained by a measurement:
+autosave at 1,000 parts (`chain-1k` 14 → 109 ms, `adder-1k` 10 → 47 ms) and `cpu-10k`'s (4 → 18 ms), `cpu-1k`'s drawing
+on open (71 → 176 ms), `counters-10k`'s pan (20 → 8.6 fps) and `chain-1k`'s toggle (54 → 119 ms).
+
+This run is the baseline for now, which makes `bench:check` loose: a real slowdown of two times or more measured on a
+quiet machine could pass against it. It is to be replaced by a run on a quiet machine, which would also tell whether
+the six are load or regressions.
 
 | Benchmark | Open, ms | Of it: routing, ms | Of it: drawing, ms | Toggle, ms | Drag: draw, ms | Drag: sync, ms | Pan, fps | Cycles per second | Autosave, ms |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| adder-1k | 1244 | 261 | 1010 | 135 | 22.4 | 1.0 | 59.9 | – | 10 |
-| adder-10k | 23594 | 11836 | 18655 | 1556 | 288.4 | 5.4 | 8.6 | – | 585 |
-| adder-50k (refused: too large) | 343249 | 208613 | 267156 | – | – | – | – | – | – |
-| chain-1k | 522 | 102 | 396 | 54 | 11.1 | 0.5 | 59.9 | – | 14 |
-| chain-10k | 7956 | 6584 | 7815 | 656 | 122.3 | 5.6 | 30.0 | – | 171 |
-| chain-50k | 176105 | 169955 | 175690 | – | – | – | – | – | – |
-| counters-1k | 600 | 191 | 532 | – | 23.8 | 0.5 | 59.9 | 9314 | 7 |
-| counters-10k (run: the page stopped answering) | 13314 | 9882 | 12922 | – | 247.6 | 4.6 | 20.0 | – | 275 |
-| counters-50k | 213375 | 188845 | 208288 | – | – | – | – | – | – |
-| cpu-1k | 209 | 0 | 71 | – | 0.7 | 0.3 | 59.9 | 9619 | 48 |
-| cpu-10k | 227 | 0 | 98 | – | 1.2 | 0.3 | 59.9 | 2982 | 4 |
-| cpu-50k | 922 | 0 | 302 | – | – | – | – | – | – |
-| fanout-1k | 730 | 401 | 588 | 118 | 13.5 | 0.4 | 59.9 | – | 7 |
-| fanout-10k | 15821 | 11689 | 12995 | 1119 | 149.5 | 4.4 | 30.0 | – | 1229 |
-| fanout-50k | 224720 | 165325 | 177982 | – | – | – | – | – | – |
+| adder-1k | 1993 | 382 | 1672 | 150 | 23.3 | 0.9 | 59.9 | – | 47 |
+| adder-10k | 23584 | 15084 | 22639 | 366 | 188.1 | 6.8 | 6.7 | – | 92 |
+| adder-50k (refused: too large) | 350090 | 272858 | 340595 | – | – | – | – | – | – |
+| chain-1k | 639 | 162 | 506 | 119 | 5.5 | 0.5 | 59.9 | – | 109 |
+| chain-10k | 9153 | 7579 | 8945 | 591 | 51.2 | 6.1 | 30.0 | – | 57 |
+| chain-50k | 287240 | 274060 | 286535 | – | – | – | – | – | – |
+| counters-1k | 1048 | 248 | 922 | – | 9.2 | 0.8 | 59.9 | 9071 | 14 |
+| counters-10k | 24105 | 17304 | 23806 | – | 146.9 | 8.3 | 8.6 | 2017 | 100 |
+| counters-50k | 450445 | 402288 | 449223 | – | – | – | – | – | – |
+| cpu-1k | 296 | 0 | 176 | – | 1.4 | 0.3 | 59.9 | 8263 | 14 |
+| cpu-10k | 289 | 0 | 157 | – | 1.6 | 0.8 | 59.9 | 1569 | 18 |
+| cpu-50k | 1266 | 0 | 604 | – | – | – | – | – | – |
+| fanout-1k | 895 | 509 | 754 | 117 | 7.1 | 0.4 | 59.9 | – | 13 |
+| fanout-10k | 23086 | 19873 | 22383 | 460 | 106.8 | 6.0 | 20.0 | – | 60 |
+| fanout-50k | 300004 | 277701 | 294311 | – | – | – | – | – | – |
 
-A dash is a step that does not apply (no switch to toggle, no clock to run) or was not measured at that size, except
-where a note says otherwise.
+A dash is a step that does not apply (no switch to toggle, no clock to run) or was not measured at that size.
 
 Read so:
 
 - **The main thread is the bottleneck, not the engine.** The same circuits load natively in 7–1,300 ms (above), and
-  the `cpu` family, whose sheet holds only a few instances and no wires, opens 47,000 nets in 0.9 s, engine included.
+  the `cpu` family, whose sheet holds only a few instances and no wires, opens 47,000 nets in 1.3 s, engine included.
   Every family with thousands of parts and wires on its sheet spends almost all its open in drawing, and most of that
-  in routing every wire.
-- **Panning** keeps the display's 60 frames a second at 1,000 parts, and 8.6–30 at 10,000 (below). Before step 3 it
-  redrew the whole scene on every frame: 5–12 frames a second at 1,000 parts, about 1 at 10,000, with SwiftShader.
-- **A drag step redraws everything**: 11–24 ms at 1,000 parts and 120–290 ms at 10,000. The sync that the
-  `shortcut:` comment suspected is small: under 6 ms at 10,000 parts.
-- **A toggle takes 0.7–1.6 s at 10,000 parts**, though the engine settles it in 2 ms or less: the state's redraw holds
-  the main thread before the readout updates.
-- **Running a large circuit could freeze the page** (before step 3's third optimization, below). `counters-10k` at the
-  top speed: the run step's Pause click was not
-  handled within 5 minutes, in this run and the one before it. The engine runs it at about 2,900–4,700 cycles per second
-  natively; the main thread, which redraws the whole scene for every state the worker sends, does not keep up. At 1,000
-  parts the run speed is near the 10,000 asked, and `cpu-10k`'s 3,000 is the engine's own rate.
+  in routing every wire (two thirds or more of drawing at 10,000 parts, a fifth to two thirds at 1,000): opening is now
+  the cost furthest from its target.
+- **Panning** keeps the display's 60 frames a second at 1,000 parts, and 6.7–30 at 10,000 for flat circuits (60 for
+  `cpu`). Before step 3 it redrew the whole scene on every frame: 5–12 frames a second at 1,000 parts, about 1 at
+  10,000, with SwiftShader.
+- **A drag step** takes 5–23 ms at 1,000 parts and 50–190 ms at 10,000 for flat circuits (under 2 ms for `cpu`),
+  rebuilding only the chunks of the wires the moved part touches (step 3.2). The sync is small: under 9 ms at 10,000
+  parts.
+- **A toggle takes 0.37–0.6 s at 10,000 parts** (0.66–1.6 s in the previous table), though the engine settles it in
+  2 ms or less. Which change, if any, made the difference is not known: section 3 measured the same toggle code at
+  1.0–1.5 s, and `chain`'s 0.66 → 0.59 s is within this run's noise. Most of what remains is the redraw when every wire
+  and gate changes (profiled on `chain`).
+- **Running a large circuit** no longer freezes the page: `counters-10k` runs at 2,017 cycles per second, and `cpu-10k`
+  at 1,569. The native table above gives the engine about 2,900 and 2,600 cycles per second for them (a native re-run
+  during this work gave about twice that, so native timings vary as much); `cpu-10k` read 2,982 in the previous table,
+  and whether its drop is this run's load or a regression from step 3.3 is not yet known. At 1,000 parts the run
+  speed is 8,300–9,100 of the 10,000 asked.
 - **Refusing a circuit takes as long as opening it.** `adder-50k` is routed and drawn for nearly six minutes before
   the engine's "too large" is shown.
-- **Autosave is cheap at 1,000 parts** (under 50 ms), but takes 0.2–1.2 s at 10,000. How much of that is serializing and
-  how much is waiting behind drawing is not separated.
+- **Autosave** takes 57–100 ms at 10,000 parts for flat circuits (0.17–1.2 s in the previous table), presumably
+  because it waits behind less drawing, and 13–109 ms at 1,000 parts (7–48 ms before), which is not explained (see
+  above); serializing and waiting are not measured apart.
 
 ### Against the targets (ADR 0030 item 4)
 
 | Target | Measured | Met |
 |---|---|---|
-| 10,000 parts open in under 2 s | 8–24 s for flat circuits; 0.23 s for `cpu` | no |
-| A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.7–1.6 s; a drag step 120–290 ms | no |
-| Panning at 30 fps or more at 10,000 parts | 30 fps for `chain` and `fanout`; 20 for `counters`, 8.6 for `adder` | partly |
-| 50,000 parts open in under 10 s, edits under 1 s | 3–6 minutes for flat circuits; 0.9 s for `cpu-50k` (edits not measured) | no |
-| Run speed on `counters-10k` recorded | the page stopped answering; 2,359 cycles per second after step 3's third optimization (below) | yes, after it |
-| The reference CPU keeps 10,000 cycles per second | about 9,600 (`cpu-1k`, four CPUs; reads a few per cent low) | yes |
+| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu` | no |
+| A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms | no |
+| Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder` | partly |
+| 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k` (edits not measured) | no |
+| Run speed on `counters-10k` recorded | 2,017 cycles per second | yes |
+| The reference CPU keeps 10,000 cycles per second | about 8,300 (`cpu-1k`, four CPUs; reads a few per cent low, and this run was loaded) | no, in this run |
 
-Step 3 of ADR 0030 optimizes, in the order these numbers point: panning without redrawing (done, below), then drawing
-only what an edit or a state changed (the wires done, below), then routing only the wires an edit touched.
+Step 3 of ADR 0030 has optimized panning, the wires an edit or a state redraws, and what the page does with each
+engine state (below). What these numbers point to next: opening, which routes every wire, needs routing that is faster
+or deferred (routing only the wires an edit touched does not help it); a toggle that changes everything needs cheaper
+redraws of the gates' shapes and of Pixi's batches, found in section 3.
 
 `pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
 twice as bad (and worse by more than 5), or one the run lost; `node scripts/bench-check.mjs --update` makes the last run
@@ -180,10 +202,11 @@ back to back on the graphics card:
 | cpu-1k | 60 | 60 |
 
 That pair ran on battery, with everything about twice as slow as on mains power (routing, which the change does not
-touch, too), so its columns compare only with each other. On mains power (the table above) every 1,000-part benchmark
-pans at 60 frames a second, and the 10,000-part ones at 8.6–30. A pan frame still takes main-thread time with nothing
-drawn: 35–45 ms for `chain-10k` and about 110 ms for `adder-10k` (`clockyard:view`, on battery). That is Pixi's render,
-most likely its walk over every object, off screen too (not yet profiled). Culling what is off screen is the next
+touch, too), so its columns compare only with each other. On mains power, in the previous full run (in this file's
+history), every 1,000-part benchmark panned at 60 frames a second and the 10,000-part ones at 8.6–30 (6.7–30 in the
+loaded run above). A pan frame still takes main-thread time with nothing drawn: 35–45 ms for `chain-10k` and about
+110 ms for `adder-10k` (`clockyard:view`, on battery). That is Pixi's render, most likely its walk over every object,
+off screen too (not yet profiled). Culling what is off screen is the next
 candidate for panning.
 
 ### 2. Rebuilding only the wires that changed
@@ -217,8 +240,7 @@ measured. Running `counters-10k` at full speed froze the page: what the main thr
 sends is measured, and fixed, below.
 
 The after columns were measured before selected wires got their own layer; the benchmark selects a part, not a wire,
-so that layer stays empty in it. The browser table above predates this step; its drag column is to be measured again
-on mains power.
+so that layer stays empty in it. The browser table above was measured after this step.
 
 ### 3. What the page does with each engine state
 
