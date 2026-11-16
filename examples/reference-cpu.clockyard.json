@@ -1,10 +1,11 @@
 {
   "format": "clockyard",
-  "version": 9,
+  "version": 11,
   "metadata": {
     "name": "Reference CPU",
     "createdAt": "2026-11-10T12:00:00.000Z",
-    "modifiedAt": "2026-11-10T12:00:00.000Z"
+    "modifiedAt": "2026-11-10T12:00:00.000Z",
+    "notes": "The reference CPU (docs/reference-cpu.md), built from Clockyard parts: registers, multiplexers, an adder, a ROM for the program and a RAM for data.\n\nSet the speed to 100 Hz or more and press Run. Click the keyboard and hold a key: the program in the ROM shows the key's code on the two hex digits and lights eight pixels at that screen byte.\n\nSelect the ROM to read and edit its program in assembly, then Assemble to write it in. Run until Fetch steps one instruction at a time; Halted runs to the end. Data addresses 0xF0 to 0xFF reach the keyboard, the screen and the two digits."
   },
   "circuit": {
     "components": [

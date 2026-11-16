@@ -180,14 +180,23 @@ export const sameEnd = (a: Endpoint, b: Endpoint) =>
     ? isJunction(a) && isJunction(b) && a.junction === b.junction
     : a.component === b.component && a.port === b.port;
 
+/** The longest notes a document carries, in characters (ADR 0027). */
+export const MAX_NOTES = 4000;
+
+/** Notes as stored: line endings as `\n`, no blank space around them; empty means none. */
+export const normalizeNotes = (text: string) => text.replace(/\r\n?/g, "\n").trim();
+
 /** A reusable component: a circuit whose switches and LEDs are its pins, shown by their labels (ADRs 0012, 0013). */
 export type Definition = { id: string; name: string; circuit: Circuit };
 
 export type CircuitDocument = {
   format: "clockyard";
-  version: 10;
-  /** `challenge`: the challenge the document was started from, by its file name such as `01-inverter` (ADR 0025). */
-  metadata: { name: string; createdAt: string; modifiedAt: string; challenge?: string };
+  version: 11;
+  /**
+   * `challenge`: the challenge the document was started from, by its file name such as `01-inverter` (ADR 0025).
+   * `notes`: plain text about the design, paragraphs separated by blank lines, at most `MAX_NOTES` characters (ADR 0027).
+   */
+  metadata: { name: string; createdAt: string; modifiedAt: string; challenge?: string; notes?: string };
   circuit: Circuit;
   definitions: Definition[];
 };

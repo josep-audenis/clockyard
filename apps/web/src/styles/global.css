@@ -656,3 +656,13 @@ pre.memory-words {
   stroke: var(--accent);
   stroke-width: 1;
 }
+
+/* Notes (ADR 0027): read as much as written, so in the body font and wrapping. */
+.notes {
+  width: 100%;
+  height: auto;
+  padding: var(--space-2);
+  font: 400 13px/20px var(--font-sans);
+  white-space: pre-wrap;
+  resize: vertical;
+}

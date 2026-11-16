@@ -32,6 +32,7 @@ replacement.
 | [0024](0024-url-sharing.md) | Sharing a circuit through a URL fragment | Accepted |
 | [0025](0025-challenges.md) | Challenges checked by behavioural tests | Accepted |
 | [0026](0026-waveforms.md) | Waveforms: watched wires recorded by the engine | Accepted |
+| [0027](0027-library-and-teaching.md) | Library and teaching: examples in the editor, notes, and components from other files | Accepted |
 
 ## Template
 

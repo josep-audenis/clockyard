@@ -433,8 +433,14 @@ const main = wires([
 const adder = JSON.parse(readFileSync(root("examples/8-bit-adder.clockyard.json"), "utf8"));
 const document = {
   format: "clockyard",
-  version: 9,
-  metadata: { name: "Reference CPU", createdAt: "2026-11-10T12:00:00.000Z", modifiedAt: "2026-11-10T12:00:00.000Z" },
+  version: 11,
+  metadata: {
+    name: "Reference CPU",
+    createdAt: "2026-11-10T12:00:00.000Z",
+    modifiedAt: "2026-11-10T12:00:00.000Z",
+    // What the Notes panel shows (ADR 0027).
+    notes: "The reference CPU (docs/reference-cpu.md), built from Clockyard parts: registers, multiplexers, an adder, a ROM for the program and a RAM for data.\n\nSet the speed to 100 Hz or more and press Run. Click the keyboard and hold a key: the program in the ROM shows the key's code on the two hex digits and lights eight pixels at that screen byte.\n\nSelect the ROM to read and edit its program in assembly, then Assemble to write it in. Run until Fetch steps one instruction at a time; Halted runs to the end. Data addresses 0xF0 to 0xFF reach the keyboard, the screen and the two digits.",
+  },
   circuit: { components, junctions, wires: main },
   definitions: [
     mux8,
@@ -460,7 +466,12 @@ const CATCH_WORDS = [
 const catchSource = readFileSync(root("scripts/catch.asm"), "utf8").replaceAll("\r\n", "\n");
 const game = {
   ...document,
-  metadata: { name: "Catch", createdAt: "2026-11-14T12:00:00.000Z", modifiedAt: "2026-11-14T12:00:00.000Z" },
+  metadata: {
+    name: "Catch",
+    createdAt: "2026-11-14T12:00:00.000Z",
+    modifiedAt: "2026-11-14T12:00:00.000Z",
+    notes: "A small game running on the reference CPU, its program in the ROM (scripts/catch.asm).\n\nSet the speed to 10,000, press Run, click the keyboard and hold Left or Right. Blocks fall in 8 lanes; each one caught on the paddle scores on the two hex digits and makes the next fall faster. A miss halts the CPU, and Reset plays again.\n\nNothing here is simulated in software: every instruction runs through the CPU's gates, registers and memories.",
+  },
   circuit: {
     ...document.circuit,
     components: components.map((c) => (c.id === "rom" ? { ...c, props: { ...c.props, data: CATCH_WORDS, source: catchSource } } : c)),

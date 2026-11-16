@@ -51,11 +51,13 @@ The UI never computes a signal value. It renders values received from the worker
 
 The editable design. Owned by the frontend, serialized as JSON, versioned.
 
-Format version 10 (ADRs 0010, 0012, 0013, 0014, 0015, 0017, 0018, 0021, 0025; exact schema fixed in code with
+Format version 11 (ADRs 0010, 0012, 0013, 0014, 0015, 0017, 0018, 0021, 0025, 0027; exact schema fixed in code with
 validation). Versions 7 to 9 add part kinds and props only: `clock` and `dff` (v7), `rom` and `ram`
 with `addressWidth`, and a ROM's `data` and editor-only `source` (v8), and the devices `seg7`,
 `screen` (a RAM whose words are pixels, with editor-only `columns`) and `keyboard` (v9). Version 10 adds an
-optional `metadata.challenge`, the challenge the document was started from (ADR 0025):
+optional `metadata.challenge`, the challenge the document was started from (ADR 0025), and version 11 an
+optional `metadata.notes`, plain text of at most 4,000 characters that the Notes panel shows and edits
+(ADR 0027):
 
 ```json
 {

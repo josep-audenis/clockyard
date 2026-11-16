@@ -26,6 +26,7 @@ import {
   DEFAULT_ADDRESS,
   isMemory,
   MAX_ADDRESS,
+  MAX_NOTES,
   MAX_SOURCE,
   wordsProblem,
   withoutDeletedPins,
@@ -124,6 +125,8 @@ export type EditorState = {
    */
   setFields: (id: string, fields: number[]) => void;
   toggle: (id: string) => void;
+  /** Sets the document's notes (ADR 0027), cut to `MAX_NOTES` characters; outside undo, like the name. */
+  setNotes: (text: string) => void;
   /**
    * Wire IDs on this sheet whose nets the waveform panel shows, in the order watched (ADR 0026). View state:
    * never saved, and cleared with the switch positions when the sheet changes.
@@ -887,6 +890,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   armedRotation: 0,
   turnArmed: (turn) => set(({ armedRotation }) => ({ armedRotation: ((armedRotation + 90 * turn + 360) % 360) as typeof armedRotation })),
   toggle: (id) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: inputs[id] === 1 ? 0 : 1 } })),
+  setNotes: (text) => set(({ metadata }) => ({ metadata: { ...metadata, notes: [...text].slice(0, MAX_NOTES).join("") || undefined } })),
   watches: [],
   watch: (wire, on) =>
     set((state) => {
