@@ -526,7 +526,8 @@ targets, as in Phase 5.
    3. ⬜ Optimizations, one per pull request, as the numbers require.
       1. ✅ Panning without redrawing: 60 fps at 1,000 parts, 2.5–5
          times faster at 10,000 (8.6–30 fps on mains power, the target met
-         for two of four families); benchmarks on the graphics
+         for two of four families in that run; one of four in the loaded
+         re-measure); benchmarks on the graphics
          card from now on.
       2. ✅ Rebuilding only the wires that changed (chunks of about 64):
          a drag step 2.3–4.1 times faster at 10,000 parts; a toggle and a
