@@ -193,7 +193,9 @@ What exists today:
    scene again (a Pixi render group), 2.5–5 times faster at 10,000
    parts, still under 30 fps: what remains is Pixi's render, likely of
    every object, off screen too (not yet profiled). `pnpm bench` now asks Chromium for the graphics
-   card, since SwiftShader's frame rates are not what a user sees.
+   card, since SwiftShader's frame rates are not what a user sees. On
+   it, the panning target is met for `chain` and `fanout` (30 fps) but
+   not `counters` (20) or `adder` (8.6).
 
 ## Alternatives considered
 

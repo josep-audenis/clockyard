@@ -525,7 +525,8 @@ targets, as in Phase 5.
       sync are cheap. Routing and drawing on the main thread are the cost.
    3. ⬜ Optimizations, one per pull request, as the numbers require.
       1. ✅ Panning without redrawing: 60 fps at 1,000 parts, 2.5–5
-         times faster at 10,000 (5–12 fps); benchmarks on the graphics
+         times faster at 10,000 (8.6–30 fps on mains power, the target met
+         for two of four families); benchmarks on the graphics
          card from now on.
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
