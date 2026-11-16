@@ -175,6 +175,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   /** Wires, in chunks: each a Graphics of the wires whose IDs hash to it, rebuilt only when one of them looks different. */
   const wireChunks = new Container();
   const chunks: { g: Graphics; look: string }[] = [];
+  /** Selected wires again, with their halo, over every chunk; rebuilt only when they look different, as a chunk is. */
+  const raised = { g: new Graphics(), look: "" };
   /** Junction dots, label tags and bus value tags, over the wires; few, so drawn whole each time. */
   const wires = new Graphics();
   /** Parts, each its own Graphics drawn unrotated about its centre and turned by its rotation. */
@@ -195,7 +197,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   let themeVersion = 0;
   const overlay = new Graphics();
   const labels = new Container();
-  world.addChild(wireChunks, wires, bodies, labels, overlay);
+  world.addChild(wireChunks, raised.g, wires, bodies, labels, overlay);
   /** Label text objects by component ID, reused across redraws. */
   const texts = new Map<string, Text>();
   app.stage.addChild(world);
@@ -285,8 +287,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     // a state rebuilds the chunks of the wires it changed, not every wire.
     const count = 2 ** Math.max(0, Math.ceil(Math.log2(circuit.wires.length / WIRES_PER_CHUNK)));
     const groups = new Map<number, { looks: string[]; draws: ((g: Graphics) => void)[] }>();
-    /** Selected wires, drawn again over every chunk with their halo, so no other wire covers it. */
-    const raised: ((g: Graphics) => void)[] = [];
+    /** Selected wires, drawn again over every chunk with their halo, so no unselected wire covers it. */
+    const lifted: { looks: string[]; draws: ((g: Graphics) => void)[] } = { looks: [], draws: [] };
     for (const wire of circuit.wires) {
       const points = paths.get(wire.id)?.map(px);
       if (!points) continue;
@@ -305,7 +307,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       groups.set(n, group);
       // Everything the drawing below reads is in this look (theme values are in `themeVersion`): a value left out would
       // leave the chunk stale.
-      group.looks.push(`${points.map((p) => `${p.x},${p.y}`).join(" ")}|${width}|${tone}|${alpha}|${bits}`);
+      const look = `${points.map((p) => `${p.x},${p.y}`).join(" ")}|${width}|${tone}|${alpha}|${bits}`;
+      group.looks.push(look);
       const drawWire = (g: Graphics) => {
         polyline(g, points).stroke({ width, color: tone, alpha, cap: "round", join: "round" });
         if (m && a && b) {
@@ -317,7 +320,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       };
       group.draws.push(drawWire);
       if (selected.has(wire.id)) {
-        raised.push((g) => {
+        lifted.looks.push(look);
+        lifted.draws.push((g) => {
           polyline(g, points).stroke({ width: width + 2 * size["select-width"], color: color.select, cap: "round", join: "round" });
           drawWire(g);
         });
@@ -350,7 +354,12 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       for (const drawWire of group?.draws ?? []) drawWire(chunk.g);
     }
     for (const chunk of chunks.splice(count)) chunk.g.destroy();
-    for (const drawRaised of raised) drawRaised(wires);
+    const liftedLook = `${themeVersion}|${lifted.looks.join(";")}`;
+    if (raised.look !== liftedLook) {
+      raised.look = liftedLook;
+      raised.g.clear();
+      for (const drawLifted of lifted.draws) drawLifted(raised.g);
+    }
     for (const tag of tags) tag();
 
     // ADR 0015: a named junction is a tag beside its dot, on the first side (right, left, below, above)
