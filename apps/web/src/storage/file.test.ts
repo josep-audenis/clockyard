@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import type { CircuitComponent, CircuitDocument, ComponentKind, Definition, Wire } from "../editor/document";
-import { parseDocument, serializeDocument } from "./file";
+import { MAX_DOCUMENT_BYTES, parseDocument, serializeDocument } from "./file";
 
 const document: CircuitDocument = {
   format: "clockyard",
@@ -123,6 +123,15 @@ test.each([
 const examples = new URL("../../../../examples/", import.meta.url);
 test.each(readdirSync(examples).filter((name) => name.endsWith(".clockyard.json")))("example %s is a valid project file", (name) => {
   const result = parseDocument(readFileSync(new URL(name, examples), "utf8"));
+  expect(result.ok ? "ok" : result.error).toBe("ok");
+});
+
+// The committed benchmark circuits (ADR 0030) open in the editor too: generated, but read as any file is.
+const benchmarks = new URL("../../../../benchmarks/", import.meta.url);
+test.each(readdirSync(benchmarks).filter((name) => name.endsWith(".clockyard.json")))("benchmark %s is a valid project file", (name) => {
+  const text = readFileSync(new URL(name, benchmarks), "utf8");
+  expect(text.length).toBeLessThanOrEqual(MAX_DOCUMENT_BYTES);
+  const result = parseDocument(text);
   expect(result.ok ? "ok" : result.error).toBe("ok");
 });
 
