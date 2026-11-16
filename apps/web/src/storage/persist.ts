@@ -3,9 +3,10 @@
 // its first change. If another tab saved the project since this one read it, this tab's work is saved as a copy.
 import { create } from "zustand";
 import { normalizeNotes, type CircuitDocument } from "../editor/document";
+import { withContents } from "../editor/blueprints";
 import { liveDefinitions, mainCircuit, useEditor, type EditorState } from "../editor/store";
 import { FORMAT_VERSION, parseDocument, serializeDocument } from "./file";
-import { browserStorage, type ProjectSummary, type Storage } from "./projects";
+import { browserStorage, libraryKey, type LibraryEntry, type ProjectSummary, type Storage } from "./projects";
 
 export type ProjectsState = {
   /** null while storage is opening; false when the browser refuses it, with `reason`. */
@@ -20,6 +21,10 @@ export type ProjectsState = {
   /** Why the last save, open or delete failed, or null. */
   error: string | null;
   projects: ProjectSummary[];
+  /** The component library, by name (ADR 0029). */
+  library: LibraryEntry[];
+  /** Challenges passed in this browser, by file name, with when each was first passed. */
+  progress: Record<string, string>;
 };
 
 export const useProjects = create<ProjectsState>()(() => ({
@@ -30,6 +35,8 @@ export const useProjects = create<ProjectsState>()(() => ({
   copied: false,
   error: null,
   projects: [],
+  library: [],
+  progress: {},
 }));
 
 /** The whole document, whichever sheet is open: the main circuit and every definition as it is now. */
@@ -180,6 +187,86 @@ export function deleteProject(id: string): Promise<boolean> {
   return queue;
 }
 
+/**
+ * Saves a component of the open document to the library, with every component it contains, as a small project file
+ * named after it. An entry of the same name is replaced (the caller asks first). False when it could not be saved.
+ */
+export async function saveToLibrary(definition: string): Promise<boolean> {
+  if (!storage) return false;
+  const definitions = withContents(liveDefinitions(useEditor.getState()), [definition]);
+  const component = definitions.at(-1);
+  if (!component) return false;
+  const now = new Date().toISOString();
+  const text = serializeDocument({
+    format: "clockyard",
+    version: FORMAT_VERSION,
+    metadata: { name: component.name, createdAt: now, modifiedAt: now },
+    circuit: { components: [], junctions: [], wires: [] },
+    definitions,
+  });
+  try {
+    await storage.putLibrary({ id: libraryKey(component.name), name: component.name, savedAt: now, text });
+    // The open project's save state (`error`) is not this operation's to clear.
+    useProjects.setState({ library: await storage.library() });
+    return true;
+  } catch (error) {
+    useProjects.setState({ error: `Not saved to the library: ${message(error)}` });
+    return false;
+  }
+}
+
+/** A library entry's components, read as a file is: the source *Add components* copies from. */
+export function libraryDocument(entry: LibraryEntry): CircuitDocument {
+  const result = parseDocument(entry.text);
+  if (!result.ok) throw new Error(`Could not read ${entry.name} from the library: ${result.error}`);
+  return result.document;
+}
+
+/** Removes a library entry; why it could not be removed, or null. */
+export async function removeFromLibrary(id: string): Promise<string | null> {
+  if (!storage) return "the browser keeps no storage for the page";
+  try {
+    await storage.removeLibrary(id);
+    useProjects.setState({ library: await storage.library() });
+    return null;
+  } catch (error) {
+    return message(error);
+  }
+}
+
+/** Records that a challenge was passed (ADR 0029); the first pass's time is kept. */
+export async function recordPass(challenge: string) {
+  if (!storage) return;
+  try {
+    await storage.markPassed(challenge, new Date().toISOString());
+    useProjects.setState({ progress: await storage.progress() });
+  } catch {
+    // Progress is a convenience: a check that passed still says so.
+  }
+}
+
+/** Forgets every challenge passed; why it could not, or null. */
+export async function clearProgress(): Promise<string | null> {
+  if (!storage) return "the browser keeps no storage for the page";
+  try {
+    await storage.clearProgress();
+    useProjects.setState({ progress: {} });
+    return null;
+  } catch (error) {
+    return message(error);
+  }
+}
+
+/** Reads the project list, the library and progress again: another tab may have changed them. */
+async function refresh() {
+  if (!storage) return;
+  try {
+    useProjects.setState({ projects: await storage.projects(), library: await storage.library(), progress: await storage.progress() });
+  } catch {
+    // What is shown stays as it was; the next save or reload reads them again.
+  }
+}
+
 /** Whether replacing the circuit on screen loses nothing: it will be saved first (`openDocument` asks if that fails). */
 export const replacingIsSafe = () => useProjects.getState().available === true;
 
@@ -202,6 +289,8 @@ export async function connectStorage({ open = browserStorage, reopen = true }: {
   });
   const hidden = () => {
     if (document.visibilityState === "hidden") void flush();
+    // Back to this tab: what another tab saved, removed or cleared shows here too.
+    else void refresh();
   };
   const leaving = () => void flush();
   // A page has a document; a unit test of this module does not.
@@ -224,7 +313,7 @@ export async function connectStorage({ open = browserStorage, reopen = true }: {
     return stop;
   }
   storage = opened;
-  useProjects.setState({ available: true, reason: null, projects: await opened.projects() });
+  useProjects.setState({ available: true, reason: null, projects: await opened.projects(), library: await opened.library(), progress: await opened.progress() });
   const last = reopen ? await opened.last() : undefined;
   // Only onto the page as it loaded: nothing opened, nothing changed meanwhile, which would win.
   const untouched = () => opens === before && contentOf(currentDocument()) === baseline;

@@ -1,6 +1,20 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { useEditor } from "../editor/store";
-import { connectStorage, deleteProject, flush, newCircuit, openDocument, SAVE_DELAY_MS, useProjects } from "./persist";
+import {
+  clearProgress,
+  connectStorage,
+  deleteProject,
+  flush,
+  libraryDocument,
+  newCircuit,
+  openDocument,
+  recordPass,
+  removeFromLibrary,
+  SAVE_DELAY_MS,
+  saveToLibrary,
+  useProjects,
+} from "./persist";
+import { addDefinitions } from "../editor/blueprints";
 import { memoryStorage, type Storage } from "./projects";
 import { parseDocument } from "./file";
 import type { CircuitDocument } from "../editor/document";
@@ -228,4 +242,63 @@ test("a save that throws before reaching storage does not stop later saves", asy
   fail = false;
   expect(await flush()).toBe(true);
   expect(await storage.projects()).toHaveLength(1);
+});
+
+test("a component saved to the library comes with what it contains, replaces one of the same name, and adds elsewhere", async () => {
+  const storage = memoryStorage();
+  await connect(storage);
+  const inner = { id: "inv", name: "Inverter", circuit: { components: [], junctions: [], wires: [] } };
+  const outer = {
+    id: "buf",
+    name: "Buffer",
+    circuit: { components: [{ id: "i", kind: "custom" as const, definition: "inv", position: { x: 0, y: 0 }, rotation: 0 as const, props: {} }], junctions: [], wires: [] },
+  };
+  useEditor.setState({ definitions: [inner, outer] });
+  // Saved twice at once (a double click), and again under another case: one entry all the same.
+  expect(await Promise.all([saveToLibrary("buf"), saveToLibrary("buf")])).toEqual([true, true]);
+  useEditor.setState({ definitions: [inner, { ...outer, name: "BUFFER" }] });
+  expect(await saveToLibrary("buf")).toBe(true);
+  useEditor.setState({ definitions: [inner, outer] });
+  expect(await saveToLibrary("buf")).toBe(true);
+  const { library } = useProjects.getState();
+  expect(library.map((e) => e.name)).toEqual(["Buffer"]);
+  const entry = library[0];
+  if (!entry) throw new Error("not saved");
+  const shelf = libraryDocument(entry);
+  expect(shelf.definitions.map((d) => d.id)).toEqual(["inv", "buf"]);
+  // In another project, as Add components takes it.
+  expect(addDefinitions([], shelf.definitions, ["buf"]).added.map((d) => d.name)).toEqual(["Inverter", "Buffer"]);
+  expect(await removeFromLibrary(entry.id)).toBeNull();
+  expect(useProjects.getState().library).toEqual([]);
+  expect(await storage.library()).toEqual([]);
+});
+
+test("a challenge passed is remembered with its first time, survives a reload, and can be cleared", async () => {
+  const storage = memoryStorage();
+  await connect(storage);
+  await recordPass("01-inverter");
+  const first = useProjects.getState().progress["01-inverter"];
+  expect(first).toBeDefined();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  await recordPass("01-inverter");
+  expect(useProjects.getState().progress["01-inverter"]).toBe(first);
+  stop();
+  useProjects.setState(projects, true);
+  await connect(storage);
+  expect(Object.keys(useProjects.getState().progress)).toEqual(["01-inverter"]);
+  expect(await clearProgress()).toBeNull();
+  expect(useProjects.getState().progress).toEqual({});
+  expect(await storage.progress()).toEqual({});
+});
+
+test("a library save or removal leaves the open project's save error alone, and a failed removal says why", async () => {
+  const storage = memoryStorage();
+  storage.removeLibrary = () => Promise.reject(new Error("locked"));
+  await connect(storage);
+  useEditor.setState({ definitions: [{ id: "a", name: "A", circuit: { components: [], junctions: [], wires: [] } }] });
+  useProjects.setState({ error: "Not saved: the quota is full" });
+  expect(await saveToLibrary("a")).toBe(true);
+  expect(useProjects.getState().error).toBe("Not saved: the quota is full");
+  expect(await removeFromLibrary("a")).toBe("locked");
+  expect(useProjects.getState().library).toHaveLength(1);
 });

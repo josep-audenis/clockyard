@@ -784,3 +784,19 @@ input.project-name:focus-visible {
 .status-warn {
   color: var(--caution);
 }
+
+/* Challenge progress (ADR 0029): a tick on those passed. */
+.challenge-done {
+  margin-left: auto;
+  color: var(--ok);
+}
+
+.challenge-clear {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+/* Saving to the library is not destructive: no red on hover, unlike delete. */
+.chip-save:hover {
+  color: var(--accent);
+}

@@ -4,6 +4,11 @@
 
 export type ProjectRecord = { id: string; name: string; modifiedAt: string; revision: number; text: string };
 export type ProjectSummary = Omit<ProjectRecord, "text">;
+/**
+ * A component saved to the library: `text` is a project file whose definitions are it and those it contains. `id` is
+ * `libraryKey(name)`, so saving a name again replaces its entry, whichever tab saved it.
+ */
+export type LibraryEntry = { id: string; name: string; savedAt: string; text: string };
 
 /** What the app needs from storage. */
 export interface Storage {
@@ -19,7 +24,21 @@ export interface Storage {
   /** The project used last in this browser, reopened on load. */
   last(): Promise<string | undefined>;
   setLast(id: string): Promise<void>;
+  /** The component library (ADR 0029), by name. */
+  library(): Promise<LibraryEntry[]>;
+  putLibrary(entry: LibraryEntry): Promise<void>;
+  removeLibrary(id: string): Promise<void>;
+  /** Challenges passed, by file name, with when each was first passed. */
+  progress(): Promise<Record<string, string>>;
+  /** Records a pass, keeping the first one's time. */
+  markPassed(challenge: string, at: string): Promise<void>;
+  clearProgress(): Promise<void>;
 }
+
+const byName = (a: LibraryEntry, b: LibraryEntry) => a.name.localeCompare(b.name);
+
+/** A library entry's key: its name, so that "Full adder" and "full adder" are one entry. */
+export const libraryKey = (name: string) => name.normalize("NFC").toLowerCase();
 
 const newestFirst = (a: ProjectSummary, b: ProjectSummary) => (a.modifiedAt < b.modifiedAt ? 1 : a.modifiedAt > b.modifiedAt ? -1 : 0);
 const summary = ({ id, name, modifiedAt, revision }: ProjectRecord): ProjectSummary => ({ id, name, modifiedAt, revision });
@@ -27,6 +46,8 @@ const summary = ({ id, name, modifiedAt, revision }: ProjectRecord): ProjectSumm
 /** Storage in memory, for tests: the same rules as IndexedDB, lost with the page. */
 export function memoryStorage(): Storage {
   const projects = new Map<string, ProjectRecord>();
+  const library = new Map<string, LibraryEntry>();
+  const progress = new Map<string, string>();
   let last: string | undefined;
   return {
     projects: async () => [...projects.values()].map(summary).sort(newestFirst),
@@ -39,6 +60,12 @@ export function memoryStorage(): Storage {
     remove: async (id) => void projects.delete(id),
     last: async () => last,
     setLast: async (id) => void (last = id),
+    library: async () => [...library.values()].sort(byName),
+    putLibrary: async (entry) => void library.set(entry.id, entry),
+    removeLibrary: async (id) => void library.delete(id),
+    progress: async () => Object.fromEntries(progress),
+    markPassed: async (challenge, at) => void (progress.has(challenge) || progress.set(challenge, at)),
+    clearProgress: async () => progress.clear(),
   };
 }
 
@@ -65,7 +92,6 @@ export async function browserStorage(): Promise<Storage> {
   const request = indexedDB.open("clockyard", 1);
   request.onupgradeneeded = () => {
     const db = request.result;
-    // Step 2 of ADR 0029 adds `library` and `progress` entries; the stores exist from the start.
     for (const name of ["projects", "library", "progress", "meta"]) if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: "id" });
   };
   const db = await done(request);
@@ -95,6 +121,34 @@ export async function browserStorage(): Promise<Storage> {
     setLast: async (id) => {
       const transaction = db.transaction("meta", "readwrite");
       transaction.objectStore("meta").put({ id: "last", value: id });
+      await committed(transaction);
+    },
+    library: async () => ((await done(store("library").getAll())) as LibraryEntry[]).sort(byName),
+    putLibrary: async (entry) => {
+      const transaction = db.transaction("library", "readwrite");
+      transaction.objectStore("library").put(entry);
+      await committed(transaction);
+    },
+    removeLibrary: async (id) => {
+      const transaction = db.transaction("library", "readwrite");
+      transaction.objectStore("library").delete(id);
+      await committed(transaction);
+    },
+    progress: async () =>
+      Object.fromEntries(((await done(store("progress").getAll())) as { id: string; passedAt: string }[]).map((p) => [p.id, p.passedAt])),
+    markPassed: async (challenge, at) => {
+      const transaction = db.transaction("progress", "readwrite");
+      const progress = transaction.objectStore("progress");
+      // Kept if already there, the first pass's time staying: looked up first, so no error event reaches the transaction.
+      const known = progress.getKey(challenge);
+      known.onsuccess = () => {
+        if (known.result === undefined) progress.add({ id: challenge, passedAt: at });
+      };
+      await committed(transaction);
+    },
+    clearProgress: async () => {
+      const transaction = db.transaction("progress", "readwrite");
+      transaction.objectStore("progress").clear();
       await committed(transaction);
     },
   };
