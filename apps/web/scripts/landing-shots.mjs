@@ -19,6 +19,7 @@ const CELL = 16;
 
 const browser = await chromium.launch();
 const links = {};
+const trace = [];
 
 async function session(theme, viewport = { width: 1440, height: 900 }, scale = 2) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: scale, colorScheme: theme, locale: "en-GB" });
@@ -68,7 +69,7 @@ async function session(theme, viewport = { width: 1440, height: 900 }, scale = 2
 
 for (const theme of ["dark", "light"]) {
   const s = await session(theme);
-  const { page, button, inspector, click, drag, open, shot, link } = s;
+  const { page, button, inspector, readout, click, drag, open, shot, link } = s;
 
   // Half adder, as the live figure's poster: the frame is 1180 x 620.
   await page.setViewportSize({ width: 1180, height: 620 });
@@ -83,9 +84,10 @@ for (const theme of ["dark", "light"]) {
   // 4-bit adder: 5 + 3 + 1 = 9, lit wires through four full-adder instances.
   await open(example("4-bit-adder"));
   await link("4-bit-adder");
+  await shot("adder-off", { x: 248, y: 60, width: 520, height: 655 }); // as it opens: every switch off
   for (const [x, y] of [[1, 1], [1, 21], [5, 4], [5, 14], [1, 7]]) await click(x, y);
   await click(30, 40); // empty canvas: clear the selection
-  await shot("adder", { x: 248, y: 60, width: 520, height: 770 }); // down to the Cout LED
+  await shot("adder", { x: 248, y: 60, width: 520, height: 655 }); // down to the Cout LED
 
   // Waveforms: the 8-bit counter, clock and register watched, stepped twelve cycles.
   await open(example("8-bit-counter"));
@@ -101,7 +103,7 @@ for (const theme of ["dark", "light"]) {
   await page.mouse.move(256, 55);
   await page.mouse.wheel(0, -Math.log(1.6) / 0.0015);
   await page.waitForTimeout(300);
-  await shot("waveforms-circuit", { x: 256, y: 55, width: Math.round(560 * 1.6), height: Math.round(200 * 1.6) });
+  await shot("waveforms-circuit", { x: 256, y: 55, width: 880, height: 320 }); // the counter and its readout, a grid pitch around them
   const waves = await page.getByRole("region", { name: "WAVEFORMS" }).boundingBox();
   await shot("waveforms", { ...waves, width: 560 }); // through the current cycle, 0C
 
@@ -123,12 +125,29 @@ for (const theme of ["dark", "light"]) {
 
   await open(example("catch"));
   await link("catch");
+  // The program counter at each fetch for the first 160 instructions after Reset, for Fig. 6b.
+  if (theme === "dark") {
+    const counter = page.getByText(/^Cycle \d+,/);
+    for (let guard = 0; trace.length < 160 && guard < 2000; guard++) {
+      const now = await counter.textContent();
+      const phase = `${now} ${await readout("LED Fetch").textContent()}`;
+      if (phase.includes("clock low") && phase.endsWith("on")) trace.push(Number((await readout("LED PC").textContent()).match(/\((0x[0-9A-F]+)\)/i)[1]));
+      await button("Step").click();
+      // Wait for the step to land, and the readouts with it, before reading again.
+      for (let wait = 0; wait < 200 && (await counter.textContent()) === now; wait++) await page.waitForTimeout(5);
+      await page.waitForTimeout(40);
+    }
+    // Catch opens with LDI 3, STA 0, STA 2, LDI 100: the trace starts 0, 1, 2, 3.
+    if (trace.slice(0, 4).join() !== "0,1,2,3") throw new Error(`trace starts ${trace.slice(0, 8)}`);
+  }
 
   // A challenge: the reference full adder, A and Cin on, checked by the engine.
   await open(solution("04-full-adder"));
   const challenge = page.getByRole("region", { name: "CHALLENGE", exact: true });
   await challenge.getByRole("button", { name: "Open Full adder" }).click();
   await page.waitForTimeout(300);
+  await click(30, 30);
+  await shot("challenge-circuit-off", { x: 232, y: 45, width: 600, height: 260 }); // before A and Cin go on
   await click(1, 1);
   await click(1, 9);
   await click(30, 30); // empty canvas: clear the selection
@@ -218,8 +237,9 @@ const sense = (png, high, grid) =>
       }
       const lane = (row) => [...Array(8).keys()].find((l) => lit(grid.x + l * 32 + 16, grid.y + row * 4 + 2)) ?? -1;
       let block = -1;
-      for (let row = 0; row < 31 && block < 0; row++) block = lane(row);
-      return { paddle: lane(31), block };
+      let row = 0;
+      for (; row < 31 && block < 0; row++) block = lane(row);
+      return { paddle: lane(31), block, row: row - 1 };
     },
     [`data:image/png;base64,${png.toString("base64")}`, high, grid],
   );
@@ -230,7 +250,8 @@ for (const theme of ["dark", "light"]) {
   // Buttons pressed with a click event alone: a pointer press outside the canvas takes the keys back.
   const press = (name) => page.getByRole("button", { name, exact: true }).dispatchEvent("click");
   const high = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--signal-high").trim());
-  const clip = { x: 436, y: 56, width: 564, height: 240 }; // the digits, the keyboard and the screen
+  const clip = { x: 430, y: 46, width: 576, height: 259 }; // the digits, the keyboard and the screen, a grid pitch inside each edge
+  const narrow = { x: 662, y: 76, width: 340, height: 192 }; // phones: the screen with its ports and name
   const screenArea = { x: 680, y: 92, width: 305, height: 145 }; // the screen part, for reading its pixels
   await click(14, 10); // the keyboard at (12,9) takes the keys
   let grid = null;
@@ -249,12 +270,16 @@ for (const theme of ["dark", "light"]) {
     }
     await page.mouse.move(1, 1);
     const cycle = Number((await page.getByText(/^Cycle \d+,/).textContent()).match(/\d+/)[0]);
-    frames.push({ cycle, jpeg: await page.screenshot({ clip, type: "jpeg", quality: 92 }) });
+    const shot = { cycle, wide: await page.screenshot({ clip, type: "jpeg", quality: 92 }), narrow: await page.screenshot({ clip: narrow, type: "jpeg", quality: 92 }) };
+    frames.push(shot);
     // Play: steer toward the block until three are caught, then let the next one fall.
     const pixels = await page.screenshot({ clip: screenArea, scale: "css" });
     grid ??= await sense(pixels, high, null);
-    const { paddle, block } = await sense(pixels, high, grid);
-    const three = (await readout("Seven-segment Low").textContent()).includes("(0x4F)");
+    const { paddle, block, row } = await sense(pixels, high, grid);
+    const low = await readout("Seven-segment Low").textContent();
+    const three = low.includes("(0x4F)");
+    // A poster candidate: two caught, the third block a row or two above the paddle beneath it.
+    shot.poster = low.includes("(0x5B)") && block === paddle && row >= 28;
     const want = three || block < 0 || paddle < 0 || block === paddle ? null : block < paddle ? "ArrowLeft" : "ArrowRight";
     if (want !== held) {
       if (held) await page.keyboard.up(held);
@@ -269,18 +294,21 @@ for (const theme of ["dark", "light"]) {
   const timeline = [];
   for (let t = frames[0].cycle, i = 0; t < frames.at(-1).cycle; t += 500) {
     while (i + 1 < frames.length && frames[i + 1].cycle <= t) i++;
-    timeline.push(frames[i].jpeg);
+    timeline.push(frames[i]);
   }
-  for (let hold = 0; hold < 40; hold++) timeline.push(frames.at(-1).jpeg); // two seconds on the miss before the loop restarts
-  const dir = mkdtempSync(join(tmpdir(), "clockyard-loop-"));
-  const input = join(dir, "frames.mjpeg");
-  writeFileSync(input, Buffer.concat(timeline));
-  const out = here(`../about/shots/hero-loop-${theme}`);
-  // 20 frames a second, 500 cycles apart: 10,000 cycles a second, the speed setting the game uses.
-  execFileSync(ffmpeg, ["-loglevel", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", "20", "-i", input, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "32", "-pix_fmt", "yuv420p", "-an", `${out}.webm`]);
-  writeFileSync(`${out}.jpg`, timeline[Math.floor(timeline.length * 0.55)]); // poster: mid-game, a block falling
-  rmSync(dir, { recursive: true });
-  console.log("wrote", `${out}.webm`, timeline.length, "frames");
+  for (let hold = 0; hold < 40; hold++) timeline.push(frames.at(-1)); // two seconds on the miss before the loop restarts
+  const poster = timeline.find((frame) => frame.poster) ?? timeline[Math.floor(timeline.length * 0.55)];
+  for (const [crop, name] of [["wide", "hero-loop"], ["narrow", "hero-loop-narrow"]]) {
+    const dir = mkdtempSync(join(tmpdir(), "clockyard-loop-"));
+    const input = join(dir, "frames.mjpeg");
+    writeFileSync(input, Buffer.concat(timeline.map((frame) => frame[crop])));
+    const out = here(`../about/shots/${name}-${theme}`);
+    // 20 frames a second, 500 cycles apart: 10,000 cycles a second, the speed setting the game uses.
+    execFileSync(ffmpeg, ["-loglevel", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", "20", "-i", input, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "32", "-pix_fmt", "yuv420p", "-an", `${out}.webm`]);
+    writeFileSync(`${out}.jpg`, poster[crop]); // the third block about to land on the paddle
+    rmSync(dir, { recursive: true });
+    console.log("wrote", `${out}.webm`, timeline.length, "frames");
+  }
 }
 await browser.close();
 
@@ -290,5 +318,9 @@ let page = readFileSync(html, "utf8");
 for (const [name, fragment] of Object.entries(links)) {
   page = page.replace(new RegExp(`(data-example="${name}"[^>]*?(?:href|data-src)=")[^"]*`, "g"), (_, attr) => `${attr}../#${fragment}`);
 }
+// The recorded program-counter trace, for the ROM band.
+if (trace.length !== 160) throw new Error(`trace: ${trace.length} fetches, not 160`); // the caption describes 160
+page = page.replace(/data-trace="[^"]*"/, `data-trace="${trace.join(" ")}"`);
 writeFileSync(html, page);
+console.log("trace:", trace.length, "fetches");
 console.log("links:", Object.fromEntries(Object.entries(links).map(([k, v]) => [k, v.length])));

@@ -54,10 +54,13 @@ output, the design system as the source of truth.
    CPU's. The frames are laid on a timeline of 10,000 cycles a second, 20
    frames a second, and encoded as VP9 WebM with the ffmpeg Playwright
    installs; the miss is held for two seconds before the loop restarts.
+   Its poster is the frame where the third block is about to land on the
+   paddle. Phones get a crop of the screen alone from the same frames.
    For that picture the reference CPU's devices sit together at the top
    of its sheet (`scripts/reference-cpu.mjs`): the digits with the keyboard
    under them, then the screen, all in the view the sheet opens to, and
-   the clock and constants moved below them. Fig. 6's program is typed into the
+   the clock and constants moved below them, and the IR registers two
+   rows lower so the crop ends cleanly. Fig. 6's program is typed into the
    ROM's inspector by the script; it is not a shipped example. The script
    also records a failing Check (XOR from NAND gates with A wired straight
    to Y) and a loop that never settles (a NOR fed back into itself), so
@@ -76,6 +79,22 @@ output, the design system as the source of truth.
    never on its own under `prefers-reduced-motion`, and always has a
    Pause/Play button. Its poster, one of its frames, stays in place until
    it plays, so the figure is never empty.
+7. **The page is drawn in the editor's own signals.** A clock line under
+   the headline ends in the recording's input port; on load one pulse runs
+   along it, and the recording starts when it arrives. A wire down the
+   margin (the spine) joins every section's port, and scrolling drives a 1
+   down it: a section it reaches has its port and its wire high and its
+   number, on seven-segment digits, lit. Figs. 3 and 7 open on a capture
+   with every switch off and settle into the documented one when in view.
+   Fig. 6b is Catch's ROM as a tape under a read head; scrolling steps
+   through a recorded run (the program counter at each of the first 160
+   fetches after Reset, read from the running editor by the capture
+   script), so the word under the head is where the CPU was, not a
+   scroll position dressed up as one. The challenge ladder marks the
+   challenges passed in this browser, read from the editor's IndexedDB
+   store (ADR 0029) read-only, in the editor's own passed colour. Amber
+   still means a 1, and nothing glows. With reduced motion there is no
+   pulse, no settle and no tape: the ROM is shown whole and still.
 
 ## Consequences
 

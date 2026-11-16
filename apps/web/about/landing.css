@@ -127,16 +127,23 @@ strong { font-weight: 600; color: var(--ink); }
 
 /* Hero: headline, one line of copy, the actions, then the game across the full width. */
 .hero { padding: 52px 0 72px; }
+.hero > .wrap { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); column-gap: 48px; align-items: end; }
+.hero > .wrap > :is(.trace, .hero-fig) { grid-column: 1 / -1; }
 .hero h1 {
-  font-size: clamp(44px, 6.4vw, 84px);
-  line-height: 0.98;
-  letter-spacing: -0.015em;
-  max-width: 19ch;
+  font-size: clamp(46px, 6.4vw, 100px);
+  line-height: 0.9;
+  letter-spacing: -0.02em;
 }
-.lede { margin-top: 24px; font-size: clamp(18px, 1.6vw, 21px); line-height: 1.5; color: var(--ink); max-width: 52ch; }
+.hero-row { padding-bottom: 6px; }
+.lede { font-size: clamp(17px, 1.4vw, 20px); line-height: 1.5; color: var(--ink); max-width: 40ch; }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
-.hero-note { margin-top: 16px; font-size: 14px; color: var(--ink-muted); }
-.shot.hero-fig { margin-top: 40px; }
+.hero-act .actions { margin-top: 24px; }
+.hero-note { margin-top: 12px; font-size: 14px; color: var(--ink-muted); max-width: 36ch; }
+.shot.hero-fig { margin-top: 36px; }
+@media (max-width: 960px) {
+  .hero > .wrap { grid-template-columns: 1fr; }
+  .hero-row { margin-top: 24px; }
+}
 @media (prefers-reduced-motion: no-preference) {
   /* The headline rises in once; nothing else moves on load. */
   .hero h1 { animation: rise 520ms cubic-bezier(0.16, 1, 0.3, 1) both; }
@@ -179,22 +186,17 @@ video.loop { display: block; width: 100%; height: auto; }
 .loop-poster img { width: 100%; height: 100%; object-fit: cover; }
 .loop-frame.is-playing .loop-poster { display: none; }
 /* Figures with a control: the caption on the left, the control on the right. */
-.hero-fig .bare video, .hero-fig .bare picture {
-  mask-image:
-    linear-gradient(to right, transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent),
-    linear-gradient(to bottom, transparent, #000 var(--fade), #000 calc(100% - 6px), transparent);
-}
-.hero-fig figcaption, .live figcaption { display: flex; gap: 24px; justify-content: space-between; align-items: start; max-width: none; }
+.hero-fig figcaption, .live figcaption { display: flex; gap: 24px; align-items: start; max-width: none; }
 .hero-fig .cap, .live .cap { max-width: 78ch; }
 .loop-toggle { flex: none; height: 28px; padding: 0 12px; font-size: 13px; }
 
 /* Sections: one rule between them, starting at an input port like the mark's wire. Headings sit over their lede. */
-.try, .chapter, .engine, .facts, .closing { position: relative; border-top: 1px solid var(--line); padding: var(--section) 0; }
+.try, .chapter, .engine, .facts, .closing { --port-x: max(var(--gutter), calc((100% - var(--wrap)) / 2)); position: relative; border-top: 1px solid var(--line); padding: var(--section) 0; }
 .try::before, .chapter::before, .engine::before, .facts::before, .closing::before {
   content: "";
   position: absolute;
   top: -5px;
-  left: max(calc(var(--gutter) - 5px), calc((100% - var(--wrap)) / 2 - 5px));
+  left: calc(var(--port-x) - 5px);
   width: 9px;
   height: 9px;
   background: var(--bench);
@@ -220,8 +222,8 @@ video.loop { display: block; width: 100%; height: auto; }
 .chapter-head .note { margin-top: 12px; }
 .layer { padding-bottom: var(--section); }
 .layer h3 { font-size: clamp(26px, 2.8vw, 34px); line-height: 1.1; }
-.layer-lede { margin-top: 12px; font-size: 17px; line-height: 1.6; color: var(--ink); }
-.layer-lede.narrow { max-width: 66ch; }
+.layer-lede { margin-top: 12px; font-size: 16px; line-height: 1.65; color: var(--ink); }
+.layer-lede.narrow { max-width: 62ch; }
 .notes { display: grid; gap: 14px; margin-top: 22px; font-size: 15px; line-height: 1.6; color: var(--ink-muted); }
 
 /* Gates and wires: text beside the adder */
@@ -237,7 +239,7 @@ video.loop { display: block; width: 100%; height: auto; }
 .legend code.vb { color: var(--signal-bus); }
 
 /* Time: the counter and its waveform beside the text */
-.time-grid { display: grid; grid-template-columns: 7fr 5fr; gap: 56px; align-items: start; }
+.time-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 56px; align-items: start; }
 .time-text .layer-lede { margin-top: 12px; }
 /* Text comes first in the reading order; on wide screens the figure sits to its left. */
 @media (min-width: 961px) { .time-grid > .shot, .program-row > .shot-program { order: -1; } }
@@ -270,8 +272,9 @@ video.loop { display: block; width: 100%; height: auto; }
   width: var(--w);
   height: var(--h);
   font-size: 0;
-  border: 1px solid var(--ink-muted);
+  border: 1.5px solid var(--ink);
   border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 2px var(--bench), inset 0 0 0 2px var(--bench);
 }
 .blocks li::before {
   content: counter(block);
@@ -284,7 +287,7 @@ video.loop { display: block; width: 100%; height: auto; }
   background: var(--ink);
   border-radius: var(--radius-sm) 0 var(--radius-sm) 0;
 }
-.key { margin: 0; padding: 0; list-style: none; counter-reset: key; display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 24px; font-size: 14px; }
+.key { margin: 0; padding: 0; list-style: none; counter-reset: key; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px 24px; font-size: 14px; }
 .key li { counter-increment: key; display: flex; gap: 10px; align-items: baseline; padding: 4px 0; color: var(--ink); cursor: default; }
 .key li::before {
   content: counter(key);
@@ -300,7 +303,7 @@ video.loop { display: block; width: 100%; height: auto; }
 .key-hint { color: var(--ink-muted); }
 @media (hover: none) { .key-hint { display: none; } }
 /* Pointing is the viewer's own action, so its outline is accent: the map dims, the block is outlined. */
-.map picture { transition: opacity 120ms ease-out; }
+.map picture { opacity: 0.8; transition: opacity 120ms ease-out; }
 .shot-map:has(.key li:hover, .blocks li:hover) .map picture { opacity: 0.45; }
 .blocks li:hover,
 .shot-map:has(.key li:nth-child(1):hover) .blocks li:nth-child(1),
@@ -336,10 +339,10 @@ video.loop { display: block; width: 100%; height: auto; }
 @media (prefers-reduced-motion: reduce) { .map picture { transition: none; } }
 
 /* Programs: the inspector beside the text, both from the top */
-.program-head { margin-top: 72px; font: 500 13px/16px var(--font-mono); letter-spacing: 0; color: var(--ink-muted); }
+.program-head { margin-top: var(--section); font-size: 22px; line-height: 1.2; }
 .program-row { display: grid; grid-template-columns: 280px 1fr; gap: 56px; margin-top: 20px; align-items: start; }
 .program-text { display: grid; gap: 16px; max-width: 66ch; color: var(--ink-muted); font-size: 16px; }
-.program-text > p:first-child { font-size: 17px; line-height: 1.6; color: var(--ink); }
+.program-text > p:first-child { font-size: 16px; line-height: 1.65; color: var(--ink); }
 .howto { color: var(--ink-muted); font-size: 15px; }
 
 /* Challenges: a ladder drawn as a wire on the canvas, with an 8px input port on each rung */
@@ -420,6 +423,8 @@ video.loop { display: block; width: 100%; height: auto; }
 }
 .to-worker { --out: 0%; --in: 100%; }
 .to-page { --out: 100%; --in: 0%; }
+.to-worker::before { content: "→ "; }
+.to-page::before { content: "← "; }
 .arch figcaption { margin-top: 12px; max-width: 78ch; font-size: 14px; color: var(--ink-muted); }
 .engine-notes { display: grid; grid-template-columns: 6fr 5fr; gap: 56px; align-items: start; margin-top: 48px; }
 .engine-notes > * { min-width: 0; }
@@ -529,9 +534,112 @@ video.loop { display: block; width: 100%; height: auto; }
   .header-row .button { height: 32px; padding: 0 10px; font-size: 13px; }
   .code { font-size: 12px; }
   .bare picture, .bare video { --fade: 14px; }
-  /* The recording cropped to the screen, the part the game is on; its control under the caption. */
-  .loop-frame { aspect-ratio: 4 / 3; }
-  video.loop, .loop-poster img { height: 100%; object-fit: cover; object-position: 100% 50%; }
   .hero-fig figcaption, .live figcaption { display: block; }
-  .loop-toggle, .live-start { margin-top: 12px; }
+  .loop-toggle, .live-start { display: flex; margin-top: 12px; }
 }
+
+/* The signal motif (ADR 0031). Amber here is still a 1: a pulse, a lit wire, a lit segment, a port
+   that has received one. Nothing glows: a lit wire is amber and slightly thicker, as on the canvas. */
+:root { --spine-x: max(calc(var(--gutter) / 2), calc((100vw - var(--wrap)) / 2 - 44px)); }
+main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw, a scrollbar included */
+
+/* The first pulse: a clock line under the head that ends in the recording's input port. */
+.trace {
+  --port: min(calc(50vw + var(--wrap) / 2), calc(100vw - var(--gutter)));
+  position: relative;
+  height: 44px;
+  margin: 32px calc(50% - 50vw) 0;
+}
+.trace::before { content: ""; position: absolute; left: 0; bottom: 0; width: var(--port); height: 2px; background: var(--signal-low); }
+.trace-name { position: absolute; left: max(var(--gutter), calc((100vw - var(--wrap)) / 2)); bottom: 10px; font: 500 12px/1 var(--font-mono); color: var(--ink-muted); }
+.trace-port { position: absolute; left: calc(var(--port) - 1px); bottom: -4px; width: 10px; height: 10px; border: 2px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bench); transition: background-color 120ms, border-color 120ms; }
+.trace-pulse { position: absolute; bottom: 0; left: 0; width: 132px; height: 36px; border: 3px solid var(--signal-high); border-bottom: 0; opacity: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .trace.is-arrived .trace-port { animation: port-hit 700ms ease-out; }
+  @keyframes port-hit { 0%, 45% { background: var(--signal-high); border-color: var(--signal-high); } }
+  .trace-pulse { animation: pulse-travel 1100ms cubic-bezier(0.5, 0, 0.3, 1) 400ms both; }
+  @keyframes pulse-travel {
+    0% { opacity: 1; transform: translateX(-132px); }
+    92% { opacity: 1; }
+    100% { opacity: 0; transform: translateX(calc(var(--port) - 132px)); }
+  }
+}
+
+/* The spine: one wire down the margin, through every section's port. Scrolling drives a 1 down it. */
+.spine { position: absolute; left: calc(var(--spine-x) - 1px); width: 2px; background: var(--signal-low); pointer-events: none; }
+/* Its start under the clock line: an input port, as the canvas draws one; the spine is its own net. */
+.spine::before { content: ""; position: absolute; top: -6px; left: -4px; width: 10px; height: 10px; border: 2px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bench); z-index: 1; }
+.spine-lit { position: absolute; left: -0.5px; width: 3px; top: 0; height: var(--lit, 0px); background: var(--signal-high); }
+.try, .chapter, .engine, .facts, .closing { --port-x: var(--spine-x); }
+.try::before, .chapter::before, .engine::before, .facts::before, .closing::before { z-index: 1; transition: background-color 160ms, border-color 160ms; }
+.is-reached::before { background: var(--signal-high) !important; border-color: var(--signal-high) !important; }
+/* A reached section's wire goes high, from its port across the page, and low again above it. */
+.try::after, .chapter::after, .engine::after, .facts::after, .closing::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: var(--port-x);
+  right: 0;
+  height: 2px;
+  background: var(--signal-high);
+  transform: scaleX(0);
+  transform-origin: left;
+  pointer-events: none;
+}
+.is-reached::after { transform: scaleX(1); }
+@media (prefers-reduced-motion: no-preference) {
+  .try::after, .chapter::after, .engine::after, .facts::after, .closing::after { transition: transform 450ms cubic-bezier(0.3, 0, 0.2, 1); }
+}
+
+/* Section numbers on seven-segment digits, lit when the signal reaches the section. */
+.seg { display: block; height: 30px; width: auto; margin-bottom: 14px; overflow: visible; }
+.seg rect { fill: color-mix(in srgb, var(--line) 55%, transparent); transition: fill 160ms ease-out; }
+.seg rect.on { fill: var(--line); }
+.is-reached .seg rect.on { fill: var(--signal-high); }
+@media (min-width: 1400px) {
+  /* In the margin, level with the heading, left of the spine. */
+  .seg { position: absolute; margin: 0; left: calc(var(--spine-x) - 66px); height: 44px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .seg rect { transition-delay: calc(var(--i, 0) * 45ms); }
+}
+
+/* Figs. 3 and 7: the capture as it opens, over the documented one, until it settles. */
+.settle-off { display: none; }
+.is-pending { position: relative; }
+.is-pending .settle-off { display: block; position: absolute; inset: 0; }
+@media print { .is-pending .settle-off { display: none; } }
+
+/* Fig. 5, the whole CPU, edge to edge on wide screens. */
+@media (min-width: 1081px) {
+  .shot-map .map-scroll { margin-inline: calc(50% - 50vw); padding-inline: var(--gutter); }
+  .shot-map .map { max-width: 1760px; margin-inline: auto; }
+}
+
+/* Catch's ROM: the real words on a tape under a fixed read head; scrolling steps through a recorded
+   run, and the word under the head is the program counter at that fetch. */
+.rom-band { margin: 56px 0 0; }
+.rom-strip {
+  position: relative;
+  overflow: hidden;
+  padding: 14px 0;
+  border-block: 1px solid var(--line);
+  mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+}
+.rom-head { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--line-strong); }
+.rom-words { position: relative; display: flex; gap: 22px; width: max-content; font: 500 22px/1 var(--font-mono); color: var(--ink-muted); transform: translateX(var(--shift, 0px)); }
+@media (prefers-reduced-motion: no-preference) { .rom-words { transition: transform 160ms ease-out; } }
+.rom-words span { padding: 6px 4px; border-radius: var(--radius-sm); background: var(--bench); }
+.rom-words .pc { color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.rom-band figcaption { margin-top: 12px; font-size: 14px; color: var(--ink-muted); max-width: 78ch; }
+
+/* The ladder lights the rungs passed in this browser. */
+.ladder li.passed::before { background: var(--ok); }
+.ladder li.passed::after { border-color: var(--ok); background: var(--ok); }
+
+/* The tape without a trace to follow, or with reduced motion: the whole ROM, still. */
+[data-static] .rom-strip { mask-image: none; }
+[data-static] .rom-words { flex-wrap: wrap; width: auto; gap: 8px 18px; transform: none; font-size: 17px; }
+[data-static] .rom-head, [data-static] .rom-scrub { display: none; }
+
+@media print { .spine, .trace-pulse, .trace-port { display: none; } }

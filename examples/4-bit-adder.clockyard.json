@@ -21,7 +21,7 @@
       {"id": "b3", "kind": "switch", "position": {"x": 4, "y": 33}, "rotation": 0, "props": {"label": "B3"}},
       {"id": "fa3", "kind": "custom", "definition": "full-adder", "position": {"x": 12, "y": 30}, "rotation": 0, "props": {}},
       {"id": "s3", "kind": "led", "position": {"x": 24, "y": 30}, "rotation": 0, "props": {"label": "S3"}},
-      {"id": "cout", "kind": "led", "position": {"x": 24, "y": 42}, "rotation": 0, "props": {"label": "Cout"}}
+      {"id": "cout", "kind": "led", "position": {"x": 24, "y": 35}, "rotation": 0, "props": {"label": "Cout"}}
     ],
     "junctions": [],
     "wires": [
