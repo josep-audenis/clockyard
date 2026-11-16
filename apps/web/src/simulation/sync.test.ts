@@ -71,6 +71,7 @@ test("watched memories are read once a frame however many states arrive, a newly
   watchMemory(new Map([["s", 128]])); // the same screens: nothing new to read
   const state = { type: "state", nets: new Uint32Array(1), diagnostics: [], time: 1, running: true } as unknown as Result;
   for (let i = 0; i < 3; i++) worker.reply(state);
+  vi.advanceTimersByTime(0);
   expect(reads()).toEqual([]);
   vi.advanceTimersByTime(20);
   expect(reads()).toHaveLength(1);
@@ -85,9 +86,13 @@ test("watched memories are read once a frame however many states arrive, a newly
 });
 
 test("why a run stopped is the worker's latest word on it, and a pause gives none (ADR 0021)", () => {
+  vi.useFakeTimers();
   const stop = connectEngine();
-  const state = (running: boolean, stopped?: Extract<Result, { type: "state" }>["stopped"]) =>
+  // Each state is applied once the messages already waiting are handled (ADR 0030).
+  const state = (running: boolean, stopped?: Extract<Result, { type: "state" }>["stopped"]) => {
     worker.reply({ type: "state", nets: new Uint32Array(), diagnostics: [], time: 0, running, ...(stopped && { stopped }) });
+    vi.runAllTimers();
+  };
   state(true);
   state(false, { reason: "lit", led: "l" });
   expect(useSim.getState()).toMatchObject({ running: false, stopped: { reason: "lit", led: "l" } });
@@ -101,6 +106,54 @@ test("why a run stopped is the worker's latest word on it, and a pause gives non
   state(false);
   expect(useSim.getState().stopped).toBeNull();
   stop();
+  vi.useRealTimers();
+});
+
+test("states that arrive faster than the page shows them are applied once, as the latest; one from before a load is not (ADR 0030)", () => {
+  vi.useFakeTimers();
+  const editor = useEditor.getState();
+  const stop = connectEngine();
+  worker.reply({ type: "loaded", portNets: {}, wireNets: {} } as unknown as Result);
+  const state = (time: number) => ({ type: "state", nets: new Uint32Array([time]), diagnostics: [], time, running: true }) as unknown as Result;
+  worker.reply(state(10));
+  vi.runAllTimers();
+  const epoch = useSim.getState().epoch;
+  const applied: number[] = [];
+  const unsubscribe = useSim.subscribe((s, before) => {
+    if (s.time !== before.time) applied.push(s.time);
+  });
+  // A backlog: only its latest is shown. A reset inside it (time back to 0) still counts a new epoch.
+  for (const time of [12, 0, 4]) worker.reply(state(time));
+  vi.runAllTimers();
+  expect(applied).toEqual([4]);
+  expect(useSim.getState()).toMatchObject({ time: 4, epoch: epoch + 1, running: true });
+  // A state waiting when a load is sent describes the circuit before it: its nets are not shown.
+  worker.reply(state(5));
+  useEditor.setState({ circuit: { components: [], junctions: [], wires: [{ id: "x", from: { junction: "a" }, to: { junction: "b" } }] } });
+  vi.runAllTimers();
+  expect(useSim.getState().time).toBe(4);
+  unsubscribe();
+
+  // The load answered, then its states: a new circuit is a new epoch, even when its time is not below the last shown.
+  worker.reply({ type: "loaded", portNets: {}, wireNets: {} } as unknown as Result);
+  const before = useSim.getState().epoch;
+  worker.reply(state(7));
+  vi.runAllTimers();
+  expect(useSim.getState()).toMatchObject({ time: 7, epoch: before + 1 });
+
+  // Any other message applies a waiting state first: an error after a state stays the latest word.
+  worker.reply(state(9));
+  worker.reply({ type: "error", message: "boom", running: false });
+  vi.runAllTimers();
+  expect(useSim.getState()).toMatchObject({ time: 9, running: false, status: "error", error: "boom" });
+
+  // A state still waiting when the engine stops is not shown.
+  worker.reply(state(11));
+  stop();
+  vi.runAllTimers();
+  expect(useSim.getState().time).toBe(9);
+  useEditor.setState(editor, true);
+  vi.useRealTimers();
 });
 
 test("waveforms: watch follows the load it belongs to, a sent load drops the record, and so does the last unwatch (ADR 0026)", () => {
@@ -144,10 +197,13 @@ test("waveforms: watch follows the load it belongs to, a sent load drops the rec
   // Time going back (a load or a reset) counts a new epoch.
   const state = (time: number) => ({ type: "state", nets: new Uint32Array(1), diagnostics: [], time, running: false }) as unknown as Result;
   worker.reply(state(6));
+  vi.runAllTimers();
   const epoch = useSim.getState().epoch;
   worker.reply(state(8));
+  vi.runAllTimers();
   expect(useSim.getState().epoch).toBe(epoch);
   worker.reply(state(0));
+  vi.runAllTimers();
   expect(useSim.getState().epoch).toBe(epoch + 1);
 
   stop();

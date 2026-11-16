@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { definitionName } from "../canvas/layout";
+import { definitionName, definitionsVersion } from "../canvas/layout";
 import { mountCanvas, useCanvasHints, viewControls } from "../canvas/scene";
 import {
   contains,
@@ -1785,19 +1785,43 @@ function ValueField({ part }: { part: CircuitComponent }) {
 
 /** A part's label, or its kind and position among parts of that kind ("Switch 2"). */
 function partName(components: CircuitComponent[], part: CircuitComponent) {
-  // A label that only repeats the kind ("Clock" on a clock) is not said twice.
-  if (part.props.label) {
+  return partNames(components).get(part.id) ?? `${kindName(part)}`;
+}
+
+/**
+ * Names by parts array, while definitions (whose names name custom parts) are unchanged: built once per edit, however
+ * many names are asked for (a waveform's lanes read them every frame).
+ */
+const namesOf = new WeakMap<CircuitComponent[], { definitions: number; names: Map<string, string> }>();
+/**
+ * Every part's name (see `partName`), in one pass: a list of many parts named one by one would count among all the
+ * parts once per part, which at thousands of LEDs held each engine state up for seconds (ADR 0030).
+ */
+function partNames(components: CircuitComponent[]): Map<string, string> {
+  const cached = namesOf.get(components);
+  if (cached?.definitions === definitionsVersion()) return cached.names;
+  const counts = new Map<string, number>();
+  const names = new Map<string, string>();
+  for (const part of components) {
     const kind = kindName(part);
-    return kind !== undefined && part.props.label.toLowerCase() === kind.toLowerCase() ? kind : `${kind} ${part.props.label}`;
+    // Numbered among parts called the same, so registers and 1-bit flip-flops count apart.
+    const same = `${part.kind}|${part.definition}|${kind}`;
+    const n = (counts.get(same) ?? 0) + 1;
+    counts.set(same, n);
+    const label = part.props.label;
+    // A label that only repeats the kind ("Clock" on a clock) is not said twice.
+    const named = label && kind !== undefined && label.toLowerCase() === kind.toLowerCase() ? kind : `${kind} ${label}`;
+    names.set(part.id, label ? named : `${kind} ${n}`);
   }
-  // Numbered among parts called the same, so registers and 1-bit flip-flops count apart.
-  const same = components.filter((c) => c.kind === part.kind && c.definition === part.definition && kindName(c) === kindName(part));
-  return `${kindName(part)} ${same.indexOf(part) + 1}`;
+  namesOf.set(components, { definitions: definitionsVersion(), names });
+  return names;
 }
 
 /** The canvas is pixels only; this lists switch, keyboard, LED and seven-segment states for screen readers (and browser tests). */
 function Readout() {
   const components = useEditor((s) => s.circuit.components);
+  // Named once per edit, not per state.
+  const names = partNames(components);
   const loaded = useSim((s) => s.loaded);
   const nets = useSim((s) => s.nets);
   const stale = useSim((s) => s.stale);
@@ -1812,10 +1836,10 @@ function Readout() {
   return (
     <ul className="visually-hidden" aria-label="Inputs and outputs">
       {switches.map((c) => (
-        <li key={c.id}>{`${partName(components, c)}: ${value(c, "out")}`}</li>
+        <li key={c.id}>{`${names.get(c.id)}: ${value(c, "out")}`}</li>
       ))}
       {leds.map((c) => (
-        <li key={c.id}>{`${partName(components, c)}: ${value(c, c.kind === "seg7" ? "seg" : "in")}`}</li>
+        <li key={c.id}>{`${names.get(c.id)}: ${value(c, c.kind === "seg7" ? "seg" : "in")}`}</li>
       ))}
     </ul>
   );
@@ -1884,6 +1908,7 @@ function RunControls() {
   const components = useEditor((s) => s.circuit.components);
   // Any 1-bit LED on the open sheet can stop a run: an instruction step, a breakpoint, run to halt (ADR 0019).
   const leds = components.filter((c) => c.kind === "led" && (c.props.width ?? 1) === 1);
+  const names = partNames(components);
   // A choice whose LED is gone (deleted, or another sheet opened) goes back to a plain run.
   const chosen = leds.some((c) => c.id === until) ? until : null;
   useEffect(() => {
@@ -1917,7 +1942,7 @@ function RunControls() {
           <option value="">Until paused</option>
           {leds.map((c) => (
             <option key={c.id} value={c.id}>
-              Until {partName(components, c)} lights
+              Until {names.get(c.id)} lights
             </option>
           ))}
         </select>

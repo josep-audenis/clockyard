@@ -527,12 +527,17 @@ targets, as in Phase 5.
    3. ⬜ Optimizations, one per pull request, as the numbers require.
       1. ✅ Panning without redrawing: 60 fps at 1,000 parts, 2.5–5
          times faster at 10,000 (8.6–30 fps on mains power, the target met
-         for two of four families); benchmarks on the graphics
+         for two of four families in that run; one of four in the loaded
+         re-measure); benchmarks on the graphics
          card from now on.
       2. ✅ Rebuilding only the wires that changed (chunks of about 64):
          a drag step 2.3–4.1 times faster at 10,000 parts; a toggle and a
          run of a large circuit are still slow, and where their time goes
          is not yet measured.
+      3. ✅ Engine states: parts named once per edit, not per state (the
+         list of inputs and outputs was quadratic), and only the latest
+         waiting state applied. `counters-10k` runs at about 2,400 cycles
+         per second instead of freezing the page.
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
