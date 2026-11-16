@@ -18,9 +18,9 @@ output, the design system as the source of truth.
 1. **A second page in `apps/web`, at `/about/`.** `about/index.html` and
    `about/landing.css` are a Vite input next to `index.html`
    (`vite.config.ts`), so `pnpm build` writes both. The editor stays at `/`,
-   so links, tests and the share format are untouched. Plain HTML and CSS;
-   the only script is a small inline module for the two interactive
-   figures.
+   so links, tests and the share format are untouched. Plain HTML and CSS,
+   and one inline module for what moves (item 7) and the live figure; the
+   page reads without it.
 2. **Design system tokens, page-sized type.** The page imports
    `src/styles/tokens.css` and uses its colours, radii and families. Type
    sizes above the system's `title` are the page's own. Amber still means
@@ -86,15 +86,20 @@ output, the design system as the source of truth.
    down it: a section it reaches has its port and its wire high and its
    number, on seven-segment digits, lit. Figs. 3 and 7 open on a capture
    with every switch off and settle into the documented one when in view.
-   Fig. 6b is Catch's ROM as a tape under a read head; scrolling steps
-   through a recorded run (the program counter at each of the first 160
-   fetches after Reset, read from the running editor by the capture
-   script), so the word under the head is where the CPU was, not a
-   scroll position dressed up as one. The challenge ladder marks the
+   Fig. 5 is the whole CPU stepping from Reset: on wide screens, with
+   motion allowed, scrolling through it steps 64 frames, one per clock
+   cycle, captured from the running editor by the script (a keyframe every
+   16 frames keeps the video under 1 MB and any frame quick to seek to). Under it, Catch's
+   ROM is a tape under a read head, each word with its address and its
+   line of assembly; the word under the head is the one the program
+   counter points at in that frame, recorded with it. Otherwise the
+   mid-game capture and the whole ROM stand still. The challenge ladder marks the
    challenges passed in this browser, read from the editor's IndexedDB
    store (ADR 0029) read-only, in the editor's own passed colour. Amber
    still means a 1, and nothing glows. With reduced motion there is no
-   pulse, no settle and no tape: the ROM is shown whole and still.
+   pulse, no settle and no stepping: the ROM is shown whole and still.
+   The closing shows the literal first pulse in three captures: two
+   switches, an AND gate and an LED placed by their keys, wired, and lit.
 
 ## Consequences
 

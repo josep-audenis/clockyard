@@ -17,9 +17,13 @@ const solution = (name) => here(`../../../challenges/solutions/${name}.clockyard
 const ORIGIN = 48;
 const CELL = 16;
 
+// shortcut: relies on Playwright's bundled ffmpeg (image2pipe, mjpeg, libvpx-vp9); swap in a system ffmpeg if it stops.
+const root = dirname(dirname(dirname(chromium.executablePath())));
+const ffmpegDir = readdirSync(root).filter((d) => d.startsWith("ffmpeg-")).sort().pop();
+const ffmpeg = join(root, ffmpegDir, readdirSync(join(root, ffmpegDir)).find((f) => f.startsWith("ffmpeg")));
 const browser = await chromium.launch();
 const links = {};
-const trace = [];
+const steps = [];
 
 async function session(theme, viewport = { width: 1440, height: 900 }, scale = 2) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: scale, colorScheme: theme, locale: "en-GB" });
@@ -69,7 +73,7 @@ async function session(theme, viewport = { width: 1440, height: 900 }, scale = 2
 
 for (const theme of ["dark", "light"]) {
   const s = await session(theme);
-  const { page, button, inspector, readout, click, drag, open, shot, link } = s;
+  const { page, button, inspector, click, drag, open, shot, link } = s;
 
   // Half adder, as the live figure's poster: the frame is 1180 x 620.
   await page.setViewportSize({ width: 1180, height: 620 });
@@ -125,21 +129,6 @@ for (const theme of ["dark", "light"]) {
 
   await open(example("catch"));
   await link("catch");
-  // The program counter at each fetch for the first 160 instructions after Reset, for Fig. 6b.
-  if (theme === "dark") {
-    const counter = page.getByText(/^Cycle \d+,/);
-    for (let guard = 0; trace.length < 160 && guard < 2000; guard++) {
-      const now = await counter.textContent();
-      const phase = `${now} ${await readout("LED Fetch").textContent()}`;
-      if (phase.includes("clock low") && phase.endsWith("on")) trace.push(Number((await readout("LED PC").textContent()).match(/\((0x[0-9A-F]+)\)/i)[1]));
-      await button("Step").click();
-      // Wait for the step to land, and the readouts with it, before reading again.
-      for (let wait = 0; wait < 200 && (await counter.textContent()) === now; wait++) await page.waitForTimeout(5);
-      await page.waitForTimeout(40);
-    }
-    // Catch opens with LDI 3, STA 0, STA 2, LDI 100: the trace starts 0, 1, 2, 3.
-    if (trace.slice(0, 4).join() !== "0,1,2,3") throw new Error(`trace starts ${trace.slice(0, 8)}`);
-  }
 
   // A challenge: the reference full adder, A and Cin on, checked by the engine.
   await open(solution("04-full-adder"));
@@ -188,6 +177,35 @@ for (const theme of ["dark", "light"]) {
   // The whole CPU, running, fitted to a wide canvas.
   const wide = await session(theme, { width: 2560, height: 1240 }, 1.5);
   await wide.open(example("catch"));
+  // The whole CPU from Reset, one frame per clock cycle: setup, the paddle drawn, the first block
+  // drawn. A keyframe every 16 frames keeps it small and any frame quick to seek to.
+  {
+    await wide.button("Fit").click();
+    await wide.page.addStyleTag({ content: ".zoom-controls { visibility: hidden; }" });
+    const box = await wide.page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
+    const counter = wide.page.getByText(/^Cycle \d+,/);
+    const frames = [];
+    for (let k = 0; k < 64; k++) {
+      await wide.page.mouse.move(1, 1);
+      const now = await counter.textContent();
+      const pc = Number((await wide.readout("LED PC").textContent()).match(/\((0x[0-9A-F]+)\)/i)[1]);
+      frames.push({ now, pc, jpeg: await wide.page.screenshot({ clip: box, type: "jpeg", quality: 90 }) });
+      await wide.button("Step").click();
+      for (let wait = 0; wait < 200 && (await counter.textContent()) === now; wait++) await wide.page.waitForTimeout(5);
+      await wide.page.waitForTimeout(60);
+    }
+    const dir = mkdtempSync(join(tmpdir(), "clockyard-steps-"));
+    const input = join(dir, "frames.mjpeg");
+    writeFileSync(input, Buffer.concat(frames.map((f) => f.jpeg)));
+    const out = here(`../about/shots/cpu-steps-${theme}`);
+    execFileSync(ffmpeg, ["-loglevel", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", "10", "-i", input, "-vf", "scale=2304:-2", "-c:v", "libvpx-vp9", "-g", "16", "-b:v", "0", "-crf", "36", "-pix_fmt", "yuv420p", "-an", `${out}.webm`]);
+    writeFileSync(`${out}.jpg`, frames[0].jpeg);
+    rmSync(dir, { recursive: true });
+    if (frames[0].pc !== 0 || !frames[0].now.startsWith("Cycle 0")) throw new Error(`frames start at ${frames[0].now}, PC ${frames[0].pc}`);
+    if (theme === "dark") steps.push(...frames.map(({ now, pc }) => `${pc}|${now}`));
+    console.log("wrote", `${out}.webm`, frames.length, "frames");
+    await wide.open(example("catch"));
+  }
   await wide.page.getByLabel("Speed").selectOption("10000");
   await wide.button("Fit").click();
   await wide.button("Run").click();
@@ -198,6 +216,38 @@ for (const theme of ["dark", "light"]) {
   await wide.shot("cpu", canvas);
   await wide.context.close();
 }
+// The literal first pulse, for the closing: two switches, an AND gate and an LED placed by their
+// shortcut keys, wired, then both switches on.
+for (const theme of ["dark", "light"]) {
+  const { context, page, click, drag, shot } = await session(theme);
+  await page.goto(base);
+  await page.waitForTimeout(400);
+  for (const [x, y] of [[1, 1], [1, 6]]) {
+    await page.keyboard.press("s");
+    await click(x, y); // switches at (0,0) and (0,5), outputs (2,1) and (2,6)
+  }
+  await page.keyboard.press("a");
+  await click(8, 4); // AND at (6,2): inputs (6,3) and (6,5), output (10,4)
+  await page.keyboard.press("l");
+  await click(15, 4); // LED at (14,3), input (14,4)
+  await click(30, 30);
+  const area = async () => {
+    const box = await page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
+    return { x: box.x + 16, y: box.y + 16, width: 18 * 16, height: 9 * 16 };
+  };
+  await shot("first-placed", await area());
+  await drag([2, 1], [6, 3]);
+  await drag([2, 6], [6, 5]);
+  await drag([10, 4], [14, 4]);
+  await click(30, 30);
+  await shot("first-wired", await area());
+  await click(1, 1);
+  await click(1, 6);
+  await click(30, 30);
+  await shot("first-lit", await area());
+  await context.close();
+}
+
 // The hero: Catch being played, as a short VP9 loop. Playwright's own video is at CSS pixels, too
 // soft, so this samples frames instead: run in slices of about 500 cycles at 1,000 Hz, pause, step
 // to the start of a fetch so every frame is at the same phase, read the cycle counter and crop the
@@ -205,10 +255,6 @@ for (const theme of ["dark", "light"]) {
 // the screen's pixels, holds Left or Right on the keyboard part until the paddle is under the
 // block, catches three, then lets one fall, which halts the CPU. The frames are laid on a timeline
 // of 10,000 cycles a second.
-// shortcut: relies on Playwright's bundled ffmpeg (image2pipe, mjpeg, libvpx-vp9); swap in a system ffmpeg if it stops.
-const root = dirname(dirname(dirname(chromium.executablePath())));
-const ffmpegDir = readdirSync(root).filter((d) => d.startsWith("ffmpeg-")).sort().pop();
-const ffmpeg = join(root, ffmpegDir, readdirSync(join(root, ffmpegDir)).find((f) => f.startsWith("ffmpeg")));
 // Reads a screenshot of the screen's pixels (64 x 32, 4 CSS pixels each): which of the 8 lanes holds
 // the paddle (row 31) and the block (the first lit row above it), or -1. Lit means the theme's
 // signal-high colour.
@@ -318,9 +364,8 @@ let page = readFileSync(html, "utf8");
 for (const [name, fragment] of Object.entries(links)) {
   page = page.replace(new RegExp(`(data-example="${name}"[^>]*?(?:href|data-src)=")[^"]*`, "g"), (_, attr) => `${attr}../#${fragment}`);
 }
-// The recorded program-counter trace, for the ROM band.
-if (trace.length !== 160) throw new Error(`trace: ${trace.length} fetches, not 160`); // the caption describes 160
-page = page.replace(/data-trace="[^"]*"/, `data-trace="${trace.join(" ")}"`);
+// The stepping frames' program counter and cycle, for Fig. 5.
+if (steps.length !== 64) throw new Error(`steps: ${steps.length} frames, not 64`);
+page = page.replace(/data-steps="[^"]*"/, `data-steps="${steps.join(";")}"`);
 writeFileSync(html, page);
-console.log("trace:", trace.length, "fetches");
 console.log("links:", Object.fromEntries(Object.entries(links).map(([k, v]) => [k, v.length])));
