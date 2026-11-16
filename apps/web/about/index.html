@@ -55,7 +55,6 @@
               <p class="hero-note">Pre-alpha, free and open source. Nothing you build is uploaded.<span class="phone-only"> The editor is built for a desktop browser with a mouse.</span></p>
             </div>
           </div>
-          <div class="trace" aria-hidden="true"><span class="trace-name">CLK</span><span class="trace-port"></span></div>
           <figure class="shot hero-fig">
             <div class="frame bare loop-frame">
               <picture class="loop-poster">
@@ -93,26 +92,28 @@
         <div class="wrap">
           <h2 id="try-title">Try a half adder</h2>
           <p class="section-lede">An XOR gate gives the sum and an AND gate the carry. Switch A or B on, and every wire and LED follows.</p>
-          <figure class="shot live">
-            <div class="frame live-frame" data-example="half-adder" data-src="../#circuit=1.lZNfb5swFMW_ytV92cOcyGRdqnlP6VppD_sjrXmYtvbBgFPcgo1sUxpFfPfJBhqgadK9IGMffucc67LDjTYFd8gwyXXysOUmRYKPwlipFbIoIlgIx1PuOLIdKl4IZPiV5xvgaSoMEkyM4E6kKw9Z0MVyFkUzulxHC0Ypo3ROKf2DBAudyo2c6KLlerFgZ5_Y2cf5gp57ndJOWGS4guzZxT8tuFpDLJ2dw3VVgLSwgt8_f8HFZ_jCjdm2O6sfl3BBwGXCayHhxkiRglROh00lnhwkOq8KNb9RN-qKJxnYWrokgw1XFnTlwGVGV3cZcLivVOKkVuA0xNplcMedsHNYZwJyHovcwop4Qx-Jq7SL4u8p2JXcOEvCiX81gqfewJ9bv1OEbevlNd-GRGuzZRDBe4jgTj4KG9B0AI8IxFJxv6JzuBa5SNwgHNTSZR4rTVdM2PD1t6vLdlFZAd_5g4BEF6VWQjmQKgSRypYicdqw8Boa5iI9wIlForuOStR70jsLpVR2jg3BRJqkks4PzvO5RfZ3hzJFhhwJPkjlly0fCZbaShdGb4dPyCjBLTLaEDTa8faAEiyNLq2XhIB-WLBpSIeN34qNTnMvBlxbFXvykzYvscvjafcoP5XbPYyr9DXY8jQsF-lslC0XB3DRh7bzycrXVYFj-CTtMfz5SXwYYWyaW4L9vzUYifsZf8nukz-Hup_FL1VnrSoK6FoaMcDWAbsxuhjNYjeDpTZ-qSvnh9Zpr-mzdZn23vWMd7fd46bSHjG0ab_ojKa4_n7_B9h_cxAZv1I2fkvZeIw6VjZ-Q9kp7mjZV4CTsmOkrYpZO5KHKo-yjEoPVftfqFNKNfIIAY64TAIe9Zlog9NtQzAVG6lk_z_cNv8A">
-              <picture>
-                <source media="(max-width: 640px) and (prefers-color-scheme: light)" srcset="./shots/live-narrow-light.png" width="1336" height="1096" />
-                <source media="(max-width: 640px)" srcset="./shots/live-narrow-dark.png" width="1336" height="1096" />
-                <source media="(prefers-color-scheme: light)" srcset="./shots/live-light.png" />
-                <img
-                  src="./shots/live-dark.png"
-                  width="2360"
-                  height="1240"
-                  loading="lazy"
-                  alt="The half adder in the editor: switches A and B, an XOR gate and an AND gate, and the LEDs Sum and Carry, all off."
-                />
-              </picture>
+          <figure class="shot ha">
+            <div class="ha-row">
+              <div class="ha-stage frame bare" data-state="00">
+                <picture class="ha-shot" data-state="00"><source media="(prefers-color-scheme: light)" srcset="./shots/ha-00-light.png" /><img src="./shots/ha-00-dark.png" width="1152" height="960" alt="The half adder: switches A and B, an XOR gate for Sum and an AND gate for Carry, every switch off." /></picture>
+                <picture class="ha-shot" data-state="10" aria-hidden="true"><source media="(prefers-color-scheme: light)" srcset="./shots/ha-10-light.png" /><img src="./shots/ha-10-dark.png" width="1152" height="960" alt="" /></picture>
+                <picture class="ha-shot" data-state="01" aria-hidden="true"><source media="(prefers-color-scheme: light)" srcset="./shots/ha-01-light.png" /><img src="./shots/ha-01-dark.png" width="1152" height="960" alt="" /></picture>
+                <picture class="ha-shot" data-state="11" aria-hidden="true"><source media="(prefers-color-scheme: light)" srcset="./shots/ha-11-light.png" /><img src="./shots/ha-11-dark.png" width="1152" height="960" alt="" /></picture>
+                <button type="button" class="ha-switch" data-switch="a" aria-pressed="false" hidden style="--l: 5.556%; --t: 6.667%; --w: 11.111%; --h: 13.333%"><span class="visually-hidden">Switch A</span></button>
+                <button type="button" class="ha-switch" data-switch="b" aria-pressed="false" hidden style="--l: 5.556%; --t: 73.333%; --w: 11.111%; --h: 13.333%"><span class="visually-hidden">Switch B</span></button>
+              </div>
+              <div class="ha-side">
+              <p class="ha-hint" aria-hidden="true"><span data-hint>Click switch A or B in the picture.</span></p>
+              <table class="ha-table">
+                <caption>Every combination of A and B, with what the editor showed for each.</caption>
+                <thead><tr><th scope="col">A</th><th scope="col">B</th><th scope="col">Sum</th><th scope="col">Carry</th></tr></thead>
+                <tbody data-ha-rows><tr data-state="00"><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr data-state="10"><td class="one">1</td><td>0</td><td class="one">1</td><td>0</td></tr><tr data-state="01"><td>0</td><td class="one">1</td><td class="one">1</td><td>0</td></tr><tr data-state="11"><td class="one">1</td><td class="one">1</td><td>0</td><td class="one">1</td></tr></tbody>
+              </table>
+              </div>
             </div>
-            <figcaption>
-              <span class="cap"><span class="fig">Fig. 2</span> <span class="live-note wide-only" aria-live="polite">The half adder, both switches off. It is a picture until you press <em>Load the editor
-              here</em>, which loads the real editor (about 450 KB compressed) into this page.</span><span class="phone-only">The editor needs a wider screen and a mouse, so here it is a picture.</span>
-              <a data-example="half-adder" href="../#circuit=1.lZNfb5swFMW_ytV92cOcyGRdqnlP6VppD_sjrXmYtvbBgFPcgo1sUxpFfPfJBhqgadK9IGMffucc67LDjTYFd8gwyXXysOUmRYKPwlipFbIoIlgIx1PuOLIdKl4IZPiV5xvgaSoMEkyM4E6kKw9Z0MVyFkUzulxHC0Ypo3ROKf2DBAudyo2c6KLlerFgZ5_Y2cf5gp57ndJOWGS4guzZxT8tuFpDLJ2dw3VVgLSwgt8_f8HFZ_jCjdm2O6sfl3BBwGXCayHhxkiRglROh00lnhwkOq8KNb9RN-qKJxnYWrokgw1XFnTlwGVGV3cZcLivVOKkVuA0xNplcMedsHNYZwJyHovcwop4Qx-Jq7SL4u8p2JXcOEvCiX81gqfewJ9bv1OEbevlNd-GRGuzZRDBe4jgTj4KG9B0AI8IxFJxv6JzuBa5SNwgHNTSZR4rTVdM2PD1t6vLdlFZAd_5g4BEF6VWQjmQKgSRypYicdqw8Boa5iI9wIlForuOStR70jsLpVR2jg3BRJqkks4PzvO5RfZ3hzJFhhwJPkjlly0fCZbaShdGb4dPyCjBLTLaEDTa8faAEiyNLq2XhIB-WLBpSIeN34qNTnMvBlxbFXvykzYvscvjafcoP5XbPYyr9DXY8jQsF-lslC0XB3DRh7bzycrXVYFj-CTtMfz5SXwYYWyaW4L9vzUYifsZf8nukz-Hup_FL1VnrSoK6FoaMcDWAbsxuhjNYjeDpTZ-qSvnh9Zpr-mzdZn23vWMd7fd46bSHjG0ab_ojKa4_n7_B9h_cxAZv1I2fkvZeIw6VjZ-Q9kp7mjZV4CTsmOkrYpZO5KHKo-yjEoPVftfqFNKNfIIAY64TAIe9Zlog9NtQzAVG6lk_z_cNv8A">Open the half adder in the editor</a></span>
-            </figcaption>
+            <figcaption><span class="fig">Fig. 2</span> The half adder. Click switch A or B in the picture: each of the four
+              pictures is a capture of the editor with those switches set, so what lights is what the engine
+              computed. <a data-example="half-adder" href="../#circuit=1.lZPNbpwwFIVf5epuuqgZwaSlkbuaNJG66I_UzKJqk4UBT3ACNrJNyGjEu1c2kAEymUk3yNiH75xjXXa4UbpkFimmhUoftkxnSPCRayOURBpFBEtuWcYsQ7pDyUqOFL-yYgMsy7hGgqnmzPJs5SDLcBkHURSE8Tpa0jCkYbgIw_APEixVJjZipovi9fKMLs_px_PFMo6dTirLDVJcQf7s4p4GbKMgEdYs4LouQRhYwe-fv-DiM3xhWm-7ndWPS7ggYHPutJAyrQXPQEir_KbkTxZSVdSlXNzIG3nF0hxMI2yaw4ZJA6q2YHOt6rscGNzXMrVCSbAKEmVzuGOWmwWscw4FS3hhYEWcoYvEZNZHcffk7SqmrSH-xL1qzjJn4M6N2yn9tnHyhm19orXeUojgPURwJx658ehwBI8IJEIytwoXcM0LntpROGiEzR1W6L4YN_7rb1eX3aI2HL6zBw6pKislubQgpA8ipKl4apWm_tU3LHh2gJPwVPUdJW_2pHcGKiHNAluCqdBpLawbnOdzg_TvDkWGFBkSfBDSLTs-EqyUEdaP3g6fkIYEt0jDlqBWlnUHIcFKq8o4iQ_ohgXblvTY5K3Y6DT3YsQ1dbknPyn9EhsfT7tHuanc7mFMZq_B4tOwgmfBJFvBD-Cis67zycrXdYlT-CztMfynk3g_wti2twSHf2s0EvcBe8kekj-Hug-Sl6oPnSry6EZoPsI2HrvRqpzMYj-DldJuqWrrhtYqpxmy9Zn23k3A-tsecHPpgBjbdF_0RnPccL__Axy-OYhMXimbvKVsMkUdK5u8oewcd7TsK8BZ2SnS1GXQjeShypMsk9Jj1f4X6pVCTjx8gCMus4BHfWZa73TbEsz4Rkgx_A-37T8">Open the half adder in the editor</a>, where you build your own.</figcaption>
           </figure>
         </div>
       </section>
@@ -181,7 +182,7 @@
                   />
                 </picture>
               </div>
-              <figcaption><span class="fig">Fig. 3</span> A 4-bit adder adding 5 + 3, with a carry in (Cin) of 1. The sum, 9, is 1001 in binary, so S3 and S0 are lit and the carry out is 0. <a data-example="4-bit-adder" href="../#circuit=1.rZdBj-MmFID_CuLSrmRbBqfZXfeUTGelSr1lTt2dA7bJhq4NkcGNR6P89wo7ncGZPOdFO5dEjuHjvQ_Cg2e6NW0jHM1pWZvyx5NoKxrRf2VrldE0ZyyijXSiEk7Q_Jlq0Uia00VcKEdEVcmWRrRspXCyWnkKT_kyZixOPz4wnqdpnqZJmqZ_04g2plJbddaOLR84zxef88UyWfJPvp02Tlqa0y-ma8m2q-txIEuUJoKUO-G_q4q4gyFjILprCtnaiKyyJFmlROiKrLMkWacJuRflLqD4T0uMlqQ0dddoclBuR9xOklK07RPZtqYZH8fXhdyaVv5OlLPkznSOKDu81rJ3pza_WHKndPJNf9MPOxmOpawP2DR7o6V2OSk6VTtidCnHcb4LJ23keZrsa1HKimx90k410iZkI2tZuiFYn1FnJbmvlHslEmeI2UtNlG81xGgOmtidlC4hfzpL7EG5cictWUVkPVDuvD1dDY3_uv_Dks34s89NtHL4fa-0HfNpn3LiulaTk9UV8wP9mn0YHafDE_uQkw0ntfq-czYih50qdz73RUIefF8_pNE-WD9tPp3GtDKhx4iWqi075fzSesnK0vzrM1WVX5NK04j-UNo_jLnQiO6NVW5Yns-0p3ka0SeaL48RbY0T44s0ovvW7K1vUotC1jSnd0rT4zE6oUWKJadXyas0ABcI8GIAZ1fB6xC8DUMuO-tM85bM-HzMx4hWcqv0qQ_1qzUe_8gvA9lgnFpWbwfhC6SYTRi_YFjjDKGchcoR5DFkhnDOJs4Z2jkcNUo6w0lHuNmEGQiOtc4R1nloHUEeY-YI63xinaOtw1GjrHOcdYSbTZiByLDWM4T1LLSOIJ-2F4T1bGI9Q1uHo0ZZz3DWEW42YQal6RyS_Nv1cuFhx-NjRP_pdOnb-cL0GNGDamVQow7xWKV8RZ_UsZf6tTetfxh4EXXmvNW4sZ9alZMqdYiHd5fYYSccWkzABQQubgYXE7CFwJM-9jLXBk3OTJQobjkTMpvRzCDNDGWDgZohcHEz-EwzBJ70gTQzWDOKO6eZz2jmkGaOssFBzRC4uBl8phkCT_pAmjmsGcWd05zNaM4gzRnKRgZqhsDFzeAzzRB40gfSnMGaUVxY86mkhPDHSYkLKkFQ6qL_b8pfXm6D9OptR7zjjSQ8MbzfFWodFlv83Ywtbryc9cFhuDftW-6n-QtUQOJXSGxEgeeBV5QOghL6wtnihILvGAGLI1mfr7PMK-pSgnw5ksDZfSXZK4enjCPXyea2Q1l2utp8fMdDmYh7sKQjtqoeLugwuLgRPN0Cexb3UFHoMYeFHqyOpdIwG3dI7cEK2fPYQmFjiq8FN28R65-ZQz0zhyAYM4d6bg71T82hnp1DkI2bQw3OoWaxAdAaE7aBotYcBmMWh4EiNvFpY7mENgjyxcp-fDz-Bw">Open the 4-bit adder</a>; its switches start off.</figcaption>
+              <figcaption><span class="fig">Fig. 3</span> A 4-bit adder adding 5 + 3, with a carry in (Cin) of 1. The sum, 9, is 1001 in binary, so S3 and S0 are lit and the carry out is 0. <a data-example="4-bit-adder" href="../#circuit=1.rZdBb9s2FID_CsHLVkASRMpNU-1kpykwYDfntDUHSqJrthJpiNSsIPB_Hyh5CeX4yc9oLjZkkR_f-0jzkc90Y9pGOJrTsjblzyfRVjSi_8rWKqNpzlhEG-lEJZyg-TPVopE0p4u4UI6IqpItjWjZSuFktfQUnvKbmLE4_fTAeJ6meZomaZr-TSPamEpt1Ek7dvPAs5zf5h8_J9ni1rfTxklLc_rVdC3ZdHU9DmSJ0kSQciv8d1URtzdkDER3TSFbG5FlliTLlAhdkVWWJKs0Ifei3AYU_2mJ0ZKUpu4aTfbKbYnbSlKKtn0im9Y04-P4upAb08o_iHKW3JnOEWWH11r27tjmN0vulE6-6W_6YSvDsZT1AZtmZ7TULidFp2pHjC7lOM534aSNPE-TXS1KWZGNT9qpRtqErGUtSzcE6zPqrCT3lXKvROIMMTupifKthhjNXhO7ldIl5E9nid0rV26lJcuIrAbKnbenq6HxX_dfLFmPP_vcRCuH33dK2zGf9iknrms1OVpdMj_Q79mH0XE6PLEPOVlzUqvvW2cjst-qcutzXyTkwff1Qxrtg_XT5tNpTCsTeohoqdqyU84vrZesLM3_eaaq8mtSaRrRn0r7hzEXGtGdscoNy_OZ9jRPI_pE85tDRFvjxPgijeiuNTvrm9SikDXN6Z3S9HCIjmiRYsnpRfIyDcAFArwYwNlF8CoEb8KQy84607wlMz4f8yGildwofexD_WqNxz_yy0A2GKeW1dtB-AIpZh3GLxjWOEMoZ6FyBHkMmSGcs4lzhnYOR42SznDSEW7WYQaCY61zhHUeWkeQx5g5wjqfWOdo63DUKOscZx3hZh1mIDKs9QxhPQutI8jH7QVhPZtYz9DW4ahR1jOcdYSbdZhBaTqHJH-8XC487HB4jOiPTpe-nS9MjxHdq1YGNWofj1XKV_RJHXupXzvT-oeBF1FnTluNG_uxVTmpUvt4eHeOHXbCocUEXEDg4mpwMQFbCDzpY89zbdDkxESJ4pYzIbMZzQzSzFA2GKgZAhdXg080Q-BJH0gzgzWjuHOa-YxmDmnmKBsc1AyBi6vBJ5oh8KQPpJnDmlHcOc3ZjOYM0pyhbGSgZghcXA0-0QyBJ30gzRmsGcWFNR9LSgh_nJS4oBIEpS76_6b89eU2SC_edsQ73kjCE8P7XaFWYbHF383Y4srLWR8chnvTvuXezl-gAhK_QGIjCjwPvKJ0EJTQZ84WRxR8xwhYHMn6fJllXlHnEuQ3Iwmc3VeSvXB4yjhynayvO5Rlx6vNp3c8lIm4B0s6Yqvq4YIOg4srwdMtsGdxDxWFHnNY6MHqWCoNs3GH1B6skD2PLRQ2pvhacPMWsf6VOdQzcwiCMXOo5-ZQ_9Ic6tk5BNm4OdTgHGoWGwCtMWEbKGrNYTBmcRgoYhMfN5ZzaIMgn63sh8fDfw">Open the 4-bit adder</a>; its switches start off.</figcaption>
             </figure>
           </div>
         </section>
@@ -226,7 +227,7 @@
                     </picture>
                   </div>
                 </div>
-                <figcaption><span class="fig">Fig. 4</span> A register fed back through an adder counts one per cycle; the waveform panel under it shows its value and the clock, 12 cycles in (two ticks per cycle). <a data-example="8-bit-counter" href="../#circuit=1.xZnLbuM2FIZfheBmNrIhybdEu0yBbouZBC3QThaURMWsZVIjUmMHQd69oGjHoqIjHSeLIkCQmOT3k__h9fiFFqreM0MTmpUq2z2zOqcB_cVrLZSkSRQFdM8Ny5lhNHmhku05TejNLBWGZKqRhtc0oFnNmeH5neXEYbyeRdEsvHmI4iQMkzCch2H4Nw3oXuWiEL160fohjpPlbbK8nS_ija0nleGaJvSO1PxJaMNrslVlrgmTxEn_YmXD5-QPSTjLtqQWWsgnwvMnTlRBzJaTdjhEGGLYjuv2I9eU5Tmvv2iiGlM1JiCHrci2RGgijCbqIB2bVGWjyV2eB-6viBy2XJLf7JBtZSXnP-QP-dDU5w-VDKyKJFXNtSb3hldEyFbYKFWmrE5cZ3VbYhHnXmbPWckDwmROvpEnxTVpKpI-2xpz8r2Rzmnb4q2TzLhRbpXmkuiK89wBvnPNDdHcuDG_GWjLjNhzkrJsR4wi4bsBFEVby7a_y3NbJ7a_MjdmScxB6Tl5UERz3vG4Jdv_HOUXr1uhgGhe8sz18yBqToQ0yuvUF30Ok6wa04KceX8xY2Pi3BNSVzwzqj75mzuIZntOClVf-Kox5-ifFeb0NaCZqLNGGDt_M7WvlOTSaJr880JFThNq40EDuhOy_e8gTLalAa2UFqZdBC_0SJMwoM80iV8DWivDXEEY0KpWlbZVSpby0s7Z3C6gg8jNliY3r6_BSaV1ByuznpRpQ0YveNbKnuBZo43av4dHjh5C9NeA5rwQ8tSGtkvlhr6J7DoSNm4DCstW4Wa6_237S__rCzovivfgeKLrb-A_7eodjIBqOv6XPH8vsoiRIt88gceA_tvIzFa30-rRltW8M8MOs580oEWt9t4cPA27UrX986edqkb1a7jAnuqwjmOH2WniDnFPRadmduTT8NSDn-frEP1cdhU-E9LvfbMH8F4zW20Q3rEu93te7gDwDtHnDtaCumA3gT4WRtf2VKd14tFbbZ3Zclp1gX_Ytp_Syc2MYbeY6Ul-N7iKdFehKoV5L3AzIVAIXua2z1Hg_TxeVFLsMKLpHfnr8DhS5DhGFBADsbMee7Ysp3dNbw0VLJze86c2zv6eXzRlOXOTrSMUoYU2nxOK0UIRaBdOaYFWiqPPKS3xSuDBiVNaoZUWq88prdFKS3D94JQ2eKXbzyjt9UVoz-sn_oH7AWJDcMfe2C1kid2g71vU4FUTedNZIbac9qTE3HEYdJwjTl3Neqfj5dRNAWyKwaYg1m3Mg7ebtmQK7TZf4G7Tlg3eyzrjLEIE2b_xpSA3vZLrX_Y0xPXa6GFuu3A62l2TUdxsxORoxOQIY3KEIPdMBrnpldyeyRDXa4MxOfJNRnHHTI5HTI4xJscIcs9kkJteye2ZDHG9NhiTY99kFHfM5MWIyQuMyQsEuWcyyE2v5PZMhrheG4zJC99kFHfM5OWIyUuMyUsEuWcyyE2v5PZMhrheG4zJS99kFHfM5NWIySuMySsEuWcyyE2v5PZMhrheG4zJK99kFHfM5PWIyWuMyWsEuWcyyE2v5PZMhrheG4zJa99kFHfM5M2IyRuMyRsEuWcyyE2v5PZMhrheG4zJG2SartsIvoE3e_gKDifU_NCA9GworXZ5O15eeW_JtN-bsvxfcmkfyG1NfwvwtYO9ItMEp06ATNOxk_85qhpKlS3A9_eFFE-QIoeC0xNvKNnpFJMDj9wTKkJ0S8ZIFpxiuHzPcEENDTBeOxIY3U6uAPeKn54n9915gsgOuG9xIjCX95HswOwIvVMwCYIj_FyDwZgUwRF8rx2j2RG69XdbwWjw9ZMJCbNx-Ycj-AQ6xjMNdTvGbNnghs1m8jMxlCMxBMGYGMqxGMpPxVCOxhBk42IowRjKaKYAtMR0W0G9ljEMxkwOBfVYjR3nCkEePssfX_8D">Open the counter</a>, turn on <em>Count</em> and press <em>Run</em>.</figcaption>
+                <figcaption><span class="fig">Fig. 4</span> A register fed back through an adder counts one per cycle; the waveform panel under it shows its value and the clock, 12 cycles in (two ticks per cycle). <a data-example="8-bit-counter" href="../#circuit=1.xZnLbuM2FIZfheBmNrIhyZd4tMsU6LaYSdAC7WRBSVTMWiY1IhU7CPLuBUU7FhUd6ThZFAGCxCS_n_wPr8cvtFD1nhma0KxU2e6Z1TkN6BOvtVCSJlEU0D03LGeG0eSFSrbnNKGbWSoMyVQjDa9pQLOaM8PzW8uJw3g9i6JZuLmP4iQMkzCch2H4Nw3oXuWiEL160fo-XiTx1ySM5utNW08qwzVN6C2p-aPQhtdkq8pcEyaJk35iZcPn5A9JOMu2pBZayEfC80dOVEHMlpN2OEQYYtiO6_Yj15TlOa-_aKIaUzUmIIetyLZEaCKMJuogHZtUZaPJbZ4H7q-IHLZckt_skG1lJec_5U9539TnD5UMrIokVc21JneGV0TIVtgoVaasTlxndVtiEedeZs9ZyQPCZE6-k0fFNWkqkj7bGnPyo5HOadvirZPMuFFuleaS6Irz3AF-cM0N0dy4Mb8ZaMuM2HOSsmxHjCLhuwEURVvLtr_Nc1sntr8yN2ZJzEHpOblXRHPe8bgl2_8c5YnXrVBANC955vp5EDUnQhrldeqLPodJVo1pQc68v5ixMXHuCakrnhlVn_zNHUSzPSeFqi981Zhz9M8Kc_oa0EzUWSOMnb-Z2ldKcmk0Tf55oSKnCbXxoAHdCdn-dxAm29KAVkoL0y6CF3qkSRjQZ5rErwGtlWGuIAxoVatK2yolS3lp52xuF9BB5GZLk83ra3BSad3ByqwnZdqQ0QuetbIneNZoo_bv4ZGjhxD9NaA5L4Q8taHtUtnQN5FdR8LGbUBh2Spspvvftr_0v76g86J4D44nuv4G_tOu3sEIqKbjf8nz9yKLGCny3RN4COi_jcxsdTutHmxZzTsz7DD7RQNa1GrvzcHTsCtV2z9_2alqVL-GC-ypDus4dpidJu4Q91R0amZHPg1PPfh5vg7Rz2VX4TMh_d43ewDvNbPVBuEd63K_5-UOAO8Qfe5gLagLdhPoY2F0bU91WicevNXWmS2nVRf4h237KZ3czBh2i5me5LeDq0h3FapSmPcCmwmBQvAyt32OAu_n4aKSYocRTe_I34bHkSLHMaKAGIid9dizZTm9a3prqGDh9J4_tXH29_yiKcuZm2wdoQgtdPM5oRgtFIF24ZQWaKU4-pzSEq8EHpw4pRVaabH6nNIarbQE1w9O6Qav9PUzSnt9Edrz-pF_4H6A2BDcsTd2C1liN-i7FjV41UTedFaILac9KTF3HAYd54hTV7Pe6Xg5dVMAm2KwKYh1G_Pg7aYtmUK7zRe427Rlg_eyzjiLEEH2b3wpyE2v5PqXPQ1xvTZ6mNsunI5212QUNxsxORoxOcKYHCHIPZNBbnolt2cyxPXaYEyOfJNR3DGT4xGTY4zJMYLcMxnkpldyeyZDXK8NxuTYNxnFHTN5MWLyAmPyAkHumQxy0yu5PZMhrtcGY_LCNxnFHTN5OWLyEmPyEkHumQxy0yu5PZMhrtcGY_LSNxnFHTN5NWLyCmPyCkHumQxy0yu5PZMhrtcGY_LKNxnFHTN5PWLyGmPyGkHumQxy0yu5PZMhrtcGY_LaNxnFHTP5ZsTkG4zJNwhyz2SQm17J7ZkMcb02GJNvkGm6biP4Bt7s4Ss4nFDzQwPSs6G02uXteHnlvSXTfm_K8n_JpX0gtzX9LcC3DvaKTBOcOgEyTcdO_ueoaihVtgDf3xdSPEGKHApOT7yhZKdTTA48ck-oCNEtGSNZcIrh8j3DBTU0wHjtSGB0O7kC3Ct-ep7cdecJIjvgvsWJwFzeR7IDsyP0TsEkCI7wcw0GY1IER_C9doxmR-jW320Fo8HXTyYkzMblH47gE-gYzzTU7RizZYMbNpvJz8RQjsQQBGNiKMdiKD8VQzkaQ5CNi6EEYyijmQLQEtNtBfVaxjAYMzkU1GM1dpwrBHn4LH94_Q8">Open the counter</a>, turn on <em>Count</em> and press <em>Run</em>.</figcaption>
               </figure>
             </div>
           </div>
@@ -249,7 +250,6 @@
             </dl>
 
             <figure class="shot shot-map cpu-run">
-              <div class="cpu-track">
                 <div class="cpu-stage" data-steps="0|0|fetch;1|1|execute;1|2|fetch;2|3|execute;2|4|fetch;3|5|execute;3|6|fetch;4|7|execute;4|8|fetch;5|9|execute;5|10|fetch;6|11|execute;6|12|fetch;7|13|execute;7|14|fetch;8|15|execute;8|16|fetch;9|17|execute;9|18|fetch;10|19|execute;10|20|fetch;11|21|execute;11|22|fetch;12|23|execute;12|24|fetch;13|25|execute;13|26|fetch;14|27|execute;14|28|fetch;15|29|execute;15|30|fetch;16|31|execute;16|32|fetch;17|33|execute;17|34|fetch;18|35|execute;19|36|fetch;20|37|execute;20|38|fetch;21|39|execute;21|40|fetch;22|41|execute;22|42|fetch;23|43|execute;23|44|fetch;24|45|execute;24|46|fetch;25|47|execute;25|48|fetch;26|49|execute;26|50|fetch;27|51|execute;22|52|fetch;23|53|execute;23|54|fetch;24|55|execute;24|56|fetch;25|57|execute;25|58|fetch;26|59|execute;26|60|fetch;27|61|execute;22|62|fetch;23|63|execute">
                 <div class="map-scroll" data-label="CPU map">
                 <div class="frame bare map">
@@ -260,7 +260,7 @@
                       width="3072"
                       height="1752"
                       loading="lazy"
-                      alt="The whole reference CPU, paused mid-game, with its 13 main blocks numbered. The list below names them."
+                      alt="The whole reference CPU, its 13 main blocks outlined. The list below names them."
                     />
                   </picture>
                   <video class="cpu-steps" muted playsinline preload="none" aria-hidden="true">
@@ -284,14 +284,15 @@
                   </ol>
                 </div>
                 </div>
-                <figure class="cpu-loupe" aria-hidden="true">
-                  <div class="loupe"><video muted playsinline preload="none"><source media="(prefers-color-scheme: light)" data-src="./shots/cpu-steps-light.webm" type="video/webm" /><source data-src="./shots/cpu-steps-dark.webm" type="video/webm" /></video></div>
-                  <figcaption><span data-loupe>Program ROM</span>, enlarged</figcaption>
-                </figure>
-                <p class="cpu-readout" aria-hidden="true"><span>Cycle <span data-cycle>0</span>, <span data-phase>fetch</span></span><span data-uses></span><span>PC <span data-pc>00</span></span></p>
-                <div class="rom-strip" data-label="Program ROM, 89 words"><div class="rom-head" aria-hidden="true"></div><div class="rom-words" data-rom><span><i>00</i>1003<b>LDI 3</b></span><span><i>01</i>3000<b>STA 0</b></span><span><i>02</i>3002<b>STA 2</b></span><span><i>03</i>1064<b>LDI 100</b></span><span><i>04</i>3003<b>STA 3</b></span><span><i>05</i>10FB<b>LDI 251</b></span><span><i>06</i>30FE<b>STA 0xFE</b></span><span><i>07</i>10FF<b>LDI 0xFF</b></span><span><i>08</i>30FD<b>STA 0xFD</b></span><span><i>09</i>2002<b>LDA 2</b></span><span><i>0A</i>3001<b>STA 1</b></span><span><i>0B</i>30FE<b>STA 0xFE</b></span><span><i>0C</i>103C<b>LDI 0x3C</b></span><span><i>0D</i>30FD<b>STA 0xFD</b></span><span><i>0E</i>2002<b>LDA 2</b></span><span><i>0F</i>6005<b>ADI 5</b></span><span><i>10</i>7008<b>SBI 8</b></span><span><i>11</i>A013<b>JC lane</b></span><span><i>12</i>6008<b>ADI 8</b></span><span><i>13</i>3002<b>STA 2</b></span><span><i>14</i>2003<b>LDA 3</b></span><span><i>15</i>3005<b>STA 5</b></span><span><i>16</i>2005<b>LDA 5</b></span><span><i>17</i>7001<b>SBI 1</b></span><span><i>18</i>3005<b>STA 5</b></span><span><i>19</i>901B<b>JZ keys</b></span><span><i>1A</i>8016<b>JMP wait</b></span><span><i>1B</i>20FF<b>LDA 0xFF</b></span><span><i>1C</i>7082<b>SBI 0x82</b></span><span><i>1D</i>9021<b>JZ left</b></span><span><i>1E</i>7001<b>SBI 1</b></span><span><i>1F</i>902B<b>JZ right</b></span><span><i>20</i>803A<b>JMP fall</b></span><span><i>21</i>2000<b>LDA 0</b></span><span><i>22</i>903A<b>JZ fall</b></span><span><i>23</i>60F8<b>ADI 248</b></span><span><i>24</i>30FE<b>STA 0xFE</b></span><span><i>25</i>1000<b>LDI 0</b></span><span><i>26</i>30FD<b>STA 0xFD</b></span><span><i>27</i>2000<b>LDA 0</b></span><span><i>28</i>7001<b>SBI 1</b></span><span><i>29</i>3000<b>STA 0</b></span><span><i>2A</i>8036<b>JMP paddle</b></span><span><i>2B</i>2000<b>LDA 0</b></span><span><i>2C</i>7007<b>SBI 7</b></span><span><i>2D</i>903A<b>JZ fall</b></span><span><i>2E</i>2000<b>LDA 0</b></span><span><i>2F</i>60F8<b>ADI 248</b></span><span><i>30</i>30FE<b>STA 0xFE</b></span><span><i>31</i>1000<b>LDI 0</b></span><span><i>32</i>30FD<b>STA 0xFD</b></span><span><i>33</i>2000<b>LDA 0</b></span><span><i>34</i>6001<b>ADI 1</b></span><span><i>35</i>3000<b>STA 0</b></span><span><i>36</i>60F8<b>ADI 248</b></span><span><i>37</i>30FE<b>STA 0xFE</b></span><span><i>38</i>10FF<b>LDI 0xFF</b></span><span><i>39</i>30FD<b>STA 0xFD</b></span><span><i>3A</i>2001<b>LDA 1</b></span><span><i>3B</i>30FE<b>STA 0xFE</b></span><span><i>3C</i>1000<b>LDI 0</b></span><span><i>3D</i>30FD<b>STA 0xFD</b></span><span><i>3E</i>2001<b>LDA 1</b></span><span><i>3F</i>6008<b>ADI 8</b></span><span><i>40</i>3001<b>STA 1</b></span><span><i>41</i>30FE<b>STA 0xFE</b></span><span><i>42</i>70F8<b>SBI 248</b></span><span><i>43</i>A047<b>JC land</b></span><span><i>44</i>103C<b>LDI 0x3C</b></span><span><i>45</i>30FD<b>STA 0xFD</b></span><span><i>46</i>8014<b>JMP loop</b></span><span><i>47</i>20FD<b>LDA 0xFD</b></span><span><i>48</i>9056<b>JZ miss</b></span><span><i>49</i>2004<b>LDA 4</b></span><span><i>4A</i>6001<b>ADI 1</b></span><span><i>4B</i>3004<b>STA 4</b></span><span><i>4C</i>30FC<b>STA 0xFC</b></span><span><i>4D</i>2003<b>LDA 3</b></span><span><i>4E</i>7008<b>SBI 8</b></span><span><i>4F</i>3006<b>STA 6</b></span><span><i>50</i>7014<b>SBI 20</b></span><span><i>51</i>A053<b>JC faster</b></span><span><i>52</i>8009<b>JMP spawn</b></span><span><i>53</i>2006<b>LDA 6</b></span><span><i>54</i>3003<b>STA 3</b></span><span><i>55</i>8009<b>JMP spawn</b></span><span><i>56</i>103C<b>LDI 0x3C</b></span><span><i>57</i>30FD<b>STA 0xFD</b></span><span><i>58</i>C000<b>HLT</b></span></div></div>
+                <div class="cpu-controls" hidden>
+                  <button type="button" class="button" data-step="-1" aria-label="Back one clock cycle">&larr;</button>
+                  <button type="button" class="button button-primary" data-play>Play</button>
+                  <button type="button" class="button" data-step="1" aria-label="Forward one clock cycle">&rarr;</button>
+                  <input type="range" min="0" max="63" value="0" aria-label="Clock cycle" data-scrub />
                 </div>
-              </div>
+                <p class="cpu-readout" aria-live="polite"><span>Cycle <span data-cycle>0</span>, <span data-phase>fetch</span></span><span data-uses></span><span>PC <span data-pc>00</span></span></p>
+                <div class="rom-strip" role="group" aria-label="Program ROM, 89 words"><div class="rom-head" aria-hidden="true"></div><div class="rom-words" data-rom><span><i>00</i>1003<b>LDI 3</b></span><span><i>01</i>3000<b>STA 0</b></span><span><i>02</i>3002<b>STA 2</b></span><span><i>03</i>1064<b>LDI 100</b></span><span><i>04</i>3003<b>STA 3</b></span><span><i>05</i>10FB<b>LDI 251</b></span><span><i>06</i>30FE<b>STA 0xFE</b></span><span><i>07</i>10FF<b>LDI 0xFF</b></span><span><i>08</i>30FD<b>STA 0xFD</b></span><span><i>09</i>2002<b>LDA 2</b></span><span><i>0A</i>3001<b>STA 1</b></span><span><i>0B</i>30FE<b>STA 0xFE</b></span><span><i>0C</i>103C<b>LDI 0x3C</b></span><span><i>0D</i>30FD<b>STA 0xFD</b></span><span><i>0E</i>2002<b>LDA 2</b></span><span><i>0F</i>6005<b>ADI 5</b></span><span><i>10</i>7008<b>SBI 8</b></span><span><i>11</i>A013<b>JC lane</b></span><span><i>12</i>6008<b>ADI 8</b></span><span><i>13</i>3002<b>STA 2</b></span><span><i>14</i>2003<b>LDA 3</b></span><span><i>15</i>3005<b>STA 5</b></span><span><i>16</i>2005<b>LDA 5</b></span><span><i>17</i>7001<b>SBI 1</b></span><span><i>18</i>3005<b>STA 5</b></span><span><i>19</i>901B<b>JZ keys</b></span><span><i>1A</i>8016<b>JMP wait</b></span><span><i>1B</i>20FF<b>LDA 0xFF</b></span><span><i>1C</i>7082<b>SBI 0x82</b></span><span><i>1D</i>9021<b>JZ left</b></span><span><i>1E</i>7001<b>SBI 1</b></span><span><i>1F</i>902B<b>JZ right</b></span><span><i>20</i>803A<b>JMP fall</b></span><span><i>21</i>2000<b>LDA 0</b></span><span><i>22</i>903A<b>JZ fall</b></span><span><i>23</i>60F8<b>ADI 248</b></span><span><i>24</i>30FE<b>STA 0xFE</b></span><span><i>25</i>1000<b>LDI 0</b></span><span><i>26</i>30FD<b>STA 0xFD</b></span><span><i>27</i>2000<b>LDA 0</b></span><span><i>28</i>7001<b>SBI 1</b></span><span><i>29</i>3000<b>STA 0</b></span><span><i>2A</i>8036<b>JMP paddle</b></span><span><i>2B</i>2000<b>LDA 0</b></span><span><i>2C</i>7007<b>SBI 7</b></span><span><i>2D</i>903A<b>JZ fall</b></span><span><i>2E</i>2000<b>LDA 0</b></span><span><i>2F</i>60F8<b>ADI 248</b></span><span><i>30</i>30FE<b>STA 0xFE</b></span><span><i>31</i>1000<b>LDI 0</b></span><span><i>32</i>30FD<b>STA 0xFD</b></span><span><i>33</i>2000<b>LDA 0</b></span><span><i>34</i>6001<b>ADI 1</b></span><span><i>35</i>3000<b>STA 0</b></span><span><i>36</i>60F8<b>ADI 248</b></span><span><i>37</i>30FE<b>STA 0xFE</b></span><span><i>38</i>10FF<b>LDI 0xFF</b></span><span><i>39</i>30FD<b>STA 0xFD</b></span><span><i>3A</i>2001<b>LDA 1</b></span><span><i>3B</i>30FE<b>STA 0xFE</b></span><span><i>3C</i>1000<b>LDI 0</b></span><span><i>3D</i>30FD<b>STA 0xFD</b></span><span><i>3E</i>2001<b>LDA 1</b></span><span><i>3F</i>6008<b>ADI 8</b></span><span><i>40</i>3001<b>STA 1</b></span><span><i>41</i>30FE<b>STA 0xFE</b></span><span><i>42</i>70F8<b>SBI 248</b></span><span><i>43</i>A047<b>JC land</b></span><span><i>44</i>103C<b>LDI 0x3C</b></span><span><i>45</i>30FD<b>STA 0xFD</b></span><span><i>46</i>8014<b>JMP loop</b></span><span><i>47</i>20FD<b>LDA 0xFD</b></span><span><i>48</i>9056<b>JZ miss</b></span><span><i>49</i>2004<b>LDA 4</b></span><span><i>4A</i>6001<b>ADI 1</b></span><span><i>4B</i>3004<b>STA 4</b></span><span><i>4C</i>30FC<b>STA 0xFC</b></span><span><i>4D</i>2003<b>LDA 3</b></span><span><i>4E</i>7008<b>SBI 8</b></span><span><i>4F</i>3006<b>STA 6</b></span><span><i>50</i>7014<b>SBI 20</b></span><span><i>51</i>A053<b>JC faster</b></span><span><i>52</i>8009<b>JMP spawn</b></span><span><i>53</i>2006<b>LDA 6</b></span><span><i>54</i>3003<b>STA 3</b></span><span><i>55</i>8009<b>JMP spawn</b></span><span><i>56</i>103C<b>LDI 0x3C</b></span><span><i>57</i>30FD<b>STA 0xFD</b></span><span><i>58</i>C000<b>HLT</b></span></div></div>
+                </div>
               <ol class="key" role="list" aria-label="Blocks on the map">
                   <li>Screen</li>
                   <li>Keyboard and hex digits</li>
@@ -308,16 +309,15 @@
                   <li>I/O address decoder</li>
                 </ol>
               <figcaption>
-                <span class="fig">Fig. 5</span> The whole CPU, with Catch in its ROM<span class="still-note">, paused mid-game</span>.<span class="scrub-note"> Scrolling
-                steps it from Reset, one clock cycle at a time. It sets up, draws the paddle, then the first block,
+                <span class="fig">Fig. 5</span> The whole CPU, with Catch in its ROM<span class="still-note">, paused mid-game</span>.<span class="scrub-note"> Step it from Reset with the arrows, the slider or
+                Play, one clock cycle at a time. It sets up, draws the paddle, then the first block,
                 then counts down its delay loop. Every frame is a capture of the editor.</span> Under it, the program
-                ROM, each word with its address and line of <a href="https://github.com/josep-audenis/clockyard/blob/main/scripts/catch.asm">assembly</a>;<span class="scrub-note"> in a fetch cycle
+                ROM, each word with its address and line of <a href="https://github.com/josep-audenis/clockyard/blob/main/scripts/catch.asm">assembly</a>.<span class="scrub-note"> In a fetch cycle
                 the word at the program counter is outlined; in an execute cycle the word just fetched, now in the
-                instruction register, is filled, and the PC already points past it. Blocks outlined in blue are the
-                ones that kind of instruction needs. The page marks them from the instruction; they are not read
-                from the circuit.</span> The numbered list names the main
+                instruction register, is filled, and the PC already points past it. Blocks outlined in blue are the ones the current
+                instruction uses. This page marks them from the opcode; they are not read from the circuit.</span> The numbered list names the main
                 blocks.<span class="key-hint"> With a mouse, point at a name or a block to highlight
-                the other.</span> <a data-example="catch" href="../#circuit=1.7V1bk9s2sv4rKL5scsLxEryJkmsfxpdUsmtvXGOnzm52_ECJkERbIhWSiuRJ-b-fAi9DNMQmWtJsts6pE1elZjTE140G-oom9Lu1zIttXFkza7HJF5-_xEVi2dZvoijTPLNmnNvWVlRxElexNfvdyuKtsGbWy7harC3bWhQirkRyK8e7jhvecH7D_Q_cnTnOzHGeOY7zi2Vb2zxJl6n-XPjBdWf-dBZMngWcy-eyvBKlNbNuWbmNNxu2ireCFfssS7MVyzNWrQUrxFIUIlsI9vLdzzZLq5LtinxVxFuWNk_c_fSWfVMuinRXlX9eSE6fxeX222f32X32XlT1M-VOiIRVOeOO7TiOzXaFKEt2t89sttiki8_1U5_Fl3keFwmLs4St803C3ohlxfKC3aWrdfWMvZAyK9lSMptmLGKbOBPlcybixZrlmWCLeL9aVx3vuzhJNoKVi7wQZfdhdcjZWhxZkq7kZCSpbfxZlPUfM3GsGvhlXFaieMZu2TYtS7aON1XzSC0GOepOlKJiu038pWTxKk6zesZ_z6u1FN9aFIKlJSvT7X4jF00yXObL6hAXYsbEb6L4wtKsrIr9okrzTMpdEijy_WrdEfpTyVZxJUqbFWKVSoZahsU2L1JRPrO-2tYiLRb7tJLbZZFvd3kmsqq0Zv_63UqTep99tmzrc5ol3aazbGuXl2lV77jfraM1c2zrizXj3lfbKvIqbv7i2NauyHelfGYTz8VGbsR6_NevdgueZ6IHP2Z5cYodGLB7sAdR5AraCNiUBhb1aFtRrMQpntS3UUBrmYpNIsXJbfDvY0-qyLc9oeYXjYzrNmR8o4DfNbpl2dYhTaq1NeOhbTXW4F--M53a3HWjSP5_6tg-n4b1j9z2PX9iczfwXdv3Al7_yO2IT_16xLT7Gw9C9W-uH0TcdqMwcmzfmU6m9Sd-ix_xaVD_6MkfJ_K5idd-4IXRlNueO5HP-b78Y-S49cfdg144dSa250ZuKMfLP05d13b9yPU7fpypwo_bU4iieqDbfzxthzcfjGH4wWTSYoDngFy8wdFeP_9HmbnR1JWydjyuys9zJ1Ekpx5IxoJaWmFPfOrWz7VCbCQsP_blz1O5Eo7vSZDJRD4StevYfKCQ8ac8cD_aVpnvi4X0Bc9Z7Q3YN7ev7pjjuN63MzZH7GJtjaUx2bJDWq0Vo_jsPnveWNfalEnzyrb5b0J9hN22AL0B_eH1P-oBj7aypiyxJO1y0GrOWktZ5bWxfLSVz-Wwu9u3M-Z0llqybTPeoLI4SaSXsJnb0Gr-6rFEbOIvNvMbvmwWsEW-zyqbhaxcFLUDktDvF4UQGZt_qQT7CyvyA_svFrHvapjn9e8eZ9_IP5fM9aMbNwi-rb1OCeV0n5VVXFQzxt68-pF59xlr_3v_4ZY5rP_vOXA6ckwpV0PS04e5YFgn0WValK1IW3nGc7kmadWPljxwx1FGv3r95vafM3aI04pt8nxXsp0oWFmJHaTpQRA34ApIUsQHhf1ZKx97kHvn-P1rCOYcv__-5JlXtex28SGrZXcya5aJQ7fUTZhQ5TuWL-sgQ9KFiNzMhPdyiIn-GZ2Fx201Y9-xwGbbPGGRzcqcSU2K2CLfijrM2RdZj3P76kcWKIRe_Mii_te_vtR4l49H91lDpl1-KRm5VrOWLQ-wJZcSTiS4z-SH3eMadX7y8CMzv8igqlQ-ePuuhb_P5F86RLmAPQO1YXCOkWu3psE5Rh6kKf8K6GzEskLZ-usvrJBAkBG5x2tJiOXj1BwwqLZoypZptol8nolkpQnZ9SPlWVHEpWrOjLvHtHWcUaE7cGodzfusnvdsEGJCmGs9XJusBvXHzl1SO537fdYZjlNuNNsiFUpquNT-Uy0_x7ZIiXX7pjdmUACtg7py_hBdZhrSPib5QTMLEQQaNVlyB7j-ieVIFEJpxQqZ24iktcfnGTy5EaWVqXUszhJF2V_1RPqV-VPZeMtKJi-2zLugNkqfDuXiA7k02des8cujO8Y_YfslBIYGUUpFycrsWvIyoIibYEA6DVdTLm0pQk3wDpB7gwslV3suucnkn2Y1VyHE9AYH3GdSTjNljfqJlOv8wA5Nblh7nkQkTTZZVvlubC1_ePPhPrNA0lHuNmnVZx7dr1ru4Tmm3OMxxYnsSElr0mKjJI77shrKbLyQmtn8eMc2-UEmrIlYplkLYhViFVkKzTWZputSaK7T1dpItMsOx5NF32_mGl4gSZH08M0vembrmMD7SanZoZKL72gbop2GS9gQvu2r08gW5sXhrZAic6r7kn3H-MnaxEkiCmV1dovt_mim26bYrll-716yNpnSSW_3R0CYQDWiUzXswt3CvEnane85FHKPmyTql3BRbQylinYfjuyOx1pQnlVFvlE2o2tbbc72380n_mPtwrG5LVPuyPYmduDZfmCH3HaD0A64a3PH9e3Qt13HV_VmURo3cxCRN7NWwBko5FTmBW-k45nX-8PQcvN-uQl2rqHlm2n9YKCVKRPL8gEpRoZZ9SLK1iQonOkeaimaonaLFmcDG761Jh5qTXo4cRQLGhqFuVhkBrCw9UKoLir7mAxG4CzfV1Q4D_WQPdxBELEIS7DekFnzUYXt4T49VAawSWP0A8IafFpQwQhr8In3WENl6sih8-UaoBp5BYSl_LTf7gxznNIFtgO7dog1tzVQBLCmpN35nXjA2E1a3TQau1fSoQz5tjkpTohcIp3bNz-zF4YQodzPl-lmY4wcI2P9n3DMcFSOMwYPR6bNeuD-4lRm8WZvFtk0oovMGM7F2_2RE8JIh5xY3NLCOUnYJRDuAlgK4bxgQ3PWCBOI0g-Ibg1hZGyOInmXEppj9NtBTXswx2WdGEciY8KWzw12lrcmiOQ3DYa2w6I4zdwjYhGcZu7TsCgeMw9MWG2cQeErpGFRzH8-MWB5zf73CHNMywdDCMq9iIz2QFDONmEmZF2_GAJxUv7sG8TaJ2AGag8EUxCYBK_OrZ8HHRnftuo81Oi2IAiptWBmGf3082AiphjMfF8RZuM7RB_4077a7atBs1knPGZarS8g5Jjf1xmUEn_HG8JcWnxKXhlvKpEoBNI8UZOswQJC2EYhhOrcn39iiVjkiSh6eQVKyeD___1f_ofUY2w-sad2YHtq5TE3RxxhZNp3pwGHQiJLc4NbaTMUnABId4x5dWTSkx6u3FWFMbHu2KPk6eJIhZsQfGiZGCfbokWEWEFOlpDGtbM1G7H37z7cGVzAWlASx1YgBLP5-h8GgkXiENIul2pI70ScMGlNZafk7VtDPlIkpPyLbMZr6n97_U8jWUr25Ri1GJAdXFydrkfJ-sLz6L66_XCaiemEfUrmZ7IqkPDQ3oJkP4svPdmuo3aIcE0Xb3zsyP6tg1BUtO6sUixy97seaQTEKO19B9AFTba1yDf7bVZas9AHhot2xtUlTSPaihxyrcVRHhmaezq7_Ae3kL1BSFfrpt8YTBE7Kwk9O7Sn3J5M5cGIzZ26E9GWbYUTm3Nucy4_8e1gYtf9nfITD85hkx_oU4jMm--NbHf4Q2dQH9z26yxWE3QTc9IKWLqAjOgTIvobea799aNtfdpndTO30n79WXy5yUQ8lPQ2po5L9Wj7_BsrqoxcDg2ctiXhKTJQSg6j2fQ7T_qRsqOzPSNXhw8S5l7rA4Ox8Zv8gFEPh6g3XQHK4FHakTcw-qPclIVQxH6QDnYpd73aFv_YDr_Li6rJ_aQ1rXL9qaavvX0qVnbOgT8d7lzFda_CbVvnhxj2nhAYcOwjwHDIKHLUP7d0VOzgabG5ih0-LbarYk-eFttTsaOnxfZV7OnTYgdAYzBVvBA8BOCYPl4IPgHg1yll00DVPiWHqNDXqWXTJ4VAY4pJg67bXhBkTC1pyBUOjOkkDXhEFphC0oBjHBjTRqJZxYExVaQB44vnXukRm8Isgn2dV2xTfgT7OiVscnsE-jol7M6xB6GvU0IloxpExxRRUbFfh5Ez5ZE0A6CYEq7NoGsUFFNAlQ-KxUgAKqZ9KiMUVAGZxXQPhG0UMwS49TDN6_plzgCGDHuY3pGk2zVgDUaNmNaRJKwhg7DRw5TOvHfbFq9BfjF9I_ELgSG7mKqpfhLht0u6G3aTpADAmLqBUbjx6fu_BxXPwxTvdKAMvY3xC9zRmP4NgHNCBAPBMS3UdhUt7oIK42OqSMdGldHHlBHwg2yVvgd9MB_yMXUE_JCxQT7kYwp5Mm5M4u1J48BO9DHVpPDeN7UPY1-hnU07-5Ax8cdSxIgijwwzJz6mljQXA4AXmiwwpQSDyv0Wi_ub_rlBgWAqSdnaGjAQR4DpY9vLaE5WAHYJsDF91AaRMiFgoQJMG6lWpO2tHBJ1gGkjWSIqNBQ2pohwDEke0PQFV6hh997DoH4HmCae2AXMzzRvPCA-OEDTQ3UUnmyVKN9oeqgMwfxujG8OTA9hAIPns-jeCNHsUGU4QOSAMhxiOkhkGN_MIZoWqgyHaDKLs4wpIJFlDRsyjWaFKtOTYeADVpIOMe0jcnzAatIhWpZR2eWI5mnZDWQZUzwiyxo25Jqke9Nh4Oadg0GW0Rqp0cQBUMDrhKR2HDEUzTsNQ8xO0IKMmdkFyixJ5SIElmOsog7vgZLEqriQW0zX1BE4rIuxiykbkBsJF7KL6Zo6AocFwQFk-EpVg9CQZzTiJISFoHqmO-YJpmzxebgJdMsRpm5dw9ZZJb-DANiYyjV9ICbkOR59R3jyZxbzHA--I7T8qeqzR8EFgXdE8nI-Uvl8fKVmMBGO0COIi7BBIhyR3B0ZGxwMRmikeRE2PBgkOTwyNjgYjNDjiIuwwcHglOT8yNjgXHCKOsCLsMGx4BTTxzktrzxGiKJPMYU8YYiEDZR9iiml2aI2L4kNMoxp45FSJQG4kNlrNBHAajWSKaaGFFPavbo2KAm0Ikqy_ho0FAZJBZEgXAMGdpo7mAJqo0bZxgIl7mAqCBYIrUdp2HOITQpFXRKyJhNMB7VRlDPjBCKjGkiqvii4sPjCHUwLKaqN1164g2khVRQPaH2EO2inDKFAkmNayB20SYagKzmmgdxBcz_CdstRDcE7YwgBWI4qB94TQ7Ce9auNw9xiOvdAKBGpsBq3mMI9UAo5Psot2p5GKLWosBq3mK7lFHtZv585zC5a6KQomoqr8YueN3gU3BDlF1O0nOLuVFyNX_QIPqDgTjB-0e4XlRUSLuQX7XxRh-DHOeUDaiHRvhcwiNJhBN0Q2vRCc0MKruaG0JYXGJBRWpc0jtGcj8QxemrB0Y4Xc0nvYcxxok0v5urb2GEIR9tezI4etm9p8kV1bk_rT4HgmpDR7hc4Cud7TCJoAwz1JE55JxehgKmh-ey6fx0XgcYP3gkNA-2ruEgBjaMNMdpA3DblePSGNsWAQVj41rxqiSBjKkktz6GnJBztiAH8ULGhG0AbYkhsP77fOcw3evieE6JPHRvyjfbDkPju3iMdZBtvh8kJYagGrXGN6SRN2gm-R_BemJwQkkNkjefL6y-wPRbabrQBRl93YvOtZrzRThgz16DxVmMa00Rt1WlNvTrLmCrCiWKy1hpvT-wq2gpDWEcNWzuc4GgzDNxX5KZheD7B0X4YcKiB27_6neVBrUH7Yaj9UgAb6g3aD0NyNQAYFnrQbhgwZoRltAiBdsM0r-YOIXcvDqovDAJIVQ-1h-XrcmYWNamiddCcUCgBwJpU8TooJUFuXhIfliqmeCS9BsBQFmjrC8m_AmAoC7T5BYwZkQVaikGbX3QTQAPX5HGVDwTAmjxwjaMUI0AlXZMHpnHAUaBbA632oA0wpBgGAGuiGPGAFM862hTL0Q6Y05GYioPX4DFfiLbEDNBBDLT6qjpGBm2SGWISM6uPbzUDZD5sVvs3qMeEoyyuWEFcNGk8nS7GcPcmNMD1hvl9fOV6RMY6tx_BNRLKq9P1dRKP71i_3R-Z_NXwLWPKJYflIe1y74HrjM2XQSC3e1IJmK9jmA8SKKkEzLcmqrpOux_UcHEn4arErDRcX9ReyHjO7aCr2HCtj2ta0wHMOQ3zLD6Vq5sGL6ptLwk_AzLfV4Zr1LpvITDuhly7Dk67J-KMuwtKgpcca57B4pELcEHjDBqNnI8LmmbQdojzcUHDDBaHXIALmmXQXPx8XNAog0UhF-CCJhksCLkAFzTIYOEHsYclQwuPhNwbRV0pD2mHxlhdkCIHFVY7ysK6hCioc4xZ9NUTmmxVYK2EiQCvSMLFbh9Bj2FXJDFgd4-gx7ArSim3scjqDlO_zVPe1PYY_ty137tKiYGSp4uBksEQBdy5dWUQBKpm4Dtix5G52eHBl9VJAVBo4JoSAAlTAOQawreBwIIbgpX2DqezAiCXhnlWAGS4j9o1xSqnkModjMlyORD-uGdD_mqIqHwTZLfBfn2ieIpUKbkkoLoEmBRRXQJMCqkuASbFVJcAk4KqS4BJUdUlwKSw6hLgJ42rhOb1jHFVQvHReDPelaEKWr1G66rG0tkKLS-j911QTl5WaHEZjaoo1fAVWgBGoypKYXmFln7RqIpUn1VOtmCZEOuGod2y0z9DvdzJvA9-HY3_-ED8x__g-O9_edRnjMbC8WDsCWOwJwy9ni7ierpA698SX_3boyrcF2HG_SpfdFU8hToizLhf4YfQa4yuckOoXb_KC2F2_TonhBn1q3zQdbf14S4IC5yu8kDtV2Y9-qDoZp5WrP70Dz2IGf7yp1KlMHz7tikpJmTz5OMegmd6MTyPOXEeIxQIE5EvoBGnQvnOVWArlzHhawRMZzT6bfLL_WZz02w2hRDhKwO6K9evI0T4kgDX9I3WNEqErwXovl4MvQKcRonwPQAdJTwgIlEKyJS84DpKIZmSj4cuJEoTOiX02wwolLalsUzZxmJXWTb5wqMhTqMa6Pc11MC3PBNOL9svAqV8zbN0i4R48Ca-4nSmjDV_-Ohib-ZXnKOUcxS2McyDQUFKKtTESpug9prxTYwe4SrzxHpiAHIMZYHizs_EBTHXTYnWamLYQDmEu9UaMVUhk3Dxd4Iax4MJGT3PVoWMNDgBZE3IKO78TFxNyOjLKjE_T8gcCpmEOyZkd0TI6OG-KmSkORIga0JGcedn4mpCRg9IY_c8IbtQyCTcMSF7I0JGOx1UISMdlwBZEzKKOz8TVxMyhgvGUITsQSGTcMeE7I8IGW37UIWM9HICZE3IKO78TFxNyBguGEMRsg-FTMIdE3IwImS0B0YVMvKSOEDWhIzizs_E1YSM4YIxFCEHUMgk3DEhhyNCRhuCVCEjr8wDZE3IKO78TFxNyBguGEMRcgiFTMIdE_JkRMhod5QqZOQCAYCsCRnFnZ-JqwkZwwVjKEKeQNw6yRgC3lL6o5rhSAje5ClGpkfeGR9t5VGyvMdi2vf7zeY_Uku7oLZl_qrJF-pxDr3SRPieeVhpOir1n-PQeUf7jdvmQ4qja0Bqz2Dw8kR_xkQ8GeIEtjLi0RDHSwx97zDpaIgTTplKWhZP-BJUdZ8QqgNNrzhHa3mXVAdujuiFUAQ7gt68dTPHgSklAvTerZsjvzliUT_peiz0bixZfMCxafUH9HKsm6N7U2JsU45m0Pbbm_gmu2YNs5E1RIEpa5iNrWF21Rpmo2uIYtPWMEPXMOM3OXYUSLppCOM6c3Fg0lVDGMf5mDundOUO-_KPX_8H">Open the CPU, with Catch loaded</a>
+                the other.</span> <a data-example="catch" href="../#circuit=1.7V1bk9s2sv4rKL5scsLxEryJkmsfxpdUsmtvXGOnzm52_ECJkERbIhWSiuRJ-b-fAi9DNMQmWtJsts6pE1elZjTE140G-oom9Lu1zIttXFkza7HJF5-_xEVi2dZvoijTPLNmnNvWVlRxElexNfvdyuKtsGbWy7harC3bWhQirkRyK8e7jhvecH7D_Q_cnTnOzHGeOY7zi2Vb2zxJl6n-XPjB9WbudOZEz7yofi7LK1FaM-uWldt4s2GreCtYsc-yNFuxPGPVWrBCLEUhsoVgL9_9bLO0KtmuyFdFvGVp88TdT2_ZN-WiSHdV-eeF5PRZXG6_fXaf3WfvRVU_U-6ESFiVM-7YjuPYbFeIsmR3-8xmi026-Fw_9Vl8medxkbA4S9g63yTsjVhWLC_YXbpaV8_YCymzki0ls2nGIraJM1E-ZyJerFmeCbaI96t11fG-i5NkI1i5yAtRdh9Wh5ytxZEl6UpORpLaxp9FWf8xE8eqgV_GZSWKZ-yWbdOyZOt4UzWP1GKQo-5EKSq228RfShav4jSrZ_z3vFpL8a1FIVhasjLd7jdy0STDZb6sDnEhZkz8JoovLM3KqtgvqjTPpNwlgSLfr9YdoT-VbBVXorRZIVapZKhlWGzzIhXlM-urbS3SYrFPK7ldFvl2l2ciq0pr9q_frTSp99lny7Y-p1nSbTrLtnZ5mVb1jvvdOlozx7a-WDPufbWtIq_i5i-Obe2KfFfKZzbxXGzkRqzHf_1qt-B5JnrwY5YXp9iBAbsHexBFrqCNgE1pYFGPthXFSpziSX0bBbSWqdgkUpzcBv8-9qSKfNsTan7RyLhuQ8Y3Cvhdo1uWbR3SpFpbMx7aVmMN_uU706nNXTeK5P-nju3zaVj_yG3f8yc2dwPftX0v4PWP3I741K9HTLu_8SBU_-b6QcRtNwojx_ad6WRaf-K3-BGfBvWPnvxxIp-beO0HXhhNue25E_mc78s_Ro5bf9w96IVTZ2J7buSGcrz849R1bdePXL_jx5kq_Lg9hSiqB7r9x9N2ePPBGIYfTCYtBngOyMUbHO3183-UmRtNXSlrx-Oq_Dx3EkVy6oFkLKilFfbEp279XCvERsLyY1_-PJUr4fieBJlM5CNRu47NBwoZf8oD96Ntlfm-WEhf8JzV3oB9c_vqjjmO6307Y3PELtbWWBqTLTuk1Voxis_us-eNda1NmTSvbJv_JtRH2G0L0BvQH17_ox7waCtryhJL0i4HreastZRVXhvLR1v5XA67u307Y05nqSXbNuMNKouTRHoJm7kNreavHkvEJv5iM7_hy2YBW-T7rLJZyMpFUTsgCf1-UQiRsfmXSrC_sCI_sP9iEfuuhnle_-5x9o38c8lcP7pxg-Db2uuUUE73WVnFRTVj7M2rH5l3n7H2v_cfbpnD-v-eA6cjx5RyNSQ9fZgLhnUSXaZF2Yq0lWc8l2uSVv1oyQN3HGX0q9dvbv85Y4c4rdgmz3cl24mClZXYQZoeBHEDroAkRXxQ2J-18rEHuXeO37-GYM7x--9PnnlVy24XH7JadiezZpk4dEvdhAlVvmP5sg4yJF2IyM1MeC-HmOif0Vl43FYz9h0LbLbNExbZrMyZ1KSILfKtqMOcfZH1OLevfmSBQujFjyzqf_3rS413-Xh0nzVk2uWXkpFrNWvZ8gBbcinhRIL7TH7YPa5R5ycPPzLziwyqSuWDt-9a-PtM_qVDlAvYM1AbBucYuXZrGpxj5EGa8q-AzkYsK5Stv_7CCgkEGZF7vJaEWD5OzQGDaoumbJlmm8jnmUhWmpBdP1KeFUVcqubMuHtMW8cZFboDp9bRvM_qec8GISaEudbDtclqUH_s3CW107nfZ53hOOVGsy1SoaSGS-0_1fJzbIuUWLdvemMGBdA6qCvnD9FlpiHtY5IfNLMQQaBRkyV3gOufWI5EIZRWrJC5jUhae3yewZMbUVqZWsfiLFGU_VVPpF-ZP5WNt6xk8mLLvAtqo_TpUC4-kEuTfc0avzy6Y_wTtl9CYGgQpVSUrMyuJS8DirgJBqTTcDXl0pYi1ATvALk3uFByteeSm0z-aVZzFUJMb3DAfSblNFPWqJ9Iuc4P7NDkhrXnSUTSZJNlle_G1vKHNx_uMwskHeVuk1Z95tH9quUenmPKPR5TnMiOlLQmLTZK4rgvq6HMxgupmc2Pd2yTH2TCmohlmrUgViFWkaXQXJNpui6F5jpdrY1Eu-xwPFn0_Wau4QWSFEkP3_yiZ7aOCbyflJodKrn4jrYh2mm4hA3h2746jWxhXhzeCikyp7ov2XeMn6xNnCSiUFZnt9juj2a6bYrtmuX37iVrkymd9HZ_BIQJVCM6VcMu3C3Mm6Td-Z5DIfe4SaJ-CRfVxlCqaPfhyO54rAXlWVXkG2UzurbV5mz_3XziP9YuHJvbMuWObG9iB57tB3bIbTcI7YC7Nndc3w5923V8VW8WpXEzBxF5M2sFnIFCTmVe8EY6nnm9PwwtN--Xm2DnGlq-mdYPBlqZMrEsH5BiZJhVL6JsTYLCme6hlqIpardocTaw4Vtr4qHWpIcTR7GgoVGYi0VmAAtbL4TqorKPyWAEzvJ9RYXzUA_Zwx0EEYuwBOsNmTUfVdge7tNDZQCbNEY_IKzBpwUVjLAGn3iPNVSmjhw6X64BqpFXQFjKT_vtzjDHKV1gO7Brh1hzWwNFAGtK2p3fiQeM3aTVTaOxeyUdypBvm5PihMgl0rl98zN7YQgRyv18mW42xsgxMtb_CccMR-U4Y_BwZNqsB-4vTmUWb_ZmkU0jusiM4Vy83R85IYx0yInFLS2ck4RdAuEugKUQzgs2NGeNMIEo_YDo1hBGxuYokncpoTlGvx3UtAdzXNaJcSQyJmz53GBneWuCSH7TYGg7LIrTzD0iFsFp5j4Ni-Ix88CE1cYZFL5CGhbF_OcTA5bX7H-PMMe0fDCEoNyLyGgPBOVsE2ZC1vWLIRAn5c--Qax9Amag9kAwBYFJ8Orc-nnQkfFtq85DjW4LgpBaC2aW0U8_DyZiisHM9xVhNr5D9IE_7avdvho0m3XCY6bV-gJCjvl9nUEp8Xe8IcylxafklfGmEolCIM0TNckaLCCEbRRCqM79-SeWiEWeiKKXV6CUDP7_3__lf0g9xuYTe2oHtqdWHnNzxBFGpn13GnAoJLI0N7iVNkPBCYB0x5hXRyY96eHKXVUYE-uOPUqeLo5UuAnBh5aJcbItWkSIFeRkCWlcO1uzEXv_7sOdwQWsBSVxbAVCMJuv_2EgWCQOIe1yqYb0TsQJk9ZUdkrevjXkI0VCyr_IZrym_rfX_zSSpWRfjlGLAdnBxdXpepSsLzyP7qvbD6eZmE7Yp2R-JqsCCQ_tLUj2s_jSk-06aocI13TxxseO7N86CEVF684qxSJ3v-uRRkCM0t53AF3QZFuLfLPfZqU1C31guGhnXF3SNKKtyCHXWhzlkaG5p7PLf3AL2RuEdLVu-o3BFLGzktCzQ3vK7clUHozY3Kk7EW3ZVjixOec25_IT3w4mdt3fKT_x4Bw2-YE-hci8-d7Idoc_dAb1wW2_zmI1QTcxJ62ApQvIiD4hor-R59pfP9rWp31WN3Mr7defxZebTMRDSW9j6rhUj7bPv7Giysjl0MBpWxKeIgOl5DCaTb_zpB8pOzrbM3J1-CBh7rU-MBgbv8kPGPVwiHrTFaAMHqUdeQOjP8pNWQhF7AfpYJdy16tt8Y_t8Lu8qJrcT1rTKtefavra26diZecc-NPhzlVc9yrctnV-iGHvCYEBxz4CDIeMIkf9c0tHxQ6eFpur2OHTYrsq9uRpsT0VO3pabF_Fnj4tdgA0BlPFC8FDAI7p44XgEwB-nVI2DVTtU3KICn2dWjZ9Ugg0ppg06LrtBUHG1JKGXOHAmE7SgEdkgSkkDTjGgTFtJJpVHBhTRRowvnjulR6xKcwi2Nd5xTblR7CvU8Imt0egr1PC7hx7EPo6JVQyqkF0TBEVFft1GDlTHkkzAIop4doMukZBMQVU-aBYjASgYtqnMkJBFZBZTPdA2EYxQ4BbD9O8rl_mDGDIsIfpHUm6XQPWYNSIaR1JwhoyCBs9TOnMe7dt8RrkF9M3Er8QGLKLqZrqJxF-u6S7YTdJCgCMqRsYhRufvv97UPE8TPFOB8rQ2xi_wB2N6d8AOCdEMBAc00JtV9HiLqgwPqaKdGxUGX1MGQE_yFbpe9AH8yEfU0fADxkb5EM-ppAn48Yk3p40DuxEH1NNCu99U_sw9hXa2bSzDxkTfyxFjCjyyDBz4mNqSXMxAHihyQJTSjCo3G-xuL_pnxsUCKaSlK2tAQNxBJg-tr2M5mQFYJcAG9NHbRApEwIWKsC0kWpF2t7KIVEHmDaSJaJCQ2FjigjHkOQBTV9whRp27z0M6neAaeKJXcD8TPPGA-KDAzQ9VEfhyVaJ8o2mh8oQzO_G-ObA9BAGMHg-i-6NEM0OVYYDRA4owyGmg0SG8c0commhynCIJrM4y5gCElnWsCHTaFaoMj0ZBj5gJekQ0z4ixwesJh2iZRmVXY5onpbdQJYxxSOyrGFDrkm6Nx0Gbt45GGQZrZEaTRwABbxOSGrHEUPRvNMwxOwELciYmV2gzJJULkJgOcYq6vAeKEmsigu5xXRNHYHDuhi7mLIBuZFwIbuYrqkjcFgQHECGr1Q1CA15RiNOQlgIqme6Y55gyhafh5tAtxxh6tY1bJ1V8jsIgI2pXNMHYkKe49F3hCd_ZjHP8eA7Qsufqj57FFwQeEckL-cjlc_HV2oGE-EIPYK4CBskwhHJ3ZGxwcFghEaaF2HDg0GSwyNjg4PBCD2OuAgbHAxOSc6PjA3OBaeoA7wIGxwLTjF9nNPyymOEKPoUU8gThkjYQNmnmFKaLWrzktggw5g2HilVEoALmb1GEwGsViOZYmpIMaXdq2uDkkAroiTrr0FDYZBUEAnCNWBgp7mDKaA2apRtLFDiDqaCYIHQepSGPYfYpFDUJSFrMsF0UBtFOTNOIDKqgaTqi4ILiy_cwbSQotp47YU7mBZSRfGA1ke4g3bKEAokOaaF3EGbZAi6kmMayB009yNstxzVELwzhhCA5ahy4D0xBOtZv9o4zC2mcw-EEpEKq3GLKdwDpZDjo9yi7WmEUosKq3GL6VpOsZf1-5nD7KKFToqiqbgav-h5g0fBDVF-MUXLKe5OxdX4RY_gAwruBOMX7X5RWSHhQn7Rzhd1CH6cUz6gFhLtewGDKB1G0A2hTS80N6Tgam4IbXmBARmldUnjGM35SByjpxYc7Xgxl_Qexhwn2vRirr6NHYZwtO3F7Ohh-5YmX1Tn9rT-FAiuCRntfoGjcL7HJII2wFBP4pR3chEKmBqaz67713ERaPzgndAw0L6KixTQONoQow3EbVOOR29oUwwYhIVvzauWCDKmktTyHHpKwtGOGMAPFRu6AbQhhsT24_udw3yjh-85IfrUsSHfaD8Mie_uPdJBtvF2mJwQhmrQGteYTtKkneB7BO-FyQkhOUTWeL68_gLbY6HtRhtg9HUnNt9qxhvthDFzDRpvNaYxTdRWndbUq7OMqSKcKCZrrfH2xK6irTCEddSwtcMJjjbDwH1FbhqG5xMc7YcBhxq4_avfWR7UGrQfhtovBbCh3qD9MCRXA4BhoQfthgFjRlhGixBoN0zzau4QcvfioPrCIIBU9VB7WL4uZ2ZRkypaB80JhRIArEkVr4NSEuTmJfFhqWKKR9JrAAxlgba-kPwrAIayQJtfwJgRWaClGLT5RTcBNHBNHlf5QACsyQPXOEoxAlTSNXlgGgccBbo10GoP2gBDimEAsCaKEQ9I8ayjTbEc7YA5HYmpOHgNHvOFaEvMAB3EQKuvqmNk0CaZISYxs_r4VjNA5sNmtX-Dekw4yuKKFcRFk8bT6WIMd29CA1xvmN_HV65HZKxz-xFcI6G8Ol1fJ_H4jvXb_ZHJXw3fMqZcclge0i73HrjO2HwZBHK7J5WA-TqG-SCBkkrAfGuiquu0-0ENF3cSrkrMSsP1Re2FjOfcDrqKDdf6uKY1HcCc0zDP4lO5umnwotr2kvAzIPN9ZbhGrfsWAuNuyLXr4LR7Is64u6AkeMmx5hksHrkAFzTOoNHI-bigaQZthzgfFzTMYHHIBbigWQbNxc_HBY0yWBRyAS5oksGCkAtwQYMMFn4Qe1gytPBIyL1R1JXykHZojNUFKXJQYbWjLKxLiII6x5hFXz2hyVYF1kqYCPCKJFzs9hH0GHZFEgN29wh6DLuilHIbi6zuMPXbPOVNbY_hz137vauUGCh5uhgoGQxRwJ1bVwZBoGoGviN2HJmbHR58WZ0UAIUGrikBkDAFQK4hfBsILLghWGnvcDorAHJpmGcFQIb7qF1TrHIKqdzBmCyXA-GPezbkr4aIyjdBdhvs1yeKp0iVkksCqkuASRHVJcCkkOoSYFJMdQkwKai6BJgUVV0CTAqrLgF-0rhKaF7PGFclFB-NN-NdGaqg1Wu0rmosna3Q8jJ63wXl5GWFFpfRqIpSDV-hBWA0qqIUlldo6ReNqkj1WeVkC5YJsW4Y2i07_TPUy53M--DX0fiPD8R__A-O__6XR33GaCwcD8aeMAZ7wtDr6SKupwu0_i3x1b89qsJ9EWbcr_JFV8VTqCPCjPsVfgi9xugqN4Ta9au8EGbXr3NCmFG_ygddd1sf7oKwwOkqD9R-ZdajD4pu5mnF6k__0IOY4S9_KlUKw7dvm5JiQjZPPu4heKYXw_OYE-cxQoEwEfkCGnEqlO9cBbZyGRO-RsB0RqPfJr_cbzY3zWZTCBG-MqC7cv06QoQvCXBN32hNo0T4WoDu68XQK8BplAjfA9BRwgMiEqWATMkLrqMUkin5eOhCojShU0K_zYBCaVsay5RtLHaVZZMvPBriNKqBfl9DDXzLM-H0sv0iUMrXPEu3SIgHb-IrTmfKWPOHjy72Zn7FOUo5R2EbwzwYFKSkQk2stAlqrxnfxOgRrjJPrCcGIMdQFiju_ExcEHPdlGitJoYNlEO4W60RUxUyCRd_J6hxPJiQ0fNsVchIgxNA1oSM4s7PxNWEjL6sEvPzhMyhkEm4Y0J2R4SMHu6rQkaaIwGyJmQUd34mriZk9IA0ds8TsguFTMIdE7I3ImS000EVMtJxCZA1IaO48zNxNSFjuGAMRcgeFDIJd0zI_oiQ0bYPVchILydA1oSM4s7PxNWEjOGCMRQh-1DIJNwxIQcjQkZ7YFQhIy-JA2RNyCju_ExcTcgYLhhDEXIAhUzCHRNyOCJktCFIFTLyyjxA1oSM4s7PxNWEjOGCMRQhh1DIJNwxIU9GhIx2R6lCRi4QAMiakFHc-Zm4mpAxXDCGIuQJxK2TjCHgLaU_qhmOhOBNnmJkeuSd8dFWHiXLeyymfb_fbP4jtbQLalvmr5p8oR7n0CtNhO-Zh5Wmo1L_OQ6dd7TfuG0-pDi6BqT2DAYvT_RnTMSTIU5gKyMeDXG8xND3DpOOhjjhlKmkZfGEL0FV9wmhOtD0inO0lndJdeDmiF4IRbAj6M1bN3McmFIiQO_dujnymyMW9ZOux0LvxpLFBxybVn9AL8e6Obo3JcY25WgGbb-9iW-ya9YwG1lDFJiyhtnYGmZXrWE2uoYoNm0NM3QNM36TY0eBpJuGMK4zFwcmXTWEcZyPuXNKV-6wL__49X8A">Open the CPU, with Catch loaded</a>
               </figcaption>
             </figure>
 
@@ -329,7 +329,7 @@
                   the circuit; a mistake is listed by its line and changes nothing.
                 </p>
                 <p class="howto">
-                  <strong>To play Catch:</strong> <a data-example="catch" href="../#circuit=1.7V1bk9s2sv4rKL5scsLxEryJkmsfxpdUsmtvXGOnzm52_ECJkERbIhWSiuRJ-b-fAi9DNMQmWtJsts6pE1elZjTE140G-oom9Lu1zIttXFkza7HJF5-_xEVi2dZvoijTPLNmnNvWVlRxElexNfvdyuKtsGbWy7harC3bWhQirkRyK8e7jhvecH7D_Q_cnTnOzHGeOY7zi2Vb2zxJl6n-XPjBdWf-dBZMngWcy-eyvBKlNbNuWbmNNxu2ireCFfssS7MVyzNWrQUrxFIUIlsI9vLdzzZLq5LtinxVxFuWNk_c_fSWfVMuinRXlX9eSE6fxeX222f32X32XlT1M-VOiIRVOeOO7TiOzXaFKEt2t89sttiki8_1U5_Fl3keFwmLs4St803C3ohlxfKC3aWrdfWMvZAyK9lSMptmLGKbOBPlcybixZrlmWCLeL9aVx3vuzhJNoKVi7wQZfdhdcjZWhxZkq7kZCSpbfxZlPUfM3GsGvhlXFaieMZu2TYtS7aON1XzSC0GOepOlKJiu038pWTxKk6zesZ_z6u1FN9aFIKlJSvT7X4jF00yXObL6hAXYsbEb6L4wtKsrIr9okrzTMpdEijy_WrdEfpTyVZxJUqbFWKVSoZahsU2L1JRPrO-2tYiLRb7tJLbZZFvd3kmsqq0Zv_63UqTep99tmzrc5ol3aazbGuXl2lV77jfraM1c2zrizXj3lfbKvIqbv7i2NauyHelfGYTz8VGbsR6_NevdgueZ6IHP2Z5cYodGLB7sAdR5AraCNiUBhb1aFtRrMQpntS3UUBrmYpNIsXJbfDvY0-qyLc9oeYXjYzrNmR8o4DfNbpl2dYhTaq1NeOhbTXW4F--M53a3HWjSP5_6tg-n4b1j9z2PX9iczfwXdv3Al7_yO2IT_16xLT7Gw9C9W-uH0TcdqMwcmzfmU6m9Sd-ix_xaVD_6MkfJ_K5idd-4IXRlNueO5HP-b78Y-S49cfdg144dSa250ZuKMfLP05d13b9yPU7fpypwo_bU4iieqDbfzxthzcfjGH4wWTSYoDngFy8wdFeP_9HmbnR1JWydjyuys9zJ1Ekpx5IxoJaWmFPfOrWz7VCbCQsP_blz1O5Eo7vSZDJRD4StevYfKCQ8ac8cD_aVpnvi4X0Bc9Z7Q3YN7ev7pjjuN63MzZH7GJtjaUx2bJDWq0Vo_jsPnveWNfalEnzyrb5b0J9hN22AL0B_eH1P-oBj7aypiyxJO1y0GrOWktZ5bWxfLSVz-Wwu9u3M-Z0llqybTPeoLI4SaSXsJnb0Gr-6rFEbOIvNvMbvmwWsEW-zyqbhaxcFLUDktDvF4UQGZt_qQT7CyvyA_svFrHvapjn9e8eZ9_IP5fM9aMbNwi-rb1OCeV0n5VVXFQzxt68-pF59xlr_3v_4ZY5rP_vOXA6ckwpV0PS04e5YFgn0WValK1IW3nGc7kmadWPljxwx1FGv3r95vafM3aI04pt8nxXsp0oWFmJHaTpQRA34ApIUsQHhf1ZKx97kHvn-P1rCOYcv__-5JlXtex28SGrZXcya5aJQ7fUTZhQ5TuWL-sgQ9KFiNzMhPdyiIn-GZ2Fx201Y9-xwGbbPGGRzcqcSU2K2CLfijrM2RdZj3P76kcWKIRe_Mii_te_vtR4l49H91lDpl1-KRm5VrOWLQ-wJZcSTiS4z-SH3eMadX7y8CMzv8igqlQ-ePuuhb_P5F86RLmAPQO1YXCOkWu3psE5Rh6kKf8K6GzEskLZ-usvrJBAkBG5x2tJiOXj1BwwqLZoypZptol8nolkpQnZ9SPlWVHEpWrOjLvHtHWcUaE7cGodzfusnvdsEGJCmGs9XJusBvXHzl1SO537fdYZjlNuNNsiFUpquNT-Uy0_x7ZIiXX7pjdmUACtg7py_hBdZhrSPib5QTMLEQQaNVlyB7j-ieVIFEJpxQqZ24iktcfnGTy5EaWVqXUszhJF2V_1RPqV-VPZeMtKJi-2zLugNkqfDuXiA7k02des8cujO8Y_YfslBIYGUUpFycrsWvIyoIibYEA6DVdTLm0pQk3wDpB7gwslV3suucnkn2Y1VyHE9AYH3GdSTjNljfqJlOv8wA5Nblh7nkQkTTZZVvlubC1_ePPhPrNA0lHuNmnVZx7dr1ru4Tmm3OMxxYnsSElr0mKjJI77shrKbLyQmtn8eMc2-UEmrIlYplkLYhViFVkKzTWZputSaK7T1dpItMsOx5NF32_mGl4gSZH08M0vembrmMD7SanZoZKL72gbop2GS9gQvu2r08gW5sXhrZAic6r7kn3H-MnaxEkiCmV1dovt_mim26bYrll-716yNpnSSW_3R0CYQDWiUzXswt3CvEnane85FHKPmyTql3BRbQylinYfjuyOx1pQnlVFvlE2o2tbbc72380n_mPtwrG5LVPuyPYmduDZfmCH3HaD0A64a3PH9e3Qt13HV_VmURo3cxCRN7NWwBko5FTmBW-k45nX-8PQcvN-uQl2rqHlm2n9YKCVKRPL8gEpRoZZ9SLK1iQonOkeaimaonaLFmcDG761Jh5qTXo4cRQLGhqFuVhkBrCw9UKoLir7mAxG4CzfV1Q4D_WQPdxBELEIS7DekFnzUYXt4T49VAawSWP0A8IafFpQwQhr8In3WENl6sih8-UaoBp5BYSl_LTf7gxznNIFtgO7dog1tzVQBLCmpN35nXjA2E1a3TQau1fSoQz5tjkpTohcIp3bNz-zF4YQodzPl-lmY4wcI2P9n3DMcFSOMwYPR6bNeuD-4lRm8WZvFtk0oovMGM7F2_2RE8JIh5xY3NLCOUnYJRDuAlgK4bxgQ3PWCBOI0g-Ibg1hZGyOInmXEppj9NtBTXswx2WdGEciY8KWzw12lrcmiOQ3DYa2w6I4zdwjYhGcZu7TsCgeMw9MWG2cQeErpGFRzH8-MWB5zf73CHNMywdDCMq9iIz2QFDONmEmZF2_GAJxUv7sG8TaJ2AGag8EUxCYBK_OrZ8HHRnftuo81Oi2IAiptWBmGf3082AiphjMfF8RZuM7RB_4077a7atBs1knPGZarS8g5Jjf1xmUEn_HG8JcWnxKXhlvKpEoBNI8UZOswQJC2EYhhOrcn39iiVjkiSh6eQVKyeD___1f_ofUY2w-sad2YHtq5TE3RxxhZNp3pwGHQiJLc4NbaTMUnABId4x5dWTSkx6u3FWFMbHu2KPk6eJIhZsQfGiZGCfbokWEWEFOlpDGtbM1G7H37z7cGVzAWlASx1YgBLP5-h8GgkXiENIul2pI70ScMGlNZafk7VtDPlIkpPyLbMZr6n97_U8jWUr25Ri1GJAdXFydrkfJ-sLz6L66_XCaiemEfUrmZ7IqkPDQ3oJkP4svPdmuo3aIcE0Xb3zsyP6tg1BUtO6sUixy97seaQTEKO19B9AFTba1yDf7bVZas9AHhot2xtUlTSPaihxyrcVRHhmaezq7_Ae3kL1BSFfrpt8YTBE7Kwk9O7Sn3J5M5cGIzZ26E9GWbYUTm3Nucy4_8e1gYtf9nfITD85hkx_oU4jMm--NbHf4Q2dQH9z26yxWE3QTc9IKWLqAjOgTIvobea799aNtfdpndTO30n79WXy5yUQ8lPQ2po5L9Wj7_BsrqoxcDg2ctiXhKTJQSg6j2fQ7T_qRsqOzPSNXhw8S5l7rA4Ox8Zv8gFEPh6g3XQHK4FHakTcw-qPclIVQxH6QDnYpd73aFv_YDr_Li6rJ_aQ1rXL9qaavvX0qVnbOgT8d7lzFda_CbVvnhxj2nhAYcOwjwHDIKHLUP7d0VOzgabG5ih0-LbarYk-eFttTsaOnxfZV7OnTYgdAYzBVvBA8BOCYPl4IPgHg1yll00DVPiWHqNDXqWXTJ4VAY4pJg67bXhBkTC1pyBUOjOkkDXhEFphC0oBjHBjTRqJZxYExVaQB44vnXukRm8Isgn2dV2xTfgT7OiVscnsE-jol7M6xB6GvU0IloxpExxRRUbFfh5Ez5ZE0A6CYEq7NoGsUFFNAlQ-KxUgAKqZ9KiMUVAGZxXQPhG0UMwS49TDN6_plzgCGDHuY3pGk2zVgDUaNmNaRJKwhg7DRw5TOvHfbFq9BfjF9I_ELgSG7mKqpfhLht0u6G3aTpADAmLqBUbjx6fu_BxXPwxTvdKAMvY3xC9zRmP4NgHNCBAPBMS3UdhUt7oIK42OqSMdGldHHlBHwg2yVvgd9MB_yMXUE_JCxQT7kYwp5Mm5M4u1J48BO9DHVpPDeN7UPY1-hnU07-5Ax8cdSxIgijwwzJz6mljQXA4AXmiwwpQSDyv0Wi_ub_rlBgWAqSdnaGjAQR4DpY9vLaE5WAHYJsDF91AaRMiFgoQJMG6lWpO2tHBJ1gGkjWSIqNBQ2pohwDEke0PQFV6hh997DoH4HmCae2AXMzzRvPCA-OEDTQ3UUnmyVKN9oeqgMwfxujG8OTA9hAIPns-jeCNHsUGU4QOSAMhxiOkhkGN_MIZoWqgyHaDKLs4wpIJFlDRsyjWaFKtOTYeADVpIOMe0jcnzAatIhWpZR2eWI5mnZDWQZUzwiyxo25Jqke9Nh4Oadg0GW0Rqp0cQBUMDrhKR2HDEUzTsNQ8xO0IKMmdkFyixJ5SIElmOsog7vgZLEqriQW0zX1BE4rIuxiykbkBsJF7KL6Zo6AocFwQFk-EpVg9CQZzTiJISFoHqmO-YJpmzxebgJdMsRpm5dw9ZZJb-DANiYyjV9ICbkOR59R3jyZxbzHA--I7T8qeqzR8EFgXdE8nI-Uvl8fKVmMBGO0COIi7BBIhyR3B0ZGxwMRmikeRE2PBgkOTwyNjgYjNDjiIuwwcHglOT8yNjgXHCKOsCLsMGx4BTTxzktrzxGiKJPMYU8YYiEDZR9iiml2aI2L4kNMoxp45FSJQG4kNlrNBHAajWSKaaGFFPavbo2KAm0Ikqy_ho0FAZJBZEgXAMGdpo7mAJqo0bZxgIl7mAqCBYIrUdp2HOITQpFXRKyJhNMB7VRlDPjBCKjGkiqvii4sPjCHUwLKaqN1164g2khVRQPaH2EO2inDKFAkmNayB20SYagKzmmgdxBcz_CdstRDcE7YwgBWI4qB94TQ7Ce9auNw9xiOvdAKBGpsBq3mMI9UAo5Psot2p5GKLWosBq3mK7lFHtZv585zC5a6KQomoqr8YueN3gU3BDlF1O0nOLuVFyNX_QIPqDgTjB-0e4XlRUSLuQX7XxRh-DHOeUDaiHRvhcwiNJhBN0Q2vRCc0MKruaG0JYXGJBRWpc0jtGcj8QxemrB0Y4Xc0nvYcxxok0v5urb2GEIR9tezI4etm9p8kV1bk_rT4HgmpDR7hc4Cud7TCJoAwz1JE55JxehgKmh-ey6fx0XgcYP3gkNA-2ruEgBjaMNMdpA3DblePSGNsWAQVj41rxqiSBjKkktz6GnJBztiAH8ULGhG0AbYkhsP77fOcw3evieE6JPHRvyjfbDkPju3iMdZBtvh8kJYagGrXGN6SRN2gm-R_BemJwQkkNkjefL6y-wPRbabrQBRl93YvOtZrzRThgz16DxVmMa00Rt1WlNvTrLmCrCiWKy1hpvT-wq2gpDWEcNWzuc4GgzDNxX5KZheD7B0X4YcKiB27_6neVBrUH7Yaj9UgAb6g3aD0NyNQAYFnrQbhgwZoRltAiBdsM0r-YOIXcvDqovDAJIVQ-1h-XrcmYWNamiddCcUCgBwJpU8TooJUFuXhIfliqmeCS9BsBQFmjrC8m_AmAoC7T5BYwZkQVaikGbX3QTQAPX5HGVDwTAmjxwjaMUI0AlXZMHpnHAUaBbA632oA0wpBgGAGuiGPGAFM862hTL0Q6Y05GYioPX4DFfiLbEDNBBDLT6qjpGBm2SGWISM6uPbzUDZD5sVvs3qMeEoyyuWEFcNGk8nS7GcPcmNMD1hvl9fOV6RMY6tx_BNRLKq9P1dRKP71i_3R-Z_NXwLWPKJYflIe1y74HrjM2XQSC3e1IJmK9jmA8SKKkEzLcmqrpOux_UcHEn4arErDRcX9ReyHjO7aCr2HCtj2ta0wHMOQ3zLD6Vq5sGL6ptLwk_AzLfV4Zr1LpvITDuhly7Dk67J-KMuwtKgpcca57B4pELcEHjDBqNnI8LmmbQdojzcUHDDBaHXIALmmXQXPx8XNAog0UhF-CCJhksCLkAFzTIYOEHsYclQwuPhNwbRV0pD2mHxlhdkCIHFVY7ysK6hCioc4xZ9NUTmmxVYK2EiQCvSMLFbh9Bj2FXJDFgd4-gx7ArSim3scjqDlO_zVPe1PYY_ty137tKiYGSp4uBksEQBdy5dWUQBKpm4Dtix5G52eHBl9VJAVBo4JoSAAlTAOQawreBwIIbgpX2DqezAiCXhnlWAGS4j9o1xSqnkModjMlyORD-uGdD_mqIqHwTZLfBfn2ieIpUKbkkoLoEmBRRXQJMCqkuASbFVJcAk4KqS4BJUdUlwKSw6hLgJ42rhOb1jHFVQvHReDPelaEKWr1G66rG0tkKLS-j911QTl5WaHEZjaoo1fAVWgBGoypKYXmFln7RqIpUn1VOtmCZEOuGod2y0z9DvdzJvA9-HY3_-ED8x__g-O9_edRnjMbC8WDsCWOwJwy9ni7ierpA698SX_3boyrcF2HG_SpfdFU8hToizLhf4YfQa4yuckOoXb_KC2F2_TonhBn1q3zQdbf14S4IC5yu8kDtV2Y9-qDoZp5WrP70Dz2IGf7yp1KlMHz7tikpJmTz5OMegmd6MTyPOXEeIxQIE5EvoBGnQvnOVWArlzHhawRMZzT6bfLL_WZz02w2hRDhKwO6K9evI0T4kgDX9I3WNEqErwXovl4MvQKcRonwPQAdJTwgIlEKyJS84DpKIZmSj4cuJEoTOiX02wwolLalsUzZxmJXWTb5wqMhTqMa6Pc11MC3PBNOL9svAqV8zbN0i4R48Ca-4nSmjDV_-Ohib-ZXnKOUcxS2McyDQUFKKtTESpug9prxTYwe4SrzxHpiAHIMZYHizs_EBTHXTYnWamLYQDmEu9UaMVUhk3Dxd4Iax4MJGT3PVoWMNDgBZE3IKO78TFxNyOjLKjE_T8gcCpmEOyZkd0TI6OG-KmSkORIga0JGcedn4mpCRg9IY_c8IbtQyCTcMSF7I0JGOx1UISMdlwBZEzKKOz8TVxMyhgvGUITsQSGTcMeE7I8IGW37UIWM9HICZE3IKO78TFxNyBguGEMRsg-FTMIdE3IwImS0B0YVMvKSOEDWhIzizs_E1YSM4YIxFCEHUMgk3DEhhyNCRhuCVCEjr8wDZE3IKO78TFxNyBguGEMRcgiFTMIdE_JkRMhod5QqZOQCAYCsCRnFnZ-JqwkZwwVjKEKeQNw6yRgC3lL6o5rhSAje5ClGpkfeGR9t5VGyvMdi2vf7zeY_Uku7oLZl_qrJF-pxDr3SRPieeVhpOir1n-PQeUf7jdvmQ4qja0Bqz2Dw8kR_xkQ8GeIEtjLi0RDHSwx97zDpaIgTTplKWhZP-BJUdZ8QqgNNrzhHa3mXVAdujuiFUAQ7gt68dTPHgSklAvTerZsjvzliUT_peiz0bixZfMCxafUH9HKsm6N7U2JsU45m0Pbbm_gmu2YNs5E1RIEpa5iNrWF21Rpmo2uIYtPWMEPXMOM3OXYUSLppCOM6c3Fg0lVDGMf5mDundOUO-_KPX_8H">open the CPU with Catch</a>, set the
+                  <strong>To play Catch:</strong> <a data-example="catch" href="../#circuit=1.7V1bk9s2sv4rKL5scsLxEryJkmsfxpdUsmtvXGOnzm52_ECJkERbIhWSiuRJ-b-fAi9DNMQmWtJsts6pE1elZjTE140G-oom9Lu1zIttXFkza7HJF5-_xEVi2dZvoijTPLNmnNvWVlRxElexNfvdyuKtsGbWy7harC3bWhQirkRyK8e7jhvecH7D_Q_cnTnOzHGeOY7zi2Vb2zxJl6n-XPjB9WbudOZEz7yofi7LK1FaM-uWldt4s2GreCtYsc-yNFuxPGPVWrBCLEUhsoVgL9_9bLO0KtmuyFdFvGVp88TdT2_ZN-WiSHdV-eeF5PRZXG6_fXaf3WfvRVU_U-6ESFiVM-7YjuPYbFeIsmR3-8xmi026-Fw_9Vl8medxkbA4S9g63yTsjVhWLC_YXbpaV8_YCymzki0ls2nGIraJM1E-ZyJerFmeCbaI96t11fG-i5NkI1i5yAtRdh9Wh5ytxZEl6UpORpLaxp9FWf8xE8eqgV_GZSWKZ-yWbdOyZOt4UzWP1GKQo-5EKSq228RfShav4jSrZ_z3vFpL8a1FIVhasjLd7jdy0STDZb6sDnEhZkz8JoovLM3KqtgvqjTPpNwlgSLfr9YdoT-VbBVXorRZIVapZKhlWGzzIhXlM-urbS3SYrFPK7ldFvl2l2ciq0pr9q_frTSp99lny7Y-p1nSbTrLtnZ5mVb1jvvdOlozx7a-WDPufbWtIq_i5i-Obe2KfFfKZzbxXGzkRqzHf_1qt-B5JnrwY5YXp9iBAbsHexBFrqCNgE1pYFGPthXFSpziSX0bBbSWqdgkUpzcBv8-9qSKfNsTan7RyLhuQ8Y3Cvhdo1uWbR3SpFpbMx7aVmMN_uU706nNXTeK5P-nju3zaVj_yG3f8yc2dwPftX0v4PWP3I741K9HTLu_8SBU_-b6QcRtNwojx_ad6WRaf-K3-BGfBvWPnvxxIp-beO0HXhhNue25E_mc78s_Ro5bf9w96IVTZ2J7buSGcrz849R1bdePXL_jx5kq_Lg9hSiqB7r9x9N2ePPBGIYfTCYtBngOyMUbHO3183-UmRtNXSlrx-Oq_Dx3EkVy6oFkLKilFfbEp279XCvERsLyY1_-PJUr4fieBJlM5CNRu47NBwoZf8oD96Ntlfm-WEhf8JzV3oB9c_vqjjmO6307Y3PELtbWWBqTLTuk1Voxis_us-eNda1NmTSvbJv_JtRH2G0L0BvQH17_ox7waCtryhJL0i4HreastZRVXhvLR1v5XA67u307Y05nqSXbNuMNKouTRHoJm7kNreavHkvEJv5iM7_hy2YBW-T7rLJZyMpFUTsgCf1-UQiRsfmXSrC_sCI_sP9iEfuuhnle_-5x9o38c8lcP7pxg-Db2uuUUE73WVnFRTVj7M2rH5l3n7H2v_cfbpnD-v-eA6cjx5RyNSQ9fZgLhnUSXaZF2Yq0lWc8l2uSVv1oyQN3HGX0q9dvbv85Y4c4rdgmz3cl24mClZXYQZoeBHEDroAkRXxQ2J-18rEHuXeO37-GYM7x--9PnnlVy24XH7JadiezZpk4dEvdhAlVvmP5sg4yJF2IyM1MeC-HmOif0Vl43FYz9h0LbLbNExbZrMyZ1KSILfKtqMOcfZH1OLevfmSBQujFjyzqf_3rS413-Xh0nzVk2uWXkpFrNWvZ8gBbcinhRIL7TH7YPa5R5ycPPzLziwyqSuWDt-9a-PtM_qVDlAvYM1AbBucYuXZrGpxj5EGa8q-AzkYsK5Stv_7CCgkEGZF7vJaEWD5OzQGDaoumbJlmm8jnmUhWmpBdP1KeFUVcqubMuHtMW8cZFboDp9bRvM_qec8GISaEudbDtclqUH_s3CW107nfZ53hOOVGsy1SoaSGS-0_1fJzbIuUWLdvemMGBdA6qCvnD9FlpiHtY5IfNLMQQaBRkyV3gOufWI5EIZRWrJC5jUhae3yewZMbUVqZWsfiLFGU_VVPpF-ZP5WNt6xk8mLLvAtqo_TpUC4-kEuTfc0avzy6Y_wTtl9CYGgQpVSUrMyuJS8DirgJBqTTcDXl0pYi1ATvALk3uFByteeSm0z-aVZzFUJMb3DAfSblNFPWqJ9Iuc4P7NDkhrXnSUTSZJNlle_G1vKHNx_uMwskHeVuk1Z95tH9quUenmPKPR5TnMiOlLQmLTZK4rgvq6HMxgupmc2Pd2yTH2TCmohlmrUgViFWkaXQXJNpui6F5jpdrY1Eu-xwPFn0_Wau4QWSFEkP3_yiZ7aOCbyflJodKrn4jrYh2mm4hA3h2746jWxhXhzeCikyp7ov2XeMn6xNnCSiUFZnt9juj2a6bYrtmuX37iVrkymd9HZ_BIQJVCM6VcMu3C3Mm6Td-Z5DIfe4SaJ-CRfVxlCqaPfhyO54rAXlWVXkG2UzurbV5mz_3XziP9YuHJvbMuWObG9iB57tB3bIbTcI7YC7Nndc3w5923V8VW8WpXEzBxF5M2sFnIFCTmVe8EY6nnm9PwwtN--Xm2DnGlq-mdYPBlqZMrEsH5BiZJhVL6JsTYLCme6hlqIpardocTaw4Vtr4qHWpIcTR7GgoVGYi0VmAAtbL4TqorKPyWAEzvJ9RYXzUA_Zwx0EEYuwBOsNmTUfVdge7tNDZQCbNEY_IKzBpwUVjLAGn3iPNVSmjhw6X64BqpFXQFjKT_vtzjDHKV1gO7Brh1hzWwNFAGtK2p3fiQeM3aTVTaOxeyUdypBvm5PihMgl0rl98zN7YQgRyv18mW42xsgxMtb_CccMR-U4Y_BwZNqsB-4vTmUWb_ZmkU0jusiM4Vy83R85IYx0yInFLS2ck4RdAuEugKUQzgs2NGeNMIEo_YDo1hBGxuYokncpoTlGvx3UtAdzXNaJcSQyJmz53GBneWuCSH7TYGg7LIrTzD0iFsFp5j4Ni-Ix88CE1cYZFL5CGhbF_OcTA5bX7H-PMMe0fDCEoNyLyGgPBOVsE2ZC1vWLIRAn5c--Qax9Amag9kAwBYFJ8Orc-nnQkfFtq85DjW4LgpBaC2aW0U8_DyZiisHM9xVhNr5D9IE_7avdvho0m3XCY6bV-gJCjvl9nUEp8Xe8IcylxafklfGmEolCIM0TNckaLCCEbRRCqM79-SeWiEWeiKKXV6CUDP7_3__lf0g9xuYTe2oHtqdWHnNzxBFGpn13GnAoJLI0N7iVNkPBCYB0x5hXRyY96eHKXVUYE-uOPUqeLo5UuAnBh5aJcbItWkSIFeRkCWlcO1uzEXv_7sOdwQWsBSVxbAVCMJuv_2EgWCQOIe1yqYb0TsQJk9ZUdkrevjXkI0VCyr_IZrym_rfX_zSSpWRfjlGLAdnBxdXpepSsLzyP7qvbD6eZmE7Yp2R-JqsCCQ_tLUj2s_jSk-06aocI13TxxseO7N86CEVF684qxSJ3v-uRRkCM0t53AF3QZFuLfLPfZqU1C31guGhnXF3SNKKtyCHXWhzlkaG5p7PLf3AL2RuEdLVu-o3BFLGzktCzQ3vK7clUHozY3Kk7EW3ZVjixOec25_IT3w4mdt3fKT_x4Bw2-YE-hci8-d7Idoc_dAb1wW2_zmI1QTcxJ62ApQvIiD4hor-R59pfP9rWp31WN3Mr7defxZebTMRDSW9j6rhUj7bPv7Giysjl0MBpWxKeIgOl5DCaTb_zpB8pOzrbM3J1-CBh7rU-MBgbv8kPGPVwiHrTFaAMHqUdeQOjP8pNWQhF7AfpYJdy16tt8Y_t8Lu8qJrcT1rTKtefavra26diZecc-NPhzlVc9yrctnV-iGHvCYEBxz4CDIeMIkf9c0tHxQ6eFpur2OHTYrsq9uRpsT0VO3pabF_Fnj4tdgA0BlPFC8FDAI7p44XgEwB-nVI2DVTtU3KICn2dWjZ9Ugg0ppg06LrtBUHG1JKGXOHAmE7SgEdkgSkkDTjGgTFtJJpVHBhTRRowvnjulR6xKcwi2Nd5xTblR7CvU8Imt0egr1PC7hx7EPo6JVQyqkF0TBEVFft1GDlTHkkzAIop4doMukZBMQVU-aBYjASgYtqnMkJBFZBZTPdA2EYxQ4BbD9O8rl_mDGDIsIfpHUm6XQPWYNSIaR1JwhoyCBs9TOnMe7dt8RrkF9M3Er8QGLKLqZrqJxF-u6S7YTdJCgCMqRsYhRufvv97UPE8TPFOB8rQ2xi_wB2N6d8AOCdEMBAc00JtV9HiLqgwPqaKdGxUGX1MGQE_yFbpe9AH8yEfU0fADxkb5EM-ppAn48Yk3p40DuxEH1NNCu99U_sw9hXa2bSzDxkTfyxFjCjyyDBz4mNqSXMxAHihyQJTSjCo3G-xuL_pnxsUCKaSlK2tAQNxBJg-tr2M5mQFYJcAG9NHbRApEwIWKsC0kWpF2t7KIVEHmDaSJaJCQ2FjigjHkOQBTV9whRp27z0M6neAaeKJXcD8TPPGA-KDAzQ9VEfhyVaJ8o2mh8oQzO_G-ObA9BAGMHg-i-6NEM0OVYYDRA4owyGmg0SG8c0commhynCIJrM4y5gCElnWsCHTaFaoMj0ZBj5gJekQ0z4ixwesJh2iZRmVXY5onpbdQJYxxSOyrGFDrkm6Nx0Gbt45GGQZrZEaTRwABbxOSGrHEUPRvNMwxOwELciYmV2gzJJULkJgOcYq6vAeKEmsigu5xXRNHYHDuhi7mLIBuZFwIbuYrqkjcFgQHECGr1Q1CA15RiNOQlgIqme6Y55gyhafh5tAtxxh6tY1bJ1V8jsIgI2pXNMHYkKe49F3hCd_ZjHP8eA7Qsufqj57FFwQeEckL-cjlc_HV2oGE-EIPYK4CBskwhHJ3ZGxwcFghEaaF2HDg0GSwyNjg4PBCD2OuAgbHAxOSc6PjA3OBaeoA7wIGxwLTjF9nNPyymOEKPoUU8gThkjYQNmnmFKaLWrzktggw5g2HilVEoALmb1GEwGsViOZYmpIMaXdq2uDkkAroiTrr0FDYZBUEAnCNWBgp7mDKaA2apRtLFDiDqaCYIHQepSGPYfYpFDUJSFrMsF0UBtFOTNOIDKqgaTqi4ILiy_cwbSQotp47YU7mBZSRfGA1ke4g3bKEAokOaaF3EGbZAi6kmMayB009yNstxzVELwzhhCA5ahy4D0xBOtZv9o4zC2mcw-EEpEKq3GLKdwDpZDjo9yi7WmEUosKq3GL6VpOsZf1-5nD7KKFToqiqbgav-h5g0fBDVF-MUXLKe5OxdX4RY_gAwruBOMX7X5RWSHhQn7Rzhd1CH6cUz6gFhLtewGDKB1G0A2hTS80N6Tgam4IbXmBARmldUnjGM35SByjpxYc7Xgxl_Qexhwn2vRirr6NHYZwtO3F7Ohh-5YmX1Tn9rT-FAiuCRntfoGjcL7HJII2wFBP4pR3chEKmBqaz67713ERaPzgndAw0L6KixTQONoQow3EbVOOR29oUwwYhIVvzauWCDKmktTyHHpKwtGOGMAPFRu6AbQhhsT24_udw3yjh-85IfrUsSHfaD8Mie_uPdJBtvF2mJwQhmrQGteYTtKkneB7BO-FyQkhOUTWeL68_gLbY6HtRhtg9HUnNt9qxhvthDFzDRpvNaYxTdRWndbUq7OMqSKcKCZrrfH2xK6irTCEddSwtcMJjjbDwH1FbhqG5xMc7YcBhxq4_avfWR7UGrQfhtovBbCh3qD9MCRXA4BhoQfthgFjRlhGixBoN0zzau4QcvfioPrCIIBU9VB7WL4uZ2ZRkypaB80JhRIArEkVr4NSEuTmJfFhqWKKR9JrAAxlgba-kPwrAIayQJtfwJgRWaClGLT5RTcBNHBNHlf5QACsyQPXOEoxAlTSNXlgGgccBbo10GoP2gBDimEAsCaKEQ9I8ayjTbEc7YA5HYmpOHgNHvOFaEvMAB3EQKuvqmNk0CaZISYxs_r4VjNA5sNmtX-Dekw4yuKKFcRFk8bT6WIMd29CA1xvmN_HV65HZKxz-xFcI6G8Ol1fJ_H4jvXb_ZHJXw3fMqZcclge0i73HrjO2HwZBHK7J5WA-TqG-SCBkkrAfGuiquu0-0ENF3cSrkrMSsP1Re2FjOfcDrqKDdf6uKY1HcCc0zDP4lO5umnwotr2kvAzIPN9ZbhGrfsWAuNuyLXr4LR7Is64u6AkeMmx5hksHrkAFzTOoNHI-bigaQZthzgfFzTMYHHIBbigWQbNxc_HBY0yWBRyAS5oksGCkAtwQYMMFn4Qe1gytPBIyL1R1JXykHZojNUFKXJQYbWjLKxLiII6x5hFXz2hyVYF1kqYCPCKJFzs9hH0GHZFEgN29wh6DLuilHIbi6zuMPXbPOVNbY_hz137vauUGCh5uhgoGQxRwJ1bVwZBoGoGviN2HJmbHR58WZ0UAIUGrikBkDAFQK4hfBsILLghWGnvcDorAHJpmGcFQIb7qF1TrHIKqdzBmCyXA-GPezbkr4aIyjdBdhvs1yeKp0iVkksCqkuASRHVJcCkkOoSYFJMdQkwKai6BJgUVV0CTAqrLgF-0rhKaF7PGFclFB-NN-NdGaqg1Wu0rmosna3Q8jJ63wXl5GWFFpfRqIpSDV-hBWA0qqIUlldo6ReNqkj1WeVkC5YJsW4Y2i07_TPUy53M--DX0fiPD8R__A-O__6XR33GaCwcD8aeMAZ7wtDr6SKupwu0_i3x1b89qsJ9EWbcr_JFV8VTqCPCjPsVfgi9xugqN4Ta9au8EGbXr3NCmFG_ygddd1sf7oKwwOkqD9R-ZdajD4pu5mnF6k__0IOY4S9_KlUKw7dvm5JiQjZPPu4heKYXw_OYE-cxQoEwEfkCGnEqlO9cBbZyGRO-RsB0RqPfJr_cbzY3zWZTCBG-MqC7cv06QoQvCXBN32hNo0T4WoDu68XQK8BplAjfA9BRwgMiEqWATMkLrqMUkin5eOhCojShU0K_zYBCaVsay5RtLHaVZZMvPBriNKqBfl9DDXzLM-H0sv0iUMrXPEu3SIgHb-IrTmfKWPOHjy72Zn7FOUo5R2EbwzwYFKSkQk2stAlqrxnfxOgRrjJPrCcGIMdQFiju_ExcEHPdlGitJoYNlEO4W60RUxUyCRd_J6hxPJiQ0fNsVchIgxNA1oSM4s7PxNWEjL6sEvPzhMyhkEm4Y0J2R4SMHu6rQkaaIwGyJmQUd34mriZk9IA0ds8TsguFTMIdE7I3ImS000EVMtJxCZA1IaO48zNxNSFjuGAMRcgeFDIJd0zI_oiQ0bYPVchILydA1oSM4s7PxNWEjOGCMRQh-1DIJNwxIQcjQkZ7YFQhIy-JA2RNyCju_ExcTcgYLhhDEXIAhUzCHRNyOCJktCFIFTLyyjxA1oSM4s7PxNWEjOGCMRQhh1DIJNwxIU9GhIx2R6lCRi4QAMiakFHc-Zm4mpAxXDCGIuQJxK2TjCHgLaU_qhmOhOBNnmJkeuSd8dFWHiXLeyymfb_fbP4jtbQLalvmr5p8oR7n0CtNhO-Zh5Wmo1L_OQ6dd7TfuG0-pDi6BqT2DAYvT_RnTMSTIU5gKyMeDXG8xND3DpOOhjjhlKmkZfGEL0FV9wmhOtD0inO0lndJdeDmiF4IRbAj6M1bN3McmFIiQO_dujnymyMW9ZOux0LvxpLFBxybVn9AL8e6Obo3JcY25WgGbb-9iW-ya9YwG1lDFJiyhtnYGmZXrWE2uoYoNm0NM3QNM36TY0eBpJuGMK4zFwcmXTWEcZyPuXNKV-6wL__49X8A">open the CPU with Catch</a>, set the
                   speed to 10,000 Hz, press <em>Run</em>, click the keyboard part, then hold Left or Right. Blocks fall in eight lanes. Each catch up to the tenth makes the next block fall faster,
                   and a miss ends the game; <em>Reset</em> starts a new one. The whole game is 89 instructions.
                 </p>
@@ -440,23 +440,12 @@
           </p>
 
           <figure class="arch">
-            <div class="arch-board">
-              <span class="arch-where arch-main">Main thread</span>
-              <div class="part arch-doc"><strong>Circuit document</strong><span>What you design: parts, positions, wires, labels, components. Versioned JSON.</span></div>
-              <div class="part arch-editor"><strong>Editor</strong><span>React panels and a PixiJS canvas, drawn from the engine's latest report.</span></div>
-              <p class="arch-wire to-worker"><span class="visually-hidden">To the worker: </span>the circuit, your commands</p>
-              <p class="arch-wire to-page"><span class="visually-hidden">To the page: </span>values, diagnostics</p>
-              <span class="arch-where arch-worker">Web Worker</span>
-              <div class="part part-outer arch-wasm"><strong>sim-wasm</strong><span>A thin WebAssembly adapter that the worker's command loop calls.</span>
-                <div class="part"><strong>sim-core</strong><span>Validates the circuit description, flattens it into a netlist of primitive parts and nets, and simulates it.</span></div>
-              </div>
-            </div>
-            <figcaption><span class="fig">Fig. 9</span> What you draw and what the engine runs are kept apart. The engine simulates in a worker, off the page's thread; routing and drawing still happen on the
-              page, and they are the slow part. A flat sheet of 10,000 parts and their wires takes 8 to 24 seconds to open, nearly all of
-              it routing and drawing; 34 copies of the CPU, about 10,000 engine nets but only 34 parts and no
-              wires on the sheet, open in about a quarter of a second. The
-              <a href="https://github.com/josep-audenis/clockyard/blob/main/docs/performance.md">benchmarks</a>
-              have the numbers.</figcaption>
+            <div class="timeline-scroll" data-label="Timing diagram"><svg class="timeline" viewBox="0 0 1180 270" role="img" aria-labelledby="tl-title"><title id="tl-title">Timing: adding a wire, then clicking a switch.</title><text class="tl-lane" x="0" y="54">You</text><path class="tl-base" d="M150 60 H1180" /><text class="tl-lane" x="0" y="114">Page</text><path class="tl-base" d="M150 120 H1180" /><text class="tl-lane" x="0" y="174">Messages</text><path class="tl-base" d="M150 180 H1180" /><text class="tl-lane" x="0" y="234">Worker</text><path class="tl-base" d="M150 240 H1180" /><text class="tl-head" x="160" y="14">you add a wire</text><text class="tl-head" x="700" y="14">you click switch A</text><path class="tl-split" d="M680 0 V250" /><path class="tl-event" d="M170 60 V38" /><circle class="tl-event-dot" cx="170" cy="38" r="4" /><text class="tl-event-text" x="180" y="42">drag the wire</text><path class="tl-busy" d="M179.5 120 V100 H270 V120" /><text class="tl-note" x="225.0" y="94">describe the circuit</text><path class="tl-cell" d="M280 170 L288 156 H352 L360 170 L352 184 H288 Z" /><text class="tl-cell-text" x="320.0" y="174">load</text><path class="tl-busy" d="M369.5 240 V220 H520 V240" /><text class="tl-note" x="445.0" y="214">validate, flatten to nets, settle</text><path class="tl-cell" d="M530 170 L538 156 H602 L610 170 L602 184 H538 Z" /><text class="tl-cell-text" x="570.0" y="174">state</text><path class="tl-busy" d="M614.5 120 V100 H665 V120" /><text class="tl-note" x="640.0" y="94">draw</text><path class="tl-event" d="M710 60 V38" /><circle class="tl-event-dot" cx="710" cy="38" r="4" /><text class="tl-event-text" x="720" y="42">click A</text><path class="tl-busy" d="M719.5 120 V100 H760 V120" /><text class="tl-note" x="740.0" y="94">send</text><path class="tl-cell" d="M770 170 L778 156 H872 L880 170 L872 184 H778 Z" /><text class="tl-cell-text" x="825.0" y="174">setInputs</text><path class="tl-busy" d="M889.5 240 V220 H950 V240" /><text class="tl-note" x="920.0" y="214">settle</text><path class="tl-cell" d="M960 170 L968 156 H1032 L1040 170 L1032 184 H968 Z" /><text class="tl-cell-text" x="1000.0" y="174">state</text><path class="tl-busy" d="M1049.5 120 V100 H1100 V120" /><text class="tl-note" x="1075.0" y="94">draw</text><text class="tl-free" x="925" y="112">the page is free: scroll, pan, edit</text></svg></div>
+            <figcaption><span class="fig">Fig. 9</span> What happens when you edit, in time. The page describes the circuit
+              from what you drew and sends it to the worker; the engine there validates it, flattens it into nets and
+              settles it, and sends back each net's value, which the page draws. A click sends only the new input.
+              The engine never runs on the page's thread. Routing and drawing do, and they are the slow part on very
+              large sheets: the <a href="https://github.com/josep-audenis/clockyard/blob/main/docs/performance.md">benchmarks</a> have the numbers.</figcaption>
           </figure>
 
           <div class="engine-notes">
@@ -583,6 +572,8 @@
     </footer>
 
     <script type="module">
+      const motion = matchMedia("(prefers-reduced-motion: no-preference)").matches;
+
       // Fig. 1: the recording plays while on screen, never on its own under reduced motion, and
       // always has a button to pause or play it.
       const loopFrame = document.querySelector(".loop-frame");
@@ -595,7 +586,7 @@
           toggle.textContent = loop.paused ? "Play" : "Pause";
           toggle.setAttribute("aria-label", `${toggle.textContent} the Catch recording`);
         };
-        let held = matchMedia("(prefers-reduced-motion: reduce)").matches; // paused by the viewer
+        let held = !motion; // paused by the viewer, or by the system setting
         toggle.addEventListener("click", () => {
           held = !loop.paused;
           if (held) loop.pause();
@@ -606,148 +597,76 @@
         loop.addEventListener("playing", () => loopFrame.classList.add("is-playing"));
         label();
         loopFrame.parentElement.querySelector("figcaption").append(toggle);
-        // The recording starts when the first pulse under the headline arrives (at once without it).
-        let arrived = false;
-        let visible = false;
-        const start = () => visible && arrived && !held && loop.play().catch(() => {});
-        const clk = document.querySelector(".trace");
-        const arrive = () => ((arrived = true), clk.classList.add("is-arrived"), start());
-        if (clk && getComputedStyle(clk, "::before").animationName !== "none") {
-          clk.addEventListener("animationend", arrive, { once: true });
-          clk.addEventListener("animationcancel", arrive, { once: true });
-        }
-        else arrive();
         new IntersectionObserver(([entry]) => {
-          visible = entry.isIntersecting;
-          if (visible) start();
-          else loop.pause();
+          if (entry.isIntersecting && !held) loop.play().catch(() => {});
+          if (!entry.isIntersecting) loop.pause();
         }).observe(loop);
       }
 
+      // Fig. 2: the half adder. Clicking a switch shows the capture with that combination; the table
+      // holds what the editor's readout said for each. Nothing is computed here.
+      const ha = document.querySelector(".ha-stage");
+      if (ha) {
+        const rows = [...document.querySelectorAll(".ha-table tbody tr")];
+        const show = () => {
+          for (const shot of ha.querySelectorAll(".ha-shot")) shot.toggleAttribute("aria-hidden", shot.dataset.state !== ha.dataset.state);
+          rows.forEach((row) => row.classList.toggle("is-now", row.dataset.state === ha.dataset.state));
+        };
+        for (const button of ha.querySelectorAll(".ha-switch")) {
+          button.hidden = false;
+          button.addEventListener("click", () => {
+            const on = button.getAttribute("aria-pressed") !== "true";
+            button.setAttribute("aria-pressed", String(on));
+            ha.classList.add("was-clicked");
+            const [a, b] = ["a", "b"].map((n) => ha.querySelector(`[data-switch="${n}"]`).getAttribute("aria-pressed") === "true" ? "1" : "0");
+            ha.dataset.state = a + b;
+            show();
+          });
+        }
+        for (const img of ha.querySelectorAll("img")) img.loading = "eager";
+        show();
+      }
+
+      // The spine and the section numbers. A wire down the margin joins every section's port; the
+      // part above the reading line is lit, and a section it has reached has its port, its rule and
+      // its number, on seven-segment digits, lit.
       const sections = [...document.querySelectorAll(".try, .chapter, .engine, .facts, .closing")];
+      const SEGMENTS = { a: [3, 0, 12, 3], b: [15, 3, 3, 13], c: [15, 19, 3, 13], d: [3, 32, 12, 3], e: [0, 19, 3, 13], f: [0, 3, 3, 13], g: [3, 16, 12, 3] };
+      const DIGITS = ["abcdef", "bc", "abdeg", "abcdg", "bcfg", "acdfg", "acdefg", "abc", "abcdefg", "abcdfg"];
+      const digit = (n, x) =>
+        Object.entries(SEGMENTS)
+          .map(([name, [sx, sy, w, h]], i) => `<rect x="${x + sx}" y="${sy}" width="${w}" height="${h}" rx="1" class="${DIGITS[n].includes(name) ? "on" : ""}" style="--i:${i}"/>`)
+          .join("");
+      sections.forEach((section, i) => {
+        const n = i + 1;
+        const heading = section.querySelector("h2");
+        heading.insertAdjacentHTML("beforebegin", `<svg class="seg" viewBox="0 0 40 35" aria-hidden="true">${digit(Math.floor(n / 10), 0)}${digit(n % 10, 22)}</svg>`);
+        heading.previousElementSibling.dataset.for = heading.id;
+      });
       const spine = document.querySelector(".spine");
       const lit = document.querySelector(".spine-lit");
-      // Fig. 5: scrolling through the stage steps the recorded frames, one clock edge each, with the
-      // program counter's word under the tape's head. Wide screens with motion allowed only; otherwise
-      // the still capture and the whole ROM stand in.
-      const stage = document.querySelector(".cpu-stage");
-      const band = stage?.querySelector("[data-rom]");
-      const cells = band ? [...band.children] : [];
-      const frames = (stage?.dataset.steps ?? "").split(";").filter(Boolean).map((f) => f.split("|"));
-      // The blocks each kind of instruction needs: the page's annotation, from docs/reference-cpu.md
-      // and the circuit's layout, not read from the recording. The first is the one the loupe shows.
-      const blocks = stage ? [...stage.querySelectorAll(".blocks li")] : [];
-      const names = [...document.querySelectorAll(".key li")].map((li) => li.textContent);
-      const uses = (asm, phase) => {
-        if (phase === "fetch") return [3, 4, 12];
-        const [op, arg = ""] = asm.split(" ");
-        const n = parseInt(arg, 16);
-        const device = arg.startsWith("0x") && n >= 0xf0;
-        if (op === "LDI") return [8, 5, 9];
-        if (op === "LDA") return device ? (n === 0xfd || n === 0xfe ? [1, 5, 13, 10, 8, 9] : [2, 5, 13, 10, 8, 9]) : [6, 5, 13, 10, 8, 9];
-        if (op === "STA") return n === 0xfc ? [2, 5, 13] : device ? [1, 5, 13] : [6, 5, 13];
-        if (op === "ADD" || op === "SUB") return [7, 5, 13, 6, 10, 8, 9];
-        if (op === "ADI" || op === "SBI") return [7, 5, 8, 9];
-        if (op === "JZ" || op === "JC") return [9, 5, 4];
-        if (op === "JMP") return [4, 5];
-        if (op === "OUT") return [11, 5];
-        if (op === "HLT") return [12, 5];
-        return [5];
-      };
-      const loupe = stage?.querySelector(".loupe");
-      const loupeVideo = loupe?.querySelector("video");
-      const showLoupe = (n) => {
-        const box = blocks[n - 1].style;
-        const [l, t, w, h] = ["--l", "--t", "--w", "--h"].map((k) => parseFloat(box.getPropertyValue(k)) / 100);
-        const LW = loupe.clientWidth;
-        const LH = loupe.clientHeight;
-        const ratio = 3072 / 1752;
-        const width = Math.min(LW / w, (LH * ratio) / h);
-        loupeVideo.style.width = `${width}px`;
-        loupeVideo.style.left = `${-l * width + (LW - width * w) / 2}px`;
-        loupeVideo.style.top = `${(-t * width) / ratio + (LH - (width * h) / ratio) / 2}px`;
-        stage.querySelector("[data-loupe]").textContent = names[n - 1];
-      };
-      const video = stage?.querySelector("video.cpu-steps");
-      const videos = stage ? [...stage.querySelectorAll("video")] : [];
-      const scrub = matchMedia("(prefers-reduced-motion: no-preference) and (min-width: 1081px)");
-      let stepping = false;
-      const setStepping = () => {
-        stepping = scrub.matches && frames.length > 0;
-        stage?.closest(".cpu-run").classList.toggle("is-scrub", stepping);
-        band?.closest(".cpu-stage").toggleAttribute("data-static", !stepping);
-        if (stepping && video.preload === "none") {
-          for (const v of videos) {
-            for (const source of v.querySelectorAll("source")) source.src = source.dataset.src;
-            v.preload = "auto";
-            v.load();
-          }
-        }
-      };
-      setStepping();
-      scrub.addEventListener("change", () => (setStepping(), measure(), schedule()));
       let top = 0;
       let ports = [];
       const measure = () => {
         const y = (el) => el.getBoundingClientRect().top + scrollY;
         ports = sections.map((section) => y(section));
-        const trace = document.querySelector(".trace");
-        top = y(trace) + trace.offsetHeight;
+        top = ports[0];
         // The spine is placed inside main, which starts below the header.
         spine.style.top = `${top - y(document.querySelector("main"))}px`;
         spine.style.height = `${ports.at(-1) - top}px`;
+        // Digits in the margin sit level with their heading.
+        for (const seg of document.querySelectorAll(".seg")) {
+          if (getComputedStyle(seg).position !== "absolute") continue;
+          const h = document.getElementById(seg.dataset.for);
+          seg.style.top = `${y(h) - y(seg.closest(".try, .chapter, .engine, .facts, .closing")) + 4}px`;
+        }
       };
       let queued = false;
-      let crossed = null;
-      const motion = matchMedia("(prefers-reduced-motion: no-preference)").matches;
       const update = () => {
         queued = false;
         const reading = scrollY + innerHeight / 3;
-        // Crossing a port is a clock edge: the segment past it goes high for a moment and the port
-        // latches, drawn in ink as a stored bit. At rest nothing on the spine is high.
-        const last = ports.findLastIndex((port) => reading >= port);
-        sections.forEach((section, i) => section.classList.toggle("is-latched", i <= last));
-        if (last !== crossed) {
-          if (crossed !== null && last > crossed && motion) {
-            const from = ports[last];
-            const to = ports[last + 1] ?? from;
-            lit.style.setProperty("--lit-top", `${from - top}px`);
-            lit.style.setProperty("--lit", `${to - from}px`);
-            lit.classList.remove("is-firing");
-            void lit.offsetWidth;
-            lit.classList.add("is-firing");
-            const section = sections[last];
-            section.classList.remove("is-firing");
-            void section.offsetWidth;
-            section.classList.add("is-firing");
-          }
-          crossed = last;
-        }
-        if (stepping) {
-          const track = stage.parentElement.getBoundingClientRect();
-          const t = Math.min(1, Math.max(0, (80 - track.top) / Math.max(1, track.height - stage.offsetHeight)));
-          const i = Math.round(t * (frames.length - 1));
-          const [pc, cycle, phase] = frames[i];
-          for (const v of videos) if (v.readyState >= 1) v.currentTime = i / 10 + 0.05;
-          stage.querySelector("[data-cycle]").textContent = cycle;
-          stage.querySelector("[data-phase]").textContent = phase;
-          stage.querySelector("[data-pc]").textContent = Number(pc).toString(16).toUpperCase().padStart(2, "0");
-          // Fetching: the word at the program counter. Executing: the word fetched the cycle before,
-          // now in the instruction register, both from the recording.
-          const word = phase === "execute" && i > 0 ? Number(frames[i - 1][0]) : Number(pc);
-          const cell = cells[word];
-          const used = uses(cell?.querySelector("b").textContent ?? "", phase);
-          blocks.forEach((b, k) => b.classList.toggle("is-used", used.includes(k + 1)));
-          stage.querySelector("[data-uses]").textContent = names[used[0] - 1];
-          showLoupe(used[0]);
-          if (cell) {
-            band.style.setProperty("--shift", `${band.parentElement.clientWidth / 2 - cell.offsetLeft - cell.offsetWidth / 2}px`);
-            cells.forEach((c) => {
-              c.classList.toggle("pc", c === cell && phase !== "execute");
-              c.classList.toggle("exec", c === cell && phase === "execute");
-            });
-          }
-        }
+        lit.style.setProperty("--lit", `${Math.max(0, Math.min(reading, ports.at(-1)) - top)}px`);
+        sections.forEach((section, i) => section.classList.toggle("is-reached", reading >= ports[i]));
       };
       const schedule = () => queued || ((queued = true), requestAnimationFrame(update));
       measure();
@@ -756,10 +675,90 @@
       addEventListener("resize", schedule, { passive: true });
       new ResizeObserver(() => (measure(), schedule())).observe(document.body);
 
+      // Fig. 5: the whole CPU from Reset, stepped with the arrows, the slider or Play, one recorded
+      // frame per clock cycle. The tape shows the word being fetched (outlined) or executed (filled);
+      // the blue outlines are the page's annotation of the blocks that kind of instruction needs,
+      // from docs/reference-cpu.md and the circuit's layout, not read from the recording.
+      const stage = document.querySelector(".cpu-stage");
+      const frames = (stage?.dataset.steps ?? "").split(";").filter(Boolean).map((f) => f.split("|"));
+      if (stage && frames.length) {
+        const run = stage.closest(".cpu-run");
+        const band = stage.querySelector("[data-rom]");
+        const cells = [...band.children];
+        const blocks = [...stage.querySelectorAll(".blocks li")];
+        const names = [...document.querySelectorAll(".key li")].map((li) => li.textContent);
+        const video = stage.querySelector("video.cpu-steps");
+        const controls = stage.querySelector(".cpu-controls");
+        const scrub = controls.querySelector("[data-scrub]");
+        const play = controls.querySelector("[data-play]");
+        const uses = (asm, phase) => {
+          if (phase === "fetch") return [3, 4, 12];
+          const [op, arg = ""] = asm.split(" ");
+          const n = parseInt(arg, 16);
+          const device = arg.startsWith("0x") && n >= 0xf0;
+          if (op === "LDI") return [8, 5, 9];
+          if (op === "LDA") return device ? (n === 0xfd ? [1, 5, 13, 10, 8, 9] : n === 0xff || n === 0xfc ? [2, 5, 13, 10, 8, 9] : [10, 5, 13, 8, 9]) : [6, 5, 13, 10, 8, 9];
+          if (op === "STA") return n === 0xfc ? [2, 5, 13, 8] : n === 0xfd ? [1, 5, 13, 8] : device ? [8, 5, 13] : [6, 5, 13, 8];
+          if (op === "ADD" || op === "SUB") return [7, 5, 13, 6, 10, 8, 9];
+          if (op === "ADI" || op === "SBI") return [7, 5, 8, 9];
+          if (op === "JZ" || op === "JC") return [9, 5, 4];
+          if (op === "JMP") return [4, 5];
+          if (op === "OUT") return [11, 5, 8];
+          if (op === "HLT") return [12, 5];
+          return [5];
+        };
+        let at = 0;
+        const render = () => {
+          const [pc, cycle, phase] = frames[at];
+          if (video.readyState >= 1) video.currentTime = at / 10 + 0.05;
+          scrub.value = String(at);
+          stage.querySelector("[data-cycle]").textContent = cycle;
+          stage.querySelector("[data-phase]").textContent = phase;
+          stage.querySelector("[data-pc]").textContent = Number(pc).toString(16).toUpperCase().padStart(2, "0");
+          // Fetching: the word at the program counter. Executing: the word fetched the cycle before.
+          const word = phase === "execute" && at > 0 ? Number(frames[at - 1][0]) : Number(pc);
+          const cell = cells[word];
+          const used = uses(cell?.querySelector("b").textContent ?? "", phase);
+          blocks.forEach((b, k) => b.classList.toggle("is-used", used.includes(k + 1)));
+          stage.querySelector("[data-uses]").textContent = names[used[0] - 1];
+          if (cell) {
+            band.style.setProperty("--shift", `${band.parentElement.clientWidth / 2 - cell.offsetLeft - cell.offsetWidth / 2}px`);
+            cells.forEach((c) => {
+              c.classList.toggle("pc", c === cell && phase !== "execute");
+              c.classList.toggle("exec", c === cell && phase === "execute");
+            });
+          }
+        };
+        const go = (i) => ((at = Math.max(0, Math.min(frames.length - 1, i))), render());
+        let timer = 0;
+        const stop = () => (clearInterval(timer), (timer = 0), (play.textContent = "Play"));
+        play.addEventListener("click", () => {
+          if (timer) return stop();
+          if (at === frames.length - 1) go(0);
+          play.textContent = "Pause";
+          timer = setInterval(() => (at === frames.length - 1 ? stop() : go(at + 1)), 450);
+        });
+        for (const b of controls.querySelectorAll("[data-step]")) b.addEventListener("click", () => (stop(), go(at + Number(b.dataset.step))));
+        scrub.addEventListener("input", () => (stop(), go(Number(scrub.value))));
+        // The frames load when the figure comes near, not with the page.
+        new IntersectionObserver(([entry], seen) => {
+          if (!entry.isIntersecting) return;
+          seen.disconnect();
+          for (const source of video.querySelectorAll("source")) source.src = source.dataset.src;
+          video.preload = "auto";
+          video.load();
+          video.addEventListener("loadeddata", () => (run.classList.add("is-live"), render()), { once: true });
+        }, { rootMargin: "600px" }).observe(stage);
+        controls.hidden = false;
+        run.classList.add("has-controls");
+        new ResizeObserver(() => render()).observe(band.parentElement);
+        render();
+      }
+
       // Figs. 3 and 7 open on the capture with every switch off and settle into the documented one
       // when half in view. Only with motion allowed; otherwise, and without the script, the
       // documented capture is all there is.
-      if (matchMedia("(prefers-reduced-motion: no-preference)").matches) {
+      if (motion) {
         const settle = new IntersectionObserver(
           (entries) => {
             for (const entry of entries) {
@@ -785,7 +784,7 @@
 
       // Fig. 11 is one frame that steps, placed, wired, lit, once it is in view.
       const first = document.querySelector(".first-steps");
-      if (first && matchMedia("(prefers-reduced-motion: no-preference)").matches) {
+      if (first && motion) {
         first.dataset.step = "0";
         const seen = new IntersectionObserver(([entry]) => {
           if (!entry.isIntersecting) return;
@@ -820,7 +819,7 @@
         };
       })().catch(() => {});
 
-      // Figs. 4 and 5 scroll sideways on narrow screens; only then are they a stop for the keyboard.
+      // Wide figures scroll sideways on narrow screens; only then are they a stop for the keyboard.
       for (const box of document.querySelectorAll("[data-label]")) {
         new ResizeObserver(() => {
           const scrolls = box.scrollWidth > box.clientWidth && getComputedStyle(box).overflowX !== "hidden";
@@ -834,59 +833,6 @@
             box.removeAttribute("aria-label");
           }
         }).observe(box);
-      }
-
-      // Fig. 2: a button that swaps the picture for the real editor. Made here, so it exists only
-      // where it works; the engine loads only when asked.
-      const frame = document.querySelector(".live-frame");
-      if (frame && matchMedia("(min-width: 721px)").matches) {
-        const start = document.createElement("button");
-        start.type = "button";
-        start.className = "button button-primary live-start";
-        start.textContent = "Load the editor here";
-        frame.parentElement.querySelector("figcaption").append(start);
-        frame.classList.add("has-start");
-        const load = () => {
-          if (frame.classList.contains("is-live")) return;
-          const editor = document.createElement("iframe");
-          editor.src = frame.dataset.src;
-          editor.title = "The Clockyard editor with a half adder";
-          frame.replaceChildren(editor);
-          start.remove();
-          frame.classList.replace("has-start", "is-live");
-          editor.focus();
-          const note = document.querySelector(".live-note");
-          if (note) note.textContent = "Click A or B to switch it. Until you click the editor, the wheel scrolls this page.";
-          editor.addEventListener("load", () => {
-            const doc = editor.contentDocument;
-            // Until the editor is clicked, the wheel scrolls this page instead of zooming the canvas.
-            let engaged = false;
-            doc.addEventListener("pointerdown", () => (engaged = true), { capture: true });
-            doc.addEventListener(
-              "wheel",
-              (event) => {
-                if (engaged) return;
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                scrollBy(0, event.deltaY);
-              },
-              { capture: true, passive: false },
-            );
-            // Frame the circuit once it has loaded, as the editor's own Fit button does.
-            const fit = () => [...doc.querySelectorAll("button")].find((b) => b.textContent.trim() === "Fit")?.click();
-            let tries = 0;
-            const wait = setInterval(() => {
-              const name = doc.querySelector(".project-name");
-              if ((name?.value ?? name?.textContent) === "Half adder" || ++tries > 80) {
-                clearInterval(wait);
-                fit();
-                setTimeout(fit, 400); // again once the canvas has its final size
-              }
-            }, 100);
-          });
-        };
-        start.addEventListener("click", load);
-        frame.querySelector("picture")?.addEventListener("click", load);
       }
     </script>
   </body>

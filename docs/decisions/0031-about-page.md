@@ -70,41 +70,37 @@ output, the design system as the source of truth.
    `#circuit=` link into the page, so the links match the current file
    format. Rerun it when the editor's look or the format changes:
    `node scripts/landing-shots.mjs http://localhost:5173` from `apps/web`.
-5. **The live figure loads the real editor on request.** A button (or a
-   click on the picture) replaces
-   a screenshot with the editor in an iframe at `../#circuit=…`, the half
-   adder. Nothing loads until it is pressed, it is offered only on wide
-   screens, and until the editor is clicked the wheel scrolls the page.
+5. **The half adder answers clicks without loading the engine.** Fig. 2
+   holds four captures of the editor, one per combination of switches A and
+   B, and buttons over the switches choose which is shown; the table beside
+   it is what the editor's readout said for each. Nothing is computed on the
+   page, so no evaluator outside `sim-core` (CLAUDE.md), and the editor
+   itself is one link away.
 6. **Motion stays optional.** The recording plays only while on screen,
    never on its own under `prefers-reduced-motion`, and always has a
    Pause/Play button. Its poster, one of its frames, stays in place until
    it plays, so the figure is never empty.
-7. **The page is drawn in the editor's own signals.** A clock line under
-   the headline ends in the recording's input port; on load one pulse runs
-   along it, and the recording starts when it arrives. A wire down the
-   margin (the spine) joins every section's port, and scrolling moves a 1
-   down it like a shift register: only the segment between the last port
-   passed and the next is high, and only that section's port, rule and
-   number (on seven-segment digits) are lit. Figs. 3 and 7 open on a capture
-   with every switch off and settle into the documented one when in view.
-   Fig. 5 is the whole CPU stepping from Reset: on wide screens, with
-   motion allowed, scrolling through it steps 64 frames, one per clock
-   cycle, captured from the running editor by the script (a keyframe every
-   16 frames keeps the video under 1 MB and any frame quick to seek to). Under it, Catch's
-   ROM is a tape under a read head, each word with its address and its
-   line of assembly. Each frame records the cycle, whether the CPU is
-   fetching or executing (the Fetch LED) and the program counter: the
-   word being fetched is outlined, the one executing (fetched the cycle
-   before) filled. Two enlarged views, cut from the same recording, show
-   the screen and the score digits. Otherwise the
-   mid-game capture and the whole ROM stand still. The challenge ladder marks the
-   challenges passed in this browser, read from the editor's IndexedDB
-   store (ADR 0029) read-only, in the editor's own passed colour. Amber
-   still means a 1, and nothing glows. With reduced motion there is no
-   pulse, no settle and no stepping: the ROM is shown whole and still.
-   The closing shows the literal first pulse in three captures, which
-   come on in turn in view: two switches, an AND gate and an LED placed
-   by their keys, wired, and lit.
+7. **The page is drawn in the editor's own signals.** A wire down the
+   margin (the spine) joins every section's port; the part above the
+   reading line is lit, and a section it reaches has its port and rule lit
+   and its number, on seven-segment digits, lit segment by segment. Figs. 3
+   and 7 open on a capture with every switch off and settle into the
+   documented one in view. Fig. 5 is the whole CPU from Reset, stepped by
+   the reader with arrows, a slider or Play: 64 frames, one per clock
+   cycle, captured from the running editor with the cycle, the Fetch LED
+   and the program counter. Under it, Catch's ROM is a tape under a read
+   head, each word with its address and line of assembly: the word being
+   fetched is outlined, the one executing filled. Blue outlines mark the
+   blocks the current instruction uses; they are the page's annotation from
+   the opcode and the circuit's layout, and the caption says so. Fig. 9 is a
+   timing diagram of the worker protocol (`load`, `setInputs`, `state`)
+   for one edit and one click, drawn as the waveform panel draws lanes. The
+   challenge ladder marks the challenges passed in this browser, read
+   read-only from the editor's IndexedDB store (ADR 0029). With reduced
+   motion nothing moves on its own; the spine still follows the scroll.
+   The closing shows the first pulse in three captures that come on in
+   turn: two switches, an AND gate and an LED placed by their keys, wired,
+   and lit.
 
 ## Consequences
 

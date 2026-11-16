@@ -170,7 +170,7 @@ strong { font-weight: 600; color: var(--ink); }
 }
 .shot figcaption {
   margin-top: 12px;
-  max-width: 78ch;
+  max-width: none;
   font-size: 14px;
   line-height: 1.55;
   color: var(--ink-muted);
@@ -186,7 +186,7 @@ video.loop { display: block; width: 100%; height: auto; }
 .loop-frame.is-playing .loop-poster { display: none; }
 /* Figures with a control: the caption on the left, the control on the right. */
 .hero-fig figcaption, .live figcaption { display: flex; gap: 24px; align-items: start; max-width: none; }
-.hero-fig .cap, .live .cap { max-width: 78ch; }
+.hero-fig .cap, .live .cap { max-width: none; flex: 1; }
 .loop-toggle { flex: none; height: 28px; padding: 0 12px; font-size: 13px; }
 
 /* Sections: one rule between them, starting at an input port like the mark's wire. Headings sit over their lede. */
@@ -425,7 +425,7 @@ video.loop { display: block; width: 100%; height: auto; }
 .to-page { --out: 100%; --in: 0%; }
 .to-worker::before { content: "→ " / ""; }
 .to-page::before { content: "← " / ""; }
-.arch figcaption { margin-top: 12px; max-width: 78ch; font-size: 14px; color: var(--ink-muted); }
+.arch figcaption { margin-top: 12px; max-width: none; font-size: 14px; color: var(--ink-muted); }
 .engine-notes { display: grid; grid-template-columns: 6fr 5fr; gap: 56px; align-items: start; margin-top: 48px; }
 .engine-notes > * { min-width: 0; }
 .principles { display: grid; gap: 22px; font-size: 15px; line-height: 1.6; color: var(--ink-muted); }
@@ -547,34 +547,12 @@ video.loop { display: block; width: 100%; height: auto; }
 }
 main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw, a scrollbar included */
 
-/* The first pulse: a clock line under the head that ends in the recording's input port. */
-.trace {
-  --port: min(calc(50vw + var(--wrap) / 2), calc(100vw - var(--gutter)));
-  position: relative;
-  height: 30px;
-  margin: 20px calc(50% - 50vw) 0;
-}
-.trace::before { content: ""; position: absolute; left: 0; bottom: 0; width: var(--port); height: 2px; background: var(--signal-low); }
-.trace-name { position: absolute; left: max(var(--gutter), calc((100vw - var(--wrap)) / 2)); bottom: 10px; font: 500 12px/1 var(--font-mono); color: var(--ink-muted); }
-.trace-port { position: absolute; left: calc(var(--port) - 1px); bottom: -4px; width: 10px; height: 10px; border: 2px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bench); transition: background-color 120ms, border-color 120ms; }
-@media (prefers-reduced-motion: no-preference) {
-  .trace::before { animation: clk-high 360ms steps(1, end) 500ms both; }
-  @keyframes clk-high { from { height: 4px; bottom: -1px; background: var(--signal-high); } to { height: 2px; bottom: 0; background: var(--signal-low); } }
-  .trace.is-arrived .trace-port { animation: port-hit 360ms steps(1, end); }
-  @keyframes port-hit { from { background: var(--signal-high); border-color: var(--signal-high); } }
-}
 /* The spine: one wire down the margin, through every section's port. Scrolling drives a 1 down it. */
 .spine { position: absolute; left: calc(var(--spine-x) - 1px); width: 2px; background: var(--signal-low); pointer-events: none; }
-/* Its start under the clock line: an input port, as the canvas draws one; the spine is its own net. */
-.spine::before { content: ""; position: absolute; top: 8px; left: -4px; width: 10px; height: 10px; border: 2px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bench); z-index: 1; }
-.spine-lit { position: absolute; left: -0.5px; width: 3px; top: var(--lit-top, 0px); height: var(--lit, 0px); background: var(--signal-high); opacity: 0; }
-.spine-lit.is-firing { animation: fire 420ms steps(1, end); }
-@keyframes fire { from { opacity: 1; } to { opacity: 0; } }
+.spine-lit { position: absolute; left: -0.5px; width: 3px; top: 0; height: var(--lit, 0px); background: var(--signal-high); }
 .try, .chapter, .engine, .facts, .closing { --port-x: var(--spine-x); }
 .try::before, .chapter::before, .engine::before, .facts::before, .closing::before { z-index: 1; transition: background-color 160ms, border-color 160ms; }
-.is-latched::before { background: var(--ink); border-color: var(--ink); }
-.is-firing::before { animation: fire-port 420ms steps(1, end); }
-@keyframes fire-port { from { background: var(--signal-high); border-color: var(--signal-high); } }
+.is-reached::before { background: var(--signal-high); border-color: var(--signal-high); }
 /* A reached section's wire goes high, from its port across the page, and low again above it. */
 .try::after, .chapter::after, .engine::after, .facts::after, .closing::after {
   content: "";
@@ -588,8 +566,22 @@ main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw
   transform-origin: left;
   pointer-events: none;
 }
-.is-firing::after { animation: fire-rule 420ms steps(1, end); }
-@keyframes fire-rule { from { transform: scaleX(1); } to { transform: scaleX(1); opacity: 0; } }
+.is-reached::after { transform: scaleX(1); }
+@media (prefers-reduced-motion: no-preference) {
+  .try::after, .chapter::after, .engine::after, .facts::after, .closing::after { transition: transform 450ms cubic-bezier(0.3, 0, 0.2, 1); }
+}
+
+/* Section numbers on seven-segment digits, lit when the reading line reaches the section. */
+.seg { display: block; height: 30px; width: auto; margin-bottom: 14px; overflow: visible; }
+.seg rect { fill: color-mix(in srgb, var(--line) 35%, transparent); transition: fill 160ms ease-out; }
+.seg rect.on { fill: var(--line-strong); }
+.is-reached .seg rect.on { fill: var(--signal-high); }
+@media (min-width: 1400px) {
+  .seg { position: absolute; margin: 0; left: calc(var(--spine-x) - 66px); height: 44px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .seg rect { transition-delay: calc(var(--i, 0) * 45ms); }
+}
 
 /* Figs. 3 and 7: the capture as it opens, over the documented one, until it settles. */
 .settle-off { display: none; }
@@ -629,29 +621,22 @@ main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw
 .rom-words .pc b { color: var(--ink); }
 .rom-words .exec { color: var(--bench); background: var(--ink); }
 .rom-words .exec i, .rom-words .exec b { color: var(--bench); }
-/* Stepping: a tall track the stage sticks in; the frames replace the still; the map fits the screen. */
-.cpu-run.is-scrub .cpu-track { height: 200vh; }
-.cpu-run.is-scrub .cpu-stage { position: sticky; top: 80px; }
-.cpu-run.is-scrub .cpu-steps { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
-.cpu-run.is-scrub .map { width: min(100%, calc((100vh - 250px) * 3072 / 1752)); margin-inline: auto; }
-.cpu-run.is-scrub .map picture { opacity: 0; }
-.cpu-loupe { display: none; margin: 0; }
-.cpu-run.is-scrub .cpu-stage { display: grid; grid-template-columns: minmax(0, 1fr) 300px; column-gap: 24px; align-items: start; margin-inline: calc(50% - 50vw); padding-inline: max(calc(var(--spine-x) + 28px), calc((100vw - var(--wrap)) / 2)); }
-.cpu-run.is-scrub .map-scroll { margin-inline: 0; padding-inline: 0; }
-.cpu-run.is-scrub .cpu-stage > :not(.map-scroll, .cpu-loupe) { grid-column: 1 / -1; }
-.cpu-run.is-scrub .cpu-loupe { display: block; padding-top: 24px; }
-.loupe { position: relative; overflow: hidden; height: 260px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bench); }
-.loupe video { position: absolute; max-width: none; }
-.cpu-loupe figcaption { margin-top: 8px; font: 500 12px/1.4 var(--font-mono); color: var(--ink-muted); }
-.cpu-loupe [data-loupe] { color: var(--ink); }
+/* Stepping, driven by the reader: the recorded frames over the still once loaded. */
+.cpu-run.is-live .cpu-steps { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
+.cpu-run.is-live .map picture { opacity: 0; }
+/* With controls, the map, the controls, the readout and the tape fit one screen. */
+@media (min-width: 721px) { .cpu-run.has-controls .map { width: min(100%, calc((100vh - 300px) * 3072 / 1752)); margin-inline: auto; } }
+.cpu-run.has-controls .blocks li { opacity: 0.25; }
+.cpu-run.has-controls .blocks li.is-used { opacity: 1; border: 2px solid var(--accent); }
+.cpu-controls { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.cpu-controls[hidden] { display: none; }
+.cpu-controls .button { min-width: 44px; justify-content: center; }
+.cpu-controls input[type="range"] { flex: 1; accent-color: var(--accent); }
 .cpu-readout [data-uses] { color: var(--accent); }
-.cpu-run.is-scrub .blocks li { opacity: 0.18; }
-.cpu-run.is-scrub .blocks li.is-used { opacity: 1; border: 2px solid var(--accent); }
-.cpu-run.is-scrub:has(.key li:hover, .blocks li:hover) .blocks { opacity: 1; }
 /* Still: the capture mid-game, and the whole ROM as a strip to scroll by hand. */
-[data-static] .cpu-readout, [data-static] .rom-head, .cpu-run:not(.is-scrub) .scrub-note, .cpu-run.is-scrub .still-note { display: none; }
-[data-static] .rom-strip { mask-image: none; overflow-x: auto; }
-[data-static] .rom-words { transform: none; }
+.cpu-run:not(.has-controls) .cpu-readout, .cpu-run:not(.has-controls) .rom-head, .cpu-run:not(.has-controls) .scrub-note, .cpu-run.has-controls .still-note { display: none; }
+.cpu-run:not(.has-controls) .rom-strip { mask-image: none; overflow-x: auto; }
+.cpu-run:not(.has-controls) .rom-words { transform: none; }
 
 /* The closing: the first pulse in three captures. */
 .first-pulse { align-self: center; }
@@ -668,3 +653,50 @@ main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw
 
 
 @media print { .spine, .trace-pulse, .trace-port { display: none; } }
+
+/* Fig. 2: the half adder, four captures; the switches in the picture choose which. */
+.ha { margin-top: 32px; }
+.ha-row { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 56px; align-items: center; }
+.ha-stage { position: relative; display: grid; }
+.ha-stage > picture { grid-area: 1 / 1; visibility: hidden; }
+.ha-stage[data-state="00"] > [data-state="00"], .ha-stage[data-state="10"] > [data-state="10"],
+.ha-stage[data-state="01"] > [data-state="01"], .ha-stage[data-state="11"] > [data-state="11"] { visibility: visible; }
+.ha-switch { position: absolute; left: var(--l); top: var(--t); width: var(--w); height: var(--h); padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; cursor: pointer; }
+.ha-switch:hover { box-shadow: 0 0 0 2px var(--accent); }
+.ha-switch:focus-visible { outline: 2px solid transparent; box-shadow: var(--focus-ring); }
+/* Until the first click, the switches say they can be clicked. */
+.ha-stage:not(.was-clicked) .ha-switch:not([hidden]) { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
+@media (prefers-reduced-motion: no-preference) {
+  .ha-stage:not(.was-clicked) .ha-switch:not([hidden]) { animation: invite 1600ms ease-in-out 3; }
+  @keyframes invite { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 35%, transparent); } }
+}
+.ha-side { display: grid; gap: 18px; }
+.ha-hint { margin: 0; font-size: 15px; color: var(--ink); }
+.ha-hint [hidden] { display: none; }
+.ha-table { width: 100%; border-collapse: collapse; font: 500 20px/1 var(--font-mono); }
+.ha-table caption { caption-side: bottom; text-align: left; padding-top: 12px; font: 400 13px/1.4 var(--font-sans); color: var(--ink-muted); }
+.ha-table th, .ha-table td { padding: 14px 10px; text-align: center; border-bottom: 1px solid var(--line); }
+.ha-table th { font: 500 12px/1 var(--font-mono); color: var(--ink-muted); }
+.ha-table th:nth-child(3), .ha-table td:nth-child(3) { border-left: 1px solid var(--line); }
+.ha-table td { color: var(--ink-muted); }
+.ha-table td.one { color: var(--signal-high); }
+.ha-table tr.is-now td { color: var(--ink); background: var(--panel-raised); }
+.ha-table tr.is-now td.one { color: var(--signal-high); }
+.ha-table tr.is-now td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+@media (max-width: 760px) { .ha-row { grid-template-columns: 1fr; gap: 24px; } }
+
+/* Fig. 9: a timing diagram, lanes as the waveform panel draws them. */
+.timeline-scroll { overflow-x: auto; }
+.timeline { display: block; width: 100%; min-width: 760px; height: auto; font-family: var(--font-mono); }
+.tl-lane { font-size: 13px; font-weight: 500; fill: var(--ink); }
+.tl-head { font-size: 12px; fill: var(--ink-muted); }
+.tl-base { stroke: var(--line); stroke-width: 1; fill: none; }
+.tl-split { stroke: var(--line); stroke-width: 1; }
+.tl-busy { stroke: var(--ink); stroke-width: 2; fill: none; }
+.tl-note { font-size: 11px; fill: var(--ink-muted); text-anchor: middle; }
+.tl-cell { fill: var(--panel-raised); stroke: var(--signal-bus); stroke-width: 1.5; }
+.tl-cell-text { font-size: 11px; fill: var(--ink); text-anchor: middle; }
+.tl-event { stroke: var(--accent); stroke-width: 2; }
+.tl-event-dot { fill: var(--accent); }
+.tl-event-text { font-size: 11px; fill: var(--ink); text-anchor: start; }
+.tl-free { font-size: 11px; fill: var(--ink-muted); font-style: italic; text-anchor: middle; }

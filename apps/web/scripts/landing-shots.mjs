@@ -24,6 +24,7 @@ const ffmpeg = join(root, ffmpegDir, readdirSync(join(root, ffmpegDir)).find((f)
 const browser = await chromium.launch();
 const links = {};
 const steps = [];
+const halfAdder = [];
 
 async function session(theme, viewport = { width: 1440, height: 900 }, scale = 2) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: scale, colorScheme: theme, locale: "en-GB" });
@@ -75,16 +76,9 @@ for (const theme of ["dark", "light"]) {
   const s = await session(theme);
   const { page, button, inspector, click, drag, open, shot, link } = s;
 
-  // Half adder, as the live figure's poster: the frame is 1180 x 620.
-  await page.setViewportSize({ width: 1180, height: 620 });
+  // The half adder, for the clickable figure: the same crop with each combination of A and B.
   await open(example("half-adder"));
-  await button("Fit").click(); // as the page does once the live editor loads
-  await shot("live");
-  await page.addStyleTag({ content: ".zoom-controls { visibility: hidden; }" }); // view chrome, unreadable at phone size
-  await shot("live-narrow", { x: 232, y: 45, width: 668, height: 548 }); // the canvas alone, for phones
-  await link("half-adder"); // after the shot: Copy link shows a notice in the toolbar
-  await page.setViewportSize({ width: 1440, height: 900 });
-
+  await link("half-adder");
   // 4-bit adder: 5 + 3 + 1 = 9, lit wires through four full-adder instances.
   await open(example("4-bit-adder"));
   await link("4-bit-adder");
@@ -217,6 +211,31 @@ for (const theme of ["dark", "light"]) {
   await wide.shot("cpu", canvas);
   await wide.context.close();
 }
+// The half adder in all four states, at 4x, for Fig. 2: the crop starts a cell above and left of
+// switch A and is 18 x 15 cells, so the page can place its switch buttons from the parts' cells.
+for (const theme of ["dark", "light"]) {
+  const { context, page, click, open, readout } = await session(theme, { width: 1200, height: 800 }, 4);
+  await open(example("half-adder"));
+  const box = await page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
+  const area = { x: box.x + ORIGIN - CELL, y: box.y + ORIGIN - CELL, width: 18 * CELL, height: 15 * CELL };
+  const state = async (name) => {
+    await click(20, 12); // empty canvas: clear the selection
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: here(`../about/shots/ha-${name}-${theme}.png`), clip: area });
+    const on = async (led) => ((await readout(`LED ${led}`).textContent()).endsWith("on") ? 1 : 0);
+    if (theme === "dark") halfAdder.push([name, await on("Sum"), await on("Carry")]);
+  };
+  await state("00");
+  await click(1, 1); // A on
+  await state("10");
+  await click(1, 11); // B on
+  await state("11");
+  await click(1, 1); // A off
+  await state("01");
+  await context.close();
+}
+
 // The literal first pulse, for the closing: two switches, an AND gate and an LED placed by their
 // shortcut keys, wired, then both switches on.
 for (const theme of ["dark", "light"]) {
@@ -366,6 +385,10 @@ for (const [name, fragment] of Object.entries(links)) {
   page = page.replace(new RegExp(`(data-example="${name}"[^>]*?(?:href|data-src)=")[^"]*`, "g"), (_, attr) => `${attr}../#${fragment}`);
 }
 // The stepping frames' program counter and cycle, for Fig. 5.
+if (halfAdder.length !== 4) throw new Error(`half adder: ${halfAdder.length} states`);
+const order = ["00", "10", "01", "11"];
+const rows = order.map((name) => halfAdder.find(([n]) => n === name)).map(([name, sum, carry]) => `<tr data-state="${name}"><td${name[0] === "1" ? ' class="one"' : ""}>${name[0]}</td><td${name[1] === "1" ? ' class="one"' : ""}>${name[1]}</td><td${sum ? ' class="one"' : ""}>${sum}</td><td${carry ? ' class="one"' : ""}>${carry}</td></tr>`);
+page = page.replace(/<tbody data-ha-rows>[\s\S]*?<\/tbody>/, `<tbody data-ha-rows>${rows.join("")}</tbody>`);
 if (steps.length !== 64) throw new Error(`steps: ${steps.length} frames, not 64`);
 page = page.replace(/data-steps="[^"]*"/, `data-steps="${steps.join(";")}"`);
 writeFileSync(html, page);
