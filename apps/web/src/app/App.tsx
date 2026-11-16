@@ -163,7 +163,7 @@ function currentDocument(): CircuitDocument {
 /** Asks before an opened file or link replaces a circuit that has parts. */
 function mayReplace(): boolean {
   const state = useEditor.getState();
-  const replacing = mainCircuit(state).components.length > 0 || state.definitions.length > 0;
+  const replacing = mainCircuit(state).components.length > 0 || state.definitions.length > 0 || normalizeNotes(state.metadata.notes ?? "") !== "";
   return !replacing || window.confirm("Replace the current circuit? Changes since your last export will be lost.");
 }
 
@@ -734,11 +734,14 @@ function ChallengeList() {
 /** The bundled examples, from a gate to a game (ADR 0027); each opens as Import opens a file, asking before it replaces a circuit. */
 function ExampleList() {
   const [problem, setProblem] = useState<string | null>(null);
+  // Only the latest click opens: a second click, or another example's file loading sooner, never asks twice.
+  const latest = useRef(0);
   const open = async (name: string) => {
+    const me = ++latest.current;
     setProblem(null);
     try {
       const document = await exampleDocument(name);
-      if (mayReplace()) useEditor.getState().load(document);
+      if (me === latest.current && mayReplace()) useEditor.getState().load(document);
     } catch (error) {
       // Bundled and proved to open by examples.test.ts; what remains is the file failing to load.
       setProblem(`Could not open the example: ${error instanceof Error ? error.message : String(error)}`);
@@ -785,13 +788,12 @@ function NotesPanel() {
           aria-describedby={`${id}-hint`}
           className="input notes"
           rows={8}
-          maxLength={MAX_NOTES}
           value={notes}
           placeholder="What this circuit does, and what to try."
           onChange={(e) => useEditor.getState().setNotes(e.target.value)}
         />
         <p id={`${id}-hint`} className="field-hint">
-          Plain text, saved with the file and in links. A blank line starts a new paragraph.
+          {`Plain text, saved with the file and in links, up to ${MAX_NOTES.toLocaleString("en")} characters. A blank line starts a new paragraph.`}
         </p>
       </div>
     </section>

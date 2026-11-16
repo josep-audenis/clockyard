@@ -5,7 +5,7 @@
     "name": "Cascade with fan-out",
     "createdAt": "2026-11-06T12:00:00.000Z",
     "modifiedAt": "2026-11-06T12:00:00.000Z",
-    "notes": "Gates in two levels, with one output driving several inputs (fan-out). Switch A feeds the XOR gate, the AND gate and the left LED; the XOR of A and B feeds the AND gate too.\n\nSo the right LED lights when A AND (A XOR B) is 1, which is when A is on and B is off. Try all four combinations of the two switches.\n\nEvery change settles through both levels at once: the LEDs never show a value halfway through."
+    "notes": "Gates in two levels, with one output driving several inputs (fan-out). Switch 1 (call it A) feeds the XOR gate, the AND gate and the left LED; the XOR of A and Switch 2 (B) feeds the AND gate too.\n\nSo the right LED lights when A AND (A XOR B) is 1, which is when A is on and B is off. Try all four combinations of the two switches.\n\nEvery change settles through both levels at once: the LEDs never show a value halfway through."
   },
   "circuit": {
     "components": [

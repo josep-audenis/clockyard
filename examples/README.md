@@ -7,8 +7,8 @@ into the example files.
 
 Examples are written in format version 11 (ADR 0027): each carries its own notes in
 `metadata.notes`, saying what it shows and what to try, which the editor's Notes panel shows. Open
-one from the **Examples** list in the editor, in the order of the table below; Import opens the
-files too. `apps/web/src/storage/examples.ts` lists them, and its test fails if a file is missing
+one from the **Examples** list in the editor, which orders them from the AND gate to Catch;
+Import opens the files too. `apps/web/src/storage/examples.ts` lists them, and its test fails if a file is missing
 from the list or its title differs from the file's own name. `crates/sim-core/tests/examples.rs` checks their
 outputs natively, `apps/web/src/storage/file.test.ts` checks every file parses,
 and the Playwright tests in `apps/web/e2e/` drive them in the browser.

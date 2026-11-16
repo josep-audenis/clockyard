@@ -258,6 +258,8 @@ test("a version 10 file is migrated: only the version changes; notes round-trip 
   // Line endings and blank space around are normalized; blank notes are none.
   const crlf = broken((doc) => Object.assign(doc.metadata, { notes: "  A\r\n\r\nB  " }));
   expect(crlf.ok && crlf.document.metadata.notes).toBe("A\n\nB");
+  const hidden = broken((doc) => Object.assign(doc.metadata, { notes: "A\u202Eevil\u0007\tB" }));
+  expect(hidden.ok && hidden.document.metadata.notes).toBe("Aevil\tB");
   const blank = broken((doc) => Object.assign(doc.metadata, { notes: " \n " }));
   expect(blank.ok && blank.document.metadata).not.toHaveProperty("notes");
   expect(broken((doc) => Object.assign(doc.metadata, { notes: "x".repeat(4001) }))).toEqual({

@@ -1,7 +1,7 @@
 {
   "format": "clockyard",
   "version": 11,
-  "metadata": {"name": "4-bit adder", "createdAt": "2026-11-07T12:00:00.000Z", "modifiedAt": "2026-11-07T12:00:00.000Z", "notes": "Four full adders in a chain add two 4-bit numbers, A3..A0 and B3..B0. Each full adder adds one column with the carry from the column before; its Cout is the next column's Cin.\n\nThe full adder is a component: built once from gates, then placed four times. Select one and use Edit component to open it on its own sheet. Its switches A, B and Cin and its LEDs S and Cout are its pins.\n\nTry: A = 0011 and B = 0001 gives S = 0100. Turn Cin on to add one more."},
+  "metadata": {"name": "4-bit adder", "createdAt": "2026-11-07T12:00:00.000Z", "modifiedAt": "2026-11-07T12:00:00.000Z", "notes": "Four full adders in a chain add two 4-bit numbers, A3..A0 and B3..B0. Each full adder adds one column with the carry from the column before; its Cout is the next column's Cin.\n\nThe full adder is a component: built once from gates, then placed four times. Select one and use Edit component to open it on its own sheet. Its switches A, B and Cin and its LEDs S and Cout are its pins.\n\nTry: turn A0 and A1 on (3) and B0 on (1): S2 lights, which is 4. Turn Cin on to add one more."},
   "circuit": {
     "components": [
       {"id": "cin", "kind": "switch", "position": {"x": 0, "y": 6}, "rotation": 0, "props": {"label": "Cin"}},

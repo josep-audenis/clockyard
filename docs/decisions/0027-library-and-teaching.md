@@ -58,10 +58,15 @@ What exists today:
      notes normalized as Import reads them. Every example file is now
      format 11. The README keeps its table of descriptions for readers of
      the repository; the notes are the editor's version of them.
+   - *As built (review):* notes drop control and bidi characters other
+     than line breaks and tabs, as labels do, since they could hide or
+     reorder the text. Length is counted in characters (code points)
+     everywhere. Notes alone count as a circuit worth asking about before
+     an example, a starter or a file replaces it.
 2. **Every example gets notes, and the editor lists the examples.**
    - Each example's notes say what it shows and what to try: the text now
      in `examples/README.md`, written for someone reading it next to the
-     circuit. The README keeps a short table that points to the files.
+     circuit.
    - The generated examples (`reference-cpu`, `catch`) get their notes from
      `scripts/reference-cpu.mjs`, and its `--check` holds them, as it holds
      the rest of the file.

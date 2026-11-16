@@ -62,7 +62,7 @@ optional `metadata.notes`, plain text of at most 4,000 characters that the Notes
 ```json
 {
   "format": "clockyard",
-  "version": 9,
+  "version": 11,
   "metadata": { "name": "AND demo", "createdAt": "2026-11-06T12:00:00Z", "modifiedAt": "2026-11-06T12:00:00Z" },
   "circuit": {
     "components": [

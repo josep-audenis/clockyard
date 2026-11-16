@@ -1276,7 +1276,8 @@ test("notes are the document's, outside undo, cut to MAX_NOTES characters, and e
   setNotes("Hello.");
   expect(useEditor.getState().metadata.notes).toBe("Hello.");
   expect(useEditor.getState().past).toEqual([]);
-  setNotes("é".repeat(4100));
+  // Characters, not UTF-16 units: an emoji is one.
+  setNotes("😀".repeat(4100));
   expect([...(useEditor.getState().metadata.notes ?? "")]).toHaveLength(4000);
   setNotes("");
   expect(useEditor.getState().metadata.notes).toBeUndefined();
