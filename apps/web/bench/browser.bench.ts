@@ -24,6 +24,10 @@ const PLACES: Record<string, { drag: [number, number]; toggle?: [number, number]
 
 export type Row = {
   name: string;
+  /** The run it came from (`bench/setup.ts`): a table gathers one run only. */
+  run: string;
+  /** The WebGL renderer the page drew with. */
+  renderer: string | null;
   openMs: number | null;
   /** Of the open: routing every wire, and drawing, both on the main thread. */
   openRouteMs: number | null;
@@ -34,7 +38,8 @@ export type Row = {
   panFps: number | null;
   cyclesPerSecond: number | null;
   saveMs: number | null;
-  note?: string;
+  /** Steps that failed or were skipped, and why: a missing number is never silent. */
+  notes: string[];
 };
 const rows = `${generated}browser/`;
 const sizes = process.env.BENCH_SIZES?.split(",");
@@ -54,7 +59,7 @@ const measures = (page: Page, name: string) =>
   }, name);
 
 /** Waits, frame by frame, until the page shows `predicate`; how long that took, in ms. */
-async function until(page: Page, predicate: () => boolean, timeout = 180_000): Promise<number> {
+async function until(page: Page, predicate: () => boolean, timeout: number): Promise<number> {
   const start = Date.now();
   await page.waitForFunction(predicate, null, { polling: "raf", timeout });
   return Date.now() - start;
@@ -76,30 +81,67 @@ const files = (() => {
   }
 })();
 
+/** The run this process belongs to, stamped on every row (`bench/setup.ts`), so a table never mixes runs. */
+const RUN = process.env.BENCH_RUN ?? "unstamped";
+
+/** The first line of a failure, for a row's notes. */
+const firstLine = (error: unknown) => (error instanceof Error ? error.message : String(error)).split("\n")[0] ?? "failed";
+
 for (const name of files) {
   test(name, async ({ page }) => {
-    test.setTimeout(1_800_000);
-    const family = name.split("-")[0] ?? "";
+    test.setTimeout(2_400_000);
+    const [family = "", size = ""] = name.split("-");
     const places = PLACES[family] ?? { drag: [1, 1] };
-    const row: Row = { name, openMs: null, openRouteMs: null, openDrawMs: null, toggleMs: null, dragDrawMs: null, dragSyncMs: null, panFps: null, cyclesPerSecond: null, saveMs: null };
+    const row: Row = {
+      name,
+      run: RUN,
+      renderer: null,
+      openMs: null,
+      openRouteMs: null,
+      openDrawMs: null,
+      toggleMs: null,
+      dragDrawMs: null,
+      dragSyncMs: null,
+      panFps: null,
+      cyclesPerSecond: null,
+      saveMs: null,
+      notes: [],
+    };
     // Written after every step, so a step that times out keeps what came before it.
     mkdirSync(rows, { recursive: true });
     const keep = () => writeFileSync(`${rows}${name}.json`, JSON.stringify(row));
     const sum = (values: number[]) => (values.length ? values.reduce((a, b) => a + b, 0) : null);
+    /** A step whose failure is a note in the row, not a lost run: the steps after it still run. */
+    const step = async (what: string, f: () => Promise<void>) => {
+      try {
+        await f();
+      } catch (error) {
+        row.notes.push(`${what}: ${firstLine(error)}`);
+      }
+      keep();
+    };
     keep();
     await page.goto("/?bench");
     await expect(page.getByRole("status")).toContainText(/No circuit|Settled/);
+    // The WebGL renderer: a software one (SwiftShader) makes every frame slower than a graphics card would.
+    row.renderer = await page.evaluate(() => {
+      const gl = document.createElement("canvas").getContext("webgl");
+      const info = gl?.getExtension("WEBGL_debug_renderer_info");
+      return gl && info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : null;
+    });
     const box = await page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
     if (!box) throw new Error("canvas not visible");
     const at = (x: number, y: number) => ({ x: box.x + ORIGIN + x * CELL, y: box.y + ORIGIN + y * CELL });
 
-    // Open: from choosing the file until the engine has settled it and the canvas has drawn it.
+    // Open: from choosing the file until the engine has answered the load and settled it (`clockyard:engine-ready`,
+    // recorded when the first state after the load arrives), and two frames have been drawn since.
+    await page.evaluate(() => performance.clearMeasures());
     const opening = Date.now();
     await page.locator('[data-testid="import-file"]').setInputFiles(`${generated}${name}.clockyard.json`);
     try {
-      await until(page, () => /Settled|Stopped/.test(document.querySelector(".status-state")?.textContent ?? ""));
+      await until(page, () => performance.getEntriesByName("clockyard:engine-ready").length > 0, 900_000);
     } catch {
-      row.note = "did not open within 3 minutes";
+      row.notes.push("did not open within 15 minutes");
       return keep();
     }
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -108,85 +150,92 @@ for (const name of files) {
     row.openDrawMs = sum(await measures(page, "draw"));
     keep();
     if (await page.getByRole("status").getByText("Invalid").count()) {
-      row.note = (await page.locator(".status-message").textContent()) ?? "invalid";
+      row.notes.push((await page.locator(".status-message").textContent()) ?? "invalid");
+      return keep();
+    }
+    // Every later step takes minutes at the largest size, where opening is the measurement that matters.
+    if (size === "50k") {
+      row.notes.push("opening only at this size");
       return keep();
     }
 
-    // Toggle: a click on a switch until the readout says it is on, which follows the engine's settle.
+    // Toggle: a click on a switch until the readout says it is on, which follows the engine's settle (the readout is
+    // React's, so the canvas's redraw is not included).
     if (places.toggle && places.switch) {
-      // The switch's line of the readout says "on" once the engine has settled the change. The readout is for screen
-      // readers, so hidden: attached is what counts.
-      const on = page.getByRole("list", { name: "Inputs and outputs" }).locator("li", { hasText: `${places.switch}: on` });
-      const t = at(...places.toggle);
-      const start = Date.now();
-      await page.mouse.click(t.x, t.y);
-      await on.waitFor({ state: "attached", timeout: 120_000 });
-      row.toggleMs = Date.now() - start;
-      keep();
+      const toggle = places.toggle;
+      await step("toggle", async () => {
+        // The readout is for screen readers, so hidden: attached is what counts.
+        const on = page.getByRole("list", { name: "Inputs and outputs" }).locator("li", { hasText: `${places.switch}: on` });
+        const t = at(...toggle);
+        const start = Date.now();
+        await page.mouse.click(t.x, t.y);
+        await on.waitFor({ state: "attached", timeout: 300_000 });
+        row.toggleMs = Date.now() - start;
+      });
     }
 
-    // Drag: a part moved by two cells in ten steps; each step costs a sync (geometry only) and a redraw.
-    await measures(page, "draw");
-    await measures(page, "sync");
-    // Cleared before the drag: its save may land while the drag is still being drawn.
-    await measures(page, "save");
-    const grab = at(...places.drag);
-    await page.mouse.move(grab.x, grab.y);
-    await page.mouse.down();
-    await page.mouse.move(grab.x, grab.y + 2 * CELL, { steps: 10 });
-    await page.mouse.up();
-    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    row.dragDrawMs = median(await measures(page, "draw"));
-    row.dragSyncMs = median(await measures(page, "sync"));
-    keep();
-
-    // Autosave: the drag is a change, saved a second later.
-    const saved = await page.waitForFunction(() => performance.getEntriesByName("clockyard:save").length > 0, null, { timeout: 120_000 }).then(
-      () => true,
-      () => false,
-    );
-    if (saved) row.saveMs = median(await measures(page, "save"));
-    keep();
+    // Drag: a part moved by two cells in ten steps; each step costs a sync (geometry only) and a redraw. Then the
+    // autosave the move causes: no save means the drag changed nothing, and its numbers would measure something else.
+    await step("drag", async () => {
+      await measures(page, "draw");
+      await measures(page, "sync");
+      await measures(page, "save");
+      const grab = at(...places.drag);
+      await page.mouse.move(grab.x, grab.y);
+      await page.mouse.down();
+      await page.mouse.move(grab.x, grab.y + 2 * CELL, { steps: 10 });
+      await page.mouse.up();
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      row.dragDrawMs = median(await measures(page, "draw"));
+      row.dragSyncMs = median(await measures(page, "sync"));
+      keep();
+      // A save that changes nothing (the open's own) is recorded too; this waits for one that wrote the move.
+      await expect(page.locator(".status-save")).toHaveText(/^Saved /, { timeout: 300_000 });
+      row.saveMs = Math.max(...(await measures(page, "save")));
+    });
 
     // Pan: a middle-button drag across the canvas; frames counted while it moves.
-    const from = at(30, 20);
-    await page.evaluate(() => {
-      const w = window as unknown as { frames_: number[]; panning: boolean };
-      w.frames_ = [];
-      w.panning = true;
-      const tick = (t: number) => {
-        w.frames_.push(t);
-        if (w.panning) requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
+    await step("pan", async () => {
+      const from = at(30, 20);
+      await page.evaluate(() => {
+        const w = window as unknown as { frames_: number[]; panning: boolean };
+        w.frames_ = [];
+        w.panning = true;
+        const tick = (t: number) => {
+          w.frames_.push(t);
+          if (w.panning) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+      await page.mouse.move(from.x, from.y);
+      await page.mouse.down({ button: "middle" });
+      for (let i = 1; i <= 30; i++) await page.mouse.move(from.x + i * 8, from.y + i * 4);
+      await page.mouse.up({ button: "middle" });
+      const frames = await page.evaluate(() => {
+        const w = window as unknown as { frames_: number[]; panning: boolean };
+        w.panning = false;
+        return w.frames_;
+      });
+      const gap = median(frames.slice(1).map((t, i) => t - (frames[i] ?? t)));
+      row.panFps = gap ? 1000 / gap : null;
     });
-    await page.mouse.move(from.x, from.y);
-    await page.mouse.down({ button: "middle" });
-    for (let i = 1; i <= 30; i++) await page.mouse.move(from.x + i * 8, from.y + i * 4);
-    await page.mouse.up({ button: "middle" });
-    const frames = await page.evaluate(() => {
-      const w = window as unknown as { frames_: number[]; panning: boolean };
-      w.panning = false;
-      return w.frames_;
-    });
-    const gaps = frames.slice(1).map((t, i) => t - (frames[i] ?? t));
-    const gap = median(gaps);
-    row.panFps = gap ? 1000 / gap : null;
-    keep();
 
-    // Run: at the top speed for two seconds, where the circuit has a clock.
+    // Run: at the top speed for two seconds, where the circuit has a clock. The elapsed time includes the clicks'
+    // round trips, so the rate reads a few per cent low.
     const counter = page.getByText(/^Cycle \d+, clock (high|low)$/);
     if (await counter.count()) {
-      const cycle = async () => Number(/Cycle (\d+)/.exec(await counter.innerText())?.[1]);
-      await page.getByLabel("Speed").selectOption("10000");
-      const before = await cycle();
-      const start = Date.now();
-      await page.getByRole("button", { name: "Run", exact: true }).click();
-      await page.waitForTimeout(2000);
-      await page.getByRole("button", { name: "Pause", exact: true }).click();
-      const after = await cycle();
-      row.cyclesPerSecond = (after - before) / ((Date.now() - start) / 1000);
-      keep();
+      await step("run", async () => {
+        const cycle = async () => Number(/Cycle (\d+)/.exec(await counter.innerText())?.[1]);
+        await page.getByLabel("Speed").selectOption("10000");
+        const before = await cycle();
+        const start = Date.now();
+        await page.getByRole("button", { name: "Run", exact: true }).click({ timeout: 300_000 });
+        await page.waitForTimeout(2000);
+        await page.getByRole("button", { name: "Pause", exact: true }).click({ timeout: 300_000 });
+        await expect(page.getByRole("status")).not.toContainText("Running", { timeout: 300_000 });
+        const after = await cycle();
+        row.cyclesPerSecond = (after - before) / ((Date.now() - start) / 1000);
+      });
     }
   });
 }

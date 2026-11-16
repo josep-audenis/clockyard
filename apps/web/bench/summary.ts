@@ -18,16 +18,20 @@ export default function summary() {
   };
   const rows = names
     .map((f) => JSON.parse(readFileSync(`${generated}browser/${f}`, "utf8")) as Row)
+    .filter((row) => row.run === process.env.BENCH_RUN)
     .sort((a, b) => order(a.name)[0].localeCompare(order(b.name)[0]) || order(a.name)[1] - order(b.name)[1]);
   writeFileSync(`${generated}browser-results.json`, `${JSON.stringify(rows, null, 2)}\n`);
   const n = (v: number | null, digits = 0) => (v === null ? "–" : v.toFixed(digits));
+  const renderers = [...new Set(rows.map((r) => r.renderer ?? "unknown"))];
   const lines = [
     "| Benchmark | Open, ms | Of it: routing, ms | Of it: drawing, ms | Toggle, ms | Drag: draw, ms | Drag: sync, ms | Pan, fps | Cycles per second | Autosave, ms |",
     "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ...rows.map(
       (r) =>
-        `| ${r.name}${r.note ? ` (${r.note})` : ""} | ${n(r.openMs)} | ${n(r.openRouteMs)} | ${n(r.openDrawMs)} | ${n(r.toggleMs)} | ${n(r.dragDrawMs, 1)} | ${n(r.dragSyncMs, 1)} | ${n(r.panFps)} | ${n(r.cyclesPerSecond)} | ${n(r.saveMs)} |`,
+        `| ${r.name}${r.notes.length ? ` (${r.notes.join("; ")})` : ""} | ${n(r.openMs)} | ${n(r.openRouteMs)} | ${n(r.openDrawMs)} | ${n(r.toggleMs)} | ${n(r.dragDrawMs, 1)} | ${n(r.dragSyncMs, 1)} | ${n(r.panFps, 1)} | ${n(r.cyclesPerSecond)} | ${n(r.saveMs)} |`,
     ),
+    "",
+    `Run ${process.env.BENCH_RUN ?? "unstamped"}; WebGL renderer: ${renderers.join(", ")}.`,
   ];
   console.log(`\n${lines.join("\n")}\n`);
 }
