@@ -30,7 +30,7 @@ import {
   type ComponentKind,
   type PartKind,
 } from "../editor/document";
-import { deleteRefusal, liveDefinitions, mainCircuit, MAX_WATCHES, useEditor } from "../editor/store";
+import { deleteRefusal, liveDefinitions, liveWatches, mainCircuit, MAX_WATCHES, useEditor } from "../editor/store";
 import { assemble, check, connectEngine, control, disassemble, readMemory, setSpeed, setUntil, SPEEDS, useSim, type Loaded } from "../simulation/sync";
 import type { AsmError, Report } from "../simulation/protocol";
 import { FORMAT_VERSION, MAX_DOCUMENT_BYTES, parseDocument, serializeDocument } from "../storage/file";
@@ -134,7 +134,7 @@ export function App() {
         <PartsLibrary />
         <div className="canvas-column">
           <Canvas />
-          <WavePanel />
+          <WavePanels />
         </div>
         <Inspector />
         <Readout />
@@ -470,14 +470,25 @@ const AXIS_HEIGHT = 20;
 /** Cycles between labels on the time axis: 5 cycles are 120 pixels. */
 const CYCLE_LABELS = 5;
 
-/** A trace as the worker sends it, `[t0, v0, t1, v1, …]`, as `[time, value]` changes. */
-const changes = (trace: Float64Array) => Array.from({ length: trace.length >> 1 }, (_, i) => [trace[2 * i] ?? 0, trace[2 * i + 1] ?? 0] as const);
+/**
+ * In a trace as the worker sends it, `[t0, v0, t1, v1, …]`, the index of the last change at or before `tick`, or -1
+ * when the record starts later. A binary search: a trace holds up to 4,097 changes, read every frame.
+ */
+function changeAt(trace: Float64Array, tick: number): number {
+  let [low, high, found] = [0, (trace.length >> 1) - 1, -1];
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    if ((trace[2 * middle] ?? Infinity) <= tick) [found, low] = [middle, middle + 1];
+    else high = middle - 1;
+  }
+  return found;
+}
 
-/** What a trace held at `tick`: its last change at or before it, or its first if `tick` comes earlier. */
-const valueAt = (trace: Float64Array, tick: number) => {
-  const all = changes(trace);
-  return (all.filter(([t]) => t <= tick).at(-1) ?? all[0])?.[1];
-};
+/** What a trace held at `tick`; nothing before its record began. */
+function valueAt(trace: Float64Array, tick: number): number | undefined {
+  const i = changeAt(trace, tick);
+  return i < 0 ? undefined : trace[2 * i + 1];
+}
 
 /** A trace's name: its net label, else the part driving it with the port unless that is `out`, else the wire's ID. */
 function traceName(circuit: Circuit, loaded: Loaded, net: number, wire: string): string {
@@ -493,23 +504,25 @@ function traceName(circuit: Circuit, loaded: Loaded, net: number, wire: string):
 
 /** One lane: a 1-bit trace as a high and low line, a wider one as a band with each value's hex digits where they fit. */
 function Lane({ trace, width, start, end }: { trace: Float64Array; width: number; start: number; end: number }) {
-  const segments: { x0: number; x1: number; value: number }[] = [];
-  const all = changes(trace);
-  all.forEach(([time, value], i) => {
-    const from = Math.max(time, start);
-    const to = Math.min(all[i + 1]?.[0] ?? end + 1, end + 1);
-    if (to > from) segments.push({ x0: (from - start) * TICK_PX, x1: (to - start) * TICK_PX, value });
-  });
+  // From the change in force at `start`: keyed by the tick each began, so a band keeps its element as time scrolls.
+  const segments: { tick: number; x0: number; x1: number; value: number }[] = [];
+  for (let i = Math.max(0, changeAt(trace, start)); 2 * i < trace.length; i++) {
+    const [tick = 0, value = 0] = [trace[2 * i], trace[2 * i + 1]];
+    if (tick > end) break;
+    const to = Math.min(trace[2 * i + 2] ?? end + 1, end + 1);
+    const from = Math.max(tick, start);
+    if (to > from) segments.push({ tick, x0: (from - start) * TICK_PX, x1: (to - start) * TICK_PX, value });
+  }
   const [top, bottom, middle] = [4, LANE_HEIGHT - 4, LANE_HEIGHT / 2];
   if (width === 1) {
     const d = segments.map(({ x0, x1, value }, i) => `${i ? "V" : `M${x0} `}${value ? top : bottom}H${x1}`).join("");
     return <path className="wave-bit" d={d} />;
   }
-  return segments.map(({ x0, x1, value }) => {
+  return segments.map(({ tick, x0, x1, value }) => {
     // Without `0x`, so an 8-bit value fits in one cycle; the value column has it in full.
     const text = hex(value, width).slice(2);
     return (
-      <g key={x0}>
+      <g key={tick}>
         <polygon
           className="wave-bus"
           points={`${x0 + 1},${middle} ${x0 + 3},${top} ${x1 - 3},${top} ${x1 - 1},${middle} ${x1 - 3},${bottom} ${x0 + 3},${bottom}`}
@@ -524,12 +537,18 @@ function Lane({ trace, width, start, end }: { trace: Float64Array; width: number
   });
 }
 
+/** The waveform panel, started afresh whenever time goes back (a load or a reset), so no cursor outlives its record. */
+function WavePanels() {
+  const epoch = useSim((s) => s.epoch);
+  return <WavePanel key={epoch} />;
+}
+
 /**
  * The watched wires' recorded values over ticks (ADR 0026), drawn from the engine's record alone. A click places a
  * cursor; Left and Right move it a tick, Escape removes it; the value column shows the cursor's tick, or now.
  */
 function WavePanel() {
-  const watches = useEditor((s) => s.watches);
+  const watches = useEditor(useShallow(liveWatches));
   const circuit = useEditor((s) => s.circuit);
   const watch = useEditor((s) => s.watch);
   const loaded = useSim((s) => s.loaded);
@@ -538,6 +557,7 @@ function WavePanel() {
   const [cursor, setCursor] = useState<number | null>(null);
   const [lanes, setLanes] = useState<HTMLDivElement | null>(null);
   const [laneWidth, setLaneWidth] = useState(0);
+  const help = useId();
   useEffect(() => {
     if (!lanes) return;
     const observer = new ResizeObserver(() => setLaneWidth(lanes.clientWidth));
@@ -546,15 +566,20 @@ function WavePanel() {
   }, [lanes]);
   if (watches.length === 0) return null;
 
-  // One row per net, named by the first wire watched on it.
-  const rows: { wire: string; net: number; width: number }[] = [];
+  // One row per net, named by the first wire watched on it; its × stops watching every wire on that net.
+  const rows: { wires: string[]; net: number; width: number }[] = [];
   for (const wire of watches) {
     const net = loaded?.wireNets[wire];
-    if (net !== undefined && !rows.some((r) => r.net === net)) rows.push({ wire, net, width: loaded?.wireWidths[wire] ?? 1 });
+    if (net === undefined) continue;
+    const row = rows.find((r) => r.net === net);
+    if (row) row.wires.push(wire);
+    else rows.push({ wires: [wire], net, width: loaded?.wireWidths[wire] ?? 1 });
   }
   const time = waves?.time ?? 0;
   const start = Math.max(0, time + 1 - Math.max(1, Math.floor(laneWidth / TICK_PX)));
-  const at = cursor === null ? null : Math.min(Math.max(cursor, start), time);
+  // A cursor scrolled out of the window is gone; a run under way does not drag it along.
+  const at = cursor !== null && cursor >= start && cursor <= time ? cursor : null;
+  const where = at === null ? `now, tick ${time}` : `tick ${at}, cycle ${Math.floor((at + 1) / 2)}`;
   const trace = (net: number) => (stale || !waves ? undefined : waves.traces[waves.nets.indexOf(net)]);
   const height = AXIS_HEIGHT + rows.length * LANE_HEIGHT;
   const tickAt = (e: ReactMouseEvent<HTMLDivElement>) =>
@@ -573,19 +598,22 @@ function WavePanel() {
   for (let c = Math.max(1, Math.ceil((start + 1) / 2 / CYCLE_LABELS)) * CYCLE_LABELS; 2 * c - 1 <= time; c += CYCLE_LABELS) cycles.push(c);
 
   return (
-    <section className="waves" aria-label="WAVEFORMS">
+    <section className="waves" aria-label="Waveforms">
       <div className="waves-names">
         <p className="type-label waves-time">{at === null ? `Now: tick ${time}` : `Cursor: tick ${at}, cycle ${Math.floor((at + 1) / 2)}`}</p>
+        <p id={help} className="visually-hidden">
+          Click a lane to place the cursor. Left and Right move it a tick, Escape removes it.
+        </p>
         <ul className="waves-rows">
-          {rows.map(({ wire, net, width }) => {
-            const name = loaded ? traceName(circuit, loaded, net, wire) : wire;
+          {rows.map(({ wires, net, width }) => {
+            const name = loaded ? traceName(circuit, loaded, net, wires[0] ?? "") : (wires[0] ?? "");
             const t = trace(net);
             const value = t && valueAt(t, at ?? time);
             return (
               <li key={net} className="waves-row">
                 <span className="type-label waves-name">{name}</span>
                 <span className="type-value waves-value">{value === undefined ? "unknown" : showValue(value, width)}</span>
-                <button type="button" className="button waves-remove" aria-label={`Stop watching ${name}`} onClick={() => watch(wire, false)}>
+                <button type="button" className="button waves-remove" aria-label={`Stop watching ${name}`} onClick={() => wires.forEach((w) => watch(w, false))}>
                   ×
                 </button>
               </li>
@@ -597,7 +625,13 @@ function WavePanel() {
         ref={setLanes}
         className="waves-lanes"
         tabIndex={0}
-        aria-label="Waveform lanes: click to place a cursor, Left and Right move it, Escape removes it"
+        role="slider"
+        aria-label="Waveform cursor"
+        aria-describedby={help}
+        aria-valuemin={start}
+        aria-valuemax={time}
+        aria-valuenow={at ?? time}
+        aria-valuetext={where}
         onKeyDown={onKeyDown}
         onClick={(e) => setCursor(tickAt(e))}
       >
@@ -786,7 +820,7 @@ function Inspector() {
 /** Shows a wire's net in the waveform panel, or stops (ADR 0026). */
 function WatchToggle({ wire }: { wire: string }) {
   const watching = useEditor((s) => s.watches.includes(wire));
-  const full = useEditor((s) => s.watches.length >= MAX_WATCHES);
+  const full = useEditor((s) => liveWatches(s).length >= MAX_WATCHES);
   const watch = useEditor((s) => s.watch);
   return (
     <>

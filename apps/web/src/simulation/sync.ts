@@ -2,7 +2,7 @@
 // reported. The UI renders only these engine values.
 import { create } from "zustand";
 import { project } from "../editor/document";
-import { liveDefinitions, useEditor, type EditorState } from "../editor/store";
+import { liveDefinitions, liveWatches, useEditor, type EditorState } from "../editor/store";
 import { startSimulation } from "./client";
 import type { AsmError, Challenge, CircuitDescription, Command, Diagnostic, Report, Result, Stopped } from "./protocol";
 
@@ -30,8 +30,10 @@ export type SimState = {
   until: string | null;
   /** Each memory's words last asked for with `readMemory`, by component ID, as the engine reported them (ADRs 0018, 0021). */
   memory: Record<string, Uint32Array>;
-  /** The watched wires' record, as last read (ADR 0026); null while nothing is watched or before the first read. */
+  /** The watched wires' record, as last read (ADR 0026); null while nothing is watched, or since a load was sent. */
   waves: Waves | null;
+  /** Counts the times reported time went back (a load or a reset), so a waveform cursor is not carried into a new record. */
+  epoch: number;
 };
 
 /** Run speeds offered, in cycles per second (ADR 0017). */
@@ -51,6 +53,7 @@ export const useSim = create<SimState>()(() => ({
   until: null,
   memory: {},
   waves: null,
+  epoch: 0,
 }));
 
 /** Sends a command to the worker, once `connectEngine` has started it. */
@@ -193,7 +196,7 @@ export function connectEngine(): () => void {
         useSim.setState({ running: message.running, stopped: message.stopped ?? null });
         if (pending === 0) {
           const { nets, diagnostics: runtime, time } = message;
-          useSim.setState({ nets, runtime, time, stale: false, status: "ready", error: null });
+          useSim.setState(({ time: before, epoch }) => ({ nets, runtime, time, stale: false, status: "ready", error: null, epoch: time < before ? epoch + 1 : epoch }));
           readWatched();
         }
         break;
@@ -211,7 +214,8 @@ export function connectEngine(): () => void {
     if (next !== description) {
       description = next;
       pending++;
-      useSim.setState({ stale: true });
+      // The record describes the circuit before this one, its nets numbered differently.
+      useSim.setState({ stale: true, waves: null });
       client.send({ type: "load", circuit: projected });
       sent = {};
     }
@@ -222,7 +226,7 @@ export function connectEngine(): () => void {
     sent = inputs;
     // After the load, so the worker resolves the wires in the circuit they belong to; it watches them again on every
     // later load by itself.
-    const wires = state.watches.filter((id) => circuit.wires.some((w) => w.id === id));
+    const wires = liveWatches(state);
     if (wires.join() !== watchedWires.join()) {
       watchedWires = wires;
       client.send({ type: "watch", wires });

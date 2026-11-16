@@ -86,7 +86,15 @@ The ticks between two frames are only ever seen inside the engine.
      worker resolves them against each load's `wireNets` and watches again
      as it answers the load, before any slice can tick, so a record always
      starts at the load's tick 0. The editor sends `watch` only when the
-     list of watched wires changes.
+     list of watched wires changes. The answer is
+     `{ type: "waves", time, nets, traces }`, `nets` saying which net each
+     trace is. The editor drops its record as it sends a load, since the
+     new circuit numbers its nets afresh.
+   - *As built (review):* a deleted wire's watch is kept, so undo brings
+     its trace back, but it is not shown and does not count towards the 16.
+     A cursor is removed when time goes back (a load or a reset) or when it
+     scrolls out of the window. The lanes are a slider for assistive
+     technology, its value text the cursor's tick and cycle.
 4. **The waveform panel.**
    - It sits below the canvas and appears once a wire is watched.
    - Each row has a name, a value and a lane. A 1-bit trace is a high and

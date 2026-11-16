@@ -1188,7 +1188,7 @@ test("waveforms: the 8-bit counter stepped three times reads 0x00 to 0x03, and a
   await click(page, at(1, 7)); // Count on
   await expectStates(page, { "Switch Count": 1 });
   const inspector = page.getByRole("complementary", { name: "Inspector" });
-  const waves = page.getByRole("region", { name: "WAVEFORMS" });
+  const waves = page.getByRole("region", { name: "Waveforms" });
   await expect(waves).toHaveCount(0);
 
   // Watch the clock's wire and the register's output, both before any step.
@@ -1210,9 +1210,10 @@ test("waveforms: the 8-bit counter stepped three times reads 0x00 to 0x03, and a
   await expect(waves.locator(".wave-bit")).toHaveAttribute("d", /^M0 20H12V4H24V20H36V4H48V20H60V4H72V20H84$/);
 
   // A cursor at tick 2, in cycle 1: the register reads 1, the clock low. Left twice reaches tick 0.
-  const lanes = waves.getByLabel(/^Waveform lanes/);
+  const lanes = waves.getByRole("slider", { name: "Waveform cursor" });
   await lanes.click({ position: { x: 2.5 * 12, y: 30 } });
   await expect(waves.getByText("Cursor: tick 2, cycle 1")).toBeVisible();
+  await expect(lanes).toHaveAttribute("aria-valuetext", "tick 2, cycle 1");
   await expect(rows.nth(1)).toContainText("1 (0x01)");
   await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("ArrowLeft");
@@ -1220,6 +1221,12 @@ test("waveforms: the 8-bit counter stepped three times reads 0x00 to 0x03, and a
   await expect(rows.nth(1)).toContainText("0 (0x00)");
   await page.keyboard.press("Escape");
   await expect(waves.getByText("Now: tick 6")).toBeVisible();
+
+  // Reset starts a new record: a cursor placed before it is gone.
+  await lanes.click({ position: { x: 2.5 * 12, y: 30 } });
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await expect(waves.getByText("Now: tick 0")).toBeVisible();
+  await expect(rows.nth(1)).toContainText("0 (0x00)");
 
   // Stopping the last watch hides the panel.
   await waves.getByRole("button", { name: "Stop watching Register Value q" }).click();
