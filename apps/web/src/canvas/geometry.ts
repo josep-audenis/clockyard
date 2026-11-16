@@ -228,7 +228,11 @@ export function nearestOnRoute(points: Point[], p: Point): Point | undefined {
   return best;
 }
 
-/** Ports win over junctions, junctions over bodies, bodies over wires; later items are on top. `routes` by wire ID. */
+/**
+ * Ports win over junctions, junctions over bodies, bodies over wires; later items are on top. `routes` by wire ID.
+ * shortcut: where wires cross, the canvas draws selected wires on top and others by chunk (ADR 0030), not in this order;
+ * a pick within reach of a crossing can take the one drawn under. Follow the drawing order if that is noticed.
+ */
 export function hitTest(circuit: Circuit, p: Point, pick: number, routes: Map<string, Point[]>): Hit {
   let port: Hit = null;
   let best = pick;
