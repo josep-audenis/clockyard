@@ -15,6 +15,9 @@
     "bench": "vite build && playwright test -c playwright.bench.config.ts"
   },
   "dependencies": {
+    "@fontsource/ibm-plex-mono": "5.2.7",
+    "@fontsource/ibm-plex-sans": "5.2.8",
+    "@fontsource/ibm-plex-sans-condensed": "5.2.8",
     "pixi.js": "8.21.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",

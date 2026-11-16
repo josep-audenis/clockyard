@@ -1,0 +1,839 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Clockyard: build computers from their very first pulse</title>
+    <meta
+      name="description"
+      content="An open-source digital logic sandbox in your browser. Wire gates and flip-flops into adders, counters and registers, then program the 8-bit CPU it ships with."
+    />
+    <meta property="og:title" content="Clockyard" />
+    <meta property="og:description" content="Build computers from their very first pulse. A digital logic sandbox that runs in your browser." />
+    <link rel="stylesheet" href="./landing.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="wrap header-row">
+        <a class="lockup" href="./">
+          <svg viewBox="0 0 64 64" width="24" height="24" aria-hidden="true">
+            <rect width="64" height="64" rx="6" fill="var(--bench)" stroke="var(--line)" stroke-width="2" />
+            <path d="M44 48H16" fill="none" stroke="var(--signal-low)" stroke-width="5" stroke-linecap="round" />
+            <path d="M16 48V16H47" fill="none" stroke="var(--signal-high)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+            <circle cx="48" cy="16" r="5.5" fill="var(--signal-high)" />
+            <circle cx="48" cy="48" r="4.5" fill="var(--bench)" stroke="var(--signal-low)" stroke-width="3" />
+          </svg>
+          <span>Clockyard</span>
+        </a>
+        <nav class="site-nav" aria-label="Page">
+          <a href="#build">From one gate to a computer</a>
+          <a href="#engine">The engine</a>
+          <a href="#status">Privacy and status</a>
+          <a href="https://github.com/josep-audenis/clockyard">Source</a>
+        </nav>
+        <a class="button" href="../">Open the editor</a>
+      </div>
+    </header>
+
+    <main id="main">
+      <div class="spine" aria-hidden="true"><div class="spine-lit"></div></div>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="wrap">
+          <h1 id="hero-title">Build computers from their very first pulse.</h1>
+          <div class="hero-row">
+            <p class="lede">
+              A digital logic sandbox in your browser. Wire gates and flip-flops into adders, counters and
+              registers, then program the 8-bit CPU it ships with.
+            </p>
+            <div class="hero-act">
+              <div class="actions">
+                <a class="button button-primary button-lg" href="../">Open the editor</a>
+              </div>
+              <p class="hero-note">Pre-alpha, free and open source. Nothing you build is uploaded.<span class="phone-only"> The editor is built for a desktop browser with a mouse.</span></p>
+            </div>
+          </div>
+          <figure class="shot hero-fig">
+            <div class="frame bare loop-frame">
+              <picture class="loop-poster">
+                <source media="(max-width: 640px) and (prefers-color-scheme: light)" srcset="./shots/hero-loop-narrow-light.jpg" width="1020" height="576" />
+                <source media="(max-width: 640px)" srcset="./shots/hero-loop-narrow-dark.jpg" width="1020" height="576" />
+                <source media="(prefers-color-scheme: light)" srcset="./shots/hero-loop-light.jpg" />
+                <img src="./shots/hero-loop-dark.jpg" width="1728" height="777" alt="" />
+              </picture>
+              <video
+                class="loop"
+                width="1728"
+                height="777"
+                muted
+                loop
+                playsinline
+                preload="metadata"
+                aria-label="Recording of Catch on the reference CPU: the paddle catches three blocks, misses the fourth, and the CPU halts."
+              >
+                <source media="(max-width: 640px) and (prefers-color-scheme: light)" src="./shots/hero-loop-narrow-light.webm" type="video/webm" />
+                <source media="(max-width: 640px)" src="./shots/hero-loop-narrow-dark.webm" type="video/webm" />
+                <source media="(prefers-color-scheme: light)" src="./shots/hero-loop-light.webm" type="video/webm" />
+                <source src="./shots/hero-loop-dark.webm" type="video/webm" />
+              </video>
+            </div>
+            <figcaption>
+              <span class="cap"><span class="fig">Fig. 1</span> Catch, a small game, running on the 8-bit CPU that ships with Clockyard. A script steers with Left and Right<span class="wide-only"> on the keyboard part</span>, catches three
+              blocks, then lets the fourth fall, and the CPU halts.
+              Played back at 10,000 cycles a second, the editor's top speed. <a href="#programs">How to play it</a></span>
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="try" id="try" aria-labelledby="try-title">
+        <div class="wrap">
+          <h2 id="try-title">Try a half adder</h2>
+          <p class="section-lede">An XOR gate gives the sum and an AND gate the carry. Switch A or B on, and every wire and LED follows.</p>
+          <figure class="shot ha">
+            <div class="ha-row">
+              <div class="ha-stage frame bare" data-state="00">
+                <picture class="ha-shot" data-state="00"><source media="(prefers-color-scheme: light)" srcset="./shots/ha-00-light.png" /><img src="./shots/ha-00-dark.png" width="1152" height="960" alt="The half adder: switches A and B, an XOR gate for Sum and an AND gate for Carry, every switch off." /></picture>
+                <picture class="ha-shot" data-state="10" aria-hidden="true"><source media="(prefers-color-scheme: light)" srcset="./shots/ha-10-light.png" /><img src="./shots/ha-10-dark.png" width="1152" height="960" alt="" /></picture>
+                <picture class="ha-shot" data-state="01" aria-hidden="true"><source media="(prefers-color-scheme: light)" srcset="./shots/ha-01-light.png" /><img src="./shots/ha-01-dark.png" width="1152" height="960" alt="" /></picture>
+                <picture class="ha-shot" data-state="11" aria-hidden="true"><source media="(prefers-color-scheme: light)" srcset="./shots/ha-11-light.png" /><img src="./shots/ha-11-dark.png" width="1152" height="960" alt="" /></picture>
+                <button type="button" class="ha-switch" data-switch="a" aria-pressed="false" hidden style="--l: 5.556%; --t: 6.667%; --w: 11.111%; --h: 13.333%"><span class="visually-hidden">Switch A</span></button>
+                <button type="button" class="ha-switch" data-switch="b" aria-pressed="false" hidden style="--l: 5.556%; --t: 73.333%; --w: 11.111%; --h: 13.333%"><span class="visually-hidden">Switch B</span></button>
+              </div>
+              <div class="ha-side">
+              <p class="ha-hint" aria-hidden="true"><span data-hint>Click switch A or B in the picture.</span></p>
+              <table class="ha-table">
+                <caption>Every combination of A and B, with what the editor showed for each.</caption>
+                <thead><tr><th scope="col">A</th><th scope="col">B</th><th scope="col">Sum</th><th scope="col">Carry</th></tr></thead>
+                <tbody data-ha-rows><tr data-state="00"><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr data-state="10"><td class="one">1</td><td>0</td><td class="one">1</td><td>0</td></tr><tr data-state="01"><td>0</td><td class="one">1</td><td class="one">1</td><td>0</td></tr><tr data-state="11"><td class="one">1</td><td class="one">1</td><td>0</td><td class="one">1</td></tr></tbody>
+              </table>
+              </div>
+            </div>
+            <figcaption><span class="fig">Fig. 2</span> The half adder. Click switch A or B in the picture: each of the four
+              pictures is a capture of the editor with those switches set, so what lights is what the engine
+              computed. <a data-example="half-adder" href="../#circuit=1.lZPNbpwwFIVf5epuuqgZwaSlkbuaNJG66I_UzKJqk4UBT3ACNrJNyGjEu1c2kAEymUk3yNiH75xjXXa4UbpkFimmhUoftkxnSPCRayOURBpFBEtuWcYsQ7pDyUqOFL-yYgMsy7hGgqnmzPJs5SDLcBkHURSE8Tpa0jCkYbgIw_APEixVJjZipovi9fKMLs_px_PFMo6dTirLDVJcQf7s4p4GbKMgEdYs4LouQRhYwe-fv-DiM3xhWm-7ndWPS7ggYHPutJAyrQXPQEir_KbkTxZSVdSlXNzIG3nF0hxMI2yaw4ZJA6q2YHOt6rscGNzXMrVCSbAKEmVzuGOWmwWscw4FS3hhYEWcoYvEZNZHcffk7SqmrSH-xL1qzjJn4M6N2yn9tnHyhm19orXeUojgPURwJx658ehwBI8IJEIytwoXcM0LntpROGiEzR1W6L4YN_7rb1eX3aI2HL6zBw6pKislubQgpA8ipKl4apWm_tU3LHh2gJPwVPUdJW_2pHcGKiHNAluCqdBpLawbnOdzg_TvDkWGFBkSfBDSLTs-EqyUEdaP3g6fkIYEt0jDlqBWlnUHIcFKq8o4iQ_ohgXblvTY5K3Y6DT3YsQ1dbknPyn9EhsfT7tHuanc7mFMZq_B4tOwgmfBJFvBD-Cis67zycrXdYlT-CztMfynk3g_wti2twSHf2s0EvcBe8kekj-Hug-Sl6oPnSry6EZoPsI2HrvRqpzMYj-DldJuqWrrhtYqpxmy9Zn23k3A-tsecHPpgBjbdF_0RnPccL__Axy-OYhMXimbvKVsMkUdK5u8oewcd7TsK8BZ2SnS1GXQjeShypMsk9Jj1f4X6pVCTjx8gCMus4BHfWZa73TbEsz4Rkgx_A-37T8">Open the half adder in the editor</a>, where you build your own.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="chapter" id="build" aria-labelledby="build-title">
+        <div class="wrap chapter-head">
+          <h2 id="build-title">From one gate to a computer</h2>
+          <p class="section-lede">
+            Each layer below uses the parts of the ones before it. The reference CPU is made of nothing
+            but these parts, and the challenges have you build its full adder, 8-bit adder, registers and ALU yourself.
+          </p>
+          <p class="note">Every circuit in Figs. 2 to 5 is under <em>Examples</em> in the editor, with notes on what to try.</p>
+        </div>
+
+        <section class="layer">
+          <div class="wrap split">
+            <div class="layer-text">
+              <h3 id="l1">Gates and wires</h3>
+              <p class="layer-lede">
+                Place switches, gates and LEDs, drag wires between their ports, and the circuit updates as
+                you build it. Then fold what you built into a part of its own.
+              </p>
+              <div class="notes">
+                <p><strong>Parts.</strong> Switches, LEDs, NOT, AND, NAND, OR, NOR, XOR and XNOR, splitters, mergers and net labels.</p>
+                <p><strong>Components.</strong> Label the switches and LEDs that will be its pins, select the circuit, and choose <em>Make component</em> in the inspector; it gets a sheet of its own. Fig. 3 is one full adder, placed four times. <em>Add components</em>, in the Chips panel, copies components from an example, your library or an exported file.</p>
+                <p><strong>Buses.</strong> A wire can carry up to 32 bits. It is drawn thick, with a slash for its width; hover it to read its value in hex.</p>
+              </div>
+              <figure class="legend">
+                <figcaption>Reading a wire</figcaption>
+                <ul role="list">
+                  <li>
+                    <svg viewBox="0 0 72 12" width="72" height="12" aria-hidden="true"><line x1="0" y1="6" x2="72" y2="6" stroke="var(--signal-high)" stroke-width="3" /></svg>
+                    <code class="v1">1</code><span>High: lit, and slightly thicker.</span>
+                  </li>
+                  <li>
+                    <svg viewBox="0 0 72 12" width="72" height="12" aria-hidden="true"><line x1="0" y1="6" x2="72" y2="6" stroke="var(--signal-low)" stroke-width="2" /></svg>
+                    <code>0</code><span>Low: grey and thin.</span>
+                  </li>
+                  <li>
+                    <svg viewBox="0 0 72 12" width="72" height="12" aria-hidden="true"><line x1="0" y1="6" x2="72" y2="6" stroke="var(--signal-bus)" stroke-width="5" /><line x1="32" y1="11" x2="40" y2="1" stroke="var(--signal-bus)" stroke-width="1.5" /></svg>
+                    <code class="vb">/8</code><span>A bus: one colour whatever it carries.</span>
+                  </li>
+                </ul>
+              </figure>
+            </div>
+            <figure class="shot">
+              <div class="frame bare">
+                <picture>
+                  <source media="(prefers-color-scheme: light)" srcset="./shots/adder-light.png" />
+                  <img
+                    src="./shots/adder-dark.png"
+                    width="1040"
+                    height="1310"
+                    loading="lazy"
+                    alt="A 4-bit adder: switches A0 to A3, B0 to B3 and Cin feed four Full adder components in a column. Lit wires run from the switches that are on; the LEDs S0 and S3 are lit, and the Cout LED at the bottom is off."
+                  />
+                </picture>
+                  <picture class="settle-off" aria-hidden="true">
+                  <source media="(prefers-color-scheme: light)" srcset="./shots/adder-off-light.png" />
+                  <img
+                    src="./shots/adder-off-dark.png"
+                    width="1040"
+                    height="1310"
+                    loading="lazy"
+                    alt=""
+                  />
+                </picture>
+              </div>
+              <figcaption><span class="fig">Fig. 3</span> A 4-bit adder adding 5 + 3, with a carry in (Cin) of 1. The sum, 9, is 1001 in binary, so S3 and S0 are lit and the carry out is 0. <a data-example="4-bit-adder" href="../#circuit=1.rZdBb9s2FID_CsHLVkASRMpNU-1kpykwYDfntDUHSqJrthJpiNSsIPB_Hyh5CeX4yc9oLjZkkR_f-0jzkc90Y9pGOJrTsjblzyfRVjSi_8rWKqNpzlhEG-lEJZyg-TPVopE0p4u4UI6IqpItjWjZSuFktfQUnvKbmLE4_fTAeJ6meZomaZr-TSPamEpt1Ek7dvPAs5zf5h8_J9ni1rfTxklLc_rVdC3ZdHU9DmSJ0kSQciv8d1URtzdkDER3TSFbG5FlliTLlAhdkVWWJKs0Ifei3AYU_2mJ0ZKUpu4aTfbKbYnbSlKKtn0im9Y04-P4upAb08o_iHKW3JnOEWWH11r27tjmN0vulE6-6W_6YSvDsZT1AZtmZ7TULidFp2pHjC7lOM534aSNPE-TXS1KWZGNT9qpRtqErGUtSzcE6zPqrCT3lXKvROIMMTupifKthhjNXhO7ldIl5E9nid0rV26lJcuIrAbKnbenq6HxX_dfLFmPP_vcRCuH33dK2zGf9iknrms1OVpdMj_Q79mH0XE6PLEPOVlzUqvvW2cjst-qcutzXyTkwff1Qxrtg_XT5tNpTCsTeohoqdqyU84vrZesLM3_eaaq8mtSaRrRn0r7hzEXGtGdscoNy_OZ9jRPI_pE85tDRFvjxPgijeiuNTvrm9SikDXN6Z3S9HCIjmiRYsnpRfIyDcAFArwYwNlF8CoEb8KQy84607wlMz4f8yGildwofexD_WqNxz_yy0A2GKeW1dtB-AIpZh3GLxjWOEMoZ6FyBHkMmSGcs4lzhnYOR42SznDSEW7WYQaCY61zhHUeWkeQx5g5wjqfWOdo63DUKOscZx3hZh1mIDKs9QxhPQutI8jH7QVhPZtYz9DW4ahR1jOcdYSbdZhBaTqHJH-8XC487HB4jOiPTpe-nS9MjxHdq1YGNWofj1XKV_RJHXupXzvT-oeBF1FnTluNG_uxVTmpUvt4eHeOHXbCocUEXEDg4mpwMQFbCDzpY89zbdDkxESJ4pYzIbMZzQzSzFA2GKgZAhdXg080Q-BJH0gzgzWjuHOa-YxmDmnmKBsc1AyBi6vBJ5oh8KQPpJnDmlHcOc3ZjOYM0pyhbGSgZghcXA0-0QyBJ30gzRmsGcWFNR9LSgh_nJS4oBIEpS76_6b89eU2SC_edsQ73kjCE8P7XaFWYbHF383Y4srLWR8chnvTvuXezl-gAhK_QGIjCjwPvKJ0EJTQZ84WRxR8xwhYHMn6fJllXlHnEuQ3Iwmc3VeSvXB4yjhynayvO5Rlx6vNp3c8lIm4B0s6Yqvq4YIOg4srwdMtsGdxDxWFHnNY6MHqWCoNs3GH1B6skD2PLRQ2pvhacPMWsf6VOdQzcwiCMXOo5-ZQ_9Ic6tk5BNm4OdTgHGoWGwCtMWEbKGrNYTBmcRgoYhMfN5ZzaIMgn63sh8fDfw">Open the 4-bit adder</a>; its switches start off.</figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section class="layer">
+          <div class="wrap">
+            <div class="time-grid">
+              <div class="time-text">
+                <h3 id="l2">Time</h3>
+                <p class="layer-lede">
+                  Flip-flops and registers hold a value and change it only on a rising edge, when the clock
+                  goes from 0 to 1. Step a design one cycle at a time and see what each edge did.
+                </p>
+                <div class="notes">
+                  <p><strong>Run and step.</strong> Seven speeds, from 1 Hz to follow by eye to 10,000 Hz for a game. The <em>Until</em> menu stops the clock when an LED you choose lights, so you can wire your own breakpoints.</p>
+                  <p><strong>Waveforms.</strong> Watch up to 16 wires. The panel under the canvas draws their latest cycles; click in it to place a cursor and read every watched wire at that tick, and move it with the Left and Right arrow keys.</p>
+                  <p><strong>Memory and devices.</strong> A clock, D flip-flops, registers, ROM and RAM up to 32 bits wide, a keyboard, seven-segment digits and a pixel screen.</p>
+                </div>
+              </div>
+              <figure class="shot">
+                <div class="frame frame-stack">
+                  <picture>
+                    <source media="(prefers-color-scheme: light)" srcset="./shots/waveforms-circuit-light.png" />
+                    <img
+                      src="./shots/waveforms-circuit-dark.png"
+                      width="1760"
+                      height="640"
+                      loading="lazy"
+                      alt="The 8-bit counter with Count on: an 8-bit adder feeds a register named Value, whose output loops back into the adder. The register reads 0x0C."
+                    />
+                  </picture>
+                  <div class="wave-scroll" data-label="Waveform panel">
+                    <picture>
+                      <source media="(prefers-color-scheme: light)" srcset="./shots/waveforms-light.png" />
+                      <img
+                        src="./shots/waveforms-dark.png"
+                        width="1120"
+                        height="138"
+                        loading="lazy"
+                        alt="The waveform panel: the clock as a square wave, and the register as a band of hex values counting up from 01; the readout shows 12 (0x0C)."
+                      />
+                    </picture>
+                  </div>
+                </div>
+                <figcaption><span class="fig">Fig. 4</span> A register fed back through an adder counts one per cycle; the waveform panel under it shows its value and the clock, 12 cycles in (two ticks per cycle). <a data-example="8-bit-counter" href="../#circuit=1.xZnLbuM2FIZfheBmNrIhyZd4tMsU6LaYSdAC7WRBSVTMWiY1IhU7CPLuBUU7FhUd6ThZFAGCxCS_n_wPr8cvtFD1nhma0KxU2e6Z1TkN6BOvtVCSJlEU0D03LGeG0eSFSrbnNKGbWSoMyVQjDa9pQLOaM8PzW8uJw3g9i6JZuLmP4iQMkzCch2H4Nw3oXuWiEL160fo-XiTx1ySM5utNW08qwzVN6C2p-aPQhtdkq8pcEyaJk35iZcPn5A9JOMu2pBZayEfC80dOVEHMlpN2OEQYYtiO6_Yj15TlOa-_aKIaUzUmIIetyLZEaCKMJuogHZtUZaPJbZ4H7q-IHLZckt_skG1lJec_5U9539TnD5UMrIokVc21JneGV0TIVtgoVaasTlxndVtiEedeZs9ZyQPCZE6-k0fFNWkqkj7bGnPyo5HOadvirZPMuFFuleaS6Irz3AF-cM0N0dy4Mb8ZaMuM2HOSsmxHjCLhuwEURVvLtr_Nc1sntr8yN2ZJzEHpOblXRHPe8bgl2_8c5YnXrVBANC955vp5EDUnQhrldeqLPodJVo1pQc68v5ixMXHuCakrnhlVn_zNHUSzPSeFqi981Zhz9M8Kc_oa0EzUWSOMnb-Z2ldKcmk0Tf55oSKnCbXxoAHdCdn-dxAm29KAVkoL0y6CF3qkSRjQZ5rErwGtlWGuIAxoVatK2yolS3lp52xuF9BB5GZLk83ra3BSad3ByqwnZdqQ0QuetbIneNZoo_bv4ZGjhxD9NaA5L4Q8taHtUtnQN5FdR8LGbUBh2Spspvvftr_0v76g86J4D44nuv4G_tOu3sEIqKbjf8nz9yKLGCny3RN4COi_jcxsdTutHmxZzTsz7DD7RQNa1GrvzcHTsCtV2z9_2alqVL-GC-ypDus4dpidJu4Q91R0amZHPg1PPfh5vg7Rz2VX4TMh_d43ewDvNbPVBuEd63K_5-UOAO8Qfe5gLagLdhPoY2F0bU91WicevNXWmS2nVRf4h237KZ3czBh2i5me5LeDq0h3FapSmPcCmwmBQvAyt32OAu_n4aKSYocRTe_I34bHkSLHMaKAGIid9dizZTm9a3prqGDh9J4_tXH29_yiKcuZm2wdoQgtdPM5oRgtFIF24ZQWaKU4-pzSEq8EHpw4pRVaabH6nNIarbQE1w9O6Qav9PUzSnt9Edrz-pF_4H6A2BDcsTd2C1liN-i7FjV41UTedFaILac9KTF3HAYd54hTV7Pe6Xg5dVMAm2KwKYh1G_Pg7aYtmUK7zRe427Rlg_eyzjiLEEH2b3wpyE2v5PqXPQ1xvTZ6mNsunI5212QUNxsxORoxOcKYHCHIPZNBbnolt2cyxPXaYEyOfJNR3DGT4xGTY4zJMYLcMxnkpldyeyZDXK8NxuTYNxnFHTN5MWLyAmPyAkHumQxy0yu5PZMhrtcGY_LCNxnFHTN5OWLyEmPyEkHumQxy0yu5PZMhrtcGY_LSNxnFHTN5NWLyCmPyCkHumQxy0yu5PZMhrtcGY_LKNxnFHTN5PWLyGmPyGkHumQxy0yu5PZMhrtcGY_LaNxnFHTP5ZsTkG4zJNwhyz2SQm17J7ZkMcb02GJNvkGm6biP4Bt7s4Ss4nFDzQwPSs6G02uXteHnlvSXTfm_K8n_JpX0gtzX9LcC3DvaKTBOcOgEyTcdO_ueoaihVtgDf3xdSPEGKHApOT7yhZKdTTA48ck-oCNEtGSNZcIrh8j3DBTU0wHjtSGB0O7kC3Ct-ep7cdecJIjvgvsWJwFzeR7IDsyP0TsEkCI7wcw0GY1IER_C9doxmR-jW320Fo8HXTyYkzMblH47gE-gYzzTU7RizZYMbNpvJz8RQjsQQBGNiKMdiKD8VQzkaQ5CNi6EEYyijmQLQEtNtBfVaxjAYMzkU1GM1dpwrBHn4LH94_Q8">Open the counter</a>, turn on <em>Count</em> and press <em>Run</em>.</figcaption>
+              </figure>
+            </div>
+          </div>
+        </section>
+
+        <section class="layer">
+          <div class="wrap">
+            <h3 id="l3">A computer</h3>
+            <p class="layer-lede narrow">
+              Clockyard ships an 8-bit reference CPU, built from the same parts you have. Select its ROM or RAM to read every word, hover a bus to read its value, and open a register or multiplexer to see the gates inside. You can change it as you would your own circuit. Its tests run the circuit beside a model of its specification
+              and compare the two after every clock cycle.
+            </p>
+            <dl class="specs">
+              <div><dt>Data</dt><dd><span class="spec-value">8 bits</span>Accumulator <code>A</code> and output <code>OUT</code>; <code>Z</code> and <code>C</code> are 1-bit flags</dd></div>
+              <div><dt>Program</dt><dd><span class="spec-value">256 words</span>of 16 bits each, in ROM addressed by <code>PC</code></dd></div>
+              <div><dt>Memory</dt><dd><span class="spec-value">240 bytes</span>of RAM, at <code>0x00</code> to <code>0xEF</code>; the top 16 addresses go to devices</dd></div>
+              <div><dt>Timing</dt><dd><span class="spec-value">2 cycles</span>per instruction: fetch, then execute</dd></div>
+              <div class="wide"><dt>Instructions</dt><dd class="isa"><code>NOP</code> <code>LDI</code> <code>LDA</code> <code>STA</code> <code>ADD</code> <code>SUB</code> <code>ADI</code> <code>SBI</code> <code>JMP</code> <code>JZ</code> <code>JC</code> <code>OUT</code> <code>HLT</code></dd></div>
+              <div class="wide"><dt>Devices</dt><dd>Four of those addresses are used: <code>KEY</code> at <code>0xFF</code>, the key held; <code>SPTR</code> at <code>0xFE</code> and <code>SDATA</code> at <code>0xFD</code> for the screen; <code>HEX</code> at <code>0xFC</code> for the two hex digits.</dd></div>
+            </dl>
+
+            <figure class="shot shot-map cpu-run">
+                <div class="cpu-stage" data-steps="0|0|fetch;1|1|execute;1|2|fetch;2|3|execute;2|4|fetch;3|5|execute;3|6|fetch;4|7|execute;4|8|fetch;5|9|execute;5|10|fetch;6|11|execute;6|12|fetch;7|13|execute;7|14|fetch;8|15|execute;8|16|fetch;9|17|execute;9|18|fetch;10|19|execute;10|20|fetch;11|21|execute;11|22|fetch;12|23|execute;12|24|fetch;13|25|execute;13|26|fetch;14|27|execute;14|28|fetch;15|29|execute;15|30|fetch;16|31|execute;16|32|fetch;17|33|execute;17|34|fetch;18|35|execute;19|36|fetch;20|37|execute;20|38|fetch;21|39|execute;21|40|fetch;22|41|execute;22|42|fetch;23|43|execute;23|44|fetch;24|45|execute;24|46|fetch;25|47|execute;25|48|fetch;26|49|execute;26|50|fetch;27|51|execute;22|52|fetch;23|53|execute;23|54|fetch;24|55|execute;24|56|fetch;25|57|execute;25|58|fetch;26|59|execute;26|60|fetch;27|61|execute;22|62|fetch;23|63|execute">
+                <div class="map-scroll" data-label="CPU map">
+                <div class="frame bare map">
+                  <picture>
+                    <source media="(prefers-color-scheme: light)" srcset="./shots/cpu-light.png" />
+                    <img
+                      src="./shots/cpu-dark.png"
+                      width="3072"
+                      height="1752"
+                      loading="lazy"
+                      alt="The whole reference CPU, its 13 main blocks outlined. The list below names them."
+                    />
+                  </picture>
+                  <video class="cpu-steps" muted playsinline preload="none" aria-hidden="true">
+                      <source media="(prefers-color-scheme: light)" data-src="./shots/cpu-steps-light.webm" type="video/webm" />
+                      <source data-src="./shots/cpu-steps-dark.webm" type="video/webm" />
+                    </video>
+                    <ol class="blocks" role="list" aria-hidden="true" hidden>
+                    <li style="--l: 19.5%; --t: 6.1%; --w: 11.6%; --h: 11%">1</li>
+                    <li style="--l: 10.6%; --t: 6.8%; --w: 6.6%; --h: 12.6%">2</li>
+                    <li style="--l: 17.5%; --t: 20.5%; --w: 3.6%; --h: 6.6%">3</li>
+                    <li style="--l: 17%; --t: 32.8%; --w: 12.6%; --h: 9%">4</li>
+                    <li style="--l: 34.4%; --t: 26.6%; --w: 12.6%; --h: 30.8%">5</li>
+                    <li style="--l: 48%; --t: 10.3%; --w: 4.3%; --h: 8.6%">6</li>
+                    <li style="--l: 53%; --t: 9.9%; --w: 13.4%; --h: 9.2%">7</li>
+                    <li style="--l: 67.8%; --t: 20.4%; --w: 18.2%; --h: 8.8%">8</li>
+                    <li style="--l: 72.6%; --t: 33.2%; --w: 25%; --h: 23.8%">9</li>
+                    <li style="--l: 58.6%; --t: 71.3%; --w: 23.4%; --h: 8.4%">10</li>
+                    <li style="--l: 81.3%; --t: 6.1%; --w: 10.6%; --h: 8.5%">11</li>
+                    <li style="--l: 3.2%; --t: 42%; --w: 17.3%; --h: 20.6%">12</li>
+                    <li style="--l: 40.2%; --t: 71.2%; --w: 7.4%; --h: 7.5%">13</li>
+                  </ol>
+                </div>
+                </div>
+                <div class="cpu-controls" hidden>
+                  <button type="button" class="button" data-step="-1" aria-label="Back one clock cycle">&larr;</button>
+                  <button type="button" class="button button-primary" data-play>Play</button>
+                  <button type="button" class="button" data-step="1" aria-label="Forward one clock cycle">&rarr;</button>
+                  <input type="range" min="0" max="63" value="0" aria-label="Clock cycle" data-scrub />
+                </div>
+                <p class="cpu-readout" aria-live="polite"><span>Cycle <span data-cycle>0</span>, <span data-phase>fetch</span></span><span data-uses></span><span>PC <span data-pc>00</span></span></p>
+                <div class="rom-strip" role="group" aria-label="Program ROM, 89 words"><div class="rom-head" aria-hidden="true"></div><div class="rom-words" data-rom><span><i>00</i>1003<b>LDI 3</b></span><span><i>01</i>3000<b>STA 0</b></span><span><i>02</i>3002<b>STA 2</b></span><span><i>03</i>1064<b>LDI 100</b></span><span><i>04</i>3003<b>STA 3</b></span><span><i>05</i>10FB<b>LDI 251</b></span><span><i>06</i>30FE<b>STA 0xFE</b></span><span><i>07</i>10FF<b>LDI 0xFF</b></span><span><i>08</i>30FD<b>STA 0xFD</b></span><span><i>09</i>2002<b>LDA 2</b></span><span><i>0A</i>3001<b>STA 1</b></span><span><i>0B</i>30FE<b>STA 0xFE</b></span><span><i>0C</i>103C<b>LDI 0x3C</b></span><span><i>0D</i>30FD<b>STA 0xFD</b></span><span><i>0E</i>2002<b>LDA 2</b></span><span><i>0F</i>6005<b>ADI 5</b></span><span><i>10</i>7008<b>SBI 8</b></span><span><i>11</i>A013<b>JC lane</b></span><span><i>12</i>6008<b>ADI 8</b></span><span><i>13</i>3002<b>STA 2</b></span><span><i>14</i>2003<b>LDA 3</b></span><span><i>15</i>3005<b>STA 5</b></span><span><i>16</i>2005<b>LDA 5</b></span><span><i>17</i>7001<b>SBI 1</b></span><span><i>18</i>3005<b>STA 5</b></span><span><i>19</i>901B<b>JZ keys</b></span><span><i>1A</i>8016<b>JMP wait</b></span><span><i>1B</i>20FF<b>LDA 0xFF</b></span><span><i>1C</i>7082<b>SBI 0x82</b></span><span><i>1D</i>9021<b>JZ left</b></span><span><i>1E</i>7001<b>SBI 1</b></span><span><i>1F</i>902B<b>JZ right</b></span><span><i>20</i>803A<b>JMP fall</b></span><span><i>21</i>2000<b>LDA 0</b></span><span><i>22</i>903A<b>JZ fall</b></span><span><i>23</i>60F8<b>ADI 248</b></span><span><i>24</i>30FE<b>STA 0xFE</b></span><span><i>25</i>1000<b>LDI 0</b></span><span><i>26</i>30FD<b>STA 0xFD</b></span><span><i>27</i>2000<b>LDA 0</b></span><span><i>28</i>7001<b>SBI 1</b></span><span><i>29</i>3000<b>STA 0</b></span><span><i>2A</i>8036<b>JMP paddle</b></span><span><i>2B</i>2000<b>LDA 0</b></span><span><i>2C</i>7007<b>SBI 7</b></span><span><i>2D</i>903A<b>JZ fall</b></span><span><i>2E</i>2000<b>LDA 0</b></span><span><i>2F</i>60F8<b>ADI 248</b></span><span><i>30</i>30FE<b>STA 0xFE</b></span><span><i>31</i>1000<b>LDI 0</b></span><span><i>32</i>30FD<b>STA 0xFD</b></span><span><i>33</i>2000<b>LDA 0</b></span><span><i>34</i>6001<b>ADI 1</b></span><span><i>35</i>3000<b>STA 0</b></span><span><i>36</i>60F8<b>ADI 248</b></span><span><i>37</i>30FE<b>STA 0xFE</b></span><span><i>38</i>10FF<b>LDI 0xFF</b></span><span><i>39</i>30FD<b>STA 0xFD</b></span><span><i>3A</i>2001<b>LDA 1</b></span><span><i>3B</i>30FE<b>STA 0xFE</b></span><span><i>3C</i>1000<b>LDI 0</b></span><span><i>3D</i>30FD<b>STA 0xFD</b></span><span><i>3E</i>2001<b>LDA 1</b></span><span><i>3F</i>6008<b>ADI 8</b></span><span><i>40</i>3001<b>STA 1</b></span><span><i>41</i>30FE<b>STA 0xFE</b></span><span><i>42</i>70F8<b>SBI 248</b></span><span><i>43</i>A047<b>JC land</b></span><span><i>44</i>103C<b>LDI 0x3C</b></span><span><i>45</i>30FD<b>STA 0xFD</b></span><span><i>46</i>8014<b>JMP loop</b></span><span><i>47</i>20FD<b>LDA 0xFD</b></span><span><i>48</i>9056<b>JZ miss</b></span><span><i>49</i>2004<b>LDA 4</b></span><span><i>4A</i>6001<b>ADI 1</b></span><span><i>4B</i>3004<b>STA 4</b></span><span><i>4C</i>30FC<b>STA 0xFC</b></span><span><i>4D</i>2003<b>LDA 3</b></span><span><i>4E</i>7008<b>SBI 8</b></span><span><i>4F</i>3006<b>STA 6</b></span><span><i>50</i>7014<b>SBI 20</b></span><span><i>51</i>A053<b>JC faster</b></span><span><i>52</i>8009<b>JMP spawn</b></span><span><i>53</i>2006<b>LDA 6</b></span><span><i>54</i>3003<b>STA 3</b></span><span><i>55</i>8009<b>JMP spawn</b></span><span><i>56</i>103C<b>LDI 0x3C</b></span><span><i>57</i>30FD<b>STA 0xFD</b></span><span><i>58</i>C000<b>HLT</b></span></div></div>
+                </div>
+              <ol class="key" role="list" aria-label="Blocks on the map">
+                  <li>Screen</li>
+                  <li>Keyboard and hex digits</li>
+                  <li>Program ROM</li>
+                  <li>Program counter</li>
+                  <li>Control ROM and decoding</li>
+                  <li>Data RAM</li>
+                  <li>ALU</li>
+                  <li>Accumulator</li>
+                  <li>Zero and carry flags</li>
+                  <li>I/O read bus</li>
+                  <li>Output register</li>
+                  <li>Fetch and halt state</li>
+                  <li>I/O address decoder</li>
+                </ol>
+              <figcaption>
+                <span class="fig">Fig. 5</span> The whole CPU, with Catch in its ROM<span class="still-note">, paused mid-game</span>.<span class="scrub-note"> Step it from Reset with the arrows, the slider or
+                Play, one clock cycle at a time. It sets up, draws the paddle, then the first block,
+                then counts down its delay loop. Every frame is a capture of the editor.</span> Under it, the program
+                ROM, each word with its address and line of <a href="https://github.com/josep-audenis/clockyard/blob/main/scripts/catch.asm">assembly</a>.<span class="scrub-note"> In a fetch cycle
+                the word at the program counter is outlined; in an execute cycle the word just fetched, now in the
+                instruction register, is filled, and the PC already points past it. Blocks outlined in blue are the ones the current
+                instruction uses. This page marks them from the opcode; they are not read from the circuit.</span> The numbered list names the main
+                blocks.<span class="key-hint"> With a mouse, point at a name or a block to highlight
+                the other.</span> <a data-example="catch" href="../#circuit=1.7V1bk9s2sv4rKL5scsLxEryJkmsfxpdUsmtvXGOnzm52_ECJkERbIhWSiuRJ-b-fAi9DNMQmWtJsts6pE1elZjTE140G-oom9Lu1zIttXFkza7HJF5-_xEVi2dZvoijTPLNmnNvWVlRxElexNfvdyuKtsGbWy7harC3bWhQirkRyK8e7jhvecH7D_Q_cnTnOzHGeOY7zi2Vb2zxJl6n-XPjB9WbudOZEz7yofi7LK1FaM-uWldt4s2GreCtYsc-yNFuxPGPVWrBCLEUhsoVgL9_9bLO0KtmuyFdFvGVp88TdT2_ZN-WiSHdV-eeF5PRZXG6_fXaf3WfvRVU_U-6ESFiVM-7YjuPYbFeIsmR3-8xmi026-Fw_9Vl8medxkbA4S9g63yTsjVhWLC_YXbpaV8_YCymzki0ls2nGIraJM1E-ZyJerFmeCbaI96t11fG-i5NkI1i5yAtRdh9Wh5ytxZEl6UpORpLaxp9FWf8xE8eqgV_GZSWKZ-yWbdOyZOt4UzWP1GKQo-5EKSq228RfShav4jSrZ_z3vFpL8a1FIVhasjLd7jdy0STDZb6sDnEhZkz8JoovLM3KqtgvqjTPpNwlgSLfr9YdoT-VbBVXorRZIVapZKhlWGzzIhXlM-urbS3SYrFPK7ldFvl2l2ciq0pr9q_frTSp99lny7Y-p1nSbTrLtnZ5mVb1jvvdOlozx7a-WDPufbWtIq_i5i-Obe2KfFfKZzbxXGzkRqzHf_1qt-B5JnrwY5YXp9iBAbsHexBFrqCNgE1pYFGPthXFSpziSX0bBbSWqdgkUpzcBv8-9qSKfNsTan7RyLhuQ8Y3Cvhdo1uWbR3SpFpbMx7aVmMN_uU706nNXTeK5P-nju3zaVj_yG3f8yc2dwPftX0v4PWP3I741K9HTLu_8SBU_-b6QcRtNwojx_ad6WRaf-K3-BGfBvWPnvxxIp-beO0HXhhNue25E_mc78s_Ro5bf9w96IVTZ2J7buSGcrz849R1bdePXL_jx5kq_Lg9hSiqB7r9x9N2ePPBGIYfTCYtBngOyMUbHO3183-UmRtNXSlrx-Oq_Dx3EkVy6oFkLKilFfbEp279XCvERsLyY1_-PJUr4fieBJlM5CNRu47NBwoZf8oD96Ntlfm-WEhf8JzV3oB9c_vqjjmO6307Y3PELtbWWBqTLTuk1Voxis_us-eNda1NmTSvbJv_JtRH2G0L0BvQH17_ox7waCtryhJL0i4HreastZRVXhvLR1v5XA67u307Y05nqSXbNuMNKouTRHoJm7kNreavHkvEJv5iM7_hy2YBW-T7rLJZyMpFUTsgCf1-UQiRsfmXSrC_sCI_sP9iEfuuhnle_-5x9o38c8lcP7pxg-Db2uuUUE73WVnFRTVj7M2rH5l3n7H2v_cfbpnD-v-eA6cjx5RyNSQ9fZgLhnUSXaZF2Yq0lWc8l2uSVv1oyQN3HGX0q9dvbv85Y4c4rdgmz3cl24mClZXYQZoeBHEDroAkRXxQ2J-18rEHuXeO37-GYM7x--9PnnlVy24XH7JadiezZpk4dEvdhAlVvmP5sg4yJF2IyM1MeC-HmOif0Vl43FYz9h0LbLbNExbZrMyZ1KSILfKtqMOcfZH1OLevfmSBQujFjyzqf_3rS413-Xh0nzVk2uWXkpFrNWvZ8gBbcinhRIL7TH7YPa5R5ycPPzLziwyqSuWDt-9a-PtM_qVDlAvYM1AbBucYuXZrGpxj5EGa8q-AzkYsK5Stv_7CCgkEGZF7vJaEWD5OzQGDaoumbJlmm8jnmUhWmpBdP1KeFUVcqubMuHtMW8cZFboDp9bRvM_qec8GISaEudbDtclqUH_s3CW107nfZ53hOOVGsy1SoaSGS-0_1fJzbIuUWLdvemMGBdA6qCvnD9FlpiHtY5IfNLMQQaBRkyV3gOufWI5EIZRWrJC5jUhae3yewZMbUVqZWsfiLFGU_VVPpF-ZP5WNt6xk8mLLvAtqo_TpUC4-kEuTfc0avzy6Y_wTtl9CYGgQpVSUrMyuJS8DirgJBqTTcDXl0pYi1ATvALk3uFByteeSm0z-aVZzFUJMb3DAfSblNFPWqJ9Iuc4P7NDkhrXnSUTSZJNlle_G1vKHNx_uMwskHeVuk1Z95tH9quUenmPKPR5TnMiOlLQmLTZK4rgvq6HMxgupmc2Pd2yTH2TCmohlmrUgViFWkaXQXJNpui6F5jpdrY1Eu-xwPFn0_Wau4QWSFEkP3_yiZ7aOCbyflJodKrn4jrYh2mm4hA3h2746jWxhXhzeCikyp7ov2XeMn6xNnCSiUFZnt9juj2a6bYrtmuX37iVrkymd9HZ_BIQJVCM6VcMu3C3Mm6Td-Z5DIfe4SaJ-CRfVxlCqaPfhyO54rAXlWVXkG2UzurbV5mz_3XziP9YuHJvbMuWObG9iB57tB3bIbTcI7YC7Nndc3w5923V8VW8WpXEzBxF5M2sFnIFCTmVe8EY6nnm9PwwtN--Xm2DnGlq-mdYPBlqZMrEsH5BiZJhVL6JsTYLCme6hlqIpardocTaw4Vtr4qHWpIcTR7GgoVGYi0VmAAtbL4TqorKPyWAEzvJ9RYXzUA_Zwx0EEYuwBOsNmTUfVdge7tNDZQCbNEY_IKzBpwUVjLAGn3iPNVSmjhw6X64BqpFXQFjKT_vtzjDHKV1gO7Brh1hzWwNFAGtK2p3fiQeM3aTVTaOxeyUdypBvm5PihMgl0rl98zN7YQgRyv18mW42xsgxMtb_CccMR-U4Y_BwZNqsB-4vTmUWb_ZmkU0jusiM4Vy83R85IYx0yInFLS2ck4RdAuEugKUQzgs2NGeNMIEo_YDo1hBGxuYokncpoTlGvx3UtAdzXNaJcSQyJmz53GBneWuCSH7TYGg7LIrTzD0iFsFp5j4Ni-Ix88CE1cYZFL5CGhbF_OcTA5bX7H-PMMe0fDCEoNyLyGgPBOVsE2ZC1vWLIRAn5c--Qax9Amag9kAwBYFJ8Orc-nnQkfFtq85DjW4LgpBaC2aW0U8_DyZiisHM9xVhNr5D9IE_7avdvho0m3XCY6bV-gJCjvl9nUEp8Xe8IcylxafklfGmEolCIM0TNckaLCCEbRRCqM79-SeWiEWeiKKXV6CUDP7_3__lf0g9xuYTe2oHtqdWHnNzxBFGpn13GnAoJLI0N7iVNkPBCYB0x5hXRyY96eHKXVUYE-uOPUqeLo5UuAnBh5aJcbItWkSIFeRkCWlcO1uzEXv_7sOdwQWsBSVxbAVCMJuv_2EgWCQOIe1yqYb0TsQJk9ZUdkrevjXkI0VCyr_IZrym_rfX_zSSpWRfjlGLAdnBxdXpepSsLzyP7qvbD6eZmE7Yp2R-JqsCCQ_tLUj2s_jSk-06aocI13TxxseO7N86CEVF684qxSJ3v-uRRkCM0t53AF3QZFuLfLPfZqU1C31guGhnXF3SNKKtyCHXWhzlkaG5p7PLf3AL2RuEdLVu-o3BFLGzktCzQ3vK7clUHozY3Kk7EW3ZVjixOec25_IT3w4mdt3fKT_x4Bw2-YE-hci8-d7Idoc_dAb1wW2_zmI1QTcxJ62ApQvIiD4hor-R59pfP9rWp31WN3Mr7defxZebTMRDSW9j6rhUj7bPv7Giysjl0MBpWxKeIgOl5DCaTb_zpB8pOzrbM3J1-CBh7rU-MBgbv8kPGPVwiHrTFaAMHqUdeQOjP8pNWQhF7AfpYJdy16tt8Y_t8Lu8qJrcT1rTKtefavra26diZecc-NPhzlVc9yrctnV-iGHvCYEBxz4CDIeMIkf9c0tHxQ6eFpur2OHTYrsq9uRpsT0VO3pabF_Fnj4tdgA0BlPFC8FDAI7p44XgEwB-nVI2DVTtU3KICn2dWjZ9Ugg0ppg06LrtBUHG1JKGXOHAmE7SgEdkgSkkDTjGgTFtJJpVHBhTRRowvnjulR6xKcwi2Nd5xTblR7CvU8Imt0egr1PC7hx7EPo6JVQyqkF0TBEVFft1GDlTHkkzAIop4doMukZBMQVU-aBYjASgYtqnMkJBFZBZTPdA2EYxQ4BbD9O8rl_mDGDIsIfpHUm6XQPWYNSIaR1JwhoyCBs9TOnMe7dt8RrkF9M3Er8QGLKLqZrqJxF-u6S7YTdJCgCMqRsYhRufvv97UPE8TPFOB8rQ2xi_wB2N6d8AOCdEMBAc00JtV9HiLqgwPqaKdGxUGX1MGQE_yFbpe9AH8yEfU0fADxkb5EM-ppAn48Yk3p40DuxEH1NNCu99U_sw9hXa2bSzDxkTfyxFjCjyyDBz4mNqSXMxAHihyQJTSjCo3G-xuL_pnxsUCKaSlK2tAQNxBJg-tr2M5mQFYJcAG9NHbRApEwIWKsC0kWpF2t7KIVEHmDaSJaJCQ2FjigjHkOQBTV9whRp27z0M6neAaeKJXcD8TPPGA-KDAzQ9VEfhyVaJ8o2mh8oQzO_G-ObA9BAGMHg-i-6NEM0OVYYDRA4owyGmg0SG8c0commhynCIJrM4y5gCElnWsCHTaFaoMj0ZBj5gJekQ0z4ixwesJh2iZRmVXY5onpbdQJYxxSOyrGFDrkm6Nx0Gbt45GGQZrZEaTRwABbxOSGrHEUPRvNMwxOwELciYmV2gzJJULkJgOcYq6vAeKEmsigu5xXRNHYHDuhi7mLIBuZFwIbuYrqkjcFgQHECGr1Q1CA15RiNOQlgIqme6Y55gyhafh5tAtxxh6tY1bJ1V8jsIgI2pXNMHYkKe49F3hCd_ZjHP8eA7Qsufqj57FFwQeEckL-cjlc_HV2oGE-EIPYK4CBskwhHJ3ZGxwcFghEaaF2HDg0GSwyNjg4PBCD2OuAgbHAxOSc6PjA3OBaeoA7wIGxwLTjF9nNPyymOEKPoUU8gThkjYQNmnmFKaLWrzktggw5g2HilVEoALmb1GEwGsViOZYmpIMaXdq2uDkkAroiTrr0FDYZBUEAnCNWBgp7mDKaA2apRtLFDiDqaCYIHQepSGPYfYpFDUJSFrMsF0UBtFOTNOIDKqgaTqi4ILiy_cwbSQotp47YU7mBZSRfGA1ke4g3bKEAokOaaF3EGbZAi6kmMayB009yNstxzVELwzhhCA5ahy4D0xBOtZv9o4zC2mcw-EEpEKq3GLKdwDpZDjo9yi7WmEUosKq3GL6VpOsZf1-5nD7KKFToqiqbgav-h5g0fBDVF-MUXLKe5OxdX4RY_gAwruBOMX7X5RWSHhQn7Rzhd1CH6cUz6gFhLtewGDKB1G0A2hTS80N6Tgam4IbXmBARmldUnjGM35SByjpxYc7Xgxl_Qexhwn2vRirr6NHYZwtO3F7Ohh-5YmX1Tn9rT-FAiuCRntfoGjcL7HJII2wFBP4pR3chEKmBqaz67713ERaPzgndAw0L6KixTQONoQow3EbVOOR29oUwwYhIVvzauWCDKmktTyHHpKwtGOGMAPFRu6AbQhhsT24_udw3yjh-85IfrUsSHfaD8Mie_uPdJBtvF2mJwQhmrQGteYTtKkneB7BO-FyQkhOUTWeL68_gLbY6HtRhtg9HUnNt9qxhvthDFzDRpvNaYxTdRWndbUq7OMqSKcKCZrrfH2xK6irTCEddSwtcMJjjbDwH1FbhqG5xMc7YcBhxq4_avfWR7UGrQfhtovBbCh3qD9MCRXA4BhoQfthgFjRlhGixBoN0zzau4QcvfioPrCIIBU9VB7WL4uZ2ZRkypaB80JhRIArEkVr4NSEuTmJfFhqWKKR9JrAAxlgba-kPwrAIayQJtfwJgRWaClGLT5RTcBNHBNHlf5QACsyQPXOEoxAlTSNXlgGgccBbo10GoP2gBDimEAsCaKEQ9I8ayjTbEc7YA5HYmpOHgNHvOFaEvMAB3EQKuvqmNk0CaZISYxs_r4VjNA5sNmtX-Dekw4yuKKFcRFk8bT6WIMd29CA1xvmN_HV65HZKxz-xFcI6G8Ol1fJ_H4jvXb_ZHJXw3fMqZcclge0i73HrjO2HwZBHK7J5WA-TqG-SCBkkrAfGuiquu0-0ENF3cSrkrMSsP1Re2FjOfcDrqKDdf6uKY1HcCc0zDP4lO5umnwotr2kvAzIPN9ZbhGrfsWAuNuyLXr4LR7Is64u6AkeMmx5hksHrkAFzTOoNHI-bigaQZthzgfFzTMYHHIBbigWQbNxc_HBY0yWBRyAS5oksGCkAtwQYMMFn4Qe1gytPBIyL1R1JXykHZojNUFKXJQYbWjLKxLiII6x5hFXz2hyVYF1kqYCPCKJFzs9hH0GHZFEgN29wh6DLuilHIbi6zuMPXbPOVNbY_hz137vauUGCh5uhgoGQxRwJ1bVwZBoGoGviN2HJmbHR58WZ0UAIUGrikBkDAFQK4hfBsILLghWGnvcDorAHJpmGcFQIb7qF1TrHIKqdzBmCyXA-GPezbkr4aIyjdBdhvs1yeKp0iVkksCqkuASRHVJcCkkOoSYFJMdQkwKai6BJgUVV0CTAqrLgF-0rhKaF7PGFclFB-NN-NdGaqg1Wu0rmosna3Q8jJ63wXl5GWFFpfRqIpSDV-hBWA0qqIUlldo6ReNqkj1WeVkC5YJsW4Y2i07_TPUy53M--DX0fiPD8R__A-O__6XR33GaCwcD8aeMAZ7wtDr6SKupwu0_i3x1b89qsJ9EWbcr_JFV8VTqCPCjPsVfgi9xugqN4Ta9au8EGbXr3NCmFG_ygddd1sf7oKwwOkqD9R-ZdajD4pu5mnF6k__0IOY4S9_KlUKw7dvm5JiQjZPPu4heKYXw_OYE-cxQoEwEfkCGnEqlO9cBbZyGRO-RsB0RqPfJr_cbzY3zWZTCBG-MqC7cv06QoQvCXBN32hNo0T4WoDu68XQK8BplAjfA9BRwgMiEqWATMkLrqMUkin5eOhCojShU0K_zYBCaVsay5RtLHaVZZMvPBriNKqBfl9DDXzLM-H0sv0iUMrXPEu3SIgHb-IrTmfKWPOHjy72Zn7FOUo5R2EbwzwYFKSkQk2stAlqrxnfxOgRrjJPrCcGIMdQFiju_ExcEHPdlGitJoYNlEO4W60RUxUyCRd_J6hxPJiQ0fNsVchIgxNA1oSM4s7PxNWEjL6sEvPzhMyhkEm4Y0J2R4SMHu6rQkaaIwGyJmQUd34mriZk9IA0ds8TsguFTMIdE7I3ImS000EVMtJxCZA1IaO48zNxNSFjuGAMRcgeFDIJd0zI_oiQ0bYPVchILydA1oSM4s7PxNWEjOGCMRQh-1DIJNwxIQcjQkZ7YFQhIy-JA2RNyCju_ExcTcgYLhhDEXIAhUzCHRNyOCJktCFIFTLyyjxA1oSM4s7PxNWEjOGCMRQhh1DIJNwxIU9GhIx2R6lCRi4QAMiakFHc-Zm4mpAxXDCGIuQJxK2TjCHgLaU_qhmOhOBNnmJkeuSd8dFWHiXLeyymfb_fbP4jtbQLalvmr5p8oR7n0CtNhO-Zh5Wmo1L_OQ6dd7TfuG0-pDi6BqT2DAYvT_RnTMSTIU5gKyMeDXG8xND3DpOOhjjhlKmkZfGEL0FV9wmhOtD0inO0lndJdeDmiF4IRbAj6M1bN3McmFIiQO_dujnymyMW9ZOux0LvxpLFBxybVn9AL8e6Obo3JcY25WgGbb-9iW-ya9YwG1lDFJiyhtnYGmZXrWE2uoYoNm0NM3QNM36TY0eBpJuGMK4zFwcmXTWEcZyPuXNKV-6wL__49X8A">Open the CPU, with Catch loaded</a>
+              </figcaption>
+            </figure>
+
+            <h4 class="program-head" id="programs">Programs</h4>
+            <div class="program-row">
+              <div class="program-text">
+                <p>
+                  Select the program ROM and write assembly in its inspector. <em>Assemble</em> fills the ROM and resets
+                  the circuit; a mistake is listed by its line and changes nothing.
+                </p>
+                <p class="howto">
+                  <strong>To play Catch:</strong> <a data-example="catch" href="../#circuit=1.7V1bk9s2sv4rKL5scsLxEryJkmsfxpdUsmtvXGOnzm52_ECJkERbIhWSiuRJ-b-fAi9DNMQmWtJsts6pE1elZjTE140G-oom9Lu1zIttXFkza7HJF5-_xEVi2dZvoijTPLNmnNvWVlRxElexNfvdyuKtsGbWy7harC3bWhQirkRyK8e7jhvecH7D_Q_cnTnOzHGeOY7zi2Vb2zxJl6n-XPjB9WbudOZEz7yofi7LK1FaM-uWldt4s2GreCtYsc-yNFuxPGPVWrBCLEUhsoVgL9_9bLO0KtmuyFdFvGVp88TdT2_ZN-WiSHdV-eeF5PRZXG6_fXaf3WfvRVU_U-6ESFiVM-7YjuPYbFeIsmR3-8xmi026-Fw_9Vl8medxkbA4S9g63yTsjVhWLC_YXbpaV8_YCymzki0ls2nGIraJM1E-ZyJerFmeCbaI96t11fG-i5NkI1i5yAtRdh9Wh5ytxZEl6UpORpLaxp9FWf8xE8eqgV_GZSWKZ-yWbdOyZOt4UzWP1GKQo-5EKSq228RfShav4jSrZ_z3vFpL8a1FIVhasjLd7jdy0STDZb6sDnEhZkz8JoovLM3KqtgvqjTPpNwlgSLfr9YdoT-VbBVXorRZIVapZKhlWGzzIhXlM-urbS3SYrFPK7ldFvl2l2ciq0pr9q_frTSp99lny7Y-p1nSbTrLtnZ5mVb1jvvdOlozx7a-WDPufbWtIq_i5i-Obe2KfFfKZzbxXGzkRqzHf_1qt-B5JnrwY5YXp9iBAbsHexBFrqCNgE1pYFGPthXFSpziSX0bBbSWqdgkUpzcBv8-9qSKfNsTan7RyLhuQ8Y3Cvhdo1uWbR3SpFpbMx7aVmMN_uU706nNXTeK5P-nju3zaVj_yG3f8yc2dwPftX0v4PWP3I741K9HTLu_8SBU_-b6QcRtNwojx_ad6WRaf-K3-BGfBvWPnvxxIp-beO0HXhhNue25E_mc78s_Ro5bf9w96IVTZ2J7buSGcrz849R1bdePXL_jx5kq_Lg9hSiqB7r9x9N2ePPBGIYfTCYtBngOyMUbHO3183-UmRtNXSlrx-Oq_Dx3EkVy6oFkLKilFfbEp279XCvERsLyY1_-PJUr4fieBJlM5CNRu47NBwoZf8oD96Ntlfm-WEhf8JzV3oB9c_vqjjmO6307Y3PELtbWWBqTLTuk1Voxis_us-eNda1NmTSvbJv_JtRH2G0L0BvQH17_ox7waCtryhJL0i4HreastZRVXhvLR1v5XA67u307Y05nqSXbNuMNKouTRHoJm7kNreavHkvEJv5iM7_hy2YBW-T7rLJZyMpFUTsgCf1-UQiRsfmXSrC_sCI_sP9iEfuuhnle_-5x9o38c8lcP7pxg-Db2uuUUE73WVnFRTVj7M2rH5l3n7H2v_cfbpnD-v-eA6cjx5RyNSQ9fZgLhnUSXaZF2Yq0lWc8l2uSVv1oyQN3HGX0q9dvbv85Y4c4rdgmz3cl24mClZXYQZoeBHEDroAkRXxQ2J-18rEHuXeO37-GYM7x--9PnnlVy24XH7JadiezZpk4dEvdhAlVvmP5sg4yJF2IyM1MeC-HmOif0Vl43FYz9h0LbLbNExbZrMyZ1KSILfKtqMOcfZH1OLevfmSBQujFjyzqf_3rS413-Xh0nzVk2uWXkpFrNWvZ8gBbcinhRIL7TH7YPa5R5ycPPzLziwyqSuWDt-9a-PtM_qVDlAvYM1AbBucYuXZrGpxj5EGa8q-AzkYsK5Stv_7CCgkEGZF7vJaEWD5OzQGDaoumbJlmm8jnmUhWmpBdP1KeFUVcqubMuHtMW8cZFboDp9bRvM_qec8GISaEudbDtclqUH_s3CW107nfZ53hOOVGsy1SoaSGS-0_1fJzbIuUWLdvemMGBdA6qCvnD9FlpiHtY5IfNLMQQaBRkyV3gOufWI5EIZRWrJC5jUhae3yewZMbUVqZWsfiLFGU_VVPpF-ZP5WNt6xk8mLLvAtqo_TpUC4-kEuTfc0avzy6Y_wTtl9CYGgQpVSUrMyuJS8DirgJBqTTcDXl0pYi1ATvALk3uFByteeSm0z-aVZzFUJMb3DAfSblNFPWqJ9Iuc4P7NDkhrXnSUTSZJNlle_G1vKHNx_uMwskHeVuk1Z95tH9quUenmPKPR5TnMiOlLQmLTZK4rgvq6HMxgupmc2Pd2yTH2TCmohlmrUgViFWkaXQXJNpui6F5jpdrY1Eu-xwPFn0_Wau4QWSFEkP3_yiZ7aOCbyflJodKrn4jrYh2mm4hA3h2746jWxhXhzeCikyp7ov2XeMn6xNnCSiUFZnt9juj2a6bYrtmuX37iVrkymd9HZ_BIQJVCM6VcMu3C3Mm6Td-Z5DIfe4SaJ-CRfVxlCqaPfhyO54rAXlWVXkG2UzurbV5mz_3XziP9YuHJvbMuWObG9iB57tB3bIbTcI7YC7Nndc3w5923V8VW8WpXEzBxF5M2sFnIFCTmVe8EY6nnm9PwwtN--Xm2DnGlq-mdYPBlqZMrEsH5BiZJhVL6JsTYLCme6hlqIpardocTaw4Vtr4qHWpIcTR7GgoVGYi0VmAAtbL4TqorKPyWAEzvJ9RYXzUA_Zwx0EEYuwBOsNmTUfVdge7tNDZQCbNEY_IKzBpwUVjLAGn3iPNVSmjhw6X64BqpFXQFjKT_vtzjDHKV1gO7Brh1hzWwNFAGtK2p3fiQeM3aTVTaOxeyUdypBvm5PihMgl0rl98zN7YQgRyv18mW42xsgxMtb_CccMR-U4Y_BwZNqsB-4vTmUWb_ZmkU0jusiM4Vy83R85IYx0yInFLS2ck4RdAuEugKUQzgs2NGeNMIEo_YDo1hBGxuYokncpoTlGvx3UtAdzXNaJcSQyJmz53GBneWuCSH7TYGg7LIrTzD0iFsFp5j4Ni-Ix88CE1cYZFL5CGhbF_OcTA5bX7H-PMMe0fDCEoNyLyGgPBOVsE2ZC1vWLIRAn5c--Qax9Amag9kAwBYFJ8Orc-nnQkfFtq85DjW4LgpBaC2aW0U8_DyZiisHM9xVhNr5D9IE_7avdvho0m3XCY6bV-gJCjvl9nUEp8Xe8IcylxafklfGmEolCIM0TNckaLCCEbRRCqM79-SeWiEWeiKKXV6CUDP7_3__lf0g9xuYTe2oHtqdWHnNzxBFGpn13GnAoJLI0N7iVNkPBCYB0x5hXRyY96eHKXVUYE-uOPUqeLo5UuAnBh5aJcbItWkSIFeRkCWlcO1uzEXv_7sOdwQWsBSVxbAVCMJuv_2EgWCQOIe1yqYb0TsQJk9ZUdkrevjXkI0VCyr_IZrym_rfX_zSSpWRfjlGLAdnBxdXpepSsLzyP7qvbD6eZmE7Yp2R-JqsCCQ_tLUj2s_jSk-06aocI13TxxseO7N86CEVF684qxSJ3v-uRRkCM0t53AF3QZFuLfLPfZqU1C31guGhnXF3SNKKtyCHXWhzlkaG5p7PLf3AL2RuEdLVu-o3BFLGzktCzQ3vK7clUHozY3Kk7EW3ZVjixOec25_IT3w4mdt3fKT_x4Bw2-YE-hci8-d7Idoc_dAb1wW2_zmI1QTcxJ62ApQvIiD4hor-R59pfP9rWp31WN3Mr7defxZebTMRDSW9j6rhUj7bPv7Giysjl0MBpWxKeIgOl5DCaTb_zpB8pOzrbM3J1-CBh7rU-MBgbv8kPGPVwiHrTFaAMHqUdeQOjP8pNWQhF7AfpYJdy16tt8Y_t8Lu8qJrcT1rTKtefavra26diZecc-NPhzlVc9yrctnV-iGHvCYEBxz4CDIeMIkf9c0tHxQ6eFpur2OHTYrsq9uRpsT0VO3pabF_Fnj4tdgA0BlPFC8FDAI7p44XgEwB-nVI2DVTtU3KICn2dWjZ9Ugg0ppg06LrtBUHG1JKGXOHAmE7SgEdkgSkkDTjGgTFtJJpVHBhTRRowvnjulR6xKcwi2Nd5xTblR7CvU8Imt0egr1PC7hx7EPo6JVQyqkF0TBEVFft1GDlTHkkzAIop4doMukZBMQVU-aBYjASgYtqnMkJBFZBZTPdA2EYxQ4BbD9O8rl_mDGDIsIfpHUm6XQPWYNSIaR1JwhoyCBs9TOnMe7dt8RrkF9M3Er8QGLKLqZrqJxF-u6S7YTdJCgCMqRsYhRufvv97UPE8TPFOB8rQ2xi_wB2N6d8AOCdEMBAc00JtV9HiLqgwPqaKdGxUGX1MGQE_yFbpe9AH8yEfU0fADxkb5EM-ppAn48Yk3p40DuxEH1NNCu99U_sw9hXa2bSzDxkTfyxFjCjyyDBz4mNqSXMxAHihyQJTSjCo3G-xuL_pnxsUCKaSlK2tAQNxBJg-tr2M5mQFYJcAG9NHbRApEwIWKsC0kWpF2t7KIVEHmDaSJaJCQ2FjigjHkOQBTV9whRp27z0M6neAaeKJXcD8TPPGA-KDAzQ9VEfhyVaJ8o2mh8oQzO_G-ObA9BAGMHg-i-6NEM0OVYYDRA4owyGmg0SG8c0commhynCIJrM4y5gCElnWsCHTaFaoMj0ZBj5gJekQ0z4ixwesJh2iZRmVXY5onpbdQJYxxSOyrGFDrkm6Nx0Gbt45GGQZrZEaTRwABbxOSGrHEUPRvNMwxOwELciYmV2gzJJULkJgOcYq6vAeKEmsigu5xXRNHYHDuhi7mLIBuZFwIbuYrqkjcFgQHECGr1Q1CA15RiNOQlgIqme6Y55gyhafh5tAtxxh6tY1bJ1V8jsIgI2pXNMHYkKe49F3hCd_ZjHP8eA7Qsufqj57FFwQeEckL-cjlc_HV2oGE-EIPYK4CBskwhHJ3ZGxwcFghEaaF2HDg0GSwyNjg4PBCD2OuAgbHAxOSc6PjA3OBaeoA7wIGxwLTjF9nNPyymOEKPoUU8gThkjYQNmnmFKaLWrzktggw5g2HilVEoALmb1GEwGsViOZYmpIMaXdq2uDkkAroiTrr0FDYZBUEAnCNWBgp7mDKaA2apRtLFDiDqaCYIHQepSGPYfYpFDUJSFrMsF0UBtFOTNOIDKqgaTqi4ILiy_cwbSQotp47YU7mBZSRfGA1ke4g3bKEAokOaaF3EGbZAi6kmMayB009yNstxzVELwzhhCA5ahy4D0xBOtZv9o4zC2mcw-EEpEKq3GLKdwDpZDjo9yi7WmEUosKq3GL6VpOsZf1-5nD7KKFToqiqbgav-h5g0fBDVF-MUXLKe5OxdX4RY_gAwruBOMX7X5RWSHhQn7Rzhd1CH6cUz6gFhLtewGDKB1G0A2hTS80N6Tgam4IbXmBARmldUnjGM35SByjpxYc7Xgxl_Qexhwn2vRirr6NHYZwtO3F7Ohh-5YmX1Tn9rT-FAiuCRntfoGjcL7HJII2wFBP4pR3chEKmBqaz67713ERaPzgndAw0L6KixTQONoQow3EbVOOR29oUwwYhIVvzauWCDKmktTyHHpKwtGOGMAPFRu6AbQhhsT24_udw3yjh-85IfrUsSHfaD8Mie_uPdJBtvF2mJwQhmrQGteYTtKkneB7BO-FyQkhOUTWeL68_gLbY6HtRhtg9HUnNt9qxhvthDFzDRpvNaYxTdRWndbUq7OMqSKcKCZrrfH2xK6irTCEddSwtcMJjjbDwH1FbhqG5xMc7YcBhxq4_avfWR7UGrQfhtovBbCh3qD9MCRXA4BhoQfthgFjRlhGixBoN0zzau4QcvfioPrCIIBU9VB7WL4uZ2ZRkypaB80JhRIArEkVr4NSEuTmJfFhqWKKR9JrAAxlgba-kPwrAIayQJtfwJgRWaClGLT5RTcBNHBNHlf5QACsyQPXOEoxAlTSNXlgGgccBbo10GoP2gBDimEAsCaKEQ9I8ayjTbEc7YA5HYmpOHgNHvOFaEvMAB3EQKuvqmNk0CaZISYxs_r4VjNA5sNmtX-Dekw4yuKKFcRFk8bT6WIMd29CA1xvmN_HV65HZKxz-xFcI6G8Ol1fJ_H4jvXb_ZHJXw3fMqZcclge0i73HrjO2HwZBHK7J5WA-TqG-SCBkkrAfGuiquu0-0ENF3cSrkrMSsP1Re2FjOfcDrqKDdf6uKY1HcCc0zDP4lO5umnwotr2kvAzIPN9ZbhGrfsWAuNuyLXr4LR7Is64u6AkeMmx5hksHrkAFzTOoNHI-bigaQZthzgfFzTMYHHIBbigWQbNxc_HBY0yWBRyAS5oksGCkAtwQYMMFn4Qe1gytPBIyL1R1JXykHZojNUFKXJQYbWjLKxLiII6x5hFXz2hyVYF1kqYCPCKJFzs9hH0GHZFEgN29wh6DLuilHIbi6zuMPXbPOVNbY_hz137vauUGCh5uhgoGQxRwJ1bVwZBoGoGviN2HJmbHR58WZ0UAIUGrikBkDAFQK4hfBsILLghWGnvcDorAHJpmGcFQIb7qF1TrHIKqdzBmCyXA-GPezbkr4aIyjdBdhvs1yeKp0iVkksCqkuASRHVJcCkkOoSYFJMdQkwKai6BJgUVV0CTAqrLgF-0rhKaF7PGFclFB-NN-NdGaqg1Wu0rmosna3Q8jJ63wXl5GWFFpfRqIpSDV-hBWA0qqIUlldo6ReNqkj1WeVkC5YJsW4Y2i07_TPUy53M--DX0fiPD8R__A-O__6XR33GaCwcD8aeMAZ7wtDr6SKupwu0_i3x1b89qsJ9EWbcr_JFV8VTqCPCjPsVfgi9xugqN4Ta9au8EGbXr3NCmFG_ygddd1sf7oKwwOkqD9R-ZdajD4pu5mnF6k__0IOY4S9_KlUKw7dvm5JiQjZPPu4heKYXw_OYE-cxQoEwEfkCGnEqlO9cBbZyGRO-RsB0RqPfJr_cbzY3zWZTCBG-MqC7cv06QoQvCXBN32hNo0T4WoDu68XQK8BplAjfA9BRwgMiEqWATMkLrqMUkin5eOhCojShU0K_zYBCaVsay5RtLHaVZZMvPBriNKqBfl9DDXzLM-H0sv0iUMrXPEu3SIgHb-IrTmfKWPOHjy72Zn7FOUo5R2EbwzwYFKSkQk2stAlqrxnfxOgRrjJPrCcGIMdQFiju_ExcEHPdlGitJoYNlEO4W60RUxUyCRd_J6hxPJiQ0fNsVchIgxNA1oSM4s7PxNWEjL6sEvPzhMyhkEm4Y0J2R4SMHu6rQkaaIwGyJmQUd34mriZk9IA0ds8TsguFTMIdE7I3ImS000EVMtJxCZA1IaO48zNxNSFjuGAMRcgeFDIJd0zI_oiQ0bYPVchILydA1oSM4s7PxNWEjOGCMRQh-1DIJNwxIQcjQkZ7YFQhIy-JA2RNyCju_ExcTcgYLhhDEXIAhUzCHRNyOCJktCFIFTLyyjxA1oSM4s7PxNWEjOGCMRQhh1DIJNwxIU9GhIx2R6lCRi4QAMiakFHc-Zm4mpAxXDCGIuQJxK2TjCHgLaU_qhmOhOBNnmJkeuSd8dFWHiXLeyymfb_fbP4jtbQLalvmr5p8oR7n0CtNhO-Zh5Wmo1L_OQ6dd7TfuG0-pDi6BqT2DAYvT_RnTMSTIU5gKyMeDXG8xND3DpOOhjjhlKmkZfGEL0FV9wmhOtD0inO0lndJdeDmiF4IRbAj6M1bN3McmFIiQO_dujnymyMW9ZOux0LvxpLFBxybVn9AL8e6Obo3JcY25WgGbb-9iW-ya9YwG1lDFJiyhtnYGmZXrWE2uoYoNm0NM3QNM36TY0eBpJuGMK4zFwcmXTWEcZyPuXNKV-6wL__49X8A">open the CPU with Catch</a>, set the
+                  speed to 10,000 Hz, press <em>Run</em>, click the keyboard part, then hold Left or Right. Blocks fall in eight lanes. Each catch up to the tenth makes the next block fall faster,
+                  and a miss ends the game; <em>Reset</em> starts a new one. The whole game is 89 instructions.
+                </p>
+              </div>
+              <figure class="shot shot-program">
+                <div class="frame">
+                  <picture>
+                    <source media="(prefers-color-scheme: light)" srcset="./shots/program-light.png" />
+                    <img
+                      src="./shots/program-dark.png"
+                      width="560"
+                      height="484"
+                      loading="lazy"
+                      alt="The ROM's inspector: an Assembly box holding a program that counts down from 10, the note Assembled 7 words, and the Assemble button."
+                    />
+                  </picture>
+                </div>
+                <figcaption><span class="fig">Fig. 6</span> A count-down from 10, assembled into seven words.</figcaption>
+              </figure>
+            </div>
+                    </div>
+        </section>
+
+        <section class="layer">
+          <div class="wrap">
+            <h3 id="l4">Challenges</h3>
+            <p class="layer-lede narrow">
+              Nine challenges climb from an inverter to the ALU the CPU needs. Each asks for a component with named pins. <em>Check</em> runs it on a test bench inside the
+              engine, and any circuit built from the allowed parts that behaves correctly passes. When one fails, you see which step failed, the inputs
+              it set, and which outputs were wrong.
+            </p>
+            <ol class="ladder" role="list">
+              <li data-challenge="01-inverter"><span>Inverter</span><small><span class="visually-hidden">Parts: </span>NAND only</small></li>
+              <li data-challenge="02-xor"><span>XOR</span><small><span class="visually-hidden">Parts: </span>NAND only</small></li>
+              <li data-challenge="03-half-adder"><span>Half adder</span><small><span class="visually-hidden">Parts: </span>gates</small></li>
+              <li data-challenge="04-full-adder"><span>Full adder</span><small><span class="visually-hidden">Parts: </span>gates</small></li>
+              <li data-challenge="05-adder8"><span>8-bit adder</span><small><span class="visually-hidden">Parts: </span>gates, splitters, mergers, a full adder</small></li>
+              <li data-challenge="06-register"><span>One-bit register</span><small><span class="visually-hidden">Parts: </span>gates, D flip-flops</small></li>
+              <li data-challenge="07-register8"><span>8-bit register</span><small><span class="visually-hidden">Parts: </span>gates, D flip-flops, splitters, mergers</small></li>
+              <li data-challenge="08-counter8"><span>8-bit counter</span><small><span class="visually-hidden">Parts: </span>gates, D flip-flops, splitters, mergers</small></li>
+              <li data-challenge="09-alu"><span>ALU</span><small><span class="visually-hidden">Parts: </span>gates, splitters, mergers, an 8-bit adder</small></li>
+            </ol>
+            <p class="ladder-note">Under each name, the parts it allows. A rung turns green here once you pass it in this browser. Open them from <em>Challenges</em> in the editor's parts panel. The CPU's own ALU is block 7 of Fig. 5.</p>
+            <div class="checks">
+              <figure class="shot check check-passed">
+                <div class="frame bare">
+                  <picture>
+                    <source media="(prefers-color-scheme: light)" srcset="./shots/challenge-circuit-light.png" />
+                    <img
+                      src="./shots/challenge-circuit-dark.png"
+                      width="1200"
+                      height="520"
+                      loading="lazy"
+                      alt="A full adder built from two XOR gates, two AND gates and an OR gate, with inputs A, B and Cin and outputs S and Cout. A and Cin are on, so Cout is lit."
+                    />
+                  </picture>
+                  <picture class="settle-off" aria-hidden="true">
+                    <source media="(prefers-color-scheme: light)" srcset="./shots/challenge-circuit-off-light.png" />
+                    <img
+                      src="./shots/challenge-circuit-off-dark.png"
+                      width="1200"
+                      height="520"
+                      loading="lazy"
+                      alt=""
+                    />
+                  </picture>
+                </div>
+                <div class="frame panel-shot">
+                  <picture>
+                    <source media="(prefers-color-scheme: light)" srcset="./shots/challenge-light.png" />
+                    <img
+                      src="./shots/challenge-dark.png"
+                      width="558"
+                      height="438"
+                      loading="lazy"
+                      alt="The Challenge panel for Full adder after Check: Passed, 8 of 8 steps."
+                    />
+                  </picture>
+                </div>
+                <figcaption><span class="fig">Fig. 7</span> Challenge 4, the full adder, passing all 8 steps.</figcaption>
+              </figure>
+              <figure class="shot check check-failed">
+                <div class="frame panel-shot">
+                  <picture>
+                    <source media="(prefers-color-scheme: light)" srcset="./shots/check-failed-light.png" />
+                    <img
+                      src="./shots/check-failed-dark.png"
+                      width="558"
+                      height="426"
+                      loading="lazy"
+                      alt="The Challenge panel for XOR from NAND gates after Check: Step 2 of 4 failed. With A = 0, B = 1: Y should be 1 but is 0."
+                    />
+                  </picture>
+                </div>
+                <figcaption><span class="fig">Fig. 8</span> Challenge 2 with A wired straight to Y. <em>Check</em> reports the first step that fails.</figcaption>
+              </figure>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section class="engine" id="engine" aria-labelledby="engine-title">
+        <div class="wrap">
+          <h2 id="engine-title">One engine decides every wire</h2>
+          <p class="section-lede">
+            The engine is written in Rust and runs beside the page in a worker. The editor only draws what it
+            reports, and a CPU you build runs through the parts and wires you placed.
+          </p>
+
+          <figure class="arch">
+            <div class="timeline-scroll" data-label="Timing diagram"><svg class="timeline" viewBox="0 0 1180 270" role="img" aria-labelledby="tl-title"><title id="tl-title">Timing: adding a wire, then clicking a switch.</title><text class="tl-lane" x="0" y="54">You</text><path class="tl-base" d="M150 60 H1180" /><text class="tl-lane" x="0" y="114">Page</text><path class="tl-base" d="M150 120 H1180" /><text class="tl-lane" x="0" y="174">Messages</text><path class="tl-base" d="M150 180 H1180" /><text class="tl-lane" x="0" y="234">Worker</text><path class="tl-base" d="M150 240 H1180" /><text class="tl-head" x="160" y="14">you add a wire</text><text class="tl-head" x="700" y="14">you click switch A</text><path class="tl-split" d="M680 0 V250" /><path class="tl-event" d="M170 60 V38" /><circle class="tl-event-dot" cx="170" cy="38" r="4" /><text class="tl-event-text" x="180" y="42">drag the wire</text><path class="tl-busy" d="M179.5 120 V100 H270 V120" /><text class="tl-note" x="225.0" y="94">describe the circuit</text><path class="tl-cell" d="M280 170 L288 156 H352 L360 170 L352 184 H288 Z" /><text class="tl-cell-text" x="320.0" y="174">load</text><path class="tl-busy" d="M369.5 240 V220 H520 V240" /><text class="tl-note" x="445.0" y="214">validate, flatten to nets, settle</text><path class="tl-cell" d="M530 170 L538 156 H602 L610 170 L602 184 H538 Z" /><text class="tl-cell-text" x="570.0" y="174">state</text><path class="tl-busy" d="M614.5 120 V100 H665 V120" /><text class="tl-note" x="640.0" y="94">draw</text><path class="tl-event" d="M710 60 V38" /><circle class="tl-event-dot" cx="710" cy="38" r="4" /><text class="tl-event-text" x="720" y="42">click A</text><path class="tl-busy" d="M719.5 120 V100 H760 V120" /><text class="tl-note" x="740.0" y="94">send</text><path class="tl-cell" d="M770 170 L778 156 H872 L880 170 L872 184 H778 Z" /><text class="tl-cell-text" x="825.0" y="174">setInputs</text><path class="tl-busy" d="M889.5 240 V220 H950 V240" /><text class="tl-note" x="920.0" y="214">settle</text><path class="tl-cell" d="M960 170 L968 156 H1032 L1040 170 L1032 184 H968 Z" /><text class="tl-cell-text" x="1000.0" y="174">state</text><path class="tl-busy" d="M1049.5 120 V100 H1100 V120" /><text class="tl-note" x="1075.0" y="94">draw</text><text class="tl-free" x="925" y="112">the page is free: scroll, pan, edit</text></svg></div>
+            <figcaption><span class="fig">Fig. 9</span> What happens when you edit, in time. The page describes the circuit
+              from what you drew and sends it to the worker; the engine there validates it, flattens it into nets and
+              settles it, and sends back each net's value, which the page draws. A click sends only the new input.
+              The engine never runs on the page's thread. Routing and drawing do, and they are the slow part on very
+              large sheets: the <a href="https://github.com/josep-audenis/clockyard/blob/main/docs/performance.md">benchmarks</a> have the numbers.</figcaption>
+          </figure>
+
+          <div class="engine-notes">
+            <div class="principles">
+              <p><strong>Wires name the ports they join.</strong> Nothing is inferred from where things sit, and two wires that cross are not connected unless they meet at a junction.</p>
+              <p><strong>Settling is bounded.</strong> After any change the engine updates the wires until nothing moves, within a step limit that grows with the size of the circuit. A loop that never settles is reported as unstable and the run pauses, instead of hanging the page.</p>
+              <p><strong>Runs repeat exactly.</strong> The same circuit and the same inputs, at the same cycles, give the same result at any speed or frame rate.</p>
+            </div>
+            <figure class="shot shot-unstable">
+              <div class="frame bare">
+                <picture>
+                  <source media="(prefers-color-scheme: light)" srcset="./shots/unstable-circuit-light.png" />
+                  <img
+                    src="./shots/unstable-circuit-dark.png"
+                    width="740"
+                    height="320"
+                    loading="lazy"
+                    alt="A switch that is off feeds a NOR gate whose output is wired back to its own second input. The NOR is outlined in red as the cause."
+                  />
+                </picture>
+              </div>
+              <div class="frame status-shot">
+                <picture>
+                  <source media="(prefers-color-scheme: light)" srcset="./shots/unstable-status-light.png" />
+                  <img
+                    src="./shots/unstable-status-dark.png"
+                    width="980"
+                    height="46"
+                    loading="lazy"
+                    alt="The status bar: Unstable. The circuit did not settle: a loop keeps oscillating."
+                  />
+                </picture>
+              </div>
+              <figcaption><span class="fig">Fig. 10</span> A NOR fed back into itself while the switch is off never settles. The status bar reports it as Unstable: “The circuit did not settle: a loop keeps
+              oscillating.” The page stays responsive.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="facts" id="status" aria-label="Privacy and status">
+        <div class="wrap facts-grid">
+          <section aria-labelledby="privacy-title">
+            <h2 id="privacy-title">Yours, in your browser</h2>
+            <div class="prose">
+              <p>
+                Clockyard is a static site, free and open source under MIT or Apache-2.0. There is no account
+                and no backend, and nothing you build is uploaded.
+              </p>
+              <p>
+                Your circuits are kept in this browser as projects and saved as you work. Clearing this site's data deletes them, so export what you want to keep as a JSON file. Files exported by earlier versions of Clockyard still open.
+              </p>
+              <p>
+                <em>Copy link</em> copies an address that carries the whole circuit after its <code>#</code>. Browsers
+                never send that part to a server, so whoever opens the link gets the circuit straight from it.
+              </p>
+            </div>
+          </section>
+          <section aria-labelledby="status-title">
+            <h2 id="status-title">Where it stands</h2>
+            <ol class="phases" role="list" aria-labelledby="status-title">
+              <li class="done"><span class="visually-hidden">Done: </span><span class="ph">Phase 0</span><span class="pt">The Rust engine in the browser through WebAssembly</span></li>
+              <li class="done"><span class="visually-hidden">Done: </span><span class="ph">Phase 1</span><span class="pt">First circuit editor: gates, wires, export and import</span></li>
+              <li class="done"><span class="visually-hidden">Done: </span><span class="ph">Phase 2</span><span class="pt">Components, junctions, routing, buses, net labels</span></li>
+              <li class="done"><span class="visually-hidden">Done: </span><span class="ph">Phase 3</span><span class="pt">Clocks, flip-flops, run and step</span></li>
+              <li class="done"><span class="visually-hidden">Done: </span><span class="ph">Phase 4</span><span class="pt">A programmable 8-bit computer and its assembler</span></li>
+              <li class="done"><span class="visually-hidden">Done: </span><span class="ph">Phase 5</span><span class="pt">The sandbox: devices, a game, links, challenges, waveforms, examples, components from other files</span></li>
+              <li class="now"><span class="visually-hidden">In progress: </span><span class="ph">Phase 6</span><span class="pt">Projects saved in the browser, autosave, a component library, challenge progress, and benchmarks run natively and in the browser</span></li>
+            </ol>
+            <p class="note">Pre-alpha, as of November 2026. A filled dot is done; a ring is in progress. Phase 6 continues with speed-ups where the benchmarks show the need, editing a running circuit, challenges for the CPU, four-state signals and a second CPU. The <a href="https://github.com/josep-audenis/clockyard/blob/main/docs/roadmap.md">roadmap</a> has the details.</p>
+          </section>
+        </div>
+      </section>
+
+      <section class="closing" aria-labelledby="closing-title">
+        <div class="wrap closing-grid">
+          <div>
+            <h2 id="closing-title">Start with one gate</h2>
+            <p>On your first visit the editor opens on an empty sheet. Press <kbd>S</kbd> and click to place a switch, then do it again for a second. Press
+              <kbd>A</kbd> for an AND gate and <kbd>L</kbd> for an LED. Drag from each switch to a gate input and
+              from the gate to the LED, then click both switches on.</p>
+            <p>Then try the challenges, and open the CPU from <em>Examples</em> when you want to see where they lead.</p>
+            <div class="actions">
+              <a class="button button-primary button-lg" href="../">Open the editor</a>
+            </div>
+            <p class="note">The <a href="https://github.com/josep-audenis/clockyard#getting-started">README</a> explains how to run it from source.</p>
+          </div>
+          <figure class="shot first-pulse">
+            <div class="first-steps">
+              <picture class="frame bare"><source media="(prefers-color-scheme: light)" srcset="./shots/first-placed-light.png" /><img src="./shots/first-placed-dark.png" width="640" height="288" loading="lazy" alt="" /></picture>
+              <picture class="frame bare"><source media="(prefers-color-scheme: light)" srcset="./shots/first-wired-light.png" /><img src="./shots/first-wired-dark.png" width="640" height="288" loading="lazy" alt="" /></picture>
+              <picture class="frame bare"><source media="(prefers-color-scheme: light)" srcset="./shots/first-lit-light.png" /><img src="./shots/first-lit-dark.png" width="640" height="288" loading="lazy" alt="Two switches wired into an AND gate and the gate into an LED, both switches on: their wires, the gate's output and the LED are lit." /></picture>
+            </div>
+            <figcaption><span class="fig">Fig. 11</span> Placed with <kbd>S</kbd>, <kbd>A</kbd> and <kbd>L</kbd>; wired; both switches on, and the LED lights.</figcaption>
+          </figure>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-row">
+        <p class="footer-mark">
+          <svg viewBox="0 0 64 64" width="20" height="20" aria-hidden="true">
+            <rect width="64" height="64" rx="6" fill="var(--bench)" stroke="var(--line)" stroke-width="2" />
+            <path d="M44 48H16" fill="none" stroke="var(--signal-low)" stroke-width="5" stroke-linecap="round" />
+            <path d="M16 48V16H47" fill="none" stroke="var(--signal-high)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+            <circle cx="48" cy="16" r="5.5" fill="var(--signal-high)" />
+            <circle cx="48" cy="48" r="4.5" fill="var(--bench)" stroke="var(--signal-low)" stroke-width="3" />
+          </svg>
+          <span><span class="lockup-name">Clockyard</span> MIT or Apache-2.0</span>
+        </p>
+        <p>
+          Clockyard owes ideas to Sebastian Lague's Digital Logic Sim, Turing Complete, Nand2Tetris,
+          Logisim Evolution, Ben Eater's breadboard computer, Zachtronics puzzles and Factorio. It
+          shares no code, artwork or branding with any of them.
+        </p>
+        <nav aria-label="Project">
+          <a href="https://github.com/josep-audenis/clockyard">Source</a>
+          <a href="https://github.com/josep-audenis/clockyard/blob/main/docs/architecture.md">Architecture</a>
+          <a href="https://github.com/josep-audenis/clockyard/blob/main/docs/roadmap.md">Roadmap</a>
+          <a href="https://github.com/josep-audenis/clockyard/blob/main/CONTRIBUTING.md">Contributing</a>
+        </nav>
+      </div>
+    </footer>
+
+    <script type="module">
+      const motion = matchMedia("(prefers-reduced-motion: no-preference)").matches;
+
+      // Fig. 1: the recording plays while on screen, never on its own under reduced motion, and
+      // always has a button to pause or play it.
+      const loopFrame = document.querySelector(".loop-frame");
+      const loop = loopFrame?.querySelector("video");
+      if (loop) {
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "button loop-toggle";
+        const label = () => {
+          toggle.textContent = loop.paused ? "Play" : "Pause";
+          toggle.setAttribute("aria-label", `${toggle.textContent} the Catch recording`);
+        };
+        let held = !motion; // paused by the viewer, or by the system setting
+        toggle.addEventListener("click", () => {
+          held = !loop.paused;
+          if (held) loop.pause();
+          else loop.play().catch(() => {});
+        });
+        loop.addEventListener("play", label);
+        loop.addEventListener("pause", label);
+        loop.addEventListener("playing", () => loopFrame.classList.add("is-playing"));
+        label();
+        loopFrame.parentElement.querySelector("figcaption").append(toggle);
+        new IntersectionObserver(([entry]) => {
+          if (entry.isIntersecting && !held) loop.play().catch(() => {});
+          if (!entry.isIntersecting) loop.pause();
+        }).observe(loop);
+      }
+
+      // Fig. 2: the half adder. Clicking a switch shows the capture with that combination; the table
+      // holds what the editor's readout said for each. Nothing is computed here.
+      const ha = document.querySelector(".ha-stage");
+      if (ha) {
+        const rows = [...document.querySelectorAll(".ha-table tbody tr")];
+        const show = () => {
+          for (const shot of ha.querySelectorAll(".ha-shot")) shot.toggleAttribute("aria-hidden", shot.dataset.state !== ha.dataset.state);
+          rows.forEach((row) => row.classList.toggle("is-now", row.dataset.state === ha.dataset.state));
+        };
+        for (const button of ha.querySelectorAll(".ha-switch")) {
+          button.hidden = false;
+          button.addEventListener("click", () => {
+            const on = button.getAttribute("aria-pressed") !== "true";
+            button.setAttribute("aria-pressed", String(on));
+            ha.classList.add("was-clicked");
+            const [a, b] = ["a", "b"].map((n) => ha.querySelector(`[data-switch="${n}"]`).getAttribute("aria-pressed") === "true" ? "1" : "0");
+            ha.dataset.state = a + b;
+            show();
+          });
+        }
+        for (const img of ha.querySelectorAll("img")) img.loading = "eager";
+        show();
+      }
+
+      // The spine and the section numbers. A wire down the margin joins every section's port; the
+      // part above the reading line is lit, and a section it has reached has its port, its rule and
+      // its number, on seven-segment digits, lit.
+      const sections = [...document.querySelectorAll(".try, .chapter, .engine, .facts, .closing")];
+      const SEGMENTS = { a: [3, 0, 12, 3], b: [15, 3, 3, 13], c: [15, 19, 3, 13], d: [3, 32, 12, 3], e: [0, 19, 3, 13], f: [0, 3, 3, 13], g: [3, 16, 12, 3] };
+      const DIGITS = ["abcdef", "bc", "abdeg", "abcdg", "bcfg", "acdfg", "acdefg", "abc", "abcdefg", "abcdfg"];
+      const digit = (n, x) =>
+        Object.entries(SEGMENTS)
+          .map(([name, [sx, sy, w, h]], i) => `<rect x="${x + sx}" y="${sy}" width="${w}" height="${h}" rx="1" class="${DIGITS[n].includes(name) ? "on" : ""}" style="--i:${i}"/>`)
+          .join("");
+      sections.forEach((section, i) => {
+        const n = i + 1;
+        const heading = section.querySelector("h2");
+        heading.insertAdjacentHTML("beforebegin", `<svg class="seg" viewBox="0 0 40 35" aria-hidden="true">${digit(Math.floor(n / 10), 0)}${digit(n % 10, 22)}</svg>`);
+        heading.previousElementSibling.dataset.for = heading.id;
+      });
+      const spine = document.querySelector(".spine");
+      const lit = document.querySelector(".spine-lit");
+      let top = 0;
+      let ports = [];
+      const measure = () => {
+        const y = (el) => el.getBoundingClientRect().top + scrollY;
+        ports = sections.map((section) => y(section));
+        top = ports[0];
+        // The spine is placed inside main, which starts below the header.
+        spine.style.top = `${top - y(document.querySelector("main"))}px`;
+        spine.style.height = `${ports.at(-1) - top}px`;
+        // Digits in the margin sit level with their heading.
+        for (const seg of document.querySelectorAll(".seg")) {
+          if (getComputedStyle(seg).position !== "absolute") continue;
+          const h = document.getElementById(seg.dataset.for);
+          seg.style.top = `${y(h) - y(seg.closest(".try, .chapter, .engine, .facts, .closing")) + 4}px`;
+        }
+      };
+      let queued = false;
+      const update = () => {
+        queued = false;
+        const reading = scrollY + innerHeight / 3;
+        lit.style.setProperty("--lit", `${Math.max(0, Math.min(reading, ports.at(-1)) - top)}px`);
+        sections.forEach((section, i) => section.classList.toggle("is-reached", reading >= ports[i]));
+      };
+      const schedule = () => queued || ((queued = true), requestAnimationFrame(update));
+      measure();
+      update();
+      addEventListener("scroll", schedule, { passive: true });
+      addEventListener("resize", schedule, { passive: true });
+      new ResizeObserver(() => (measure(), schedule())).observe(document.body);
+
+      // Fig. 5: the whole CPU from Reset, stepped with the arrows, the slider or Play, one recorded
+      // frame per clock cycle. The tape shows the word being fetched (outlined) or executed (filled);
+      // the blue outlines are the page's annotation of the blocks that kind of instruction needs,
+      // from docs/reference-cpu.md and the circuit's layout, not read from the recording.
+      const stage = document.querySelector(".cpu-stage");
+      const frames = (stage?.dataset.steps ?? "").split(";").filter(Boolean).map((f) => f.split("|"));
+      if (stage && frames.length) {
+        const run = stage.closest(".cpu-run");
+        const band = stage.querySelector("[data-rom]");
+        const cells = [...band.children];
+        const blocks = [...stage.querySelectorAll(".blocks li")];
+        const names = [...document.querySelectorAll(".key li")].map((li) => li.textContent);
+        const video = stage.querySelector("video.cpu-steps");
+        const controls = stage.querySelector(".cpu-controls");
+        const scrub = controls.querySelector("[data-scrub]");
+        const play = controls.querySelector("[data-play]");
+        const uses = (asm, phase) => {
+          if (phase === "fetch") return [3, 4, 12];
+          const [op, arg = ""] = asm.split(" ");
+          const n = parseInt(arg, 16);
+          const device = arg.startsWith("0x") && n >= 0xf0;
+          if (op === "LDI") return [8, 5, 9];
+          if (op === "LDA") return device ? (n === 0xfd ? [1, 5, 13, 10, 8, 9] : n === 0xff || n === 0xfc ? [2, 5, 13, 10, 8, 9] : [10, 5, 13, 8, 9]) : [6, 5, 13, 10, 8, 9];
+          if (op === "STA") return n === 0xfc ? [2, 5, 13, 8] : n === 0xfd ? [1, 5, 13, 8] : device ? [8, 5, 13] : [6, 5, 13, 8];
+          if (op === "ADD" || op === "SUB") return [7, 5, 13, 6, 10, 8, 9];
+          if (op === "ADI" || op === "SBI") return [7, 5, 8, 9];
+          if (op === "JZ" || op === "JC") return [9, 5, 4];
+          if (op === "JMP") return [4, 5];
+          if (op === "OUT") return [11, 5, 8];
+          if (op === "HLT") return [12, 5];
+          return [5];
+        };
+        let at = 0;
+        const render = () => {
+          const [pc, cycle, phase] = frames[at];
+          if (video.readyState >= 1) video.currentTime = at / 10 + 0.05;
+          scrub.value = String(at);
+          stage.querySelector("[data-cycle]").textContent = cycle;
+          stage.querySelector("[data-phase]").textContent = phase;
+          stage.querySelector("[data-pc]").textContent = Number(pc).toString(16).toUpperCase().padStart(2, "0");
+          // Fetching: the word at the program counter. Executing: the word fetched the cycle before.
+          const word = phase === "execute" && at > 0 ? Number(frames[at - 1][0]) : Number(pc);
+          const cell = cells[word];
+          const used = uses(cell?.querySelector("b").textContent ?? "", phase);
+          blocks.forEach((b, k) => b.classList.toggle("is-used", used.includes(k + 1)));
+          stage.querySelector("[data-uses]").textContent = names[used[0] - 1];
+          if (cell) {
+            band.style.setProperty("--shift", `${band.parentElement.clientWidth / 2 - cell.offsetLeft - cell.offsetWidth / 2}px`);
+            cells.forEach((c) => {
+              c.classList.toggle("pc", c === cell && phase !== "execute");
+              c.classList.toggle("exec", c === cell && phase === "execute");
+            });
+          }
+        };
+        const go = (i) => ((at = Math.max(0, Math.min(frames.length - 1, i))), render());
+        let timer = 0;
+        const stop = () => (clearInterval(timer), (timer = 0), (play.textContent = "Play"));
+        play.addEventListener("click", () => {
+          if (timer) return stop();
+          if (at === frames.length - 1) go(0);
+          play.textContent = "Pause";
+          timer = setInterval(() => (at === frames.length - 1 ? stop() : go(at + 1)), 450);
+        });
+        for (const b of controls.querySelectorAll("[data-step]")) b.addEventListener("click", () => (stop(), go(at + Number(b.dataset.step))));
+        scrub.addEventListener("input", () => (stop(), go(Number(scrub.value))));
+        // The frames load when the figure comes near, not with the page.
+        new IntersectionObserver(([entry], seen) => {
+          if (!entry.isIntersecting) return;
+          seen.disconnect();
+          for (const source of video.querySelectorAll("source")) source.src = source.dataset.src;
+          video.preload = "auto";
+          video.load();
+          video.addEventListener("loadeddata", () => (run.classList.add("is-live"), render()), { once: true });
+        }, { rootMargin: "600px" }).observe(stage);
+        controls.hidden = false;
+        run.classList.add("has-controls");
+        new ResizeObserver(() => render()).observe(band.parentElement);
+        render();
+      }
+
+      // Figs. 3 and 7 open on the capture with every switch off and settle into the documented one
+      // when half in view. Only with motion allowed; otherwise, and without the script, the
+      // documented capture is all there is.
+      if (motion) {
+        const settle = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              // Half of it in view, or half the screen filled by it (a figure taller than two screens).
+              if (entry.intersectionRatio < 0.5 && entry.intersectionRect.height < entry.rootBounds.height / 2) continue;
+              settle.unobserve(entry.target);
+              setTimeout(() => entry.target.classList.remove("is-pending"), 500);
+            }
+          },
+          { threshold: [0, 0.25, 0.5] },
+        );
+        for (const off of document.querySelectorAll(".settle-off")) {
+          const frame = off.parentElement;
+          const img = off.querySelector("img");
+          img.loading = "eager";
+          // Only once the off capture can be shown, so the swap never flickers on, off, on.
+          img.decode().then(() => {
+            frame.classList.add("is-pending");
+            settle.observe(frame);
+          }, () => {});
+        }
+      }
+
+      // Fig. 11 is one frame that steps, placed, wired, lit, once it is in view.
+      const first = document.querySelector(".first-steps");
+      if (first && motion) {
+        first.dataset.step = "0";
+        const seen = new IntersectionObserver(([entry]) => {
+          if (!entry.isIntersecting) return;
+          seen.disconnect();
+          [1, 2].forEach((step) => setTimeout(() => (first.dataset.step = step), step * 900));
+        }, { threshold: 0.6 });
+        seen.observe(first);
+      }
+
+      // The ladder lights the rungs this browser has passed, read from the editor's own store
+      // (ADR 0029). Read only: if the store does not exist yet, nothing is created.
+      (async () => {
+        if (!indexedDB.databases || !(await indexedDB.databases()).some((db) => db.name === "clockyard")) return;
+        const request = indexedDB.open("clockyard");
+        request.onupgradeneeded = () => request.transaction.abort();
+        request.onerror = () => {};
+        request.onsuccess = () => {
+          const db = request.result;
+          db.onversionchange = () => db.close(); // the editor's upgrade comes first
+          if (!db.objectStoreNames.contains("progress")) return db.close();
+          const transaction = db.transaction("progress");
+          const all = transaction.objectStore("progress").getAllKeys();
+          transaction.oncomplete = transaction.onerror = transaction.onabort = () => db.close();
+          all.onsuccess = () => {
+            for (const name of all.result) {
+              const rung = document.querySelector(`.ladder [data-challenge="${CSS.escape(name)}"]`);
+              if (!rung || rung.classList.contains("passed")) continue;
+              rung.classList.add("passed");
+              rung.querySelector("span").insertAdjacentHTML("afterbegin", '<span class="visually-hidden">Passed: </span>');
+            }
+          };
+        };
+      })().catch(() => {});
+
+      // Wide figures scroll sideways on narrow screens; only then are they a stop for the keyboard.
+      for (const box of document.querySelectorAll("[data-label]")) {
+        new ResizeObserver(() => {
+          const scrolls = box.scrollWidth > box.clientWidth && getComputedStyle(box).overflowX !== "hidden";
+          box.toggleAttribute("tabindex", scrolls);
+          if (scrolls) {
+            box.tabIndex = 0;
+            box.setAttribute("role", "region");
+            box.setAttribute("aria-label", `${box.dataset.label}, scrolls sideways`);
+          } else {
+            box.removeAttribute("role");
+            box.removeAttribute("aria-label");
+          }
+        }).observe(box);
+      }
+    </script>
+  </body>
+</html>

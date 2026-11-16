@@ -1153,11 +1153,11 @@ test("memory-mapped I/O demo: the shipped CPU program shows the key held on the 
   await page.getByLabel("Speed").selectOption("1000");
   await button("Run").click();
   // The devices open in view; the program waits on KEY until a key is held.
-  await click(page, at(3, 12)); // the keyboard at (1,11)
+  await click(page, at(14, 10)); // the keyboard at (12,9)
   await expect(status(page)).toContainText("The keyboard has the keys");
   await page.keyboard.down("Shift");
   await page.keyboard.down("A");
-  await expect(readout(page, "Keyboard Keyboard")).toHaveText("Keyboard Keyboard: 65 (0x41)");
+  await expect(readout(page, "Keyboard")).toHaveText("Keyboard: 65 (0x41)");
   await expect(readout(page, "Seven-segment High")).toHaveText("Seven-segment High: 102 (0x66)"); // 4
   await expect(readout(page, "Seven-segment Low")).toHaveText("Seven-segment Low: 6 (0x06)"); // 1
   // HEX is stored first; SDATA three instructions later, so hold through a few more of them.
@@ -1202,7 +1202,7 @@ test("game demo: in Catch the first block is caught, a miss halts the run, and a
   await button("Reset").click();
   await expect(halted).toHaveText("LED Halted: off");
   await button("Run").click();
-  await click(page, at(3, 12)); // the keyboard at (1,11)
+  await click(page, at(14, 10)); // the keyboard at (12,9)
   await expect(status(page)).toContainText("The keyboard has the keys");
   await page.keyboard.down("ArrowRight");
   await expect(halted).toHaveText("LED Halted: on", game);
@@ -1231,7 +1231,7 @@ test("waveforms: the 8-bit counter stepped three times reads 0x00 to 0x03, and a
   await expect(inspector.getByRole("button", { name: "Stop watching" })).toBeVisible();
   const rows = waves.getByRole("listitem");
   await expect(rows).toHaveCount(2);
-  await expect(rows.nth(0)).toContainText("Clock Clockoff");
+  await expect(rows.nth(0)).toContainText("Clockoff");
   await expect(rows.nth(1)).toContainText("Register Value q0 (0x00)");
 
   for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Step", exact: true }).click();
@@ -1263,7 +1263,7 @@ test("waveforms: the 8-bit counter stepped three times reads 0x00 to 0x03, and a
   // Stopping the last watch hides the panel.
   await waves.getByRole("button", { name: "Stop watching Register Value q" }).click();
   await expect(rows).toHaveCount(1);
-  await waves.getByRole("button", { name: "Stop watching Clock Clock" }).click();
+  await waves.getByRole("button", { name: "Stop watching Clock", exact: true }).click();
   await expect(waves).toHaveCount(0);
 });
 

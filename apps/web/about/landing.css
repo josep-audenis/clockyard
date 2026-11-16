@@ -1,0 +1,702 @@
+/* The about page. Colours, radii and families come from the design system tokens
+   (ADR 0008); display sizes and IBM Plex Sans Condensed for headings follow its "Pages"
+   section. Amber (signal-high) means a logic 1 and nothing else: actions are blue, and
+   dashes stay reserved for X and Z signals. */
+@import "../src/styles/tokens.css";
+@import "@fontsource/ibm-plex-sans/latin-400.css";
+@import "@fontsource/ibm-plex-sans/latin-500.css";
+@import "@fontsource/ibm-plex-sans/latin-600.css";
+@import "@fontsource/ibm-plex-sans/latin-400-italic.css";
+@import "@fontsource/ibm-plex-sans-condensed/latin-500.css";
+@import "@fontsource/ibm-plex-sans-condensed/latin-600.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+@import "@fontsource/ibm-plex-mono/latin-600.css";
+
+:root {
+  color-scheme: light dark;
+  --wrap: 1180px;
+  --gutter: 24px;
+  --section: 88px;
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+body {
+  margin: 0;
+  background: var(--bench);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+img { display: block; max-width: 100%; height: auto; }
+picture { display: block; }
+
+a { color: var(--accent); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+/* The ring is a box-shadow so it follows the radius; the transparent outline keeps it in forced-colours mode. */
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+.button:focus-visible { border-radius: var(--radius-md); }
+
+code, kbd, pre { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+:not(pre) > code {
+  font-size: 0.875em;
+  color: var(--ink);
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+kbd {
+  display: inline-block;
+  min-width: 24px;
+  padding: 0 6px;
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+  color: var(--ink);
+  background: var(--panel-raised);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 600; text-wrap: balance; }
+h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.01em; }
+p { margin: 0; text-wrap: pretty; }
+em { font-style: italic; }
+strong { font-weight: 600; color: var(--ink); }
+
+.wrap { max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); }
+.phone-only { display: none; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: var(--gutter); top: 12px; z-index: 10; background: var(--panel); padding: 8px 12px; }
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  font: 500 14px/1 var(--font-sans);
+  color: var(--ink);
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 120ms ease-out, transform 80ms ease-out;
+}
+.button:hover { background: var(--accent-soft); text-decoration: none; }
+.button:active { transform: translateY(1px); }
+.button-primary { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.button-primary:hover { background: var(--accent); filter: brightness(1.08); }
+.button-lg { height: 44px; padding: 0 20px; font-size: 15px; }
+@media (prefers-reduced-motion: reduce) { .button { transition: none; } }
+
+/* Header */
+.site-header { border-bottom: 1px solid var(--line); }
+.header-row { display: flex; align-items: center; gap: 32px; height: 64px; }
+.lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: 600 16px/1 var(--font-mono);
+  color: var(--ink);
+  text-decoration: none;
+}
+.site-nav { display: flex; gap: clamp(16px, 2vw, 28px); margin-left: auto; }
+.site-nav a { color: var(--ink-muted); font-size: 14px; text-decoration: none; }
+.site-nav a:hover { color: var(--ink); }
+
+/* Hero: headline, one line of copy, the actions, then the game across the full width. */
+.hero { padding: 36px 0 72px; }
+.hero h1 {
+  font-size: clamp(44px, 6.2vw, 92px);
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  max-width: 24ch;
+}
+.hero-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 64px; align-items: start; margin-top: 28px; }
+.hero-act { text-align: right; }
+.hero-act .actions { justify-content: flex-end; }
+.hero-note { margin-left: auto; }
+.lede { font-size: clamp(17px, 1.4vw, 20px); line-height: 1.5; color: var(--ink); max-width: 40ch; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.hero-act .actions { margin-top: 0; }
+.hero-note { margin-top: 12px; font-size: 14px; color: var(--ink-muted); max-width: 36ch; }
+.shot.hero-fig { margin-top: 0; }
+@media (max-width: 760px) {
+  .hero-row { grid-template-columns: 1fr; }
+  .hero-act { text-align: left; }
+  .hero-act .actions { justify-content: flex-start; }
+  .hero-note { margin-left: 0; }
+}
+
+/* Figures */
+.shot { margin: 0; }
+.frame {
+  position: relative;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.frame-stack > * + * { border-top: 1px solid var(--line); }
+/* A crop of the canvas needs no box: it shares the page's colour and grid, and its edges fade out. */
+.frame.bare { overflow: visible; background: none; border: 0; border-radius: 0; }
+.bare picture, .bare video {
+  --fade: 28px;
+  mask-image:
+    linear-gradient(to right, transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent),
+    linear-gradient(to bottom, transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent);
+  mask-composite: intersect;
+}
+.shot figcaption {
+  margin-top: 12px;
+  max-width: none;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+.shot figcaption a { white-space: nowrap; }
+.fig { font: 500 12px/1 var(--font-mono); color: var(--ink); margin-right: 8px; }
+
+/* The recording: its poster sits over it until it plays, so a still frame shows in the page's theme. */
+.loop-frame { position: relative; }
+video.loop { display: block; width: 100%; height: auto; }
+.loop-poster { position: absolute; inset: 0; z-index: 1; }
+.loop-poster img { width: 100%; height: 100%; object-fit: cover; }
+.loop-frame.is-playing .loop-poster { display: none; }
+/* Figures with a control: the caption on the left, the control on the right. */
+.hero-fig figcaption, .live figcaption { display: flex; gap: 24px; align-items: start; max-width: none; }
+.hero-fig .cap, .live .cap { max-width: none; flex: 1; }
+.loop-toggle { flex: none; height: 28px; padding: 0 12px; font-size: 13px; }
+
+/* Sections: one rule between them, starting at an input port like the mark's wire. Headings sit over their lede. */
+.try, .chapter, .engine, .facts, .closing { --port-x: max(var(--gutter), calc((100% - var(--wrap)) / 2)); position: relative; border-top: 1px solid var(--line); padding: var(--section) 0; }
+.try::before, .chapter::before, .engine::before, .facts::before, .closing::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: calc(var(--port-x) - 5px);
+  width: 9px;
+  height: 9px;
+  background: var(--bench);
+  border: 2px solid var(--line-strong);
+  border-radius: var(--radius-full);
+}
+.try h2, .engine h2, .facts h2 { font-size: clamp(30px, 3.4vw, 44px); line-height: 1.04; }
+.chapter-head h2, .closing h2 { font-size: clamp(36px, 5vw, 68px); line-height: 0.98; letter-spacing: -0.015em; }
+.section-lede { margin-top: 14px; max-width: 64ch; font-size: 18px; line-height: 1.55; color: var(--ink); }
+.note { margin-top: 18px; color: var(--ink-muted); font-size: 14px; }
+.note code { padding: 0; color: var(--ink); background: none; border: 0; }
+
+/* Try it */
+.live { margin-top: 32px; }
+.live-frame { aspect-ratio: 1180 / 620; }
+.live-frame picture, .live-frame img { width: 100%; height: 100%; object-fit: cover; }
+.live-frame.has-start picture { cursor: pointer; }
+.live-start { flex: none; }
+.live-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
+
+/* What you build: one chapter, four layers, each laid out its own way. */
+.chapter { padding-bottom: 0; }
+.chapter-head { padding-bottom: 64px; }
+.chapter-head .note { margin-top: 12px; }
+.layer { padding-bottom: var(--section); }
+.layer h3 { font-size: clamp(24px, 2.2vw, 28px); line-height: 1.15; }
+.layer-lede { margin-top: 12px; font-size: 16px; line-height: 1.65; color: var(--ink); }
+.layer-lede.narrow { max-width: 62ch; }
+.notes { display: grid; gap: 14px; margin-top: 22px; font-size: 15px; line-height: 1.6; color: var(--ink-muted); }
+
+/* Gates and wires: text beside the adder */
+.split { display: grid; grid-template-columns: 5fr 7fr; gap: 56px; align-items: start; }
+.split .layer-text { position: sticky; top: 32px; }
+.legend { margin: 28px 0 0; padding-top: 18px; border-top: 1px solid var(--line); }
+.legend figcaption { font: 500 12px/16px var(--font-mono); color: var(--ink-muted); }
+.legend ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+.legend li { display: grid; grid-template-columns: 72px 36px 1fr; align-items: center; gap: 12px; font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+.legend svg { width: 72px; height: 12px; overflow: visible; }
+.legend li code { justify-self: start; }
+.legend code.v1 { color: var(--signal-high); background: var(--signal-high-soft); border-color: transparent; }
+.legend code.vb { color: var(--signal-bus); }
+
+/* Time: the counter and its waveform beside the text */
+.time-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 56px; align-items: start; }
+.time-text .layer-lede { margin-top: 12px; }
+/* Text comes first in the reading order; on wide screens the figure sits to its left. */
+@media (min-width: 961px) { .time-grid > .shot, .program-row > .shot-program { order: -1; } }
+.wave-scroll:focus-visible, .map-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.wave-scroll { overflow-x: auto; background: var(--panel); }
+.wave-scroll img { width: 100%; }
+
+/* A computer: the specification as a datasheet, then the map with its numbered list under it */
+.specs { display: grid; grid-template-columns: 1fr 1fr; column-gap: 48px; margin: 32px 0 0; border-top: 1px solid var(--line); }
+.specs > div { display: grid; grid-template-columns: 112px 1fr; gap: 16px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.specs dt { font: 500 12px/16px var(--font-mono); color: var(--ink-muted); }
+.specs dd { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-muted); }
+.spec-value { margin-right: 8px; font: 500 17px/1.3 var(--font-mono); color: var(--ink); }
+.specs code { padding: 0; font-size: 0.93em; color: var(--ink); background: none; border: 0; }
+.specs > .wide { grid-column: 1 / -1; }
+.specs dd.isa { font: 500 15px/1.7 var(--font-mono); color: var(--ink); word-spacing: 0.5em; }
+.specs dd.isa code { font-size: inherit; }
+.shot-map { margin-top: 48px; }
+.map-row { display: grid; gap: 20px; }
+.map-row > * { min-width: 0; }
+.map-scroll { min-width: 0; }
+
+.blocks { list-style: none; margin: 0; padding: 0; counter-reset: block; }
+.blocks[hidden] { display: block; } /* hidden only without CSS, where the bare numbers would be clutter */
+.blocks li {
+  counter-increment: block;
+  position: absolute;
+  left: var(--l);
+  top: var(--t);
+  width: var(--w);
+  height: var(--h);
+  font-size: 0;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 2px var(--bench), inset 0 0 0 2px var(--bench);
+}
+.blocks li::before {
+  content: counter(block);
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  padding: 2px 5px;
+  font: 600 11px/1 var(--font-mono);
+  color: var(--bench);
+  background: var(--ink);
+  border-radius: var(--radius-sm) 0 var(--radius-sm) 0;
+}
+.key { margin: 0; padding: 0; list-style: none; counter-reset: key; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px 24px; font-size: 14px; }
+.key li { counter-increment: key; display: flex; gap: 10px; align-items: baseline; padding: 4px 0; color: var(--ink); cursor: default; }
+.key li::before {
+  content: counter(key);
+  flex: none;
+  min-width: 22px;
+  padding: 2px 4px;
+  font: 600 11px/1 var(--font-mono);
+  text-align: center;
+  color: var(--bench);
+  background: var(--ink);
+  border-radius: var(--radius-sm);
+}
+.key-hint { color: var(--ink-muted); }
+@media (hover: none) { .key-hint { display: none; } }
+/* Pointing is the viewer's own action, so its outline is accent: the map dims, the block is outlined. */
+.map picture { opacity: 0.8; transition: opacity 120ms ease-out; }
+.shot-map:has(.key li:hover, .blocks li:hover) .map picture { opacity: 0.45; }
+.blocks li:hover,
+.shot-map:has(.key li:nth-child(1):hover) .blocks li:nth-child(1),
+.shot-map:has(.key li:nth-child(2):hover) .blocks li:nth-child(2),
+.shot-map:has(.key li:nth-child(3):hover) .blocks li:nth-child(3),
+.shot-map:has(.key li:nth-child(4):hover) .blocks li:nth-child(4),
+.shot-map:has(.key li:nth-child(5):hover) .blocks li:nth-child(5),
+.shot-map:has(.key li:nth-child(6):hover) .blocks li:nth-child(6),
+.shot-map:has(.key li:nth-child(7):hover) .blocks li:nth-child(7),
+.shot-map:has(.key li:nth-child(8):hover) .blocks li:nth-child(8),
+.shot-map:has(.key li:nth-child(9):hover) .blocks li:nth-child(9),
+.shot-map:has(.key li:nth-child(10):hover) .blocks li:nth-child(10),
+.shot-map:has(.key li:nth-child(11):hover) .blocks li:nth-child(11),
+.shot-map:has(.key li:nth-child(12):hover) .blocks li:nth-child(12),
+.shot-map:has(.key li:nth-child(13):hover) .blocks li:nth-child(13) {
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.key li:hover::before,
+.shot-map:has(.blocks li:nth-child(1):hover) .key li:nth-child(1)::before,
+.shot-map:has(.blocks li:nth-child(2):hover) .key li:nth-child(2)::before,
+.shot-map:has(.blocks li:nth-child(3):hover) .key li:nth-child(3)::before,
+.shot-map:has(.blocks li:nth-child(4):hover) .key li:nth-child(4)::before,
+.shot-map:has(.blocks li:nth-child(5):hover) .key li:nth-child(5)::before,
+.shot-map:has(.blocks li:nth-child(6):hover) .key li:nth-child(6)::before,
+.shot-map:has(.blocks li:nth-child(7):hover) .key li:nth-child(7)::before,
+.shot-map:has(.blocks li:nth-child(8):hover) .key li:nth-child(8)::before,
+.shot-map:has(.blocks li:nth-child(9):hover) .key li:nth-child(9)::before,
+.shot-map:has(.blocks li:nth-child(10):hover) .key li:nth-child(10)::before,
+.shot-map:has(.blocks li:nth-child(11):hover) .key li:nth-child(11)::before,
+.shot-map:has(.blocks li:nth-child(12):hover) .key li:nth-child(12)::before,
+.shot-map:has(.blocks li:nth-child(13):hover) .key li:nth-child(13)::before { background: var(--accent); color: var(--on-accent); }
+@media (prefers-reduced-motion: reduce) { .map picture { transition: none; } }
+
+/* Programs: the inspector beside the text, both from the top */
+.program-head { margin-top: var(--section); font-size: 22px; line-height: 1.2; }
+.program-row { display: grid; grid-template-columns: 280px 1fr; gap: 56px; margin-top: 20px; align-items: start; }
+.program-text { display: grid; gap: 16px; max-width: 66ch; color: var(--ink-muted); font-size: 16px; }
+.program-text > p:first-child { font-size: 16px; line-height: 1.65; color: var(--ink); }
+.howto { color: var(--ink-muted); font-size: 15px; }
+
+/* Challenges: a ladder drawn as a wire on the canvas, with an 8px input port on each rung */
+.ladder {
+  list-style: none;
+  margin: 32px 0 0;
+  padding: 0;
+  counter-reset: rung;
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+}
+.ladder { grid-template-rows: auto auto; }
+.ladder li { counter-increment: rung; position: relative; padding: 24px 10px 0 0; display: grid; grid-row: span 2; grid-template-rows: subgrid; row-gap: 4px; align-content: start; }
+.ladder li::before { content: ""; position: absolute; top: 7px; left: 0; right: 0; height: 2px; background: var(--signal-low); }
+.ladder li:last-child::before { width: 0; }
+.ladder li::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  background: var(--bench);
+  border: 2px solid var(--line-strong);
+  border-radius: var(--radius-full);
+}
+.ladder li > span { font-weight: 600; font-size: 15px; line-height: 1.3; }
+.ladder li > span::before { content: counter(rung, decimal-leading-zero) " "; font: 500 12px/1 var(--font-mono); color: var(--ink-muted); }
+.ladder small { font-size: 13px; line-height: 1.4; color: var(--ink-muted); }
+.ladder-note { margin-top: 16px; font-size: 14px; color: var(--ink-muted); }
+.checks { display: grid; grid-template-columns: minmax(0, 1fr) 279px; grid-template-rows: auto auto auto auto; column-gap: 40px; margin-top: 48px; }
+.checks > * { min-width: 0; }
+.check { display: grid; grid-template-columns: subgrid; grid-template-rows: subgrid; row-gap: 12px; }
+.check-passed { grid-column: 1 / -1; grid-row: 1 / 5; }
+.check-passed .bare { grid-column: 1; grid-row: 1 / 5; align-self: start; }
+.check-passed .panel-shot { grid-column: 2; grid-row: 1; }
+.check-passed figcaption { grid-column: 2; grid-row: 2; margin-bottom: 28px; }
+.check-failed { grid-column: 2; grid-row: 3 / 5; }
+.check > * { min-width: 0; }
+.check figcaption { margin-top: 0; }
+.panel-shot { width: 279px; }
+
+/* How it works: the two threads drawn like parts on the canvas */
+.arch { margin: 36px 0 0; }
+.arch-board {
+  display: grid;
+  grid-template-columns: 1fr 240px 1fr;
+  grid-template-rows: auto auto auto;
+  row-gap: 12px;
+  grid-template-areas: "main . worker" "doc wire1 wasm" "editor wire2 wasm";
+}
+.arch-main { grid-area: main; }
+.arch-worker { grid-area: worker; }
+.arch-doc { grid-area: doc; }
+.arch-editor { grid-area: editor; }
+.arch-wasm { grid-area: wasm; }
+.to-worker { grid-area: wire1; }
+.to-page { grid-area: wire2; }
+.arch-where { font: 500 12px/16px var(--font-mono); color: var(--ink-muted); }
+.part { position: relative; display: grid; gap: 4px; padding: 14px 16px; background: var(--panel-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); }
+.part strong { font: 600 14px/1.4 var(--font-mono); }
+.part span { font-size: 14px; line-height: 1.5; color: var(--ink-muted); }
+.part-outer { padding-bottom: 16px; }
+.part-outer > .part { margin-top: 12px; background: var(--panel); }
+.arch-wire { position: relative; align-self: center; margin: 0; padding-bottom: 10px; font: 400 12px/1.4 var(--font-mono); color: var(--ink-muted); text-align: center; text-wrap: balance; }
+/* Each wire runs from a filled output port to an input ring, as the canvas draws them. */
+.arch-wire::after {
+  content: "";
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  bottom: -3px;
+  height: 8px;
+  background:
+    radial-gradient(circle 4px, var(--signal-low) 3.5px, transparent 4px) var(--out) 50% / 8px 8px no-repeat,
+    radial-gradient(circle 4px, var(--bench) 2px, var(--signal-low) 2.5px 3.5px, transparent 4px) var(--in) 50% / 8px 8px no-repeat,
+    linear-gradient(var(--signal-low), var(--signal-low)) center / calc(100% - 8px) 2px no-repeat;
+}
+.to-worker { --out: 0%; --in: 100%; }
+.to-page { --out: 100%; --in: 0%; }
+.to-worker::before { content: "→ " / ""; }
+.to-page::before { content: "← " / ""; }
+.arch figcaption { margin-top: 12px; max-width: none; font-size: 14px; color: var(--ink-muted); }
+.engine-notes { display: grid; grid-template-columns: 6fr 5fr; gap: 56px; align-items: start; margin-top: 48px; }
+.engine-notes > * { min-width: 0; }
+.principles { display: grid; gap: 22px; font-size: 15px; line-height: 1.6; color: var(--ink-muted); }
+.principles strong { display: block; margin-bottom: 4px; font: 600 18px/1.3 var(--font-display); }
+.shot-unstable { max-width: 490px; }
+.status-shot { margin-top: 12px; }
+
+/* Privacy and status */
+.facts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
+.prose { display: grid; gap: 16px; margin-top: 20px; font-size: 16px; color: var(--ink-muted); }
+/* The phases as a wire with an 8px port each: filled (an output) when done, a ring while in progress. */
+.phases { list-style: none; margin: 24px 0 0; padding: 0; }
+.phases li { position: relative; display: grid; grid-template-columns: 72px 1fr; gap: 12px; padding: 0 0 18px 28px; font-size: 15px; line-height: 1.45; }
+.phases li::before { content: ""; position: absolute; left: 5px; top: 8px; bottom: -8px; width: 2px; background: var(--signal-low); }
+.phases li:last-child::before { display: none; }
+.phases li::after { content: ""; position: absolute; left: 2px; top: 5px; width: 8px; height: 8px; border-radius: var(--radius-full); }
+.phases .done::after { background: var(--ink-muted); }
+.phases .now::after { background: var(--bench); border: 2px solid var(--ink); }
+.ph { font: 400 12px/1.6 var(--font-mono); color: var(--ink-muted); }
+
+/* Closing */
+.closing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start; }
+.closing h2 ~ p { margin-top: 18px; font-size: 18px; color: var(--ink); max-width: 46ch; line-height: 1.7; }
+.closing h2 ~ p + p { margin-top: 10px; }
+.run-local { padding-top: 6px; }
+.run-local h3 { font-size: 20px; }
+.code {
+  margin: 14px 0 0;
+  padding: 16px 18px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink);
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+.run-local .note { margin-top: 14px; }
+
+/* Footer */
+.site-footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
+.footer-row { display: flex; gap: 48px; justify-content: space-between; align-items: start; }
+.footer-row p { max-width: 60ch; font-size: 14px; color: var(--ink-muted); }
+.footer-row .footer-mark { flex: none; display: flex; gap: 10px; align-items: flex-start; font: 400 13px/1.5 var(--font-mono); }
+.footer-mark svg { flex: none; margin-top: 2px; }
+.lockup-name { display: block; font: 600 15px/1.4 var(--font-mono); color: var(--ink); }
+.footer-row nav { display: flex; gap: 20px; flex-wrap: wrap; }
+.footer-row nav a { font-size: 14px; color: var(--ink-muted); text-decoration: none; }
+.footer-row nav a:hover { color: var(--ink); }
+
+/* Grid items may shrink below their content (long code lines scroll instead). */
+.split > *, .time-grid > *, .program-row > *, .closing-grid > *, .facts-grid > * { min-width: 0; }
+
+@media (max-width: 1080px) {
+  .ladder { grid-template-columns: repeat(3, 1fr); row-gap: 28px; }
+  .ladder li:nth-child(3n)::before { width: 0; }
+  .key { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+}
+@media (max-width: 960px) {
+  :root { --section: 72px; }
+  .split, .time-grid, .program-row, .closing-grid, .facts-grid, .engine-notes { grid-template-columns: 1fr; gap: 32px; }
+  .split .layer-text { position: static; }
+  .facts-grid { gap: 64px; }
+  .specs { grid-template-columns: repeat(2, 1fr); }
+  .wave-scroll img { min-width: 520px; }
+  .arch-board { grid-template-columns: 1fr; grid-template-areas: "main" "doc" "editor" "wire1" "wire2" "worker" "wasm"; }
+  .arch-wire { padding: 0 12px; text-align: left; }
+  .arch-wire::after { display: none; }
+  .to-worker::before { content: "↓ " / ""; }
+  .to-page::before { content: "↑ " / ""; }
+  .shot-program { max-width: 300px; }
+}
+@media (max-width: 760px) {
+  .site-nav { display: none; }
+  .header-row { justify-content: space-between; }
+}
+@media (max-width: 720px) {
+  /* The editor is desktop-first: no button to load it into the page on small screens. */
+  .wide-only { display: none; }
+  .phone-only { display: inline; }
+  /* The map keeps its numbers and scrolls sideways at a readable size. */
+  .map-scroll { overflow-x: auto; margin-right: calc(-1 * var(--gutter)); }
+  .map-scroll .map { width: 760px; }
+}
+@media (max-width: 640px) {
+  :root { --gutter: 16px; --section: 56px; }
+  .hero { padding-top: 40px; }
+  .specs { grid-template-columns: 1fr; }
+  .specs > div { grid-template-columns: 1fr; gap: 4px; }
+  .ladder { grid-template-columns: 1fr; row-gap: 0; }
+  .ladder li { padding: 0 0 16px 28px; }
+  .ladder li::before { top: 8px; bottom: -8px; left: 5px; right: auto; width: 2px; height: auto; }
+  .ladder li:nth-child(3n)::before { width: 2px; }
+  .ladder li:last-child::before { display: none; }
+  .ladder li::after { top: 4px; left: 2px; }
+  .key-hint { display: none; }
+  .key { grid-template-columns: 1fr 1fr; }
+  .live-frame { aspect-ratio: 1336 / 1096; }
+  .checks { grid-template-columns: 1fr; grid-template-rows: none; row-gap: 32px; }
+  .check, .check-passed, .check-failed { grid-column: 1; grid-row: auto; grid-template-columns: 1fr; grid-template-rows: none; }
+  .check-passed .bare, .check-passed .panel-shot, .check-passed figcaption { grid-column: 1; grid-row: auto; margin-bottom: 0; }
+  .status-shot { display: none; } /* too small to read here; the caption quotes it */
+  .ladder li { grid-row: auto; grid-template-rows: none; }
+  .phases li { grid-template-columns: 1fr; gap: 2px; }
+  .footer-row { flex-direction: column; gap: 24px; }
+  .header-row .button { height: 32px; padding: 0 10px; font-size: 13px; }
+  .code { font-size: 12px; }
+  .bare picture, .bare video { --fade: 14px; }
+  .hero-fig figcaption, .live figcaption { display: block; }
+  .loop-toggle, .live-start { display: flex; margin-top: 12px; }
+}
+
+/* The signal motif (ADR 0031). Amber here is still a 1: a pulse, a lit wire, a lit segment, a port
+   that has received one. Nothing glows: a lit wire is amber and slightly thicker, as on the canvas. */
+:root { --spine-x: max(calc(var(--gutter) / 2), calc((100vw - var(--wrap)) / 2 - 44px)); }
+@media (max-width: 960px) {
+  :root { --spine-x: var(--gutter); }
+  .spine { display: none; }
+}
+main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw, a scrollbar included */
+
+/* The spine: one wire down the margin, through every section's port. Scrolling drives a 1 down it. */
+.spine { position: absolute; left: calc(var(--spine-x) - 1px); width: 2px; background: var(--signal-low); pointer-events: none; }
+.spine-lit { position: absolute; left: -0.5px; width: 3px; top: 0; height: var(--lit, 0px); background: var(--signal-high); }
+.try, .chapter, .engine, .facts, .closing { --port-x: var(--spine-x); }
+.try::before, .chapter::before, .engine::before, .facts::before, .closing::before { z-index: 1; transition: background-color 160ms, border-color 160ms; }
+.is-reached::before { background: var(--signal-high); border-color: var(--signal-high); }
+/* A reached section's wire goes high, from its port across the page, and low again above it. */
+.try::after, .chapter::after, .engine::after, .facts::after, .closing::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: var(--port-x);
+  right: 0;
+  height: 2px;
+  background: var(--signal-high);
+  transform: scaleX(0);
+  transform-origin: left;
+  pointer-events: none;
+}
+.is-reached::after { transform: scaleX(1); }
+@media (prefers-reduced-motion: no-preference) {
+  .try::after, .chapter::after, .engine::after, .facts::after, .closing::after { transition: transform 450ms cubic-bezier(0.3, 0, 0.2, 1); }
+}
+
+/* Section numbers on seven-segment digits, lit when the reading line reaches the section. */
+.seg { display: block; height: 30px; width: auto; margin-bottom: 14px; overflow: visible; }
+.seg rect { fill: color-mix(in srgb, var(--line) 35%, transparent); transition: fill 160ms ease-out; }
+.seg rect.on { fill: var(--line-strong); }
+.is-reached .seg rect.on { fill: var(--signal-high); }
+@media (min-width: 1400px) {
+  .seg { position: absolute; margin: 0; left: calc(var(--spine-x) - 66px); height: 44px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .seg rect { transition-delay: calc(var(--i, 0) * 45ms); }
+}
+
+/* Figs. 3 and 7: the capture as it opens, over the documented one, until it settles. */
+.settle-off { display: none; }
+.is-pending { position: relative; }
+.is-pending .settle-off { display: block; position: absolute; inset: 0; }
+@media print { .is-pending .settle-off { display: none; } }
+
+/* Fig. 5, the whole CPU, edge to edge on wide screens. */
+@media (min-width: 1081px) {
+  .shot-map .map-scroll { margin-inline: calc(50% - 50vw); padding-inline: var(--gutter); }
+  .shot-map .map { max-width: 1760px; margin-inline: auto; }
+}
+
+/* Fig. 5: the whole CPU stepping from Reset, scrubbed by scroll, with Catch's ROM as a tape under a
+   fixed read head; the word under it is the program counter at that clock edge. */
+.cpu-steps { display: none; }
+.cpu-readout { display: flex; justify-content: space-between; gap: 24px; margin: 12px 0 0; font: 500 13px/1 var(--font-mono); color: var(--ink-muted); }
+.cpu-readout [data-pc] { color: var(--ink); }
+.rom-strip {
+  position: relative;
+  overflow: hidden;
+  margin-top: 10px;
+  padding: 10px 0;
+  border-block: 1px solid var(--line);
+  mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+}
+.rom-head { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; z-index: 1; }
+.rom-head::before, .rom-head::after { content: ""; position: absolute; left: -4px; border: 5px solid transparent; }
+.rom-head::before { top: 0; border-top-color: var(--ink); }
+.rom-head::after { bottom: 0; border-bottom-color: var(--ink); }
+.rom-words { position: relative; display: flex; gap: 10px; width: max-content; transform: translateX(var(--shift, 0px)); }
+@media (prefers-reduced-motion: no-preference) { .rom-words { transition: transform 160ms ease-out; } }
+.rom-words > span { display: grid; justify-items: center; gap: 3px; padding: 6px 8px; min-width: 76px; border-radius: var(--radius-sm); background: var(--bench); font: 500 17px/1 var(--font-mono); color: var(--ink-muted); }
+.rom-words i { font: 400 11px/1 var(--font-mono); font-style: normal; color: var(--ink-muted); }
+.rom-words b { font: 400 11px/1 var(--font-mono); white-space: nowrap; color: var(--ink-muted); }
+.rom-words .pc { color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.rom-words .pc b { color: var(--ink); }
+.rom-words .exec { color: var(--bench); background: var(--ink); }
+.rom-words .exec i, .rom-words .exec b { color: var(--bench); }
+/* Stepping, driven by the reader: the recorded frames over the still once loaded. */
+.cpu-run.is-live .cpu-steps { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
+.cpu-run.is-live .map picture { opacity: 0; }
+/* With controls, the map, the controls, the readout and the tape fit one screen. */
+@media (min-width: 721px) { .cpu-run.has-controls .map { width: min(100%, calc((100vh - 300px) * 3072 / 1752)); margin-inline: auto; } }
+.cpu-run.has-controls .blocks li { opacity: 0.25; }
+.cpu-run.has-controls .blocks li.is-used { opacity: 1; border: 2px solid var(--accent); }
+.cpu-controls { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.cpu-controls[hidden] { display: none; }
+.cpu-controls .button { min-width: 44px; justify-content: center; }
+.cpu-controls input[type="range"] { flex: 1; accent-color: var(--accent); }
+.cpu-readout [data-uses] { color: var(--accent); }
+/* Still: the capture mid-game, and the whole ROM as a strip to scroll by hand. */
+.cpu-run:not(.has-controls) .cpu-readout, .cpu-run:not(.has-controls) .rom-head, .cpu-run:not(.has-controls) .scrub-note, .cpu-run.has-controls .still-note { display: none; }
+.cpu-run:not(.has-controls) .rom-strip { mask-image: none; overflow-x: auto; }
+.cpu-run:not(.has-controls) .rom-words { transform: none; }
+
+/* The closing: the first pulse in three captures. */
+.first-pulse { align-self: center; }
+.first-steps { display: grid; }
+.first-steps > * { grid-area: 1 / 1; }
+.first-steps > :not(:last-child) { visibility: hidden; }
+.first-steps[data-step] > * { visibility: hidden; }
+.first-steps[data-step="0"] > :nth-child(1), .first-steps[data-step="1"] > :nth-child(2), .first-steps[data-step="2"] > :nth-child(3) { visibility: visible; }
+@media print { .first-steps > :last-child { visibility: visible !important; } }
+
+/* The ladder lights the rungs passed in this browser. */
+.ladder li.passed::before { background: var(--ok); }
+.ladder li.passed::after { border-color: var(--ok); background: var(--ok); }
+
+
+@media print { .spine, .trace-pulse, .trace-port { display: none; } }
+
+/* Fig. 2: the half adder, four captures; the switches in the picture choose which. */
+.ha { margin-top: 32px; }
+.ha-row { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 56px; align-items: center; }
+.ha-stage { position: relative; display: grid; }
+.ha-stage > picture { grid-area: 1 / 1; visibility: hidden; }
+.ha-stage[data-state="00"] > [data-state="00"], .ha-stage[data-state="10"] > [data-state="10"],
+.ha-stage[data-state="01"] > [data-state="01"], .ha-stage[data-state="11"] > [data-state="11"] { visibility: visible; }
+.ha-switch { position: absolute; left: var(--l); top: var(--t); width: var(--w); height: var(--h); padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; cursor: pointer; }
+.ha-switch:hover { box-shadow: 0 0 0 2px var(--accent); }
+.ha-switch:focus-visible { outline: 2px solid transparent; box-shadow: var(--focus-ring); }
+/* Until the first click, the switches say they can be clicked. */
+.ha-stage:not(.was-clicked) .ha-switch:not([hidden]) { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
+@media (prefers-reduced-motion: no-preference) {
+  .ha-stage:not(.was-clicked) .ha-switch:not([hidden]) { animation: invite 1600ms ease-in-out 3; }
+  @keyframes invite { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 35%, transparent); } }
+}
+.ha-side { display: grid; gap: 18px; }
+.ha-hint { margin: 0; font-size: 15px; color: var(--ink); }
+.ha-hint [hidden] { display: none; }
+.ha-table { width: 100%; border-collapse: collapse; font: 500 20px/1 var(--font-mono); }
+.ha-table caption { caption-side: bottom; text-align: left; padding-top: 12px; font: 400 13px/1.4 var(--font-sans); color: var(--ink-muted); }
+.ha-table th, .ha-table td { padding: 14px 10px; text-align: center; border-bottom: 1px solid var(--line); }
+.ha-table th { font: 500 12px/1 var(--font-mono); color: var(--ink-muted); }
+.ha-table th:nth-child(3), .ha-table td:nth-child(3) { border-left: 1px solid var(--line); }
+.ha-table td { color: var(--ink-muted); }
+.ha-table td.one { color: var(--signal-high); }
+.ha-table tr.is-now td { color: var(--ink); background: var(--panel-raised); }
+.ha-table tr.is-now td.one { color: var(--signal-high); }
+.ha-table tr.is-now td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+@media (max-width: 760px) { .ha-row { grid-template-columns: 1fr; gap: 24px; } }
+
+/* Fig. 9: a timing diagram, lanes as the waveform panel draws them. */
+.timeline-scroll { overflow-x: auto; }
+.timeline { display: block; width: 100%; min-width: 760px; height: auto; font-family: var(--font-mono); }
+.tl-lane { font-size: 13px; font-weight: 500; fill: var(--ink); }
+.tl-head { font-size: 12px; fill: var(--ink-muted); }
+.tl-base { stroke: var(--line); stroke-width: 1; fill: none; }
+.tl-split { stroke: var(--line); stroke-width: 1; }
+.tl-busy { stroke: var(--ink); stroke-width: 2; fill: none; }
+.tl-note { font-size: 11px; fill: var(--ink-muted); text-anchor: middle; }
+.tl-cell { fill: var(--panel-raised); stroke: var(--signal-bus); stroke-width: 1.5; }
+.tl-cell-text { font-size: 11px; fill: var(--ink); text-anchor: middle; }
+.tl-event { stroke: var(--accent); stroke-width: 2; }
+.tl-event-dot { fill: var(--accent); }
+.tl-event-text { font-size: 11px; fill: var(--ink); text-anchor: start; }
+.tl-free { font-size: 11px; fill: var(--ink-muted); font-style: italic; text-anchor: middle; }

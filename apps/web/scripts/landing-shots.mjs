@@ -1,0 +1,395 @@
+// Screenshots of the real editor for the about page (apps/web/about/), in both
+// themes, and the example links its figures open. Every image is the app itself
+// running a shipped example: no mock-ups.
+// Usage, with a dev server running: node scripts/landing-shots.mjs [baseURL]
+import { chromium } from "@playwright/test";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const base = process.argv[2] ?? "http://localhost:5173";
+const here = (path) => fileURLToPath(new URL(path, import.meta.url));
+const example = (name) => here(`../../../examples/${name}.clockyard.json`);
+const solution = (name) => here(`../../../challenges/solutions/${name}.clockyard.json`);
+// Must match the canvas defaults in src/canvas/scene.ts (as in e2e/editor.e2e.ts).
+const ORIGIN = 48;
+const CELL = 16;
+
+// shortcut: relies on Playwright's bundled ffmpeg (image2pipe, mjpeg, libvpx-vp9); swap in a system ffmpeg if it stops.
+const root = dirname(dirname(dirname(chromium.executablePath())));
+const ffmpegDir = readdirSync(root).filter((d) => d.startsWith("ffmpeg-")).sort().pop();
+const ffmpeg = join(root, ffmpegDir, readdirSync(join(root, ffmpegDir)).find((f) => f.startsWith("ffmpeg")));
+const browser = await chromium.launch();
+const links = {};
+const steps = [];
+const halfAdder = [];
+
+async function session(theme, viewport = { width: 1440, height: 900 }, scale = 2) {
+  const context = await browser.newContext({ viewport, deviceScaleFactor: scale, colorScheme: theme, locale: "en-GB" });
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const page = await context.newPage();
+  const button = (name) => page.getByRole("button", { name, exact: true });
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  const readout = (name) => page.getByRole("list", { name: "Inputs and outputs" }).getByText(new RegExp(`^${name}:`));
+  const at = async (x, y) => {
+    const box = await page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
+    return { x: box.x + ORIGIN + x * CELL, y: box.y + ORIGIN + y * CELL };
+  };
+  const click = async (x, y) => {
+    const p = await at(x, y);
+    await page.mouse.click(p.x, p.y);
+  };
+  const drag = async (from, to) => {
+    const a = await at(...from);
+    const b = await at(...to);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move(b.x, b.y, { steps: 5 });
+    await page.mouse.up();
+  };
+  page.on("dialog", (dialog) => void dialog.accept()); // "Replace the current circuit?" when an example or challenge opens
+  const open = async (file) => {
+    await page.goto(base);
+    await page.locator('[data-testid="import-file"]').setInputFiles(file);
+    await page.waitForFunction((file) => document.querySelector(".project-name")?.value === file, JSON.parse(readFileSync(file, "utf8")).metadata.name);
+    await page.waitForTimeout(300);
+  };
+  const shot = async (name, clip) => {
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(250);
+    const path = here(`../about/shots/${name}-${theme}.png`);
+    await page.screenshot({ path, clip });
+    console.log("wrote", path);
+  };
+  const link = async (name) => {
+    if (theme !== "dark") return;
+    await button("Copy link").click();
+    await page.waitForTimeout(200);
+    links[name] = new URL(await page.evaluate(() => navigator.clipboard.readText())).hash.slice(1);
+  };
+  return { context, page, button, inspector, readout, click, drag, open, shot, link };
+}
+
+for (const theme of ["dark", "light"]) {
+  const s = await session(theme);
+  const { page, button, inspector, click, drag, open, shot, link } = s;
+
+  // The half adder, for the clickable figure: the same crop with each combination of A and B.
+  await open(example("half-adder"));
+  await link("half-adder");
+  // 4-bit adder: 5 + 3 + 1 = 9, lit wires through four full-adder instances.
+  await open(example("4-bit-adder"));
+  await link("4-bit-adder");
+  await shot("adder-off", { x: 248, y: 60, width: 520, height: 655 }); // as it opens: every switch off
+  for (const [x, y] of [[1, 1], [1, 21], [5, 4], [5, 14], [1, 7]]) await click(x, y);
+  await click(30, 40); // empty canvas: clear the selection
+  await shot("adder", { x: 248, y: 60, width: 520, height: 655 }); // down to the Cout LED
+
+  // Waveforms: the 8-bit counter, clock and register watched, stepped twelve cycles.
+  await open(example("8-bit-counter"));
+  await link("8-bit-counter");
+  await click(1, 7); // Count on
+  await click(18, 9);
+  await inspector.getByRole("button", { name: "Watch", exact: true }).click();
+  await click(28, 1);
+  await inspector.getByRole("button", { name: "Watch", exact: true }).click();
+  for (let i = 0; i < 12; i++) await button("Step").click();
+  await click(30, 30); // empty canvas: clear the selection
+  // Zoomed 1.6x about the counter's top-left corner, so its labels read at the size the page shows them.
+  await page.mouse.move(256, 55);
+  await page.mouse.wheel(0, -Math.log(1.6) / 0.0015);
+  await page.waitForTimeout(300);
+  await shot("waveforms-circuit", { x: 256, y: 55, width: 880, height: 320 }); // the counter and its readout, a grid pitch around them
+  const waves = await page.getByRole("region", { name: "WAVEFORMS" }).boundingBox();
+  await shot("waveforms", { ...waves, width: 560 }); // through the current cycle, 0C
+
+  // The program editor: the count-down example from docs/reference-cpu.md, assembled.
+  await open(example("reference-cpu"));
+  await click(24.5, 16);
+  const source = inspector.getByLabel("Assembly", { exact: true });
+  await source.fill(
+    ["; count down from 10", "        LDI 10", "loop:   OUT", "        SBI 1", "        JZ done", "        JMP loop", "done:   OUT", "        HLT"].join("\n"),
+  );
+  await page.setViewportSize({ width: 1440, height: 1300 }); // room for the whole listing
+  await button("Assemble").click();
+  await page.waitForTimeout(300);
+  const label = await inspector.getByText("Assembly", { exact: true }).boundingBox();
+  const assemble = await inspector.getByRole("button", { name: "Assemble", exact: true }).boundingBox();
+  const side = await inspector.boundingBox();
+  await shot("program", { x: side.x, y: label.y - 12, width: side.width, height: assemble.y + assemble.height + 14 - (label.y - 12) }); // the source and its result
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  await open(example("catch"));
+  await link("catch");
+
+  // A challenge: the reference full adder, A and Cin on, checked by the engine.
+  await open(solution("04-full-adder"));
+  const challenge = page.getByRole("region", { name: "CHALLENGE", exact: true });
+  await challenge.getByRole("button", { name: "Open Full adder" }).click();
+  await page.waitForTimeout(300);
+  await click(30, 30);
+  await shot("challenge-circuit-off", { x: 232, y: 45, width: 600, height: 260 }); // before A and Cin go on
+  await click(1, 1);
+  await click(1, 9);
+  await click(30, 30); // empty canvas: clear the selection
+  await challenge.getByRole("button", { name: "Check" }).click();
+  await page.getByText(/^Passed/).waitFor();
+  await shot("challenge-circuit", { x: 232, y: 45, width: 600, height: 260 }); // room past the LEDs for the page's edge fade
+  const panel = await challenge.boundingBox();
+  await shot("challenge", panel);
+
+  // A failing Check: XOR from NAND gates with A wired straight to Y, so the bench names the step.
+  await page.goto(base);
+  await page.getByRole("region", { name: "CHALLENGES" }).getByRole("button", { name: "XOR from NAND gates" }).click();
+  await page.getByRole("navigation", { name: "Sheet" }).filter({ hasText: "XOR" }).waitFor();
+  await drag([2, 1], [36, 1]);
+  await click(30, 30);
+  await challenge.getByRole("button", { name: "Check" }).click();
+  await challenge.locator(".challenge-result").filter({ hasText: /failed/ }).waitFor();
+  await shot("check-failed", await challenge.boundingBox());
+  await s.context.close();
+
+  // A loop that never settles: a NOR fed back into itself while its other input is 0.
+  const loop = await session(theme);
+  await loop.page.goto(base);
+  const parts = loop.page.getByRole("complementary", { name: "Parts" });
+  await parts.getByRole("button", { name: /^Switch\b/ }).click(); // its name includes the shortcut key
+  await loop.click(1, 1);
+  await parts.getByRole("button", { name: "NOR", exact: true }).click();
+  await loop.click(8, 4); // a NOR at (6,2): a (6,3), b (6,5), out (10,4)
+  await loop.drag([2, 1], [6, 3]);
+  await loop.drag([10, 4], [6, 5]);
+  await loop.click(30, 30);
+  await loop.page.getByRole("status").filter({ hasText: "Unstable" }).waitFor();
+  await loop.shot("unstable-circuit", { x: 240, y: 66, width: 370, height: 160 }); // at the page's canvas scale beside its status line
+  const bar = await loop.page.getByRole("status").boundingBox();
+  await loop.shot("unstable-status", { x: 0, y: bar.y - 4, width: 490, height: bar.height + 8 }); // the message, not the whole bar
+  await loop.context.close();
+
+  // The whole CPU, running, fitted to a wide canvas.
+  const wide = await session(theme, { width: 2560, height: 1240 }, 1.5);
+  await wide.open(example("catch"));
+  // The whole CPU from Reset, one frame per clock cycle: setup, the paddle drawn, the first block
+  // drawn. A keyframe every 16 frames keeps it small and any frame quick to seek to.
+  {
+    await wide.button("Fit").click();
+    await wide.page.addStyleTag({ content: ".zoom-controls { visibility: hidden; }" });
+    const box = await wide.page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
+    const counter = wide.page.getByText(/^Cycle \d+,/);
+    const frames = [];
+    for (let k = 0; k < 64; k++) {
+      await wide.page.mouse.move(1, 1);
+      const now = await counter.textContent();
+      const pc = Number((await wide.readout("LED PC").textContent()).match(/\((0x[0-9A-F]+)\)/i)[1]);
+      const fetch = (await wide.readout("LED Fetch").textContent()).endsWith("on");
+      frames.push({ now, pc, fetch, jpeg: await wide.page.screenshot({ clip: box, type: "jpeg", quality: 90 }) });
+      await wide.button("Step").click();
+      for (let wait = 0; wait < 200 && (await counter.textContent()) === now; wait++) await wide.page.waitForTimeout(5);
+      await wide.page.waitForTimeout(60);
+    }
+    const dir = mkdtempSync(join(tmpdir(), "clockyard-steps-"));
+    const input = join(dir, "frames.mjpeg");
+    writeFileSync(input, Buffer.concat(frames.map((f) => f.jpeg)));
+    const out = here(`../about/shots/cpu-steps-${theme}`);
+    execFileSync(ffmpeg, ["-loglevel", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", "10", "-i", input, "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libvpx-vp9", "-g", "16", "-b:v", "0", "-crf", "38", "-pix_fmt", "yuv420p", "-an", `${out}.webm`]);
+    writeFileSync(`${out}.jpg`, frames[0].jpeg);
+    rmSync(dir, { recursive: true });
+    if (frames[0].pc !== 0 || !frames[0].now.startsWith("Cycle 0")) throw new Error(`frames start at ${frames[0].now}, PC ${frames[0].pc}`);
+    if (theme === "dark") steps.push(...frames.map(({ now, pc, fetch }) => `${pc}|${now.match(/\d+/)[0]}|${fetch ? "fetch" : "execute"}`));
+    console.log("wrote", `${out}.webm`, frames.length, "frames");
+    await wide.open(example("catch"));
+  }
+  await wide.page.getByLabel("Speed").selectOption("10000");
+  await wide.button("Fit").click();
+  await wide.button("Run").click();
+  await wide.page.waitForTimeout(4000);
+  await wide.button("Pause").click();
+  await wide.page.addStyleTag({ content: ".zoom-controls { visibility: hidden; }" }); // view chrome, not circuit
+  const canvas = await wide.page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
+  await wide.shot("cpu", canvas);
+  await wide.context.close();
+}
+// The half adder in all four states, at 4x, for Fig. 2: the crop starts a cell above and left of
+// switch A and is 18 x 15 cells, so the page can place its switch buttons from the parts' cells.
+for (const theme of ["dark", "light"]) {
+  const { context, page, click, open, readout } = await session(theme, { width: 1200, height: 800 }, 4);
+  await open(example("half-adder"));
+  const box = await page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
+  const area = { x: box.x + ORIGIN - CELL, y: box.y + ORIGIN - CELL, width: 18 * CELL, height: 15 * CELL };
+  const state = async (name) => {
+    await click(20, 12); // empty canvas: clear the selection
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: here(`../about/shots/ha-${name}-${theme}.png`), clip: area });
+    const on = async (led) => ((await readout(`LED ${led}`).textContent()).endsWith("on") ? 1 : 0);
+    if (theme === "dark") halfAdder.push([name, await on("Sum"), await on("Carry")]);
+  };
+  await state("00");
+  await click(1, 1); // A on
+  await state("10");
+  await click(1, 11); // B on
+  await state("11");
+  await click(1, 1); // A off
+  await state("01");
+  await context.close();
+}
+
+// The literal first pulse, for the closing: two switches, an AND gate and an LED placed by their
+// shortcut keys, wired, then both switches on.
+for (const theme of ["dark", "light"]) {
+  const { context, page, click, drag, shot } = await session(theme);
+  await page.goto(base);
+  await page.waitForTimeout(400);
+  for (const [x, y] of [[1, 1], [1, 6]]) {
+    await page.keyboard.press("s");
+    await click(x, y); // switches at (0,0) and (0,5), outputs (2,1) and (2,6)
+  }
+  await page.keyboard.press("a");
+  await click(8, 4); // AND at (6,2): inputs (6,3) and (6,5), output (10,4)
+  await page.keyboard.press("l");
+  await click(15, 4); // LED at (14,3), input (14,4)
+  await click(30, 30);
+  const area = async () => {
+    const box = await page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
+    return { x: box.x + 16, y: box.y + 16, width: 20 * 16, height: 9 * 16 };
+  };
+  await shot("first-placed", await area());
+  await drag([2, 1], [6, 3]);
+  await drag([2, 6], [6, 5]);
+  await drag([10, 4], [14, 4]);
+  await click(30, 30);
+  await shot("first-wired", await area());
+  await click(1, 1);
+  await click(1, 6);
+  await click(30, 30);
+  await shot("first-lit", await area());
+  await context.close();
+}
+
+// The hero: Catch being played, as a short VP9 loop. Playwright's own video is at CSS pixels, too
+// soft, so this samples frames instead: run in slices of about 500 cycles at 1,000 Hz, pause, step
+// to the start of a fetch so every frame is at the same phase, read the cycle counter and crop the
+// devices: the score digits, the keyboard and the screen. Between slices the script plays: it reads
+// the screen's pixels, holds Left or Right on the keyboard part until the paddle is under the
+// block, catches three, then lets one fall, which halts the CPU. The frames are laid on a timeline
+// of 10,000 cycles a second.
+// Reads a screenshot of the screen's pixels (64 x 32, 4 CSS pixels each): which of the 8 lanes holds
+// the paddle (row 31) and the block (the first lit row above it), or -1. Lit means the theme's
+// signal-high colour.
+const sensor = await browser.newPage();
+const sense = (png, high, grid) =>
+  sensor.evaluate(
+    async ([src, high, grid]) => {
+      const img = await new Promise((done) => Object.assign(new Image(), { onload: (e) => done(e.target), src }));
+      const g = Object.assign(document.createElement("canvas"), { width: img.width, height: img.height }).getContext("2d", { willReadFrequently: true });
+      g.fillStyle = high;
+      g.fillRect(0, 0, 1, 1);
+      const want = g.getImageData(0, 0, 1, 1).data;
+      g.drawImage(img, 0, 0);
+      const pixels = g.getImageData(0, 0, img.width, img.height).data;
+      const lit = (x, y) => {
+        const i = 4 * (Math.round(y) * img.width + Math.round(x));
+        return Math.abs(pixels[i] - want[0]) + Math.abs(pixels[i + 1] - want[1]) + Math.abs(pixels[i + 2] - want[2]) < 90;
+      };
+      if (!grid) {
+        // Calibration: the lowest lit pixels are the paddle's row, and their left end is lane 3.
+        let bottom = -1;
+        let left = img.width;
+        for (let y = 0; y < img.height; y++) for (let x = 0; x < img.width; x++) if (lit(x, y)) bottom = y;
+        for (let x = 0; x < img.width; x++) if (lit(x, bottom - 1)) left = Math.min(left, x);
+        return { x: left - 96, y: bottom + 1 - 128 };
+      }
+      const lane = (row) => [...Array(8).keys()].find((l) => lit(grid.x + l * 32 + 16, grid.y + row * 4 + 2)) ?? -1;
+      let block = -1;
+      let row = 0;
+      for (; row < 31 && block < 0; row++) block = lane(row);
+      return { paddle: lane(31), block, row: row - 1 };
+    },
+    [`data:image/png;base64,${png.toString("base64")}`, high, grid],
+  );
+for (const theme of ["dark", "light"]) {
+  const { context, page, readout, open, click } = await session(theme, { width: 1440, height: 900 }, 3);
+  await open(example("catch"));
+  await page.getByLabel("Speed").selectOption("1000");
+  // Buttons pressed with a click event alone: a pointer press outside the canvas takes the keys back.
+  const press = (name) => page.getByRole("button", { name, exact: true }).dispatchEvent("click");
+  const high = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--signal-high").trim());
+  const clip = { x: 430, y: 46, width: 576, height: 259 }; // the digits, the keyboard and the screen, a grid pitch inside each edge
+  const narrow = { x: 662, y: 76, width: 340, height: 192 }; // phones: the screen with its ports and name
+  const screenArea = { x: 680, y: 92, width: 305, height: 145 }; // the screen part, for reading its pixels
+  await click(14, 10); // the keyboard at (12,9) takes the keys
+  let grid = null;
+  let held = null;
+  const frames = [];
+  let halted = -1;
+  while (frames.length < 900) {
+    await press("Run");
+    await page.waitForTimeout(400);
+    await press("Pause");
+    // Every frame at the same phase, the start of a fetch with the clock low, so the wiring does not strobe.
+    for (let i = 0; i < 4; i++) {
+      const phase = `${await page.getByText(/^Cycle \d+,/).textContent()} ${await readout("LED Fetch").textContent()}`;
+      if (phase.includes("clock low") && phase.endsWith("on")) break;
+      await press("Step");
+    }
+    await page.mouse.move(1, 1);
+    const cycle = Number((await page.getByText(/^Cycle \d+,/).textContent()).match(/\d+/)[0]);
+    const shot = { cycle, wide: await page.screenshot({ clip, type: "jpeg", quality: 92 }), narrow: await page.screenshot({ clip: narrow, type: "jpeg", quality: 92 }) };
+    frames.push(shot);
+    // Play: steer toward the block until three are caught, then let the next one fall.
+    const pixels = await page.screenshot({ clip: screenArea, scale: "css" });
+    grid ??= await sense(pixels, high, null);
+    const { paddle, block, row } = await sense(pixels, high, grid);
+    const low = await readout("Seven-segment Low").textContent();
+    const three = low.includes("(0x4F)");
+    // A poster candidate: two caught, the third block a row or two above the paddle beneath it.
+    shot.poster = low.includes("(0x5B)") && block === paddle && row >= 28;
+    const want = three || block < 0 || paddle < 0 || block === paddle ? null : block < paddle ? "ArrowLeft" : "ArrowRight";
+    if (want !== held) {
+      if (held) await page.keyboard.up(held);
+      if (want) await page.keyboard.down(want);
+      held = want;
+    }
+    if (halted < 0 && (await readout("LED Halted").textContent()).endsWith("on")) halted = frames.length;
+    if (halted >= 0) break;
+  }
+  if (halted < 0) throw new Error("Catch did not end: check the screen reading");
+  await context.close();
+  const timeline = [];
+  for (let t = frames[0].cycle, i = 0; t < frames.at(-1).cycle; t += 500) {
+    while (i + 1 < frames.length && frames[i + 1].cycle <= t) i++;
+    timeline.push(frames[i]);
+  }
+  for (let hold = 0; hold < 40; hold++) timeline.push(frames.at(-1)); // two seconds on the miss before the loop restarts
+  const poster = timeline.find((frame) => frame.poster) ?? timeline[Math.floor(timeline.length * 0.55)];
+  for (const [crop, name] of [["wide", "hero-loop"], ["narrow", "hero-loop-narrow"]]) {
+    const dir = mkdtempSync(join(tmpdir(), "clockyard-loop-"));
+    const input = join(dir, "frames.mjpeg");
+    writeFileSync(input, Buffer.concat(timeline.map((frame) => frame[crop])));
+    const out = here(`../about/shots/${name}-${theme}`);
+    // 20 frames a second, 500 cycles apart: 10,000 cycles a second, the speed setting the game uses.
+    execFileSync(ffmpeg, ["-loglevel", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", "20", "-i", input, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "32", "-pix_fmt", "yuv420p", "-an", `${out}.webm`]);
+    writeFileSync(`${out}.jpg`, poster[crop]); // the third block about to land on the paddle
+    rmSync(dir, { recursive: true });
+    console.log("wrote", `${out}.webm`, timeline.length, "frames");
+  }
+}
+await browser.close();
+
+// Point each link to an example at it: <a data-example="name" href="...">.
+const html = here("../about/index.html");
+let page = readFileSync(html, "utf8");
+for (const [name, fragment] of Object.entries(links)) {
+  page = page.replace(new RegExp(`(data-example="${name}"[^>]*?(?:href|data-src)=")[^"]*`, "g"), (_, attr) => `${attr}../#${fragment}`);
+}
+// The stepping frames' program counter and cycle, for Fig. 5.
+if (halfAdder.length !== 4) throw new Error(`half adder: ${halfAdder.length} states`);
+const order = ["00", "10", "01", "11"];
+const rows = order.map((name) => halfAdder.find(([n]) => n === name)).map(([name, sum, carry]) => `<tr data-state="${name}"><td${name[0] === "1" ? ' class="one"' : ""}>${name[0]}</td><td${name[1] === "1" ? ' class="one"' : ""}>${name[1]}</td><td${sum ? ' class="one"' : ""}>${sum}</td><td${carry ? ' class="one"' : ""}>${carry}</td></tr>`);
+page = page.replace(/<tbody data-ha-rows>[\s\S]*?<\/tbody>/, `<tbody data-ha-rows>${rows.join("")}</tbody>`);
+if (steps.length !== 64) throw new Error(`steps: ${steps.length} frames, not 64`);
+page = page.replace(/data-steps="[^"]*"/, `data-steps="${steps.join(";")}"`);
+writeFileSync(html, page);
+console.log("links:", Object.fromEntries(Object.entries(links).map(([k, v]) => [k, v.length])));

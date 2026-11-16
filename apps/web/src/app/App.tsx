@@ -1808,7 +1808,10 @@ function partNames(components: CircuitComponent[]): Map<string, string> {
     const same = `${part.kind}|${part.definition}|${kind}`;
     const n = (counts.get(same) ?? 0) + 1;
     counts.set(same, n);
-    names.set(part.id, part.props.label ? `${kind} ${part.props.label}` : `${kind} ${n}`);
+    const label = part.props.label;
+    // A label that only repeats the kind ("Clock" on a clock) is not said twice.
+    const named = label && kind !== undefined && label.toLowerCase() === kind.toLowerCase() ? kind : `${kind} ${label}`;
+    names.set(part.id, label ? named : `${kind} ${n}`);
   }
   namesOf.set(components, { definitions: definitionsVersion(), names });
   return names;

@@ -343,7 +343,7 @@ wires, none bundled or tested; accepted). Built in six steps:
    through RAM is assembled in the editor; one instruction step is two cycles;
    run until Halted, the output shows 15. ADR 0019 accepted.
 
-## Phase 5 — Computer-building sandbox
+## Phase 5 — Computer-building sandbox ✅
 
 Goal: a complete product.
 
@@ -386,8 +386,9 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       bus of multiplexers, and the keyboard, screen and digits on the
       main sheet. The model is given the same keys, and random programs
       aim at the I/O window too.
-   2. ✅ The devices in the default view: the screen along the top of
-      the CPU sheet, the keyboard and digits down its left, joined to the
+   2. ✅ The devices in the default view: along the top of the CPU
+      sheet, the digits with the keyboard under them, then the screen
+      (moved together for the about page's recording), joined to the
       read bus and the digit decoders by net labels rather than wires
       across the sheet. The example's ROM ships "draw the key held";
       Playwright holds a key and checks the digits and the screen.
@@ -544,6 +545,12 @@ targets, as in Phase 5.
    buffer.
 6. ⬜ A second reference CPU: bit operations and call/return, specification
    first.
+
+## Outside the phases
+
+- ✅ An about page at `/about/` (ADR 0031): what Clockyard is, every figure a
+  capture of the real editor made by `apps/web/scripts/landing-shots.mjs`,
+  the half adder loadable in place, and a recording of Catch.
 
 ## Out of scope (for now)
 

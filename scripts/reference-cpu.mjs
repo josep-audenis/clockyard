@@ -156,16 +156,16 @@ const program = [
 
 const components = [
   // Clock and constants: XNOR and XOR of a net with itself are 1 and 0.
-  part("clk", "clock", 0, 0, { label: "Clock" }),
-  part("one", "xnor", 6, 0),
-  part("zero", "xor", 6, 6),
-  part("zero8", "merge", 14, 6, { fields: ones(8) }),
+  part("clk", "clock", 0, 13, { label: "Clock" }),
+  part("one", "xnor", 5, 13),
+  part("zero", "xor", 5, 19),
+  part("zero8", "merge", 11, 19, { fields: ones(8) }),
 
   // Fetch: ROM[PC] into IR, PC + 1 into PC.
   part("rom", "rom", 22, 14, { label: "Program", width: 16, data: [0x20ff, 0x9000, 0x30fc, 0x30fe, 0x10ff, 0x30fd, 0x8000], source: program }),
   part("romsplit", "split", 30, 14, { fields: [8, 8] }),
-  chip("irl", "reg8", 36, 12, { label: "IR low" }),
-  chip("irh", "reg8", 36, 20, { label: "IR high" }),
+  chip("irl", "reg8", 36, 14, { label: "IR low" }),
+  chip("irh", "reg8", 36, 22, { label: "IR high" }),
   part("irmerge", "merge", 44, 16, { fields: [8, 8] }),
   part("irled", "led", 50, 16, { label: "IR", width: 16 }),
   part("opsplit", "split", 44, 24, { fields: [4, 4] }),
@@ -242,25 +242,26 @@ const components = [
   chip("rd3", "mux8", 116, 62, { label: "Read SDATA" }),
   chip("rd4", "mux8", 124, 62, { label: "Read HEX" }),
 
-  // The devices, where the sheet opens: a 64 x 32 screen along the top, the keyboard and HEX on two
-  // digits down the left, joined to the read bus and the digit decoders by net labels (ADR 0015).
-  part("key", "keyboard", 1, 11, { label: "Keyboard" }),
+  // The devices, where the sheet opens: along the top, HEX on two digits with the keyboard under
+  // them, then the 64 x 32 screen, so a game reads as one picture. They join the read bus and the
+  // digit decoders by net labels rather than wires across the sheet (ADR 0015).
+  part("key", "keyboard", 12, 9, { label: "Keyboard" }),
   part("screen", "screen", 25, 0, { label: "Screen", width: 8, addressWidth: 8, columns: 64 }),
   part("hexsplit", "split", 120, 76, { fields: [4, 4] }),
   part("hexhighrom", "rom", 126, 74, { label: "High digit", width: 8, addressWidth: 4, data: HEX_DIGITS }),
   part("hexlowrom", "rom", 126, 82, { label: "Low digit", width: 8, addressWidth: 4, data: HEX_DIGITS }),
-  part("hexhigh", "seg7", 1, 16, { label: "High" }),
-  part("hexlow", "seg7", 6, 16, { label: "Low" }),
+  part("hexhigh", "seg7", 12, 1, { label: "High" }),
+  part("hexlow", "seg7", 17, 1, { label: "Low" }),
 ];
 
 // Net labels: each name joins a device by the canvas origin to its far end of the sheet.
 const label = (id, x, y, name) => ({ id, position: { x, y }, name });
 const junctions = [
-  label("key-near", 7, 12, "KEY"),
+  label("key-near", 18, 10, "KEY"),
   label("key-far", 96, 59, "KEY"),
-  label("high-near", 0, 22, "HEX high"),
+  label("high-near", 11, 7, "HEX high"),
   label("high-far", 134, 75, "HEX high"),
-  label("low-near", 5, 22, "HEX low"),
+  label("low-near", 16, 7, "HEX low"),
   label("low-far", 134, 83, "HEX low"),
 ];
 
