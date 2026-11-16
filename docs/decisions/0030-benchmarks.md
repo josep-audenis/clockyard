@@ -204,6 +204,15 @@ What exists today:
    most of a toggle's time is presumably outside the draw; running `counters-10k`
    at full speed still freezes the page.
 
+   *As built (step 3, third):* a profile found the freeze. The screen
+   readers' list of inputs and outputs named each part by counting
+   among all the parts, on every state (quadratic), and every state was
+   handled as it arrived, so they queued. Parts are now named in one
+   pass per edit, and only the latest waiting state is applied:
+   `counters-10k` runs at about 2,400 cycles per second, near the
+   engine's own rate. A toggle that changes every wire is still about
+   1 s at 10,000 parts, mostly the redraw.
+
 ## Alternatives considered
 
 - **Criterion for the native benchmarks.** It gives better statistics, but
