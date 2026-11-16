@@ -316,6 +316,36 @@ test("undo and redo edits; a drag undoes in one step", async ({ page }) => {
   await expect(readout(page, "LED 1")).toHaveCount(0);
 });
 
+test("a middle-button pan moves the view only: a part is clicked where it now shows (ADR 0030)", async ({ page }) => {
+  await page.goto("/");
+  await expect(status(page)).toContainText("No circuit");
+  const at = await grid(page);
+  await page.keyboard.press("s");
+  await expect(status(page)).toContainText("Placing Switch");
+  await click(page, at(1, 1));
+  await expect(status(page)).toContainText("Settled");
+  // The grid is the host's background, moved with the view: it shows that a pan frame placed the view.
+  const host = page.locator("main canvas").locator("..");
+  const before = await host.evaluate((element) => element.style.backgroundPosition);
+  // Five cells right, three down.
+  const from = at(10, 10);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down({ button: "middle" });
+  await page.mouse.move(from.x + 5 * CELL, from.y + 3 * CELL, { steps: 5 });
+  await page.mouse.up({ button: "middle" });
+  await expect.poll(() => host.evaluate((element) => element.style.backgroundPosition)).not.toBe(before);
+  // Where it moved to, a click toggles the switch, and selects it; where it was is empty sheet, and a click there
+  // clears the selection (at once, unlike a toggle, which waits for the engine).
+  const none = page.getByText("Select a component to edit its properties.");
+  await click(page, at(6, 4));
+  await expectStates(page, { "Switch 1": 1 });
+  await expect(none).toHaveCount(0);
+  await click(page, at(1, 1));
+  await expect(none).toBeVisible();
+  await click(page, at(6, 4));
+  await expectStates(page, { "Switch 1": 0 });
+});
+
 test("an empty sheet says how to start; placing is explained; Fit frames the sheet; the Undo button undoes", async ({ page }) => {
   await page.goto("/");
   const at = await grid(page);

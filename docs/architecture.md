@@ -302,7 +302,10 @@ type Result =
   spec). The dot grid is the host element's CSS background, moved with the view.
 - Phase 1 redraws three `Graphics` layers (wires, bodies, overlay) on the next
   animation frame after any store change; the render loop is otherwise idle.
-  Per-object updates replace this when profiling says so.
+  A pan only moves the view: the world is a Pixi render group, and a frame
+  that changes nothing else is rendered without drawing again (ADR 0030).
+  Per-object updates replace the rest when profiling says so
+  (`docs/performance.md`).
 - Hit-testing is pure geometry in grid units (`canvas/geometry.ts`); it decides
   only what the pointer is over, never connectivity.
 - React subscribes to the document store for panels; the canvas subscribes
