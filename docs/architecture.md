@@ -333,7 +333,7 @@ to any static host.
 | `sim-wasm` | `cargo test` + a small Vitest smoke test loading the built module | Boundary conversions |
 | `apps/web` | Vitest | Document edits, projection, serialization, import validation, worker protocol |
 | Browser | Playwright | Switch → gate → LED workflow; later save/load and clock stepping |
-| Performance | Criterion-style benchmarks (chosen at Phase 1) | Cascades, fan-out, large combinational, registers, counters |
+| Performance | Generated benchmark circuits (`scripts/benchmarks.mjs`, ADR 0030): a native harness (`pnpm bench:native`); results in `docs/performance.md` | Gate chains, fan-out, a wide adder of instances, counters, reference CPUs, at about 1,000 to 50,000 parts; `pnpm verify` runs the 1,000-part ones once for correctness |
 
 ## Decisions
 
