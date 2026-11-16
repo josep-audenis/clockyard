@@ -40,6 +40,7 @@ import {
 } from "./geometry";
 import { definitionName, layoutOf, layoutsVersion, PICTURE, pinLabel, PIXEL } from "./layout";
 import { routes, routesKeeping } from "./routing";
+import { timed } from "../bench";
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
@@ -205,8 +206,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   const schedule = () => {
     frame ||= requestAnimationFrame(() => {
       frame = 0;
-      draw();
-      app.render();
+      timed("draw", () => {
+        draw();
+        app.render();
+      });
     });
   };
 
@@ -745,7 +748,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   /** Routes for drawing and picking: during a drag, wires it does not touch keep their routes (ADR 0011). */
   function currentRoutes(circuit: Circuit) {
     const g = gesture;
-    return (g?.type === "move" || g?.type === "segment") && g.moved ? routesKeeping(circuit, g.frozen) : routes(circuit);
+    return timed("route", () => ((g?.type === "move" || g?.type === "segment") && g.moved ? routesKeeping(circuit, g.frozen) : routes(circuit)));
   }
 
   /** Routes as they are now, without the wires that touch `ids` or are `wire`: what a starting drag freezes. */

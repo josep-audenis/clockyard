@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { project } from "../editor/document";
 import { liveDefinitions, liveWatches, useEditor, type EditorState } from "../editor/store";
 import { startSimulation } from "./client";
+import { since, timed } from "../bench";
 import type { AsmError, Challenge, CircuitDescription, Command, Diagnostic, Report, Result, Stopped } from "./protocol";
 
 export type Loaded = Extract<Result, { type: "loaded" }>;
@@ -101,6 +102,10 @@ export function readMemory(component: string, count: number) {
   send?.({ type: "readMemory", component, count });
 }
 
+/** When each unanswered load was sent, oldest first, and when the latest answered one was (ADR 0030's timings). */
+const loadsSent: number[] = [];
+let answered: number | null = null;
+
 /** Replies awaited by request number: the assembler's answers come back in any order with other results. */
 let requests = 0;
 const awaiting = new Map<number, (result: Result) => void>();
@@ -161,7 +166,10 @@ export function connectEngine(): () => void {
           break;
         }
         // A failed load answers that load: nothing describes the circuit now, and nothing is pending for it.
-        if (message.load) pending--;
+        if (message.load) {
+          pending--;
+          loadsSent.shift();
+        }
         useSim.setState({
           status: "error",
           error: message.message,
@@ -170,10 +178,18 @@ export function connectEngine(): () => void {
         });
         break;
       // A reply means the engine works again, so an earlier command error no longer applies.
-      case "loaded":
+      case "loaded": {
         pending--;
+        // From sending the load to its answer: the worker's parse, elaboration, compile and first settle, the copies,
+        // and any wait behind the main thread. Loads are answered in order.
+        const sent = loadsSent.shift();
+        if (sent !== undefined) {
+          since("engine-load", sent);
+          answered = sent;
+        }
         useSim.setState({ loaded: message, status: "ready", error: null });
         break;
+      }
       case "assembled":
       case "disassembled":
       case "checked":
@@ -198,6 +214,11 @@ export function connectEngine(): () => void {
           const { nets, diagnostics: runtime, time } = message;
           useSim.setState(({ time: before, epoch }) => ({ nets, runtime, time, stale: false, status: "ready", error: null, epoch: time < before ? epoch + 1 : epoch }));
           readWatched();
+          // The first state of the latest load: the engine has settled it (the benchmarks' end of an open).
+          if (answered !== null) {
+            since("engine-ready", answered);
+            answered = null;
+          }
         }
         break;
     }
@@ -205,7 +226,8 @@ export function connectEngine(): () => void {
 
   let description = "";
   let sent: EditorState["inputs"] = {};
-  const sync = (state: EditorState) => {
+  const sync = (state: EditorState) => timed("sync", () => syncNow(state));
+  const syncNow = (state: EditorState) => {
     const { circuit, inputs } = state;
     // Moving a part changes only geometry, so the engine keeps its state. The open sheet (main or a
     // definition) is what is simulated, with every definition as it is now.
@@ -216,6 +238,7 @@ export function connectEngine(): () => void {
       pending++;
       // The record describes the circuit before this one, its nets numbered differently.
       useSim.setState({ stale: true, waves: null });
+      loadsSent.push(performance.now());
       client.send({ type: "load", circuit: projected });
       sent = {};
     }

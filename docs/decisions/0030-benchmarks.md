@@ -108,6 +108,21 @@ What exists today:
      - the time an autosave takes.
    - Each benchmark records where its time goes (sync, worker, routing,
      drawing), so a slow number points at its cause.
+   - *As built (step 2):* `pnpm bench` builds, generates every size, and
+     runs `apps/web/bench/browser.bench.ts` against `vite preview`. The
+     app records `clockyard:draw`, `route`, `sync`, `engine-load`,
+     `engine-ready` and `save` measures (`src/bench.ts`) only when its
+     address has `?bench`, so a normal session records nothing. An open
+     ends at `engine-ready`, the first state after the load's answer, so
+     it includes the engine. Each circuit's row is written as it is
+     measured, so a step that times out keeps what came before it; a
+     failed step leaves a note in its row. `bench/setup.ts` clears earlier
+     rows and stamps the run, and `bench/summary.ts` gathers that run's
+     table. The worker's own share of an open is not separated: its reply
+     waits behind the main thread's drawing, so the native table stands
+     for the engine. The 50,000-part sizes are measured for opening only,
+     since every later step takes minutes there. Headless Chromium drew
+     with SwiftShader, a software WebGL, so frame rates are a floor.
 3. **Results are written down, with the machine.** `docs/performance.md`
    records, for each benchmark and measurement:
    - the median;
@@ -131,6 +146,14 @@ What exists today:
    These numbers are a starting point. If the first measurement shows one
    is far out of reach, or trivially met, it is changed in this ADR's
    as-built note, with the reason.
+
+   *As built (step 2):* only the reference CPU's run speed is met. The
+   others are missed by one to two orders of magnitude, all on the main
+   thread: routing and drawing on open, and a redraw of the whole scene on
+   every pan frame, drag step and state. Running `counters-10k` at the top
+   speed froze the page, so its run speed could not be recorded. The
+   engine and the sync are not the cause. The targets stay as they are;
+   step 3 works toward them.
 5. **Optimize only what the numbers show.**
    - Each optimization is its own step, with its before and after in
      `docs/performance.md` and the benchmark that motivated it.
@@ -149,6 +172,10 @@ What exists today:
      fails on any measurement more than twice as slow. It is run before
      merging a change that touches the engine, sync or the canvas, and its
      result goes in the PR.
+   - *As built:* it is `pnpm bench:check`, run after `pnpm bench`, against
+     `benchmarks/browser-baseline.json` (`node scripts/bench-check.mjs
+     --update` replaces it). It covers the browser measurements; the
+     native table is compared by reading.
    - Every committed benchmark (the 1,000-part sizes) is still loaded and
      run once in `verify`, as a correctness check (the circuits compute
      what they should, the counters count, every CPU copy runs as the

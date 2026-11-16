@@ -74,8 +74,89 @@ Read so:
 
 ## Browser
 
-To be measured in ADR 0030 step 2 (`pnpm bench`): opening, toggling, moving a wire until drawn, panning frame times,
-run speed and autosave, against the targets of ADR 0030 item 4.
+`pnpm bench` (the WASM module, every size generated, a production build, then `bench/browser.bench.ts` in Playwright's
+Chromium at 1280 × 800, one page at a time). `BENCH_SIZES=1k,10k` limits the sizes. The app records where the time goes
+as `clockyard:` User Timing measures, only when its address has `?bench`. Every row of a table comes from one run: the
+run clears earlier rows and stamps its own. A step that fails or times out leaves a note in its row, never a silent
+dash.
+
+- **Open**: Import of the file until the engine has answered the load and sent its first settled state
+  (`clockyard:engine-ready`), and two frames have been drawn since. *Routing* and *drawing* are the main thread's share
+  of it; routing happens inside drawing, so drawing includes it.
+- **Toggle**: a click on a switch until the readout says it is on, which follows the engine's settle.
+- **Drag**: a part moved two cells in ten pointer steps: the median redraw, and the median sync (projecting the document
+  and comparing it, ADR 0005), per step.
+- **Pan**: frames per second while the view is dragged with the middle button.
+- **Cycles per second**: Run at the top speed (10,000) for two seconds. The elapsed time includes the clicks' round
+  trips, so the rate reads a few per cent low.
+- **Autosave**: the slowest save after the drag (ADR 0029), from its start until IndexedDB has written it. It is
+  asynchronous, so it includes any wait behind the main thread's drawing.
+- At 50,000 parts only the open is measured: every later step takes minutes there.
+
+Measured 2026-11-16 on an Intel Core i7-13700H, 16 GB, Windows 11, Playwright 1.64.1's Chromium. Its WebGL ran on
+SwiftShader, a software renderer (Playwright's headless default here), so every frame costs more than it would on the
+graphics card; the frame rates are a floor, not what a user sees.
+
+| Benchmark | Open, ms | Of it: routing, ms | Of it: drawing, ms | Toggle, ms | Drag: draw, ms | Drag: sync, ms | Pan, fps | Cycles per second | Autosave, ms |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| adder-1k | 790 | 157 | 407 | 270 | 18.1 | 0.5 | 8.6 | – | 8 |
+| adder-10k | 15533 | 7394 | 9412 | 2858 | 192.6 | 6.6 | 0.9 | – | 1251 |
+| adder-50k (refused: too large) | 280678 | 184853 | 205466 | – | – | – | – | – | – |
+| chain-1k | 555 | 96 | 301 | 253 | 10.8 | 0.4 | 12.0 | – | 19 |
+| chain-10k | 9167 | 6539 | 7960 | 1733 | 130.2 | 4.3 | 1.5 | – | 1606 |
+| chain-50k | 168538 | 156529 | 162816 | – | – | – | – | – | – |
+| counters-1k | 801 | 189 | 467 | – | 25.3 | 0.4 | 8.6 | 8729 | 10 |
+| counters-10k (run: the page stopped answering) | 14309 | 9938 | 12048 | – | 256.9 | 9.7 | 0.9 | – | 4654 |
+| counters-50k | 188697 | 161258 | 170112 | – | – | – | – | – | – |
+| cpu-1k | 180 | 0 | 34 | – | 0.6 | 0.3 | 59.9 | 9597 | 15 |
+| cpu-10k | 252 | 0 | 70 | – | 0.9 | 0.2 | 59.9 | 2677 | 7 |
+| cpu-50k | 803 | 0 | 135 | – | – | – | – | – | – |
+| fanout-1k | 1102 | 345 | 520 | 561 | 16.0 | 0.4 | 5.0 | – | 244 |
+| fanout-10k | 20062 | 11337 | 12618 | 4561 | 138.9 | 5.1 | 0.7 | – | 3351 |
+| fanout-50k | 597194 | 473878 | 498533 | – | – | – | – | – | – |
+
+A dash is a step that does not apply (no switch to toggle, no clock to run) or was not measured at that size, except
+where a note says otherwise.
+
+Read so:
+
+- **The main thread is the bottleneck, not the engine.** The same circuits load natively in 7–1,300 ms (above), and
+  the `cpu` family, whose sheet holds only a few instances and no wires, opens 47,000 nets in 0.8 s, engine included.
+  Every family with thousands of parts and wires on its sheet spends almost all its open in drawing, and most of that
+  in routing every wire.
+- **Panning redraws the whole scene** on every frame: 5–12 frames a second at 1,000 parts, about 1 at 10,000, while
+  `cpu` keeps 60. Some of that is the software renderer, but the drag's redraw (next) is the same whole-scene cost on
+  the CPU, and panning changes nothing but the view, so it need not redraw anything.
+- **A drag step redraws everything too**: 11–25 ms at 1,000 parts and 130–260 ms at 10,000. The sync that the
+  `shortcut:` comment suspected is small: under 10 ms at 10,000 parts.
+- **A toggle takes 1.7–4.6 s at 10,000 parts**, though the engine settles it in 2 ms or less: the state's redraw holds
+  the main thread before the readout updates.
+- **Running a large circuit can freeze the page.** `counters-10k` at the top speed: a click in the run step (Run or
+  Pause) had not been handled when the test's 40 minutes ran out. The engine runs it at about 2,900 cycles per second
+  natively; the main thread, which redraws the whole scene for every state the worker sends, does not keep up. At 1,000
+  parts the run speed is near the 10,000 asked, and `cpu-10k`'s 2,700 matches the engine's 2,640.
+- **Refusing a circuit takes as long as opening it.** `adder-50k` is routed and drawn for nearly five minutes before
+  the engine's "too large" is shown.
+- **Autosave is cheap at 1,000 parts** (under 20 ms, 244 ms for `fanout-1k`), but takes 1.2–4.7 s at 10,000. How much
+  of that is serializing and how much is waiting behind drawing is not separated.
+
+### Against the targets (ADR 0030 item 4)
+
+| Target | Measured | Met |
+|---|---|---|
+| 10,000 parts open in under 2 s | 9–20 s for flat circuits; 0.25 s for `cpu` | no |
+| A toggle or an edit shows within 100 ms at 10,000 parts | toggle 1.7–4.6 s; a drag step 130–260 ms | no |
+| Panning at 30 fps or more at 10,000 parts | 0.7–1.5 fps (software WebGL) | no |
+| 50,000 parts open in under 10 s, edits under 1 s | 2.8–10 minutes for flat circuits; 0.8 s for `cpu-50k` (edits not measured) | no |
+| Run speed on `counters-10k` recorded | the page stopped answering | no |
+| The reference CPU keeps 10,000 cycles per second | about 9,600 (`cpu-1k`, four CPUs; reads a few per cent low) | yes |
+
+Step 3 of ADR 0030 optimizes, in the order these numbers point: panning without redrawing, then drawing only what an
+edit or a state changed, then routing only the wires an edit touched.
+
+`pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
+twice as bad (and worse by more than 5), or one the run lost; `node scripts/bench-check.mjs --update` makes the last run
+the baseline. The baseline is this table's run.
 
 ## Earlier measurements
 
