@@ -32,7 +32,8 @@ runs, with the range.
 - **Switch change**: one switch flipped and settled. For the adder, every A bit is on first, so the carry ripples
   through every bit.
 - **Ticks per second**: ticks in chunks of 64, as the worker runs them, for 200 ms a run. A clock cycle is two ticks.
-  Rates vary more between runs than loads do, by up to a third.
+  Rates vary more between runs than loads do: by up to a third within this table's run, and a later re-run on the same
+  machine gave about twice these rates, so compare native runs only made close together.
 
 Measured 2026-11-16 on an Intel Core i7-13700H, 16 GB, Windows 11, Rust 1.99.1:
 
@@ -108,7 +109,7 @@ touched, took 2.1 times as long) and `cpu-50k`'s drawing. Six go further and are
 autosave at 1,000 parts (`chain-1k` 14 → 109 ms, `adder-1k` 10 → 47 ms) and `cpu-10k`'s (4 → 18 ms), `cpu-1k`'s drawing
 on open (71 → 176 ms), `counters-10k`'s pan (20 → 8.6 fps) and `chain-1k`'s toggle (54 → 119 ms).
 
-This run is the baseline for now, which makes `bench:check` loose: a real slowdown of two to four times measured on a
+This run is the baseline for now, which makes `bench:check` loose: a real slowdown of two times or more measured on a
 quiet machine could pass against it. It is to be replaced by a run on a quiet machine, which would also tell whether
 the six are load or regressions.
 
@@ -137,10 +138,11 @@ Read so:
 - **The main thread is the bottleneck, not the engine.** The same circuits load natively in 7–1,300 ms (above), and
   the `cpu` family, whose sheet holds only a few instances and no wires, opens 47,000 nets in 1.3 s, engine included.
   Every family with thousands of parts and wires on its sheet spends almost all its open in drawing, and most of that
-  in routing every wire (two thirds or more of drawing at 10,000 parts, a quarter to two thirds at 1,000): opening is now
+  in routing every wire (two thirds or more of drawing at 10,000 parts, a fifth to two thirds at 1,000): opening is now
   the cost furthest from its target.
-- **Panning** keeps the display's 60 frames a second at 1,000 parts, and 6.7–30 at 10,000. Before step 3 it redrew the
-  whole scene on every frame: 5–12 frames a second at 1,000 parts, about 1 at 10,000, with SwiftShader.
+- **Panning** keeps the display's 60 frames a second at 1,000 parts, and 6.7–30 at 10,000 for flat circuits (60 for
+  `cpu`). Before step 3 it redrew the whole scene on every frame: 5–12 frames a second at 1,000 parts, about 1 at
+  10,000, with SwiftShader.
 - **A drag step** takes 5–23 ms at 1,000 parts and 50–190 ms at 10,000 for flat circuits (under 2 ms for `cpu`),
   rebuilding only the chunks of the wires the moved part touches (step 3.2). The sync is small: under 9 ms at 10,000
   parts.
@@ -155,9 +157,9 @@ Read so:
   speed is 8,300–9,100 of the 10,000 asked.
 - **Refusing a circuit takes as long as opening it.** `adder-50k` is routed and drawn for nearly six minutes before
   the engine's "too large" is shown.
-- **Autosave** takes 57–100 ms at 10,000 parts for flat circuits (0.17–1.2 s in the previous table), presumably because it waits behind
-  less drawing, and 13–109 ms at 1,000 parts (7–48 ms before), which is not explained (see above); serializing and
-  waiting are not measured apart.
+- **Autosave** takes 57–100 ms at 10,000 parts for flat circuits (0.17–1.2 s in the previous table), presumably
+  because it waits behind less drawing, and 13–109 ms at 1,000 parts (7–48 ms before), which is not explained (see
+  above); serializing and waiting are not measured apart.
 
 ### Against the targets (ADR 0030 item 4)
 
@@ -200,10 +202,11 @@ back to back on the graphics card:
 | cpu-1k | 60 | 60 |
 
 That pair ran on battery, with everything about twice as slow as on mains power (routing, which the change does not
-touch, too), so its columns compare only with each other. On mains power (the table above) every 1,000-part benchmark
-pans at 60 frames a second, and the 10,000-part ones at 8.6–30 in that run (6.7–30 in the loaded run above). A pan frame still takes main-thread time with nothing
-drawn: 35–45 ms for `chain-10k` and about 110 ms for `adder-10k` (`clockyard:view`, on battery). That is Pixi's render,
-most likely its walk over every object, off screen too (not yet profiled). Culling what is off screen is the next
+touch, too), so its columns compare only with each other. On mains power, in the previous full run (in this file's
+history), every 1,000-part benchmark panned at 60 frames a second and the 10,000-part ones at 8.6–30 (6.7–30 in the
+loaded run above). A pan frame still takes main-thread time with nothing drawn: 35–45 ms for `chain-10k` and about
+110 ms for `adder-10k` (`clockyard:view`, on battery). That is Pixi's render, most likely its walk over every object,
+off screen too (not yet profiled). Culling what is off screen is the next
 candidate for panning.
 
 ### 2. Rebuilding only the wires that changed
