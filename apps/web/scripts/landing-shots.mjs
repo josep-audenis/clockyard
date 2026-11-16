@@ -75,6 +75,7 @@ for (const theme of ["dark", "light"]) {
   await open(example("half-adder"));
   await button("Fit").click(); // as the page does once the live editor loads
   await shot("live");
+  await page.addStyleTag({ content: ".zoom-controls { visibility: hidden; }" }); // view chrome, unreadable at phone size
   await shot("live-narrow", { x: 232, y: 45, width: 668, height: 548 }); // the canvas alone, for phones
   await link("half-adder"); // after the shot: Copy link shows a notice in the toolbar
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -96,13 +97,13 @@ for (const theme of ["dark", "light"]) {
   await inspector.getByRole("button", { name: "Watch", exact: true }).click();
   for (let i = 0; i < 12; i++) await button("Step").click();
   await click(30, 30); // empty canvas: clear the selection
-  // Zoomed 1.3x about the counter's top-left corner, so its labels read at the size the page shows them.
+  // Zoomed 1.6x about the counter's top-left corner, so its labels read at the size the page shows them.
   await page.mouse.move(256, 55);
-  await page.mouse.wheel(0, -Math.log(1.3) / 0.0015);
+  await page.mouse.wheel(0, -Math.log(1.6) / 0.0015);
   await page.waitForTimeout(300);
-  await shot("waveforms-circuit", { x: 256, y: 55, width: Math.round(610 * 1.3), height: Math.round(230 * 1.3) });
+  await shot("waveforms-circuit", { x: 256, y: 55, width: Math.round(560 * 1.6), height: Math.round(200 * 1.6) });
   const waves = await page.getByRole("region", { name: "WAVEFORMS" }).boundingBox();
-  await shot("waveforms", { ...waves, width: 520 });
+  await shot("waveforms", { ...waves, width: 560 }); // through the current cycle, 0C
 
   // The program editor: the count-down example from docs/reference-cpu.md, assembled.
   await open(example("reference-cpu"));
@@ -162,7 +163,7 @@ for (const theme of ["dark", "light"]) {
   await loop.page.getByRole("status").filter({ hasText: "Unstable" }).waitFor();
   await loop.shot("unstable-circuit", { x: 256, y: 72, width: 240, height: 150 });
   const bar = await loop.page.getByRole("status").boundingBox();
-  await loop.shot("unstable-status", { x: 0, y: bar.y - 4, width: 560, height: bar.height + 8 }); // the message, not the whole bar
+  await loop.shot("unstable-status", { x: 0, y: bar.y - 4, width: 490, height: bar.height + 8 }); // the message, not the whole bar
   await loop.context.close();
 
   // The whole CPU, running, fitted to a wide canvas.
@@ -191,8 +192,8 @@ for (const theme of ["dark", "light"]) {
   const { context, page, button, readout, open } = await session(theme, { width: 1440, height: 900 }, 3);
   await open(example("catch"));
   await page.getByLabel("Speed").selectOption("1000");
-  const clip = { x: 248, y: 46, width: 752, height: 440 }; // the screen with the circuit around it, down to the score digits' labels
-  const narrow = { x: 704, y: 92, width: 264, height: 144 }; // phones: the screen alone, inside its part
+  const clip = { x: 248, y: 46, width: 742, height: 432 }; // the screen with the circuit around it, down to the score digits' labels
+  const narrow = { x: 706, y: 94, width: 268, height: 140 }; // phones: the screen alone, inside its part
   const frames = [];
   let caught = -1;
   while (frames.length < 900) {
@@ -221,7 +222,7 @@ for (const theme of ["dark", "light"]) {
     timeline.push(frames[i]);
   }
   for (let hold = 0; hold < 30; hold++) timeline.push(frames.at(-1)); // a beat and a half on the new score before the loop restarts
-  const poster = Math.floor(timeline.length * 0.4); // the block mid-fall
+  const poster = timeline.length - 1; // the last frame: the score is 01 and the next block is falling
   for (const [crop, name] of [["wide", "hero-loop"], ["narrow", "hero-loop-narrow"]]) {
     const dir = mkdtempSync(join(tmpdir(), "clockyard-loop-"));
     const input = join(dir, "frames.mjpeg");
