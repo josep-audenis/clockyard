@@ -122,12 +122,16 @@ test("states that arrive faster than the page shows them are applied once, as th
   const unsubscribe = useSim.subscribe((s, before) => {
     if (s.time !== before.time) applied.push(s.time);
   });
-  // A backlog: only its latest is shown. A reset inside it (time back to 0) still counts a new epoch.
-  for (const time of [12, 0, 4]) worker.reply(state(time));
+  // The first state of a burst is shown at once; the rest of the burst only as its latest. A reset inside the held ones
+  // (time back to 0) still counts a new epoch.
+  worker.reply(state(12));
+  expect(applied).toEqual([12]);
+  for (const time of [0, 4]) worker.reply(state(time));
   vi.runAllTimers();
-  expect(applied).toEqual([4]);
+  expect(applied).toEqual([12, 4]);
   expect(useSim.getState()).toMatchObject({ time: 4, epoch: epoch + 1, running: true });
   // A state waiting when a load is sent describes the circuit before it: its nets are not shown.
+  worker.reply(state(4));
   worker.reply(state(5));
   useEditor.setState({ circuit: { components: [], junctions: [], wires: [{ id: "x", from: { junction: "a" }, to: { junction: "b" } }] } });
   vi.runAllTimers();
@@ -142,16 +146,19 @@ test("states that arrive faster than the page shows them are applied once, as th
   expect(useSim.getState()).toMatchObject({ time: 7, epoch: before + 1 });
 
   // Any other message applies a waiting state first: an error after a state stays the latest word.
+  worker.reply(state(8));
   worker.reply(state(9));
   worker.reply({ type: "error", message: "boom", running: false });
   vi.runAllTimers();
   expect(useSim.getState()).toMatchObject({ time: 9, running: false, status: "error", error: "boom" });
 
   // A state still waiting when the engine stops is not shown.
+  vi.runAllTimers();
+  worker.reply(state(10));
   worker.reply(state(11));
   stop();
   vi.runAllTimers();
-  expect(useSim.getState().time).toBe(9);
+  expect(useSim.getState().time).toBe(10);
   useEditor.setState(editor, true);
   vi.useRealTimers();
 });
