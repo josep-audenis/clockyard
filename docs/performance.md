@@ -131,7 +131,8 @@ Read so:
   `shortcut:` comment suspected is small: under 6 ms at 10,000 parts.
 - **A toggle takes 0.7–1.6 s at 10,000 parts**, though the engine settles it in 2 ms or less: the state's redraw holds
   the main thread before the readout updates.
-- **Running a large circuit can freeze the page.** `counters-10k` at the top speed: the run step's Pause click was not
+- **Running a large circuit could freeze the page** (before step 3's third optimization, below). `counters-10k` at the
+  top speed: the run step's Pause click was not
   handled within 5 minutes, in this run and the one before it. The engine runs it at about 2,900–4,700 cycles per second
   natively; the main thread, which redraws the whole scene for every state the worker sends, does not keep up. At 1,000
   parts the run speed is near the 10,000 asked, and `cpu-10k`'s 3,000 is the engine's own rate.
@@ -148,7 +149,7 @@ Read so:
 | A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.7–1.6 s; a drag step 120–290 ms | no |
 | Panning at 30 fps or more at 10,000 parts | 30 fps for `chain` and `fanout`; 20 for `counters`, 8.6 for `adder` | partly |
 | 50,000 parts open in under 10 s, edits under 1 s | 3–6 minutes for flat circuits; 0.9 s for `cpu-50k` (edits not measured) | no |
-| Run speed on `counters-10k` recorded | the page stopped answering | no |
+| Run speed on `counters-10k` recorded | the page stopped answering; 2,359 cycles per second after step 3's third optimization (below) | yes, after it |
 | The reference CPU keeps 10,000 cycles per second | about 9,600 (`cpu-1k`, four CPUs; reads a few per cent low) | yes |
 
 Step 3 of ADR 0030 optimizes, in the order these numbers point: panning without redrawing (done, below), then drawing
@@ -212,12 +213,51 @@ graphics card (on battery, so the columns compare only with each other):
 A drag step is 2.3–4.1 times faster: it rebuilds the chunks of the wires the moved part touches. A toggle is not much
 faster: toggling the switch of `chain` or `fanout` changes every wire's value, so every chunk is rebuilt, and most of a
 toggle's 1.5–3.1 s is presumably spent outside the draw, judging by the drag's draw times; it is not yet
-measured. Running `counters-10k` at full speed still freezes the
-page, so what the main thread does with each state the worker sends is the next thing to measure.
+measured. Running `counters-10k` at full speed froze the page: what the main thread does with each state the worker
+sends is measured, and fixed, below.
 
 The after columns were measured before selected wires got their own layer; the benchmark selects a part, not a wire,
 so that layer stays empty in it. The browser table above predates this step; its drag column is to be measured again
 on mains power.
+
+### 3. What the page does with each engine state
+
+A profile (Chrome's sampling profiler over CDP, on an unminified production build, the graphics card, mains power)
+showed where a toggle and a run go:
+
+- **The screen readers' list of inputs and outputs named every part by counting among all the parts**, once per part
+  listed, on every state. A `fanout-10k` toggle spent 560 ms rendering it, 484 ms of that in `partName`. `counters-10k`
+  lists 588 LEDs among 10,000 parts: about six million comparisons a state.
+- **Every state was handled as it arrived**: two store updates, React's renders, a redraw scheduled. While running, the
+  worker sends one about every 16 ms; when handling one takes longer, they queue. Running `counters-10k`, the page did
+  not answer for the 80 seconds measured, its JavaScript heap swinging between 0.4 and 1.4 GB, and in one attempt the
+  page crashed within 5 seconds.
+- **A toggle that changes every wire** (`chain`) is mostly the redraw: 935 ms in one draw, of it about 620 ms Pixi
+  rebuilding its batches for the rebuilt chunks and 185 ms rebuilding the gates' shapes, whose values changed too.
+
+Now parts are named in one pass, once per edit and definition change (`partNames`, cached), and a state is applied on
+the next task: states that arrived meanwhile are skipped and only the latest is shown, so they still queue but cost
+nothing to drop. Any other message applies a waiting state first, so messages take effect in the order they came (an
+error after a state stays the latest word). A state that arrived before a load was sent is not shown, and a reset or
+a new load inside a skipped stretch still counts a new waveform epoch. That the waiting states collapse into one relies
+on Chromium running tasks of one priority in the order they were queued, which is what was measured; a hidden tab's
+timers run about once a second, so it shows about one state a second until it is visible again.
+
+Before and after, back to back on mains power:
+
+| Benchmark | Toggle before, ms | Toggle after, ms | Cycles per second before | Cycles per second after |
+|---|---:|---:|---:|---:|
+| counters-1k | – | – | 9034 | 8762 |
+| cpu-1k | – | – | 8626 | 8353 |
+| chain-10k | 878 | 1044 | – | – |
+| fanout-10k | 1675 | 1464 | – | – |
+| counters-10k | – | – | the page stopped answering | 2359 |
+
+`counters-10k` now runs, at about 80 % of the slowest native measurement of the engine alone (2,900–4,700 cycles per
+second), and Pause answers.
+The toggle times here are within run-to-run noise: the after run was slower throughout, routing on open included,
+which neither change touches. What remains of a toggle at 10,000 parts is the redraw when every wire and gate changes,
+the next candidate: Pixi rebuilding its batches, and the gates' shapes.
 
 ## Earlier measurements
 

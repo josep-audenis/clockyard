@@ -153,7 +153,49 @@ export function connectEngine(): () => void {
   // a worker stopped with loads unanswered (React's double mount in development) leaves none behind.
   const loadsSent: number[] = [];
   let answered: number | null = null;
+  // Loads sent so far: a state describes the circuit of the load count it arrived under.
+  let loads = 0;
+  // The latest state not yet applied, and whether time went back (a reset) in any state it stands for (ADR 0030).
+  let latest: { message: Extract<Result, { type: "state" }>; loads: number; current: boolean; rewound: boolean } | null = null;
+  let arrived = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  // The load the shown state belongs to: a state of another load starts a new epoch, whatever its time.
+  let shownLoads = -1;
+  /**
+   * Applies the latest state only. States come about every 16 ms while running; when the page takes longer than that
+   * to show one (a large circuit), the ones waiting behind it are skipped, not applied one by one, so the page keeps
+   * up. Any other message applies a waiting state first, so messages still take effect in the order they came.
+   */
+  const applyState = () => {
+    clearTimeout(timer);
+    const state = latest;
+    latest = null;
+    if (!state) return;
+    const { message } = state;
+    // Running or not is the worker's, whatever circuit the state describes.
+    useSim.setState({ running: message.running, stopped: message.stopped ?? null });
+    // A state from before the latest load describes an older circuit.
+    if (!state.current || state.loads !== loads) return;
+    const { nets, diagnostics: runtime, time } = message;
+    useSim.setState(({ time: before, epoch }) => ({
+      nets,
+      runtime,
+      time,
+      stale: false,
+      status: "ready",
+      error: null,
+      epoch: state.rewound || time < before || state.loads !== shownLoads ? epoch + 1 : epoch,
+    }));
+    shownLoads = state.loads;
+    readWatched();
+    // The first state of the latest load: the engine has settled it (the benchmarks' end of an open).
+    if (answered !== null) {
+      since("engine-ready", answered);
+      answered = null;
+    }
+  };
   const client = startSimulation((message) => {
+    if (message.type !== "state") applyState();
     switch (message.type) {
       case "ready":
         useSim.setState({ status: "ready" });
@@ -207,20 +249,17 @@ export function connectEngine(): () => void {
         // A record read before the latest load describes the circuit before it.
         if (pending === 0 && watchedWires.length > 0) useSim.setState({ waves: message });
         break;
-      case "state":
-        // Running or not is the worker's, whatever circuit the state describes.
-        useSim.setState({ running: message.running, stopped: message.stopped ?? null });
-        if (pending === 0) {
-          const { nets, diagnostics: runtime, time } = message;
-          useSim.setState(({ time: before, epoch }) => ({ nets, runtime, time, stale: false, status: "ready", error: null, epoch: time < before ? epoch + 1 : epoch }));
-          readWatched();
-          // The first state of the latest load: the engine has settled it (the benchmarks' end of an open).
-          if (answered !== null) {
-            since("engine-ready", answered);
-            answered = null;
-          }
-        }
+      case "state": {
+        // Loads still unanswered: this state describes the circuit before them.
+        const current = pending === 0;
+        const rewound = current && latest?.current === true && latest.loads === loads && (latest.rewound || message.time < arrived);
+        if (current) arrived = message.time;
+        // Applied after the messages already waiting (Chromium runs tasks of one priority in the order they were queued),
+        // so a run of states is shown once, as its latest. A hidden tab's timers run about once a second.
+        if (!latest) timer = setTimeout(applyState, 0);
+        latest = { message, loads, current, rewound };
         break;
+      }
     }
   });
 
@@ -236,6 +275,7 @@ export function connectEngine(): () => void {
     if (next !== description) {
       description = next;
       pending++;
+      loads++;
       // The record describes the circuit before this one, its nets numbered differently.
       useSim.setState({ stale: true, waves: null });
       loadsSent.push(performance.now());
@@ -262,6 +302,9 @@ export function connectEngine(): () => void {
   const unsubscribe = useEditor.subscribe(sync);
   return () => {
     unsubscribe();
+    // A state of this worker waiting to be shown is not: the next worker's describe its own circuit.
+    clearTimeout(timer);
+    latest = null;
     send = null;
     // A new worker watches nothing until told.
     watchedWires = [];

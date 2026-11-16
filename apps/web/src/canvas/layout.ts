@@ -115,6 +115,7 @@ const MISSING: Layout = { width: 4, height: 2, inputs: {}, outputs: {} };
  * the left and outputs down the right, one every 2 cells, in pin order.
  */
 export function setDefinitionLayouts(definitions: Definition[]) {
+  definitionsSet++;
   const before = new Map([...custom].map(([id, { layout }]) => [id, JSON.stringify(layout)]));
   custom.clear();
   for (const d of definitions) {
@@ -140,6 +141,9 @@ export function setDefinitionLayouts(definitions: Definition[]) {
 let layouts = 0;
 /** Changes whenever instances' layouts may have: routes kept from before must not trust their ports. */
 export const layoutsVersion = () => layouts;
+let definitionsSet = 0;
+/** Changes whenever definitions are set again, so whenever a definition's name may have changed. */
+export const definitionsVersion = () => definitionsSet;
 
 /** What an instance's port is called on screen: its pin's label (the port itself is the pin part's ID). */
 export const pinLabel = (definition: string | undefined, port: string) =>
