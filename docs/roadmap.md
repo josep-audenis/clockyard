@@ -529,6 +529,10 @@ targets, as in Phase 5.
          times faster at 10,000 (8.6–30 fps on mains power, the target met
          for two of four families); benchmarks on the graphics
          card from now on.
+      2. ✅ Rebuilding only the wires that changed (chunks of about 64):
+         a drag step 2.3–4.1 times faster at 10,000 parts; a toggle and a
+         run of a large circuit are still slow, and where their time goes
+         is not yet measured.
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
