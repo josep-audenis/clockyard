@@ -132,7 +132,10 @@ const GHOST = "placement-preview";
 
 /** About how many wires share a chunk: few enough that rebuilding one is cheap, enough that there are few to render. */
 const WIRES_PER_CHUNK = 64;
-/** The chunk a wire is drawn in, of `count` (a power of two): by its ID, so adding or removing a wire moves no other. */
+/**
+ * The chunk a wire is drawn in, of `count` (a power of two): by its ID, so adding or removing a wire moves no other,
+ * except when the count doubles or halves. Where wires in different chunks cross, which is on top follows the chunks.
+ */
 function chunkOf(id: string, count: number): number {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
@@ -282,6 +285,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     // a state rebuilds the chunks of the wires it changed, not every wire.
     const count = 2 ** Math.max(0, Math.ceil(Math.log2(circuit.wires.length / WIRES_PER_CHUNK)));
     const groups = new Map<number, { looks: string[]; draws: ((g: Graphics) => void)[] }>();
+    /** Selected wires, drawn again over every chunk with their halo, so no other wire covers it. */
+    const raised: ((g: Graphics) => void)[] = [];
     for (const wire of circuit.wires) {
       const points = paths.get(wire.id)?.map(px);
       if (!points) continue;
@@ -292,16 +297,16 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       const width = bits > 1 ? size["bus-width"] : lit ? size["wire-width-high"] : size["wire-width"];
       const tone = culprits.has(wire.id) ? color.danger : bits > 1 ? color["signal-bus"] : lit ? color["signal-high"] : color["signal-low"];
       const alpha = value === null ? 0.5 : 1;
-      const chosen = selected.has(wire.id);
       const [a, b] = points;
       // The slash crosses the middle of the first segment, with the width just past it.
       const m = a && b && bits > 1 ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null;
       const n = chunkOf(wire.id, count);
       const group = groups.get(n) ?? { looks: [], draws: [] };
       groups.set(n, group);
-      group.looks.push(`${points.map((p) => `${p.x},${p.y}`).join(" ")}|${width}|${tone}|${alpha}|${chosen}|${bits}`);
-      group.draws.push((g) => {
-        if (chosen) polyline(g, points).stroke({ width: width + 2 * size["select-width"], color: color.select, cap: "round", join: "round" });
+      // Everything the drawing below reads is in this look (theme values are in `themeVersion`): a value left out would
+      // leave the chunk stale.
+      group.looks.push(`${points.map((p) => `${p.x},${p.y}`).join(" ")}|${width}|${tone}|${alpha}|${bits}`);
+      const drawWire = (g: Graphics) => {
         polyline(g, points).stroke({ width, color: tone, alpha, cap: "round", join: "round" });
         if (m && a && b) {
           const across = a.y === b.y ? { x: 4, y: -8 } : { x: 8, y: -4 };
@@ -309,7 +314,14 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
             .lineTo(m.x + across.x, m.y + across.y)
             .stroke({ width: 1.5, color: color["signal-bus"], cap: "round" });
         }
-      });
+      };
+      group.draws.push(drawWire);
+      if (selected.has(wire.id)) {
+        raised.push((g) => {
+          polyline(g, points).stroke({ width: width + 2 * size["select-width"], color: color.select, cap: "round", join: "round" });
+          drawWire(g);
+        });
+      }
       if (m) {
         put(`${wire.id}:bits`, String(bits), m.x + 6, m.y - 6, { x: 0, y: 1 }, color["signal-bus"]);
         if (hovered === wire.id && value !== null) {
@@ -338,6 +350,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       for (const drawWire of group?.draws ?? []) drawWire(chunk.g);
     }
     for (const chunk of chunks.splice(count)) chunk.g.destroy();
+    for (const drawRaised of raised) drawRaised(wires);
     for (const tag of tags) tag();
 
     // ADR 0015: a named junction is a tag beside its dot, on the first side (right, left, below, above)

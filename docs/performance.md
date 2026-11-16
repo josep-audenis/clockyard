@@ -192,9 +192,12 @@ renders. A profile of a drag step at 10,000 parts (temporary measures, on batter
 building the wires, 20–30 ms checking the parts (their shapes are already cached; this step leaves them), and 180–300 ms in
 `app.render()`, most of it the wires' triangles.
 
-Now the wires are drawn in chunks of about 64, by a hash of the wire's ID, so adding or removing a wire moves no other.
-A chunk is rebuilt only when one of its wires looks different (its route, width, colour, transparency, selection or
-bus width); junction dots and tags, which are few, are drawn whole as before. Before and after, back to back on the
+Now the wires are drawn in chunks of about 64, by a hash of the wire's ID, so adding or removing a wire moves no other
+(except when the number of chunks doubles or halves, and every chunk is rebuilt once). A chunk is rebuilt only when one
+of its wires looks different (its route, width, colour, transparency or bus width). Selected wires are drawn again
+above every chunk, with their halo, so selecting rebuilds no chunk and no wire covers a halo; junction dots and tags,
+which are few, are drawn whole as before. Where two unselected wires cross, which is on top now follows their chunks,
+not the order they were added in. Before and after, back to back on the
 graphics card (on battery, so the columns compare only with each other):
 
 | Benchmark | Drag draw before, ms | Drag draw after, ms | Toggle before, ms | Toggle after, ms |
@@ -205,9 +208,9 @@ graphics card (on battery, so the columns compare only with each other):
 | adder-10k | 559.4 | 242.9 | 3289 | 2452 |
 | counters-10k | 667.1 | 172.3 | – | – |
 
-A drag step is 2.3–4 times faster: it rebuilds the chunks of the wires the moved part touches. A toggle is not much
+A drag step is 2.3–4.1 times faster: it rebuilds the chunks of the wires the moved part touches. A toggle is not much
 faster: toggling the switch of `chain` or `fanout` changes every wire's value, so every chunk is rebuilt, and most of a
-toggle's 1.5–3 s is spent outside the draw, not yet measured. Running `counters-10k` at full speed still freezes the
+toggle's 1.5–3 s is presumably spent outside the draw, judging by the drag's draw times; it is not yet measured. Running `counters-10k` at full speed still freezes the
 page, so what the main thread does with each state the worker sends is the next thing to measure.
 
 The browser table above predates this step; its drag column is to be measured again on mains power.

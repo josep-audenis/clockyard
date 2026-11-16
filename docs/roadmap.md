@@ -529,7 +529,7 @@ targets, as in Phase 5.
          for two of four families); benchmarks on the graphics
          card from now on.
       2. ✅ Rebuilding only the wires that changed (chunks of about 64):
-         a drag step 2.3–4 times faster at 10,000 parts; a toggle and a
+         a drag step 2.3–4.1 times faster at 10,000 parts; a toggle and a
          run of a large circuit are still slow, outside the draw.
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.

@@ -199,9 +199,9 @@ What exists today:
 
    *As built (step 3, second):* wires are drawn in chunks of about 64,
    by a hash of their IDs, and a chunk is rebuilt only when one of its
-   wires looks different, so a drag step is 2.3–4 times faster at
+   wires looks different, so a drag step is 2.3–4.1 times faster at
    10,000 parts. A toggle that changes every wire's value is not, and
-   most of a toggle's time is outside the draw; running `counters-10k`
+   most of a toggle's time is presumably outside the draw; running `counters-10k`
    at full speed still freezes the page.
 
 ## Alternatives considered
