@@ -517,6 +517,12 @@ targets, as in Phase 5.
 6. ⬜ A second reference CPU: bit operations and call/return, specification
    first.
 
+## Outside the phases
+
+- ✅ An about page at `/about/` (ADR 0030): what Clockyard is, every figure a
+  capture of the real editor made by `apps/web/scripts/landing-shots.mjs`,
+  the half adder loadable in place, and a recording of Catch.
+
 ## Out of scope (for now)
 
 Backend, accounts, multiplayer, cloud storage, marketplace, analog/transistor

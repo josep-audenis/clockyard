@@ -5,5 +5,7 @@ export default defineConfig({
   plugins: [react()],
   // Module worker so it can import the wasm-bindgen ES module (ADR 0005).
   worker: { format: "es" },
+  // The editor at /, the about page at /about/.
+  build: { rollupOptions: { input: { main: "index.html", about: "about/index.html" } } },
   test: { environment: "node" },
 });
