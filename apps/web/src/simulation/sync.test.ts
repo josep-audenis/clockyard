@@ -123,19 +123,19 @@ test("states that arrive faster than the page shows them are applied once, as th
     if (s.time !== before.time) applied.push(s.time);
   });
   // The first state of a burst is shown at once; the rest of the burst only as its latest. A reset inside the held ones
-  // (time back to 0) still counts a new epoch.
+  // (time back to 0) still counts a new epoch, though the run is past the shown time again by the latest.
   worker.reply(state(12));
   expect(applied).toEqual([12]);
-  for (const time of [0, 4]) worker.reply(state(time));
+  for (const time of [0, 20]) worker.reply(state(time));
   vi.runAllTimers();
-  expect(applied).toEqual([12, 4]);
-  expect(useSim.getState()).toMatchObject({ time: 4, epoch: epoch + 1, running: true });
+  expect(applied).toEqual([12, 20]);
+  expect(useSim.getState()).toMatchObject({ time: 20, epoch: epoch + 1, running: true });
   // A state waiting when a load is sent describes the circuit before it: its nets are not shown.
-  worker.reply(state(4));
-  worker.reply(state(5));
+  worker.reply(state(21));
+  worker.reply(state(22));
   useEditor.setState({ circuit: { components: [], junctions: [], wires: [{ id: "x", from: { junction: "a" }, to: { junction: "b" } }] } });
   vi.runAllTimers();
-  expect(useSim.getState().time).toBe(4);
+  expect(useSim.getState().time).toBe(21);
   unsubscribe();
 
   // The load answered, then its states: a new circuit is a new epoch, even when its time is not below the last shown.
@@ -152,8 +152,19 @@ test("states that arrive faster than the page shows them are applied once, as th
   vi.runAllTimers();
   expect(useSim.getState()).toMatchObject({ time: 9, running: false, status: "error", error: "boom" });
 
-  // A state still waiting when the engine stops is not shown.
+  // A failure while one state is shown does not hold the next ones for good.
+  const failing = useSim.subscribe((s) => {
+    if (s.time === 30) throw new Error("subscriber");
+  });
+  expect(() => worker.reply(state(30))).toThrow("subscriber");
+  failing();
+  worker.reply(state(31));
   vi.runAllTimers();
+  worker.reply(state(32));
+  expect(useSim.getState().time).toBe(32);
+  vi.runAllTimers();
+
+  // A state still waiting when the engine stops is not shown.
   worker.reply(state(10));
   worker.reply(state(11));
   stop();

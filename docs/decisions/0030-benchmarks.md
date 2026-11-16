@@ -219,7 +219,8 @@ What exists today:
    interleaved (A, B, A, B). That found the latest-state handling had
    delayed a toggle's readout by a frame or two; the first state of a
    burst is now shown at once (`chain-1k` 82 → 22 ms, `chain-10k`
-   460 → 70 ms to the readout, the canvas's redraw after it unchanged).
+   460 → 70 ms to the readout; the canvas's redraw after it is not
+   measured, and this change does not touch it).
 
 ## Alternatives considered
 

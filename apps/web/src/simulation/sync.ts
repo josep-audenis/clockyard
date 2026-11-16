@@ -257,7 +257,8 @@ export function connectEngine(): () => void {
       case "state": {
         // Loads still unanswered: this state describes the circuit before them.
         const current = pending === 0;
-        const rewound = current && latest?.current === true && latest.loads === loads && (latest.rewound || message.time < arrived);
+        // Time went back since the last state of this load seen, shown or held (a reset), or in one held before it.
+        const rewound = current && (message.time < arrived || (latest?.current === true && latest.loads === loads && latest.rewound));
         if (current) arrived = message.time;
         latest = { message, loads, current, rewound };
         // The first state of a burst is shown at once (a toggle's answer waits for nothing); those after it wait for a
@@ -265,8 +266,9 @@ export function connectEngine(): () => void {
         // queued), so a backlog is shown as its latest. A hidden tab's timers run about once a second.
         if (!holding) {
           holding = true;
-          applyState();
+          // Queued first, so a failure while showing this state cannot leave the next ones held for good.
           timer = setTimeout(release, 0);
+          applyState();
         }
         break;
       }

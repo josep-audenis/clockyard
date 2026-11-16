@@ -111,7 +111,8 @@ autosave at 1,000 parts (`chain-1k` 14 → 109 ms, `adder-1k` 10 → 47 ms) and 
 on open (71 → 176 ms), `counters-10k`'s pan (20 → 8.6 fps) and `chain-1k`'s toggle (54 → 119 ms).
 
 This run is the baseline for now, which makes `bench:check` loose: a real slowdown of two times or more measured on a
-quiet machine could pass against it. A run on a quiet machine did not settle the six; an interleaved comparison did
+quiet machine could pass against it. A run on a quiet machine did not settle the six; an interleaved comparison
+settled two of them, `chain-1k`'s autosave (noise) and toggle (a regression, fixed), and the other four are still open
 (section 4 below).
 
 | Benchmark | Open, ms | Of it: routing, ms | Of it: drawing, ms | Toggle, ms | Drag: draw, ms | Drag: sync, ms | Pan, fps | Cycles per second | Autosave, ms |
@@ -302,11 +303,16 @@ the code before steps 3.2 and 3.3 against after them:
 | `chain-10k` drag draw, ms | 116, 129 | 57, 48 |
 | `cpu-10k` cycles per second | 3,056, 2,923 | 3,000, 2,284 |
 
-So of the six, autosave at 1,000 parts and `cpu-10k`'s run speed are not regressions, and `chain-1k`'s toggle was one:
-since step 3.3 every state waited for a timer task, so the readout and the redraw could slip a frame or two.
+Of the six, this measured two: `chain-1k`'s autosave is noise, and its toggle was a regression: since step 3.3 every
+state waited for a timer task, so the readout and the redraw could slip a frame or two. `adder-1k`'s and `cpu-10k`'s
+autosaves, `cpu-1k`'s drawing on open and `counters-10k`'s pan were not compared and are still open. `cpu-10k`'s run
+speed, which the loaded run's text had also questioned, is no regression.
 
 Now the first state of a burst is applied at once; states that arrive before the next task are held, and only the
-latest is shown then. A backlog still collapses, at the cost of one more state shown per burst. Interleaved, the code
+latest is shown then. A backlog still collapses, at the cost of one more state shown per burst: under a sustained
+backlog every other state shown is already out of date, so showing a frame can cost up to twice what it did with only
+the latest. The first state after a load is shown a task sooner too, so an open ends that much earlier than in older
+tables. Interleaved, the code
 before this change against after it:
 
 | Measurement | Before, two runs | After, two runs |
@@ -317,7 +323,8 @@ before this change against after it:
 
 The toggle is measured to the readout, which now updates before the canvas is drawn again; the canvas still takes the
 redraw after it, a few hundred milliseconds at 10,000 parts when every wire changes, which this benchmark does not see.
-Drags, autosaves and pans were the same on both sides. The table above predates this change.
+In this second comparison drags, autosaves and pans were the same on both sides. The table above predates this
+change.
 
 ## Earlier measurements
 
