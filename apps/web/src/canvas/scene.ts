@@ -2,7 +2,7 @@
 // spec. Reads the editor and engine stores outside React and redraws on change.
 // shortcut: every change still walks the whole scene (a pan only moves the view; parts and wire chunks are rebuilt only
 // when they look different); further per-object updates are ADR 0030 step 3.
-import { Application, Container, Graphics, Text } from "pixi.js";
+import { Application, BitmapFontManager, BitmapText, Container, Graphics } from "pixi.js";
 import { create } from "zustand";
 import {
   DEFAULT_FIELDS,
@@ -157,6 +157,10 @@ const toggled = (ids: string[], id: string) => (ids.includes(id) ? ids.filter((o
 
 /** Starts the canvas in `host`; `bind` makes it the one the zoom controls drive. Resolves to its stop function. */
 export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void; bind: () => void }> {
+  // shortcut: label glyphs are drawn at twice the device ratio, so labels soften beyond 2x zoom; raise it if that bothers.
+  BitmapFontManager.defaultOptions.resolution = 2 * window.devicePixelRatio;
+  // Labels' glyph atlases are made once per font, so IBM Plex Mono must have arrived first, or a fallback face stays.
+  await document.fonts?.load(`500 11px ${readTheme().mono}`);
   const app = new Application();
   await app.init({
     autoStart: false,
@@ -199,7 +203,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   const labels = new Container();
   world.addChild(wireChunks, raised.g, wires, bodies, labels, overlay);
   /** Label text objects by component ID, reused across redraws. */
-  const texts = new Map<string, Text>();
+  const texts = new Map<string, BitmapText>();
   app.stage.addChild(world);
 
   let theme = readTheme();
@@ -537,8 +541,9 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       // A caption on the bench gets a halo in the ground colour, so a wire passing behind it does not strike it through.
       const stroke = halo ? ({ color: theme.color.bench, width: 3, join: "round" } as const) : undefined;
       const style = { fontFamily: theme.mono, fontSize: 11, fontWeight: "500", fill, stroke } as const;
-      // shortcut: rendered at twice the device ratio, so labels soften beyond 2x zoom; switch to BitmapText if that bothers.
-      text = new Text({ text: value, style, resolution: 2 * window.devicePixelRatio });
+      // Glyphs from a shared atlas per style (ADR 0030): a Text each uploaded its own texture, a second and a half of
+      // opening a 10,000-part adder.
+      text = new BitmapText({ text: value, style });
       texts.set(key, text);
       labels.addChild(text);
     }
@@ -1228,18 +1233,12 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     schedule();
   };
   scheme.addEventListener("change", onScheme);
-  // Labels drawn before IBM Plex Mono arrived used a fallback face; draw them again once it has.
-  let stopped = false;
-  void document.fonts?.load(`500 11px ${theme.mono}`).then(() => {
-    if (!stopped) onScheme();
-  });
 
   const unsubscribe = [useEditor.subscribe(schedule), useSim.subscribe(schedule)];
   schedule();
 
   const bind = () => Object.assign(viewControls, { fit, zoomBy });
   const stop = () => {
-    stopped = true;
     unsubscribe.forEach((stop) => stop());
     // Only this canvas's: one discarded during start-up never bound its own (see the caller).
     if (viewControls.fit === fit) {
