@@ -2,7 +2,7 @@
 // spec. Reads the editor and engine stores outside React and redraws on change.
 // shortcut: every change still walks the whole scene (a pan only moves the view; parts and wire chunks are rebuilt only
 // when they look different); further per-object updates are ADR 0030 step 3.
-import { Application, Container, Graphics, Text } from "pixi.js";
+import { Application, BitmapFontManager, BitmapText, CanvasTextMetrics, Container, Graphics } from "pixi.js";
 import { create } from "zustand";
 import {
   DEFAULT_FIELDS,
@@ -130,6 +130,9 @@ type Gesture =
 /** Shape ID of the placement preview; never a document ID (those are UUIDs). */
 const GHOST = "placement-preview";
 
+/** Numbers mounted canvases, so two alive at once (React's double mount) never share a label font's name. */
+let canvases = 0;
+
 /** About how many wires share a chunk: few enough that rebuilding one is cheap, enough that there are few to render. */
 const WIRES_PER_CHUNK = 64;
 /**
@@ -157,6 +160,7 @@ const toggled = (ids: string[], id: string) => (ids.includes(id) ? ids.filter((o
 
 /** Starts the canvas in `host`; `bind` makes it the one the zoom controls drive. Resolves to its stop function. */
 export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void; bind: () => void }> {
+  const canvasId = ++canvases;
   const app = new Application();
   await app.init({
     autoStart: false,
@@ -199,7 +203,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   const labels = new Container();
   world.addChild(wireChunks, raised.g, wires, bodies, labels, overlay);
   /** Label text objects by component ID, reused across redraws. */
-  const texts = new Map<string, Text>();
+  const texts = new Map<string, BitmapText>();
   app.stage.addChild(world);
 
   let theme = readTheme();
@@ -527,6 +531,12 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     }
   }
 
+  /** Label fonts this canvas installed, by name: uninstalled on a theme change and when it stops. */
+  const fonts = new Set<string>();
+  const dropFonts = () => {
+    for (const font of fonts) BitmapFontManager.uninstall(font);
+    fonts.clear();
+  };
   /** Texts drawn this frame; the rest are removed once it is drawn. */
   const seen = new Set<string>();
   /** A text at world point (x, y) in the canvas-label style, reused across frames by `key`. */
@@ -534,11 +544,20 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     seen.add(key);
     let text = texts.get(key);
     if (!text) {
-      // A caption on the bench gets a halo in the ground colour, so a wire passing behind it does not strike it through.
-      const stroke = halo ? ({ color: theme.color.bench, width: 3, join: "round" } as const) : undefined;
-      const style = { fontFamily: theme.mono, fontSize: 11, fontWeight: "500", fill, stroke } as const;
-      // shortcut: rendered at twice the device ratio, so labels soften beyond 2x zoom; switch to BitmapText if that bothers.
-      text = new Text({ text: value, style, resolution: 2 * window.devicePixelRatio });
+      // Glyphs from an atlas per installed font (ADR 0030): a Text each uploaded its own texture, a second and a half of
+      // opening a 10,000-part adder, and a style without an installed font made Pixi build a new atlas per label.
+      // Plain labels share one white font, tinted to their colour; a caption on the bench gets a halo in the ground
+      // colour, so a wire passing behind it does not strike it through, and its colours are drawn into its own font.
+      const font = `clockyard-label-${canvasId}-${themeVersion}-${halo ? `halo-${fill}` : "plain"}`;
+      if (!fonts.has(font)) {
+        const stroke = halo ? ({ color: theme.color.bench, width: 3, join: "round" } as const) : undefined;
+        const style = { fontFamily: theme.mono, fontSize: 11, fontWeight: "500", fill: halo ? fill : "#ffffff", stroke } as const;
+        // shortcut: glyphs are drawn at twice the device ratio, so labels soften beyond 2x zoom; raise it if that bothers.
+        // A monospace face has no kerning to look for.
+        BitmapFontManager.install({ name: font, style, chars: BitmapFontManager.ASCII, resolution: 2 * window.devicePixelRatio, skipKerning: true });
+        fonts.add(font);
+      }
+      text = new BitmapText({ text: value, style: { fontFamily: font, fontSize: 11, fill } });
       texts.set(key, text);
       labels.addChild(text);
     }
@@ -559,7 +578,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       const layout = layoutOf(component);
       const { x, y } = component.position;
       const caption = component.props.label ?? (component.kind === "custom" ? definitionName(component.definition) : undefined);
-      if (caption) label(component.id, caption, x + layout.width / 2, y + layout.height + 6 / c, { x: 0.5, y: 0 }, 0, true);
+      // 3 px lower than a plain label: a Text's halo pushed its glyphs down by that much, a bitmap font's is drawn inside them.
+      if (caption) label(component.id, caption, x + layout.width / 2, y + layout.height + 9 / c, { x: 0.5, y: 0 }, 0, true);
       if (component.kind !== "custom" && component.kind !== "dff" && !isMemory(component.kind) && !isFielded(component.kind)) continue;
       // A chip's pin names, or a splitter's or merger's bit ranges ("7:4"), just inside the body,
       // facing in from the side the port is on.
@@ -1225,14 +1245,22 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     // Labels are recreated in the new theme's ink.
     for (const text of texts.values()) text.destroy();
     texts.clear();
+    dropFonts();
     schedule();
   };
   scheme.addEventListener("change", onScheme);
-  // Labels drawn before IBM Plex Mono arrived used a fallback face; draw them again once it has.
+  // Labels drawn before IBM Plex Mono arrived used a fallback face; draw them again, with new atlases, once it has.
   let stopped = false;
-  void document.fonts?.load(`500 11px ${theme.mono}`).then(() => {
-    if (!stopped) onScheme();
-  });
+  void document.fonts
+    ?.load(`500 11px ${theme.mono}`)
+    .then(() => {
+      if (stopped) return;
+      // Text measured in the fallback face is cached by style, which the font's arrival does not change.
+      CanvasTextMetrics.clearMetrics();
+      onScheme();
+    })
+    // Without the font, labels keep the fallback face.
+    .catch(() => {});
 
   const unsubscribe = [useEditor.subscribe(schedule), useSim.subscribe(schedule)];
   schedule();
@@ -1257,6 +1285,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     window.removeEventListener("keyup", releaseSpace);
     window.removeEventListener("blur", releaseSpace);
     app.destroy(true, { children: true });
+    dropFonts();
   };
   return { stop, bind };
 }
