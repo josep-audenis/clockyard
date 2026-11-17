@@ -115,10 +115,11 @@ const unitEdges = (points: Point[]) => {
   return path.slice(1).map((p, i) => [path[i], p].map((q) => `${q?.x},${q?.y}`).sort().join("|"));
 };
 
-test("in a crowded grid, wires of different nets never share a grid edge", () => {
+// Also across the routing index's tiles at negative coordinates, where a tile is found by rounding down.
+test.each([0, -37])("in a crowded grid at offset %i, wires of different nets never share a grid edge nor cross a body", (at) => {
   const components: CircuitComponent[] = [];
   const wires: Wire[] = [];
-  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) components.push(part(`g${r}${c}`, "and", c * 8, r * 7));
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) components.push(part(`g${r}${c}`, "and", at + c * 8, at + r * 7));
   for (let r = 0; r < 4; r++) {
     for (let c = 0; c < 3; c++) {
       wires.push(wire(`a${r}${c}`, `g${r}${c}.out`, `g${(r + 1) % 4}${c + 1}.a`));
@@ -135,6 +136,8 @@ test("in a crowded grid, wires of different nets never share a grid edge", () =>
       expect(other === undefined || other === net, `${w.id} runs along net ${other} at ${e}`).toBe(true);
       owner.set(e, net);
     }
+    const through = cells(all.get(w.id) ?? []).slice(1, -1).filter((p) => components.some((c) => inside(p, c, 4, 4)));
+    expect(through, `${w.id} crosses a body`).toEqual([]);
   }
 });
 

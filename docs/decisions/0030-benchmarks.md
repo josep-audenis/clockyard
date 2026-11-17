@@ -222,6 +222,13 @@ What exists today:
    460 → 70 ms to the readout; the canvas's redraw after it is not
    measured, and this change does not touch it).
 
+   *As built (step 3, fifth):* routing indexes parts, junctions and laid
+   routes by 16-cell tiles, so a wire's search no longer scans the whole
+   sheet; routes are unchanged. Opening meets its targets for `chain`
+   (1.3 s at 10,000 parts, 6.3 s at 50,000); the other families still
+   miss them, now mostly in drawing outside routing, and `fanout` in its
+   long searches.
+
 ## Alternatives considered
 
 - **Criterion for the native benchmarks.** It gives better statistics, but
