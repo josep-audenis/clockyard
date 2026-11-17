@@ -255,7 +255,7 @@ test("an 8-way splitter's field wires, one cell apart, route without touching ea
   }
 });
 
-// The routing index (ADR 0030) must change nothing: against one tile as wide as any sheet, which is a scan of every
+// The routing index (ADR 0030) must change nothing: against tiles wider than any sheet, which is a scan of every
 // part and route, seeded random circuits route the same, parts turned, wires shaped, some ends far enough apart for
 // the plain route and the list of long routes, at positive and negative positions.
 test("routes with the tile index are the routes a scan of the whole sheet gives", () => {

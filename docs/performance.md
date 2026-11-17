@@ -347,7 +347,7 @@ an open does, grew with the square of its size. Now parts, junctions and laid ro
 than 64 tiles is kept in a plain list and checked by its bounding box, as before, so a wire between parts a million
 cells apart costs what it did (ADR 0011). The routes are the same: every committed and generated 1,000- and
 10,000-part benchmark and every example routed to byte-identical JSON before and after, and a test compares seeded
-random circuits, with lines laid across them, against one tile as wide as the sheet, which is the old scan.
+random circuits, with lines laid across them, against tiles wider than any sheet, which is the old scan.
 
 Routing a whole sheet in Node (vitest), before and after:
 
@@ -373,7 +373,9 @@ Opening in the browser, interleaved (A, B, A, B; one round at 50,000 parts):
 routing (drawing less routing: 3.4–4.1 s for `adder-10k`, 2.7–2.8 s for `counters-10k`, 18.5 s for `counters-50k`),
 not yet profiled. For `fanout` it is still routing: its wires run from one switch across the sheet, so each searches a
 large box, and in a profile in Node (6.6 s that run) about a third is still spent visiting the index (`avoid`, mostly the same net's
-long routes, filed in many tiles), the rest in the searches. Toggles, drags,
+long routes, filed in many tiles), the rest in the searches. These tables were measured before long routes were kept
+in a list: where a sheet has many (`fanout-50k`, `counters-50k`), checking that list makes routing about a tenth
+slower in Node, still far faster than before the index. Toggles, drags,
 pans and run speed were the same on both sides. The table above predates this step.
 
 ## Earlier measurements
