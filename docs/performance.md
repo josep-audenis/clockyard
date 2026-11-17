@@ -167,17 +167,17 @@ Read so:
 
 | Target | Measured | Met |
 |---|---|---|
-| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu` | no |
+| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index, `chain` 1.3 s, the others 3.7–13 s | for `chain` and `cpu` only, after it |
 | A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms | no |
 | Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder` | partly |
-| 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k` (edits not measured) | no |
+| 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k`; after step 3's routing index, `chain-50k` 6.3 s, `counters-50k` 22 s (edits not measured) | opening, for `chain` and `cpu` only, after it |
 | Run speed on `counters-10k` recorded | 2,017 cycles per second | yes |
 | The reference CPU keeps 10,000 cycles per second | about 8,300 (`cpu-1k`, four CPUs; reads a few per cent low, and this run was loaded) | no, in this run |
 
 Step 3 of ADR 0030 has optimized panning, the wires an edit or a state redraws, and what the page does with each
-engine state (below). What these numbers point to next: opening, which routes every wire, needs routing that is faster
-or deferred (routing only the wires an edit touched does not help it); a toggle that changes everything needs cheaper
-redraws of the gates' shapes and of Pixi's batches, found in section 3.
+engine state, and routing a whole sheet (below). What these numbers point to next: the rest of an open, which is now
+mostly drawing outside routing, and `fanout`'s long searches (section 5); a toggle that changes everything needs
+cheaper redraws of the gates' shapes and of Pixi's batches, found in section 3.
 
 `pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
 twice as bad (and worse by more than 5), or one the run lost; `node scripts/bench-check.mjs --update` makes the last run
@@ -338,6 +338,45 @@ The toggle is measured to the readout, which now updates before the canvas is dr
 redraw after it, a few hundred milliseconds at 10,000 parts when every wire changes, which this benchmark does not see.
 In this second comparison drags, autosaves and pans were the same on both sides. The table above predates this
 change.
+
+### 5. Routing with an index
+
+Every wire's search marked its box by scanning every part and every route laid so far, so routing a whole sheet, which
+an open does, grew with the square of its size. Now parts, junctions and laid routes are filed by tiles of 16 cells
+(routes by their segments), and a search visits only the tiles its box touches. A route with a segment across more
+than 64 tiles is kept in a plain list and checked by its bounding box, as before, so a wire between parts a million
+cells apart costs what it did (ADR 0011). The routes are the same: every committed and generated 1,000- and
+10,000-part benchmark and every example routed to byte-identical JSON before and after, and a test compares seeded
+random circuits, with lines laid across them, against tiles wider than any sheet, which is the old scan.
+
+Routing a whole sheet in Node (vitest), before and after:
+
+| Benchmark | Before, s | After, s |
+|---|---:|---:|
+| chain-10k | 12.2 | 0.26 |
+| adder-10k | 19.7 | 0.95 |
+| counters-10k | 21.4 | 1.16 |
+| fanout-10k | 25.9 | 8.9 |
+
+Opening in the browser, interleaved (A, B, A, B; one round at 50,000 parts):
+
+| Benchmark | Open before, s | Open after, s | Of it: routing after, s |
+|---|---:|---:|---:|
+| chain-10k | 9.5, 7.1 | 1.35, 1.29 | 0.18, 0.17 |
+| adder-10k | 19.0, 12.3 | 5.4, 4.6 | 0.76, 0.71 |
+| counters-10k | 13.2, 12.2 | 3.9, 3.7 | 0.86, 0.84 |
+| fanout-10k | 19.0, 13.3 | 13.0, 6.2 | 10.6, 4.7 |
+| chain-50k | 136 | 6.3 | 0.77 |
+| counters-50k | 169 | 22 | 2.8 |
+
+`chain` now opens within the targets at both sizes. What remains of the others' opens is mostly drawing outside
+routing (drawing less routing: 3.4–4.1 s for `adder-10k`, 2.7–2.8 s for `counters-10k`, 18.5 s for `counters-50k`),
+not yet profiled. For `fanout` it is still routing: its wires run from one switch across the sheet, so each searches a
+large box, and in a profile in Node (6.6 s that run) about a third is still spent visiting the index (`avoid`, mostly the same net's
+long routes, filed in many tiles), the rest in the searches. These tables were measured before long routes were kept
+in a list: where a sheet has many (`fanout-50k`, `counters-50k`), checking that list makes routing about a tenth
+slower in Node, still far faster than before the index. Toggles, drags,
+pans and run speed were the same on both sides. The table above predates this step.
 
 ## Earlier measurements
 

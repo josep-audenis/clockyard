@@ -542,6 +542,10 @@ targets, as in Phase 5.
          readout no longer waits a frame (`chain-1k` 82 → 22 ms in an
          interleaved comparison); runs on this machine compared
          interleaved, since one run varies up to two times.
+      5. ✅ Routing with a tile index of parts and laid routes instead of
+         a scan of all of them, the same routes: `chain-10k` opens in
+         1.3 s (was 7–10 s), `chain-50k` in 6.3 s (was 136 s);
+         `adder`, `counters` and `fanout` at 10,000 parts in 3.7–13 s.
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
