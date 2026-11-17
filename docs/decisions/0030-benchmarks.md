@@ -231,6 +231,12 @@ What exists today:
    Routes with a segment across more than 64 tiles stay in a plain list,
    so ADR 0011's bound on one wire's cost holds.
 
+   *As built (step 3, sixth):* canvas labels are Pixi `BitmapText` from
+   fonts the canvas installs, one per look, instead of a `Text` and a
+   texture each, so `adder-10k` opens in about 3 s. A bitmap text whose
+   font is left to Pixi builds a font per label; installing them is
+   what makes it fast.
+
 ## Alternatives considered
 
 - **Criterion for the native benchmarks.** It gives better statistics, but

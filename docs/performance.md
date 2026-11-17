@@ -167,7 +167,7 @@ Read so:
 
 | Target | Measured | Met |
 |---|---|---|
-| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index, `chain` 1.3 s, the others 3.7–13 s | for `chain` and `cpu` only, after it |
+| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s | for `chain` and `cpu` only, after them |
 | A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms | no |
 | Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder` | partly |
 | 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k`; after step 3's routing index, `chain-50k` 6.3 s, `counters-50k` 22 s (edits not measured) | opening, for `chain` and `cpu` only, after it |
@@ -377,6 +377,31 @@ long routes, filed in many tiles), the rest in the searches. These tables were m
 in a list: where a sheet has many (`fanout-50k`, `counters-50k`), checking that list makes routing about a tenth
 slower in Node, still far faster than before the index. Toggles, drags,
 pans and run speed were the same on both sides. The table above predates this step.
+
+### 6. Labels from bitmap fonts
+
+A profile of opening `adder-10k` (4.7 s) put 1.6 s in labels: each Pixi `Text` drew itself on a canvas of its own and
+uploaded it as a texture, and the sheet has about 15,000 labels (each full adder's name and pin names, each switch's
+and LED's). The rest was routing (0.7 s), building shapes (about 0.5 s) and the first frame's shaders (0.6 s).
+
+Labels are now Pixi `BitmapText`, drawn from glyph atlases at the same twice-the-device-ratio resolution. A first
+version gave each label a plain text style and let Pixi make fonts from them: its font cache did not match between
+labels, so it built a font, and a 2,048-pixel atlas page, almost per label, and `adder-10k` opened in 289 and 405 s.
+Now the canvas installs one font per look: plain labels share a white one, tinted to their colour; captions with a halo
+get one per colour, with the halo drawn in. The canvas waits for IBM Plex Mono before it starts, since an atlas keeps
+the face it was drawn in.
+
+Opening, interleaved (A, B, A, B):
+
+| Benchmark | Open before, s | Open after, s |
+|---|---:|---:|
+| adder-1k | 0.52, 0.58 | 0.52, 0.54 |
+| adder-10k | 5.0, 5.8 | 2.8, 3.2 |
+| counters-10k | 3.6, 4.8 | 2.7, 3.3 |
+| chain-10k (no labels) | 1.3, 1.4 | 1.3, 1.5 |
+
+Toggles, drags, pans and run speed were within the runs' noise. Labels look the same, checked against the same text
+in the page's own IBM Plex Mono in both themes; they sit within a pixel of where they were.
 
 ## Earlier measurements
 
