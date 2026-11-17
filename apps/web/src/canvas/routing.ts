@@ -31,7 +31,12 @@ function nets(circuit: Circuit): Map<string, string> {
 
 /** Cells per side of a tile of the index below. */
 const TILE = 16;
-/** A tile's key; unique while tile coordinates stay within ±2^19 (8 million cells). */
+/** A route with a segment across more tiles than this is kept in a plain list: filing it would cost as much as it is long. */
+const LONG = 64;
+/**
+ * A tile's key: unique while tile coordinates stay within ±2^19 (coordinates are at most ±10^6, ADR 0011); a collision
+ * would only add visits, never miss an item.
+ */
 const tileKey = (tx: number, ty: number) => tx * 0x100000 + ty;
 
 /**
@@ -41,10 +46,13 @@ const tileKey = (tx: number, ty: number) => tx * 0x100000 + ty;
 class Tiles<T> {
   private readonly map = new Map<number, T[]>();
 
+  constructor(readonly size: number) {}
+
   /** Files `item` under every tile the cells (x0, y0) to (x1, y1) touch. */
   add(item: T, x0: number, y0: number, x1: number, y1: number) {
-    for (let tx = Math.floor(x0 / TILE); tx <= Math.floor(x1 / TILE); tx++) {
-      for (let ty = Math.floor(y0 / TILE); ty <= Math.floor(y1 / TILE); ty++) {
+    const size = this.size;
+    for (let tx = Math.floor(x0 / size); tx <= Math.floor(x1 / size); tx++) {
+      for (let ty = Math.floor(y0 / size); ty <= Math.floor(y1 / size); ty++) {
         const key = tileKey(tx, ty);
         const list = this.map.get(key);
         if (list) list.push(item);
@@ -55,35 +63,51 @@ class Tiles<T> {
 
   /** Calls `f` for every item filed under a tile the cells (x0, y0) to (x1, y1) touch; an item may come more than once. */
   each(x0: number, y0: number, x1: number, y1: number, f: (item: T) => void) {
-    for (let tx = Math.floor(x0 / TILE); tx <= Math.floor(x1 / TILE); tx++) {
-      for (let ty = Math.floor(y0 / TILE); ty <= Math.floor(y1 / TILE); ty++) {
+    const size = this.size;
+    for (let tx = Math.floor(x0 / size); tx <= Math.floor(x1 / size); tx++) {
+      for (let ty = Math.floor(y0 / size); ty <= Math.floor(y1 / size); ty++) {
         for (const item of this.map.get(tileKey(tx, ty)) ?? []) f(item);
       }
     }
   }
 }
 
-/** A laid route, filed by its segments: `seen` is the last search that marked it, so a route met in many tiles counts once. */
-type LaidRoute = { net: string; points: Point[]; seen: number };
+/**
+ * A laid route and its bounding box: `seen` is the last search that marked it, so a route met in many tiles counts
+ * once.
+ */
+type LaidRoute = { net: string; points: Point[]; seen: number; minX: number; minY: number; maxX: number; maxY: number };
 
-/** What routes keep away from: part bodies and junctions, and the routes laid so far. */
-type Obstacles = { bodies: Tiles<{ x0: number; y0: number; x1: number; y1: number }>; routes: Tiles<LaidRoute> };
+/** What routes keep away from: part bodies and junctions, the routes laid so far, and those too long to file. */
+type Obstacles = { bodies: Tiles<{ x0: number; y0: number; x1: number; y1: number }>; routes: Tiles<LaidRoute>; long: LaidRoute[] };
 
-/** Parts and junctions of `circuit`, indexed; routes are added as they are laid (`lay`). */
-function obstaclesOf(circuit: Circuit): Obstacles {
-  const bodies = new Tiles<{ x0: number; y0: number; x1: number; y1: number }>();
+/** Parts and junctions of `circuit`, indexed by tiles of `size` cells; routes are added as they are laid (`lay`). */
+function obstaclesOf(circuit: Circuit, size: number): Obstacles {
+  const bodies = new Tiles<{ x0: number; y0: number; x1: number; y1: number }>(size);
   for (const c of circuit.components) {
     const { width, height } = layoutOf(c);
     const body = { x0: c.position.x, y0: c.position.y, x1: c.position.x + width, y1: c.position.y + height };
     bodies.add(body, body.x0, body.y0, body.x1, body.y1);
   }
   for (const { position: p } of circuit.junctions) bodies.add({ x0: p.x, y0: p.y, x1: p.x, y1: p.y }, p.x, p.y, p.x, p.y);
-  return { bodies, routes: new Tiles() };
+  return { bodies, routes: new Tiles(size), long: [] };
 }
 
-/** Files a laid route under the tiles its segments run through (not its whole bounding box). */
-function file(routes: Tiles<LaidRoute>, route: LaidRoute) {
-  const { points } = route;
+/**
+ * Files a laid route under the tiles its segments run through (not its whole bounding box); one with a segment across
+ * more than `LONG` tiles goes in the plain list instead, so a far-flung route costs what it did before the index
+ * (ADR 0011: one wire never costs more than two bounded searches).
+ */
+function file(obstacles: Obstacles, net: string, points: Point[]) {
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const route = { net, points, seen: 0, minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
+  const { routes } = obstacles;
+  const span = (a: number, b: number) => Math.abs(Math.floor(a / routes.size) - Math.floor(b / routes.size));
+  if (points.some((p, i) => i > 0 && span(p.x, (points[i - 1] as Point).x) + span(p.y, (points[i - 1] as Point).y) > LONG)) {
+    obstacles.long.push(route);
+    return;
+  }
   if (points.length === 1) {
     const p = points[0] as Point;
     routes.add(route, p.x, p.y, p.x, p.y);
@@ -141,29 +165,35 @@ class Box {
   }
 
   /** Marks the cells and edges that routes of nets other than `net` use inside the box. */
-  avoid(routes: Obstacles["routes"], net: string) {
+  avoid(obstacles: Obstacles, net: string) {
     const search = ++searches;
-    routes.each(this.minX, this.minY, this.minX + this.w - 1, this.minY + this.h - 1, (route) => {
-      if (route.net === net || route.seen === search) return;
-      route.seen = search;
-      const { points } = route;
-      for (const p of points) if (this.has(p.x, p.y)) this.others[this.cell(p.x, p.y)] = 1;
-      for (let i = 1; i < points.length; i++) {
-        const [a, b] = [points[i - 1] as Point, points[i] as Point];
-        const vertical = a.x === b.x;
-        const [lo, hi] = vertical ? [Math.min(a.y, b.y), Math.max(a.y, b.y)] : [Math.min(a.x, b.x), Math.max(a.x, b.x)];
-        // Only the stretch inside the box matters, however long the segment is.
-        const from = Math.max(lo, vertical ? this.minY : this.minX);
-        const to = Math.min(hi, vertical ? this.minY + this.h - 1 : this.minX + this.w - 1);
-        for (let t = from; t <= to; t++) {
-          const [x, y] = vertical ? [a.x, t] : [t, a.y];
-          if (!this.has(x, y)) continue;
-          const c = this.cell(x, y);
-          if (t < hi) this.edges[2 * c + (vertical ? 1 : 0)] = 1;
-          if (t > lo && t < hi && this.others[c] !== 1) this.others[c] = 2;
-        }
+    const [maxX, maxY] = [this.minX + this.w - 1, this.minY + this.h - 1];
+    for (const route of obstacles.long) {
+      if (route.maxX >= this.minX && route.maxY >= this.minY && route.minX <= maxX && route.minY <= maxY) this.mark(route, net, search);
+    }
+    obstacles.routes.each(this.minX, this.minY, maxX, maxY, (route) => this.mark(route, net, search));
+  }
+
+  private mark(route: LaidRoute, net: string, search: number) {
+    if (route.net === net || route.seen === search) return;
+    route.seen = search;
+    const { points } = route;
+    for (const p of points) if (this.has(p.x, p.y)) this.others[this.cell(p.x, p.y)] = 1;
+    for (let i = 1; i < points.length; i++) {
+      const [a, b] = [points[i - 1] as Point, points[i] as Point];
+      const vertical = a.x === b.x;
+      const [lo, hi] = vertical ? [Math.min(a.y, b.y), Math.max(a.y, b.y)] : [Math.min(a.x, b.x), Math.max(a.x, b.x)];
+      // Only the stretch inside the box matters, however long the segment is.
+      const from = Math.max(lo, vertical ? this.minY : this.minX);
+      const to = Math.min(hi, vertical ? this.minY + this.h - 1 : this.minX + this.w - 1);
+      for (let t = from; t <= to; t++) {
+        const [x, y] = vertical ? [a.x, t] : [t, a.y];
+        if (!this.has(x, y)) continue;
+        const c = this.cell(x, y);
+        if (t < hi) this.edges[2 * c + (vertical ? 1 : 0)] = 1;
+        if (t > lo && t < hi && this.others[c] !== 1) this.others[c] = 2;
       }
-    });
+    }
   }
 }
 
@@ -265,7 +295,7 @@ export function search(
   if ((maxX - minX + 1) * (maxY - minY + 1) > MAX_CELLS) return null;
   const box = new Box(minX, minY, maxX, maxY);
   box.block(obstacles.bodies);
-  box.avoid(obstacles.routes, net);
+  box.avoid(obstacles, net);
   // A port whose first cell outside is taken can never be reached: fail now rather than search the whole box.
   for (const [end, exit] of [
     [a, exitA],
@@ -485,14 +515,20 @@ export function routesKeeping(circuit: Circuit, frozen: Map<string, Point[]>): M
   return result;
 }
 
-function route(circuit: Circuit, frozen: Map<string, Point[]>): Map<string, Point[]> {
+/**
+ * Every wire routed with the index's tiles `size` cells wide, `frozen` ones laid as given: for tests, against one tile
+ * as wide as any sheet.
+ */
+export const routeWithTiles = (circuit: Circuit, size: number, frozen = new Map<string, Point[]>()) => route(circuit, frozen, size);
+
+function route(circuit: Circuit, frozen: Map<string, Point[]>, size = TILE): Map<string, Point[]> {
   const at = places(circuit);
   const netOf = nets(circuit);
-  const obstacles = obstaclesOf(circuit);
+  const obstacles = obstaclesOf(circuit, size);
   const result = new Map<string, Point[]>();
   const lay = (id: string, points: Point[]) => {
     result.set(id, points);
-    file(obstacles.routes, { net: netOf.get(id) as string, points, seen: 0 });
+    file(obstacles, netOf.get(id) as string, points);
   };
   for (const wire of circuit.wires) {
     const points = frozen.get(wire.id);

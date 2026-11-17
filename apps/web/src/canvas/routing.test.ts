@@ -2,7 +2,7 @@ import { beforeEach, expect, test } from "vitest";
 import type { Circuit, CircuitComponent, Wire } from "../editor/document";
 import type { Point } from "./geometry";
 import { setDefinitionLayouts } from "./layout";
-import { forgetRoutes, routes, routesKeeping } from "./routing";
+import { forgetRoutes, routes, routesKeeping, routeWithTiles } from "./routing";
 
 // Each test starts as if a file had just been opened: no earlier circuit to compare with.
 beforeEach(forgetRoutes);
@@ -253,4 +253,66 @@ test("an 8-way splitter's field wires, one cell apart, route without touching ea
       owner.set(e, w.id);
     }
   }
+});
+
+// The routing index (ADR 0030) must change nothing: against one tile as wide as any sheet, which is a scan of every
+// part and route, seeded random circuits route the same, parts turned, wires shaped, some ends far enough apart for
+// the plain route and the list of long routes, at positive and negative positions.
+test("routes with the tile index are the routes a scan of the whole sheet gives", () => {
+  // mulberry32: a small seeded generator whose low bits do not repeat early.
+  let seed = 7;
+  const random = (n: number) => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), seed | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return Math.floor((((t ^ (t >>> 14)) >>> 0) / 2 ** 32) * n);
+  };
+  const kinds = [
+    ["and", ["a", "b"]],
+    ["or", ["a", "b"]],
+    ["not", ["in"]],
+  ] as const;
+  for (let round = 0; round < 40; round++) {
+    const at = [0, -37, -1000, 15][round % 4] as number;
+    // Half the rounds spread wider, so segments cross tiles; a few parts far out are joined by plain routes.
+    const [w, h] = round % 2 ? [80, 60] : [140, 90];
+    const components: CircuitComponent[] = [];
+    for (let i = 0; i < 24; i++) {
+      const [kind] = kinds[random(3)] as (typeof kinds)[number];
+      const rotation = ([0, 90, 180, 270] as const)[random(4)] as CircuitComponent["rotation"];
+      const far = random(12) === 0 ? (random(2) ? 3000 : -3000) : 0;
+      components.push({ ...part(`p${i}`, kind, at + far + random(w), at + random(h)), rotation });
+    }
+    const wires: Wire[] = [];
+    for (let i = 0; i < 40; i++) {
+      const from = components[random(components.length)] as CircuitComponent;
+      const to = components[random(components.length)] as CircuitComponent;
+      const inputs = (kinds.find(([k]) => k === to.kind) as (typeof kinds)[number])[1];
+      const w = wire(`w${i}`, `${from.id}.out`, `${to.id}.${inputs[random(inputs.length)]}`);
+      wires.push(random(10) === 0 ? { ...w, bends: [] } : w);
+    }
+    const circuit = { components, junctions: [], wires };
+    // Two wires laid first as straight lines across the area, as a drag lays frozen routes: the middles of their
+    // segments run through other wires' boxes, one filed by tiles, one long enough for the list.
+    const frozen = new Map<string, Point[]>();
+    for (let i = 0; i < 2; i++) {
+      const reach = i < 1 ? 40 : 3000;
+      const y = at + random(h);
+      frozen.set(`w${i}`, [{ x: at - reach, y }, { x: at + w + reach, y }]);
+    }
+    // Tiles of one cell as well as the real 16: every body straddles tiles, and a box's edge often cuts one.
+    for (const lines of [new Map<string, Point[]>(), frozen]) {
+      const scan = Object.fromEntries(routeWithTiles(circuit, 1e9, lines));
+      for (const size of [1, 16]) expect(Object.fromEntries(routeWithTiles(circuit, size, lines)), `round ${round}, tiles of ${size}`).toEqual(scan);
+    }
+  }
+}, 30_000);
+
+test("parts a million cells apart route at once: a long route is not filed under every tile it crosses", () => {
+  const components = Array.from({ length: 400 }, (_, i) => part(`n${i}`, "not", i % 2 ? 1_000_000 : -1_000_000, 4 * i));
+  const wires = Array.from({ length: 200 }, (_, i) => wire(`w${i}`, `n${2 * i}.out`, `n${2 * i + 1}.in`));
+  const start = performance.now();
+  routes({ components, junctions: [], wires });
+  // Filed tile by tile this took about ten seconds and two gigabytes; a scan takes milliseconds.
+  expect(performance.now() - start).toBeLessThan(2000);
 });

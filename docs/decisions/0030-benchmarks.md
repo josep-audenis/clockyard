@@ -227,7 +227,9 @@ What exists today:
    sheet; routes are unchanged. Opening meets its targets for `chain`
    (1.3 s at 10,000 parts, 6.3 s at 50,000); the other families still
    miss them, now mostly in drawing outside routing, and `fanout` in its
-   long searches.
+   long searches and in visiting its own net's routes in the index.
+   Routes with a segment across more than 64 tiles stay in a plain list,
+   so ADR 0011's bound on one wire's cost holds.
 
 ## Alternatives considered
 
