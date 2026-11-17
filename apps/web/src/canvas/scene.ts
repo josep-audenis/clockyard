@@ -163,8 +163,6 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   // shortcut: label glyphs are drawn at twice the device ratio, so labels soften beyond 2x zoom; raise it if that bothers.
   BitmapFontManager.defaultOptions.resolution = 2 * window.devicePixelRatio;
   const canvasId = ++canvases;
-  // Labels' glyph atlases are made once per font, so IBM Plex Mono must have arrived first, or a fallback face stays.
-  await document.fonts?.load(`500 11px ${readTheme().mono}`);
   const app = new Application();
   await app.init({
     autoStart: false,
@@ -1250,12 +1248,18 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     schedule();
   };
   scheme.addEventListener("change", onScheme);
+  // Labels drawn before IBM Plex Mono arrived used a fallback face; draw them again, with new atlases, once it has.
+  let stopped = false;
+  void document.fonts?.load(`500 11px ${theme.mono}`).then(() => {
+    if (!stopped) onScheme();
+  });
 
   const unsubscribe = [useEditor.subscribe(schedule), useSim.subscribe(schedule)];
   schedule();
 
   const bind = () => Object.assign(viewControls, { fit, zoomBy });
   const stop = () => {
+    stopped = true;
     unsubscribe.forEach((stop) => stop());
     // Only this canvas's: one discarded during start-up never bound its own (see the caller).
     if (viewControls.fit === fit) {

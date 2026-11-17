@@ -388,8 +388,8 @@ Labels are now Pixi `BitmapText`, drawn from glyph atlases at the same twice-the
 version gave each label a plain text style and let Pixi make fonts from them: its font cache did not match between
 labels, so it built a font, and a 2,048-pixel atlas page, almost per label, and `adder-10k` opened in 289 and 405 s.
 Now the canvas installs one font per look: plain labels share a white one, tinted to their colour; captions with a halo
-get one per colour, with the halo drawn in. The canvas waits for IBM Plex Mono before it starts, since an atlas keeps
-the face it was drawn in.
+get one per colour, with the halo drawn in. An atlas keeps the face it was drawn in, so once IBM Plex Mono arrives the
+canvas uninstalls its fonts and draws its labels again.
 
 Opening, interleaved (A, B, A, B):
 
