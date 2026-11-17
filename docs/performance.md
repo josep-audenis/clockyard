@@ -111,9 +111,8 @@ autosave at 1,000 parts (`chain-1k` 14 → 109 ms, `adder-1k` 10 → 47 ms) and 
 on open (71 → 176 ms), `counters-10k`'s pan (20 → 8.6 fps) and `chain-1k`'s toggle (54 → 119 ms).
 
 This run is the baseline for now, which makes `bench:check` loose: a real slowdown of two times or more measured on a
-quiet machine could pass against it. A run on a quiet machine did not settle the six; an interleaved comparison
-settled two of them, `chain-1k`'s autosave (noise) and toggle (a regression, fixed), and the other four are still open
-(section 4 below).
+quiet machine could pass against it. A run on a quiet machine did not settle the six; interleaved comparisons did:
+`chain-1k`'s toggle was a regression, fixed, and the other five are noise (section 4 below).
 
 | Benchmark | Open, ms | Of it: routing, ms | Of it: drawing, ms | Toggle, ms | Drag: draw, ms | Drag: sync, ms | Pan, fps | Cycles per second | Autosave, ms |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -304,9 +303,22 @@ the code before steps 3.2 and 3.3 against after them:
 | `cpu-10k` cycles per second | 3,056, 2,923 | 3,000, 2,284 |
 
 Of the six, this measured two: `chain-1k`'s autosave is noise, and its toggle was a regression: since step 3.3 every
-state waited for a timer task, so the readout and the redraw could slip a frame or two. `adder-1k`'s and `cpu-10k`'s
-autosaves, `cpu-1k`'s drawing on open and `counters-10k`'s pan were not compared and are still open. `cpu-10k`'s run
-speed, which the loaded run's text had also questioned, is no regression.
+state waited for a timer task, so the readout and the redraw could slip a frame or two. `cpu-10k`'s run speed, which
+the loaded run's text had also questioned, is no regression. The other four, compared the same way in three rounds
+each, before steps 3.2 and 3.3 against main after the fix below:
+
+| Measurement | Before, three runs | After, three runs |
+|---|---:|---:|
+| `adder-1k` autosave, ms | 41, 12, 8 | 13, 19, 8 |
+| `cpu-10k` autosave, ms | 6, 7, 5 | 10, 5, 11 |
+| `cpu-1k` drawing on open, ms | 213, 114, 96 | 52, 34, 34 |
+| `counters-10k` pan, fps | 20, 20, 20 | 12, 20, 20 |
+| `counters-10k` drag draw, ms | 404, 439, 344 | 102, 62, 62 |
+| `counters-10k` autosave, ms | 2,632, 2,494, 1,875 | 71, 56, 58 |
+| `counters-10k` cycles per second | page stopped answering, three times | 2,057, 3,268, 3,667 |
+
+None of the four is a regression: each side's runs overlap, or the after side is faster. The rows below them confirm
+steps 3.2 and 3.3 at 10,000 parts.
 
 Now the first state of a burst is applied at once; states that arrive before the next task are held, and only the
 latest is shown then. A backlog still collapses, at the cost of one more state shown per burst: under a sustained
