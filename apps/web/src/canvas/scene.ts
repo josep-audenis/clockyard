@@ -130,6 +130,9 @@ type Gesture =
 /** Shape ID of the placement preview; never a document ID (those are UUIDs). */
 const GHOST = "placement-preview";
 
+/** Numbers mounted canvases, so two alive at once (React's double mount) never share a label font's name. */
+let canvases = 0;
+
 /** About how many wires share a chunk: few enough that rebuilding one is cheap, enough that there are few to render. */
 const WIRES_PER_CHUNK = 64;
 /**
@@ -159,6 +162,7 @@ const toggled = (ids: string[], id: string) => (ids.includes(id) ? ids.filter((o
 export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void; bind: () => void }> {
   // shortcut: label glyphs are drawn at twice the device ratio, so labels soften beyond 2x zoom; raise it if that bothers.
   BitmapFontManager.defaultOptions.resolution = 2 * window.devicePixelRatio;
+  const canvasId = ++canvases;
   // Labels' glyph atlases are made once per font, so IBM Plex Mono must have arrived first, or a fallback face stays.
   await document.fonts?.load(`500 11px ${readTheme().mono}`);
   const app = new Application();
@@ -531,6 +535,12 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     }
   }
 
+  /** Label fonts this canvas installed, by name: uninstalled on a theme change and when it stops. */
+  const fonts = new Set<string>();
+  const dropFonts = () => {
+    for (const font of fonts) BitmapFontManager.uninstall(font);
+    fonts.clear();
+  };
   /** Texts drawn this frame; the rest are removed once it is drawn. */
   const seen = new Set<string>();
   /** A text at world point (x, y) in the canvas-label style, reused across frames by `key`. */
@@ -538,12 +548,18 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     seen.add(key);
     let text = texts.get(key);
     if (!text) {
-      // A caption on the bench gets a halo in the ground colour, so a wire passing behind it does not strike it through.
-      const stroke = halo ? ({ color: theme.color.bench, width: 3, join: "round" } as const) : undefined;
-      const style = { fontFamily: theme.mono, fontSize: 11, fontWeight: "500", fill, stroke } as const;
-      // Glyphs from a shared atlas per style (ADR 0030): a Text each uploaded its own texture, a second and a half of
-      // opening a 10,000-part adder.
-      text = new BitmapText({ text: value, style });
+      // Glyphs from an atlas per installed font (ADR 0030): a Text each uploaded its own texture, a second and a half of
+      // opening a 10,000-part adder, and a style without an installed font made Pixi build a new atlas per label.
+      // Plain labels share one white font, tinted to their colour; a caption on the bench gets a halo in the ground
+      // colour, so a wire passing behind it does not strike it through, and its colours are drawn into its own font.
+      const font = `clockyard-label-${canvasId}-${themeVersion}-${halo ? `halo-${fill}` : "plain"}`;
+      if (!fonts.has(font)) {
+        const stroke = halo ? ({ color: theme.color.bench, width: 3, join: "round" } as const) : undefined;
+        const style = { fontFamily: theme.mono, fontSize: 11, fontWeight: "500", fill: halo ? fill : "#ffffff", stroke } as const;
+        BitmapFontManager.install({ name: font, style, chars: BitmapFontManager.ASCII });
+        fonts.add(font);
+      }
+      text = new BitmapText({ text: value, style: { fontFamily: font, fontSize: 11, fill } });
       texts.set(key, text);
       labels.addChild(text);
     }
@@ -1230,6 +1246,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     // Labels are recreated in the new theme's ink.
     for (const text of texts.values()) text.destroy();
     texts.clear();
+    dropFonts();
     schedule();
   };
   scheme.addEventListener("change", onScheme);
@@ -1256,6 +1273,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     window.removeEventListener("keyup", releaseSpace);
     window.removeEventListener("blur", releaseSpace);
     app.destroy(true, { children: true });
+    dropFonts();
   };
   return { stop, bind };
 }
