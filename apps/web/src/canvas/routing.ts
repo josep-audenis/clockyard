@@ -516,8 +516,8 @@ export function routesKeeping(circuit: Circuit, frozen: Map<string, Point[]>): M
 }
 
 /**
- * Every wire routed with the index's tiles `size` cells wide, `frozen` ones laid as given: for tests, against one tile
- * as wide as any sheet.
+ * Every wire routed with the index's tiles `size` cells wide, `frozen` ones laid as given: for tests, against tiles
+ * wider than any sheet.
  */
 export const routeWithTiles = (circuit: Circuit, size: number, frozen = new Map<string, Point[]>()) => route(circuit, frozen, size);
 
