@@ -106,13 +106,14 @@ and ran `cpu-10k` at 2,036 cycles per second against 1,569 here.
 
 Against the previous baseline (the run before steps 3.2 and 3.3), `bench:check` failed this run on ten measurements.
 Four are about twice as slow and fit the load: `counters-50k`'s open, routing and drawing (routing, which no change
-touched, took 2.1 times as long) and `cpu-50k`'s drawing. Six go further and are not explained by a measurement:
+touched, took 2.1 times as long) and `cpu-50k`'s drawing. Six went further and were not explained by a measurement:
 autosave at 1,000 parts (`chain-1k` 14 → 109 ms, `adder-1k` 10 → 47 ms) and `cpu-10k`'s (4 → 18 ms), `cpu-1k`'s drawing
 on open (71 → 176 ms), `counters-10k`'s pan (20 → 8.6 fps) and `chain-1k`'s toggle (54 → 119 ms).
 
 This run is the baseline for now, which makes `bench:check` loose: a real slowdown of two times or more measured on a
 quiet machine could pass against it. A run on a quiet machine did not settle the six; interleaved comparisons did:
-`chain-1k`'s toggle was a regression, fixed, and the other five are noise (section 4 below).
+`chain-1k`'s toggle was a regression, fixed, and the other five are not regressions: this run's slowdowns there were
+noise (section 4 below).
 
 | Benchmark | Open, ms | Of it: routing, ms | Of it: drawing, ms | Toggle, ms | Drag: draw, ms | Drag: sync, ms | Pan, fps | Cycles per second | Autosave, ms |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -153,14 +154,14 @@ Read so:
   and gate changes (profiled on `chain`).
 - **Running a large circuit** no longer freezes the page: `counters-10k` runs at 2,017 cycles per second, and `cpu-10k`
   at 1,569. The native table above gives the engine about 2,900 and 2,600 cycles per second for them (a native re-run
-  during this work gave about twice that, so native timings vary as much); `cpu-10k` read 2,982 in the previous table,
-  and whether its drop is this run's load or a regression from step 3.3 is not yet known. At 1,000 parts the run
+  during this work gave about twice that, so native timings vary as much); `cpu-10k` read 2,982 in the previous table;
+  an interleaved comparison found its drop is not a regression from step 3.3 (section 4). At 1,000 parts the run
   speed is 8,300–9,100 of the 10,000 asked.
 - **Refusing a circuit takes as long as opening it.** `adder-50k` is routed and drawn for nearly six minutes before
   the engine's "too large" is shown.
 - **Autosave** takes 57–100 ms at 10,000 parts for flat circuits (0.17–1.2 s in the previous table), presumably
-  because it waits behind less drawing, and 13–109 ms at 1,000 parts (7–48 ms before), which is not explained (see
-  above); serializing and waiting are not measured apart.
+  because it waits behind less drawing, and 13–109 ms at 1,000 parts (7–48 ms before), which interleaved
+  comparisons found to be noise (section 4); serializing and waiting are not measured apart.
 
 ### Against the targets (ADR 0030 item 4)
 
@@ -317,8 +318,8 @@ each, before steps 3.2 and 3.3 against main after the fix below:
 | `counters-10k` autosave, ms | 2,632, 2,494, 1,875 | 71, 56, 58 |
 | `counters-10k` cycles per second | page stopped answering, three times | 2,057, 3,268, 3,667 |
 
-None of the four is a regression: each side's runs overlap, or the after side is faster. The rows below them confirm
-steps 3.2 and 3.3 at 10,000 parts.
+None of the four is a regression: each side's runs overlap (for `cpu-10k`'s autosave and `counters-10k`'s pan, by one
+run each), or the after side is faster. The last three rows confirm steps 3.2 and 3.3 at 10,000 parts.
 
 Now the first state of a burst is applied at once; states that arrive before the next task are held, and only the
 latest is shown then. A backlog still collapses, at the cost of one more state shown per burst: under a sustained
