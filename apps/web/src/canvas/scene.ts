@@ -40,9 +40,12 @@ import {
   type Point,
 } from "./geometry";
 import { definitionName, layoutOf, PICTURE, pinLabel, PIXEL } from "./layout";
+import { withAsciiShortcut } from "./graphemes";
 import { dropUnused, MIN_TEMPLATE_LIMIT } from "./templates";
 import { routes, routesKeeping } from "./routing";
 import { timed } from "../bench";
+
+CanvasTextMetrics.graphemeSegmenter = withAsciiShortcut(CanvasTextMetrics.graphemeSegmenter);
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
