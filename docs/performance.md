@@ -167,7 +167,7 @@ Read so:
 
 | Target | Measured | Met |
 |---|---|---|
-| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s; with fewer cells searched (section 8, on battery, where the same builds are slower) `fanout` 10.8 → 3.4–3.5 s, `adder` 4.2 → 3.3–3.4 s, `counters` 3.7–3.9 → 3.1–3.2 s | for `chain` and `cpu` only, after them; not measured on mains power since section 8 |
+| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s; with fewer cells searched (section 8, on battery, where the same builds are slower) `fanout` 10.8 → 3.4–3.5 s, `adder` 4.2 → 3.3–3.4 s, `counters` 3.7–3.9 → 3.1–3.2 s; on mains after section 8, `adder` 2.1 s, `counters` 2.3 s, `fanout` about 2.7 s; section 9 then takes 1.3 s, 0.5 s and 0.2 s off them on battery with other work running, where everything is two to three times as slow | for `chain` and `cpu` only, after them; not measured on mains power since section 9 |
 | A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms | no |
 | Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder`; with shared part shapes (section 7) 30–60 for `chain`, `counters` and `fanout`, 20 for `adder` | partly |
 | 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k`; after step 3's routing index, `chain-50k` 6.3 s, `counters-50k` 22 s; with shared part shapes `chain-50k` 2.4 s; deleting every part of `chain-50k` takes about 1.2 s, over the 1 s asked (other edits not measured) | opening, for `chain` and `cpu` only, after it |
@@ -175,9 +175,9 @@ Read so:
 | The reference CPU keeps 10,000 cycles per second | about 8,300 (`cpu-1k`, four CPUs; reads a few per cent low, and this run was loaded) | no, in this run |
 
 Step 3 of ADR 0030 has optimized panning, the wires an edit or a state redraws, what the page does with each engine
-state, routing a whole sheet, labels, part shapes and the searches themselves (below). What these numbers point to
-next: the rest of an open, now mostly drawing outside routing (section 8), and drawing wires, which a toggle that changes
-every wire also pays.
+state, routing a whole sheet, labels, part shapes, the searches themselves and the page's long part lists (below). What
+these numbers point to next: the rest of an open, now mostly routing and drawing (section 9), and drawing wires, which a
+toggle that changes every wire also pays.
 
 `pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
 twice as bad (and worse by more than 5), or one the run lost; `node scripts/bench-check.mjs --update` makes the last run
@@ -460,8 +460,8 @@ change was slow throughout, as a first run after a build can be:
 | chain-50k | delete all, ms | 1,179, 1,348 | 1,221, 1,241 |
 
 Routing is the largest single part of an open that is measured: of the open times above, about 30 % of `chain-10k`, a
-third of `adder-10k`, over two fifths of `counters-10k` and over four fifths of `fanout-10k`. The rest of an open has
-not been profiled again since this step.
+third of `adder-10k`, over two fifths of `counters-10k` and over four fifths of `fanout-10k`. Section 9 profiles what
+was left after section 8.
 
 ### 8. Searching fewer cells
 
@@ -508,6 +508,41 @@ before the limit of 2,000 wires, which none of these sheets is under:
 
 `chain` barely searches (22 states a wire), so it gains nothing. Routing is now under half of every open here, and the
 rest, drawing above all, is what remains: about 2.9 s of `adder-10k` and 2.2 s of `counters-10k` on this power.
+
+### 9. Label characters and long part lists
+
+A profile of the opens left after section 8, on mains power, put them at about 2.1–2.7 s and found two costs that had
+nothing to do with drawing or routing:
+
+- **Pixi split every label with `Intl.Segmenter`**, 135–293 ms of `counters-10k` and `adder-10k`, to learn that each
+  character of an ASCII label stands alone. Printable ASCII now skips it, through Pixi's `graphemeSegmenter` hook; any
+  other text, `\r\n` included, still goes to the segmenter.
+- **React placed each row of the two part lists on its own.** The hidden readout has one row per switch, keyboard, LED
+  and display, and the "Run until" menu one option per 1-bit LED: 7,499 and 2,500 on `adder-10k`. Placing a row among
+  new siblings looks through all those after it, which grows with the square of the list. The rows now sit in a
+  fragment keyed by `opens`, a count of the sheets and documents swapped in, so a new sheet's rows go in as one. Edits
+  keep their rows.
+
+The readout's rows also lost their list markers, which took layout and style work for something nobody sees. The list
+says `role="list"`, since Safari otherwise stops announcing it as one.
+
+`content-visibility: auto` on the readout saved about 300 ms more layout, but **took every row out of Chromium's
+accessibility tree**, which is the list's whole purpose, so it was dropped. `contain: strict` saved nothing.
+
+Each open against main's build, alternating, nine rounds, median of the paired differences. These ran **on battery with
+other work on the machine**, so the times are two to three times those on mains, and the differences are what to read. Main-thread
+time comes from Chromium's own counters, which other programs disturb less than the clock:
+
+| Benchmark | Open before, s | Open, change, ms | Main thread, change, ms | Layout and style, change, ms |
+|---|---:|---:|---:|---:|
+| adder-10k | 6.47 | −1,297 | −1,303 | −211 |
+| counters-10k | 5.45 | −543 | −556 | −13 |
+| fanout-10k | 6.28 | −184 | −385 | −166 |
+| chain-10k | 1.96 | +35 | +63 | −1 |
+
+`chain` has two list rows and no labels to speak of, so its change is noise. The largest costs left are routing on
+`counters` and `fanout`, then drawing. Each open also draws the whole sheet a second time when the engine's first state
+arrives, which is not yet looked into.
 
 ## Earlier measurements
 
