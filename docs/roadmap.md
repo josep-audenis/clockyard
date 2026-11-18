@@ -549,6 +549,9 @@ targets, as in Phase 5.
       6. ✅ Canvas labels as bitmap text from installed fonts, not a
          texture each: `adder-10k` opens in 2.8–3.2 s (was 5.0–5.8 s),
          `counters-10k` in 2.7–3.3 s.
+      7. ✅ One shape for parts that look alike, and a look that holds only
+         what a part shows, so a toggle no longer rebuilds gates:
+         `chain-10k` opens about 2.4 times faster and pans at 60 fps.
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.

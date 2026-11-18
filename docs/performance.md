@@ -169,7 +169,7 @@ Read so:
 |---|---|---|
 | 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only) | for `chain` and `cpu` only, after them |
 | A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms | no |
-| Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder` | partly |
+| Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder`; with shared part shapes (section 7, on battery) 60 for `chain`, 20–30 for `fanout`, 20 for `counters`, 12 for `adder` | partly |
 | 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k`; after step 3's routing index, `chain-50k` 6.3 s, `counters-50k` 22 s (edits not measured) | opening, for `chain` and `cpu` only, after it |
 | Run speed on `counters-10k` recorded | 2,017 cycles per second | yes |
 | The reference CPU keeps 10,000 cycles per second | about 8,300 (`cpu-1k`, four CPUs; reads a few per cent low, and this run was loaded) | no, in this run |
@@ -407,6 +407,38 @@ Toggles, drags, pans and run speed were within the runs' noise. Labels look the 
 in the page's own IBM Plex Mono in both themes, and measured in production builds: plain labels within a pixel of where
 they were, captions where they were. One difference: an emoji in a plain label (a name, a pin name) is tinted to the
 label's colour, where a `Text` kept its own colours; captions keep them.
+
+### 7. One shape for parts that look alike
+
+A profile of the opens that remained (on battery, so for proportions only) found no single large cost: routing took
+22–26 % of `adder-10k` and `counters-10k`, drawing the wires 22–23 %, and building part shapes 12–15 %. Every part built
+its own shape, though thousands are identical, and a part's look held the value of every port, so a toggle rebuilt gates
+that show no signal.
+
+A part's look now holds only what its drawing reads: its kind, its cached layout, the one signal it shows if any (an
+LED's, a switch's, a clock's, a display's segments), and its error and keyboard state. Parts with the same look show
+one shape. A screen keeps its own, since each shows its own picture. The canvas is pixel-identical to the code before
+this step in 30 states: every example at rest and stepped, toggles, both themes and a change between them, placement
+previews, and parts in error.
+
+Interleaved (A, B, A, B), on battery with other work running, so the runs vary more than usual; the first run before
+the change was the slowest:
+
+| Benchmark | Measurement | Before, two runs | After, two runs |
+|---|---|---:|---:|
+| chain-10k | open, s | 2.8, 2.6 | 1.06, 1.13 |
+| adder-10k | open, s | 8.1, 5.6 | 4.0, 4.1 |
+| counters-10k | open, s | 11.4, 5.4 | 4.7, 4.8 |
+| fanout-10k | open, s | 22.5, 12.0 | 10.7, 11.6 |
+| chain-10k | pan, fps | 12, 20 | 60, 60 |
+| fanout-10k | pan, fps | 15, 15 | 30, 20 |
+| counters-10k | pan, fps | 12, 15 | 20, 20 |
+| adder-10k | pan, fps | 6, 10 | 12, 12 |
+| chain-10k | drag draw, ms | 101, 69 | 48, 51 |
+| fanout-10k | drag draw, ms | 108, 70 | 53, 49 |
+
+Toggles to the readout were also shorter (`chain-10k` 1,626 and 924 ms before, 122 and 356 after; `fanout-10k` 1,982
+and 1,164 before, 858 and 786 after), though these vary most between runs.
 
 ## Earlier measurements
 
