@@ -87,6 +87,7 @@ h2:focus-visible {
   position: relative;
   display: grid;
   grid-template-rows: var(--toolbar-height) minmax(0, 1fr) var(--statusbar-height);
+  grid-template-columns: minmax(0, 1fr);
   height: 100%;
   overflow: hidden;
 }
@@ -1614,19 +1615,8 @@ pre.memory-words {
     min-width: 0;
   }
 
-  .run-controls {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .run-speed,
-  .run-select {
-    flex: 1 1 0;
-  }
-
-  .run-speed select.input,
-  .run-select select.input {
-    width: 100%;
+  .cycle-readout {
+    margin-left: auto;
   }
 
   .workspace {
@@ -1729,6 +1719,41 @@ pre.memory-words {
 
   .shortcut-list {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Phone widths: the selects share the row left by the buttons, and the readout takes its own. */
+@media (max-width: 520px) {
+  .transport {
+    flex-wrap: wrap;
+    height: auto;
+    padding-block: 3px;
+  }
+
+  .run-controls {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .run-speed,
+  .run-select {
+    flex: 1 1 0;
+  }
+
+  .run-speed select.input,
+  .run-select select.input {
+    width: 100%;
+  }
+
+  .cycle-readout {
+    flex: 1 1 100%;
+    height: 20px;
+    margin-left: 0;
+    border-left: 0;
+  }
+
+  :root {
+    --toolbar-offset: 108px;
   }
 }
 
