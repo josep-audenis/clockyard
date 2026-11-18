@@ -1,8 +1,8 @@
 import { beforeEach, expect, test } from "vitest";
 import type { Circuit, CircuitComponent, Wire } from "../editor/document";
-import type { Point } from "./geometry";
+import { DIRS, type Point } from "./geometry";
 import { setDefinitionLayouts } from "./layout";
-import { forgetRoutes, routes, routesKeeping, routeWithTiles } from "./routing";
+import { bendsLeft, boxOver, forgetRoutes, routes, routesKeeping, routeWithTiles } from "./routing";
 
 // Each test starts as if a file had just been opened: no earlier circuit to compare with.
 beforeEach(forgetRoutes);
@@ -315,4 +315,93 @@ test("parts a million cells apart route at once: a long route is not filed under
   routes({ components, junctions: [], wires });
   // Filed tile by tile this took about ten seconds and two gigabytes; a scan takes milliseconds.
   expect(performance.now() - start).toBeLessThan(2000);
+});
+
+test("the bends the search counts on are never more than a route needs, nor than one step can pay for", () => {
+  const R = 7;
+  const key = (x: number, y: number, d: number) => (x + 2 * R) * 1000 + (y + 2 * R) * 10 + d;
+  for (const arrive of [-1, 0, 1, 2, 3]) {
+    // Fewest bends from each cell and heading to the goal at (0, 0), by walking backwards from it over an open grid.
+    const fewest = new Map<number, number>();
+    let level: [number, number, number][] = [];
+    for (let d = 0; d < 4; d++) {
+      if (arrive >= 0 && d !== arrive) continue;
+      const dir = DIRS[d] as Point;
+      fewest.set(key(-dir.x, -dir.y, d), 0);
+      level.push([-dir.x, -dir.y, d]);
+    }
+    const reach = (x: number, y: number, d: number, bends: number, next: [number, number, number][]) => {
+      if (Math.abs(x) > 2 * R || Math.abs(y) > 2 * R || (fewest.get(key(x, y, d)) ?? Infinity) <= bends) return;
+      fewest.set(key(x, y, d), bends);
+      next.push([x, y, d]);
+    };
+    for (let bends = 0; level.length > 0; bends++) {
+      const turned: [number, number, number][] = [];
+      while (level.length > 0) {
+        const [x, y, d] = level.pop() as [number, number, number];
+        // The state one step before (x, y, d) moved along d, then may have been heading d or, one bend more, across it.
+        const dir = DIRS[d] as Point;
+        reach(x - dir.x, y - dir.y, d, bends, level);
+        for (const before of d < 2 ? [2, 3] : [0, 1]) reach(x, y, before, bends + 1, turned);
+      }
+      level = turned;
+    }
+    for (let x = -R; x <= R; x++) {
+      for (let y = -R; y <= R; y++) {
+        if (x === 0 && y === 0) continue;
+        for (let d = 0; d < 4; d++) {
+          const here = bendsLeft(d, arrive, -x, -y);
+          expect(here).toBeLessThanOrEqual(fewest.get(key(x, y, d)) as number);
+          for (let nd = 0; nd < 4; nd++) {
+            const dir = DIRS[nd] as Point;
+            const [qx, qy] = [x + dir.x, y + dir.y];
+            if ((d ^ 1) === nd || (qx === 0 && qy === 0 && arrive >= 0 && nd !== arrive)) continue;
+            // A straight step costs at least 1 and a bend 1 + BEND; the distance falls by 1 at most.
+            expect(here).toBeLessThanOrEqual(bendsLeft(nd, arrive, -qx, -qy) + (nd === d ? 0 : 1));
+          }
+        }
+      }
+    }
+  }
+});
+
+test("a search box holds, cell for cell, what a box over the whole sheet holds there", () => {
+  let seed = 3;
+  const random = (n: number) => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), seed | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return Math.floor((((t ^ (t >>> 14)) >>> 0) / 2 ** 32) * n);
+  };
+  const SIDE = 60;
+  for (let round = 0; round < 40; round++) {
+    const components = Array.from({ length: 6 }, (_, i) => part(`p${i}`, "and", random(SIDE) - 30, random(SIDE) - 30));
+    const circuit: Circuit = { components, junctions: [], wires: [] };
+    const laid = Array.from({ length: 30 }, (_, i) => {
+      // Orthogonal routes of a few segments, some of them far longer than a tile, and of a few nets.
+      let [x, y] = [random(SIDE) - 30, random(SIDE) - 30];
+      const points: Point[] = [{ x, y }];
+      for (let k = random(4); k >= 0; k--) {
+        if (k % 2) x = random(SIDE) - 30;
+        else y = random(SIDE) - 30;
+        points.push({ x, y });
+      }
+      return { net: `n${i % 5}`, points };
+    });
+    const whole = boxOver(circuit, laid, "n0", -40, -40, 40, 40);
+    const [x0, y0] = [random(50) - 30, random(50) - 30];
+    const [x1, y1] = [x0 + random(12), y0 + random(12)];
+    const inner = boxOver(circuit, laid, "n0", x0, y0, x1, y1);
+    for (let x = x0; x <= x1; x++) {
+      for (let y = y0; y <= y1; y++) {
+        const [c, w] = [inner.cell(x, y), whole.cell(x, y)];
+        expect([inner.blocked[c], inner.others[c], inner.edges[2 * c], inner.edges[2 * c + 1]]).toEqual([
+          whole.blocked[w],
+          whole.others[w],
+          whole.edges[2 * w],
+          whole.edges[2 * w + 1],
+        ]);
+      }
+    }
+  }
 });

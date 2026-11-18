@@ -78,8 +78,48 @@ class Tiles<T> {
  */
 type LaidRoute = { net: string; points: Point[]; seen: number; minX: number; minY: number; maxX: number; maxY: number };
 
+/**
+ * Laid routes by tile and, within a tile, by net: a search has no use for its own net's routes, and a net fanning out
+ * across a sheet can have thousands in one tile.
+ */
+class RouteTiles {
+  private readonly map = new Map<number, Map<string, LaidRoute[]>>();
+
+  constructor(readonly size: number) {}
+
+  /** Files `route` under every tile the cells (x0, y0) to (x1, y1) touch. */
+  add(route: LaidRoute, x0: number, y0: number, x1: number, y1: number) {
+    const size = this.size;
+    for (let tx = Math.floor(x0 / size); tx <= Math.floor(x1 / size); tx++) {
+      for (let ty = Math.floor(y0 / size); ty <= Math.floor(y1 / size); ty++) {
+        const key = tileKey(tx, ty);
+        let nets = this.map.get(key);
+        if (!nets) this.map.set(key, (nets = new Map()));
+        const list = nets.get(route.net);
+        if (!list) nets.set(route.net, [route]);
+        else if (list[list.length - 1] !== route) list.push(route);
+      }
+    }
+  }
+
+  /** Calls `f` for every route of a net other than `net` filed where the cells touch; a route may come more than once. */
+  eachOther(net: string, x0: number, y0: number, x1: number, y1: number, f: (route: LaidRoute) => void) {
+    const size = this.size;
+    for (let tx = Math.floor(x0 / size); tx <= Math.floor(x1 / size); tx++) {
+      for (let ty = Math.floor(y0 / size); ty <= Math.floor(y1 / size); ty++) {
+        const nets = this.map.get(tileKey(tx, ty));
+        if (!nets) continue;
+        for (const [other, list] of nets) {
+          if (other === net) continue;
+          for (const route of list) f(route);
+        }
+      }
+    }
+  }
+}
+
 /** What routes keep away from: part bodies and junctions, the routes laid so far, and those too long to file. */
-type Obstacles = { bodies: Tiles<{ x0: number; y0: number; x1: number; y1: number }>; routes: Tiles<LaidRoute>; long: LaidRoute[] };
+type Obstacles = { bodies: Tiles<{ x0: number; y0: number; x1: number; y1: number }>; routes: RouteTiles; long: LaidRoute[] };
 
 /** Parts and junctions of `circuit`, indexed by tiles of `size` cells; routes are added as they are laid (`lay`). */
 function obstaclesOf(circuit: Circuit, size: number): Obstacles {
@@ -90,7 +130,7 @@ function obstaclesOf(circuit: Circuit, size: number): Obstacles {
     bodies.add(body, body.x0, body.y0, body.x1, body.y1);
   }
   for (const { position: p } of circuit.junctions) bodies.add({ x0: p.x, y0: p.y, x1: p.x, y1: p.y }, p.x, p.y, p.x, p.y);
-  return { bodies, routes: new Tiles(size), long: [] };
+  return { bodies, routes: new RouteTiles(size), long: [] };
 }
 
 /**
@@ -171,27 +211,31 @@ class Box {
     for (const route of obstacles.long) {
       if (route.maxX >= this.minX && route.maxY >= this.minY && route.minX <= maxX && route.minY <= maxY) this.mark(route, net, search);
     }
-    obstacles.routes.each(this.minX, this.minY, maxX, maxY, (route) => this.mark(route, net, search));
+    obstacles.routes.eachOther(net, this.minX, this.minY, maxX, maxY, (route) => this.mark(route, net, search));
   }
 
   private mark(route: LaidRoute, net: string, search: number) {
     if (route.net === net || route.seen === search) return;
     route.seen = search;
     const { points } = route;
-    for (const p of points) if (this.has(p.x, p.y)) this.others[this.cell(p.x, p.y)] = 1;
+    const { minX, minY, w, edges, others } = this;
+    const [maxX, maxY] = [minX + w - 1, minY + this.h - 1];
+    for (const p of points) if (this.has(p.x, p.y)) others[this.cell(p.x, p.y)] = 1;
     for (let i = 1; i < points.length; i++) {
       const [a, b] = [points[i - 1] as Point, points[i] as Point];
       const vertical = a.x === b.x;
-      const [lo, hi] = vertical ? [Math.min(a.y, b.y), Math.max(a.y, b.y)] : [Math.min(a.x, b.x), Math.max(a.x, b.x)];
+      // A segment beside the box has no stretch inside it, however much of the box it runs along.
+      if (vertical ? a.x < minX || a.x > maxX : a.y < minY || a.y > maxY) continue;
+      const lo = vertical ? Math.min(a.y, b.y) : Math.min(a.x, b.x);
+      const hi = vertical ? Math.max(a.y, b.y) : Math.max(a.x, b.x);
       // Only the stretch inside the box matters, however long the segment is.
-      const from = Math.max(lo, vertical ? this.minY : this.minX);
-      const to = Math.min(hi, vertical ? this.minY + this.h - 1 : this.minX + this.w - 1);
-      for (let t = from; t <= to; t++) {
-        const [x, y] = vertical ? [a.x, t] : [t, a.y];
-        if (!this.has(x, y)) continue;
-        const c = this.cell(x, y);
-        if (t < hi) this.edges[2 * c + (vertical ? 1 : 0)] = 1;
-        if (t > lo && t < hi && this.others[c] !== 1) this.others[c] = 2;
+      const from = Math.max(lo, vertical ? minY : minX);
+      const to = Math.min(hi, vertical ? maxY : maxX);
+      const along = vertical ? w : 1;
+      let c = vertical ? this.cell(a.x, from) : this.cell(from, a.y);
+      for (let t = from; t <= to; t++, c += along) {
+        if (t < hi) edges[2 * c + (vertical ? 1 : 0)] = 1;
+        if (t > lo && t < hi && others[c] !== 1) others[c] = 2;
       }
     }
   }
@@ -272,6 +316,40 @@ function scratch(states: number) {
 }
 
 /**
+ * The fewest bends left for a route heading `heading` (an index into `DIRS`, 4: not moving yet) with (dx, dy) still to
+ * go, ending with a move in direction `arrive` (-1: any), on an empty grid. Added to the distance it tells the search
+ * which cells cannot lie on a cheapest route, and it never says more than a step can pay for, so the cost of the route
+ * found does not change (ADR 0030).
+ */
+export function bendsLeft(heading: number, arrive: number, dx: number, dy: number) {
+  const u = DIRS[heading];
+  if (!u || (dx === 0 && dy === 0)) return 0;
+  const along = dx * u.x + dy * u.y;
+  const side = dx * u.y - dy * u.x;
+  const w = DIRS[arrive];
+  if (!w) return side === 0 ? (along > 0 ? 0 : 2) : along >= 0 ? 1 : 2;
+  // Square to the last move, the number of bends is odd; along it, even.
+  if (u.x * w.x + u.y * w.y === 0) return along >= 0 && dx * w.x + dy * w.y > 0 ? 1 : 3;
+  return heading === arrive && side === 0 && along > 0 ? 0 : 2;
+}
+
+/**
+ * False when the first cell outside a port is taken: no route can then leave or reach the port, in a box of any size,
+ * so this looks at those two cells alone.
+ */
+function exitFree(end: Point, exit: number, obstacles: Obstacles, net: string) {
+  const d = DIRS[exit];
+  if (!d) return true;
+  const [x, y] = [end.x + d.x, end.y + d.y];
+  const [minX, minY] = [Math.min(x, end.x), Math.min(y, end.y)];
+  const box = new Box(minX, minY, Math.max(x, end.x), Math.max(y, end.y));
+  box.block(obstacles.bodies);
+  box.avoid(obstacles, net);
+  const c = box.cell(x, y);
+  return !box.blocked[c] && box.others[c] !== 1 && !box.edges[2 * box.cell(minX, minY) + (d.y !== 0 ? 1 : 0)];
+}
+
+/**
  * Cheapest orthogonal route from `a` to `b` within `margin` cells of their
  * box. `exitA`/`exitB` (indexes into `DIRS`, -1 for any) force the first move
  * out of `a` and the last move into `b` (opposite `b`'s exit). A route never
@@ -293,71 +371,64 @@ export function search(
   const [maxX, maxY] = [Math.max(a.x, b.x) + margin, Math.max(a.y, b.y) + margin];
   // Checked before anything is allocated: the arrays are sized by the box.
   if ((maxX - minX + 1) * (maxY - minY + 1) > MAX_CELLS) return null;
+  // A port whose first cell outside is taken can never be reached: fail now rather than build and search the whole box.
+  if (!exitFree(a, exitA, obstacles, net) || !exitFree(b, exitB, obstacles, net)) return null;
   const box = new Box(minX, minY, maxX, maxY);
   box.block(obstacles.bodies);
   box.avoid(obstacles, net);
-  // A port whose first cell outside is taken can never be reached: fail now rather than search the whole box.
-  for (const [end, exit] of [
-    [a, exitA],
-    [b, exitB],
-  ] as const) {
-    const d = DIRS[exit];
-    if (!d) continue;
-    const [x, y] = [end.x + d.x, end.y + d.y];
-    const c = box.cell(x, y);
-    if (!box.has(x, y) || box.blocked[c] || box.others[c] === 1) return null;
-    if (box.edges[2 * box.cell(Math.min(x, end.x), Math.min(y, end.y)) + (d.y !== 0 ? 1 : 0)]) return null;
-  }
-  const { w } = box;
+  const { w, blocked, edges, others } = box;
   // State: cell * 5 + direction of the move into it (4: none yet).
   scratch(box.w * box.h * 5);
-  const cost = (state: number) => (stamps[state] === stamp ? (costs[state] as number) : Infinity);
-  const estimate = (x: number, y: number) => Math.abs(x - b.x) + Math.abs(y - b.y);
-  // Equal totals are broken towards the goal, so the search does not fan out over every equal-cost cell.
-  const priority = (total: number, x: number, y: number) => (total + estimate(x, y)) * 4096 + estimate(x, y);
+  // Written out in the loop below, which runs millions of times on a large sheet: equal totals are broken towards the
+  // goal, so the search does not fan out over every equal-cost cell.
+  const SCALE = 4096;
+  const distance = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
   const start = box.cell(a.x, a.y) * 5 + 4;
   costs[start] = 0;
   froms[start] = -1;
   stamps[start] = stamp;
   heap.clear();
-  heap.push(priority(0, a.x, a.y), start);
+  heap.push(distance * SCALE + distance, start);
   // DIRS pairs opposites (0/1, 2/3), so the move into `b` is its exit flipped.
   const arrive = exitB >= 0 ? exitB ^ 1 : -1;
   while (heap.size > 0) {
     heap.pop();
     const state = heap.topState;
-    const c = Math.floor(state / 5);
-    const d = state % 5;
-    const px = (c % w) + minX;
-    const py = Math.floor(c / w) + minY;
-    const here = cost(state);
-    if (heap.top > priority(here, px, py)) continue; // a cheaper way here was found after this was queued
-    if (px === b.x && py === b.y) return simplify(path(state));
+    const c = (state / 5) | 0;
+    const d = state - c * 5;
+    const row = (c / w) | 0;
+    const px = c - row * w + minX;
+    const py = row + minY;
+    const here = costs[state] as number;
+    const left = Math.abs(px - b.x) + Math.abs(py - b.y);
+    const bends = BEND * bendsLeft(d, arrive, b.x - px, b.y - py);
+    if (heap.top > (here + left + bends) * SCALE + left) continue; // a cheaper way here was found after this was queued
+    if (left === 0) return simplify(path(state));
     for (let nd = 0; nd < 4; nd++) {
-      if (d === 4 && exitA >= 0 && nd !== exitA) continue;
-      if (d !== 4 && (d ^ 1) === nd) continue; // no U-turns
+      if (d === 4 ? exitA >= 0 && nd !== exitA : (d ^ 1) === nd) continue; // the forced first move; no U-turns
       const turning = d !== 4 && d !== nd;
       // Bending where another net passes would look like a T: joined.
-      if (turning && box.others[c] === 2) continue;
+      if (turning && others[c] === 2) continue;
       const dir = DIRS[nd] as Point;
       const qx = px + dir.x;
       const qy = py + dir.y;
-      if (!box.has(qx, qy)) continue;
+      if (qx < minX || qy < minY || qx > maxX || qy > maxY) continue;
       const isGoal = qx === b.x && qy === b.y;
       if (isGoal && arrive >= 0 && nd !== arrive) continue;
-      const qc = box.cell(qx, qy);
-      if (!isGoal && box.blocked[qc]) continue;
+      const qc = c + dir.x + dir.y * w;
+      if (!isGoal && blocked[qc]) continue;
       // Running along another net, or onto a point where one ends or bends, would look like a connection.
-      if (box.edges[2 * box.cell(Math.min(px, qx), Math.min(py, qy)) + (dir.y !== 0 ? 1 : 0)]) continue;
-      if (box.others[qc] === 1) continue;
-      const step = 1 + (turning ? BEND : 0) + (box.others[qc] === 2 ? CROSS : 0);
+      if (edges[2 * (dir.x + dir.y > 0 ? c : qc) + (dir.y !== 0 ? 1 : 0)]) continue;
+      const other = others[qc];
+      if (other === 1) continue;
+      const total = here + 1 + (turning ? BEND : 0) + (other === 2 ? CROSS : 0);
       const next = qc * 5 + nd;
-      const total = here + step;
-      if (total < cost(next)) {
+      if (stamps[next] !== stamp || total < (costs[next] as number)) {
         costs[next] = total;
         froms[next] = state;
         stamps[next] = stamp;
-        heap.push(priority(total, qx, qy), next);
+        const rest = Math.abs(qx - b.x) + Math.abs(qy - b.y);
+        heap.push((total + rest + BEND * bendsLeft(nd, arrive, b.x - qx, b.y - qy)) * SCALE + rest, next);
       }
     }
   }
@@ -520,6 +591,16 @@ export function routesKeeping(circuit: Circuit, frozen: Map<string, Point[]>): M
  * wider than any sheet.
  */
 export const routeWithTiles = (circuit: Circuit, size: number, frozen = new Map<string, Point[]>()) => route(circuit, frozen, size);
+
+/** The search box from (x0, y0) to (x1, y1) for `net`, with `laid` routes filed first: for tests. */
+export function boxOver(circuit: Circuit, laid: { net: string; points: Point[] }[], net: string, x0: number, y0: number, x1: number, y1: number) {
+  const obstacles = obstaclesOf(circuit, TILE);
+  for (const route of laid) file(obstacles, route.net, route.points);
+  const box = new Box(x0, y0, x1, y1);
+  box.block(obstacles.bodies);
+  box.avoid(obstacles, net);
+  return box;
+}
 
 function route(circuit: Circuit, frozen: Map<string, Point[]>, size = TILE): Map<string, Point[]> {
   const at = places(circuit);
