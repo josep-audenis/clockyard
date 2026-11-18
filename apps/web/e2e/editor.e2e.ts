@@ -1370,7 +1370,7 @@ test("components whose IDs are taken by others arrive under new IDs and numbered
   await addAdder();
   await expect(dialog).toContainText("Added Full adder 2 and 8-bit adder 2.");
   await dialog.getByRole("button", { name: "Close" }).click();
-  const chips = parts.locator(".chip-list .part-tile");
+  const chips = parts.locator("[data-section=chips] .part-tile");
   // The open sheet is the starter's 8-bit adder, which is not offered as a chip on itself.
   await expect(chips).toHaveText(["Full adder", "Full adder 2", "8-bit adder 2"]);
   await addAdder();

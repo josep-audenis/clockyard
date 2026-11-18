@@ -22,6 +22,7 @@ const ICONS = {
   close: <path d="m4 4 8 8M12 4l-8 8" />,
   bookmark: <path d="M4 2.5h8v11L8 10.5l-4 3z" />,
   check: <path d="m3 8.5 3.2 3.2L13 4.8" />,
+  back: <path d="M9.5 3.5 5 8l4.5 4.5" />,
   chevron: <path d="m6 3.5 4.5 4.5L6 12.5" />,
   keyboard: (
     <>

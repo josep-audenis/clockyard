@@ -163,6 +163,28 @@ const announce = (text: string) => useAnnouncement.setState({ text });
 /** The panes F6 steps through; after the last, the keyboard goes back to the canvas. */
 const PANES = [".toolbar", ".parts", ".inspector"];
 
+/**
+ * When a key press removes or disables the control that has focus (Undo with nothing left, a deleted row, a closed
+ * sheet), focus moves to its nearest neighbour in the same pane instead of falling back to the page.
+ */
+function keepFocus() {
+  const from = document.activeElement;
+  const pane = from?.closest(".waves, .toolbar, .parts, .inspector");
+  if (!(from instanceof HTMLElement) || !pane) return;
+  const stops = [...pane.querySelectorAll<HTMLElement>("button, input, select, textarea, [tabindex='0']")];
+  const at = stops.indexOf(from);
+  const usable = (el: HTMLElement) => el.isConnected && !el.matches(":disabled") && el.offsetParent !== null;
+  const rescue = () => {
+    if (usable(from) || (document.activeElement !== document.body && document.activeElement !== from)) return;
+    const next = [...stops.slice(at + 1), ...stops.slice(0, at).reverse()].find(usable);
+    if (next) next.focus();
+    else focusPane(pane.matches(".waves") ? undefined : ".inspector");
+  };
+  requestAnimationFrame(rescue);
+  // Deleting a project finishes after its storage does.
+  setTimeout(rescue, 250);
+}
+
 /** Moves the keyboard to a pane, or with none to the canvas, whose keys work when nothing has focus. */
 function focusPane(selector?: string) {
   const pane = selector ? document.querySelector<HTMLElement>(selector) : null;
@@ -177,12 +199,17 @@ function focusPane(selector?: string) {
 
 export function App() {
   useEffect(() => connectEngine(), []);
-  // Escape hides an open tip (WCAG 1.4.13), and using a control hides its tip, until the pointer or focus moves on.
+  // Escape hides an open tip (WCAG 1.4.13), and using a control hides its tip, until the pointer leaves it or focus moves.
   useEffect(() => {
     const root = document.documentElement;
-    const hide = () => root.setAttribute("data-tips-off", "");
+    let tipped: Element | null = null;
+    const hide = () => {
+      tipped = document.querySelector(".button:hover");
+      root.setAttribute("data-tips-off", "");
+    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" || e.key === "Enter" || e.key === " ") hide();
+      if (e.key === "Enter") keepFocus();
       if (e.key !== "F6" || document.querySelector("dialog[open]")) return;
       e.preventDefault();
       const at = PANES.findIndex((pane) => document.activeElement?.closest(pane));
@@ -191,7 +218,9 @@ export function App() {
       const from = at < 0 ? PANES.length : at;
       focusPane(PANES[(from + (e.shiftKey ? -1 : 1) + count) % count]);
     };
-    const show = () => root.removeAttribute("data-tips-off");
+    const show = (e: Event) => {
+      if (e.type === "focusin" || !(e.target instanceof Element) || e.target.closest(".button") !== tipped) root.removeAttribute("data-tips-off");
+    };
     // A click on a button leaves the keyboard with the canvas, as a press on the canvas does: a field being typed in
     // commits, and part and canvas keys work next. Tab still reaches every button.
     const keepKeys = (e: MouseEvent) => {
@@ -199,13 +228,19 @@ export function App() {
       e.preventDefault();
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     };
+    // Space acts when it is released.
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === " ") keepFocus();
+    };
     window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKeyUp);
     window.addEventListener("pointerdown", hide);
     window.addEventListener("mousedown", keepKeys);
     window.addEventListener("pointerover", show);
     window.addEventListener("focusin", show);
     return () => {
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("pointerdown", hide);
       window.removeEventListener("mousedown", keepKeys);
       window.removeEventListener("pointerover", show);
@@ -243,7 +278,10 @@ export function App() {
           <ProjectTitle />
           <Breadcrumb />
         </div>
-        <RunControls />
+        <div className="transport">
+          <RunControls />
+          <CycleReadout />
+        </div>
         <div className="toolbar-end">
           <HistoryControls />
           <span className="toolbar-sep" aria-hidden="true" />
@@ -312,7 +350,6 @@ function ProjectTitle() {
 const LONG_LINK = 8000;
 
 function FileActions() {
-  const actions = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   // A link the clipboard refused, shown to copy by hand.
@@ -336,7 +373,7 @@ function FileActions() {
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
       if (!result.ok) return report(`Could not open the link: ${result.error}`, true);
       if (asking && !mayReplace()) return;
-      await openDocument(result.document);
+      if (await openDocument(result.document)) announce(`Opened ${result.document.metadata.name}.`);
       report(null);
     };
     void open(false);
@@ -381,12 +418,12 @@ function FileActions() {
     const result = parseDocument(await file.text());
     if (!result.ok) return report(`Could not open ${file.name}: ${result.error}`, true);
     if (!mayReplace()) return;
-    await openDocument(result.document);
+    if (await openDocument(result.document)) announce(`Opened ${result.document.metadata.name}.`);
     report(null);
   };
 
   return (
-    <div ref={actions} className="file-actions">
+    <div className="file-actions">
       {/* Floats under the toolbar, so a long message is read whole and moves nothing. */}
       <div className="file-messages">
         {error && (
@@ -406,11 +443,7 @@ function FileActions() {
             type="button"
             className="button button-quiet button-icon"
             aria-label="Dismiss"
-            onClick={(e) => {
-              report(null);
-              // This button goes with the message: from the keyboard, focus moves on instead of falling back to the page.
-              if (e.detail === 0) actions.current?.querySelector<HTMLElement>(":scope > .button")?.focus();
-            }}
+            onClick={() => report(null)}
           >
             <Icon name="close" />
           </button>
@@ -485,7 +518,8 @@ function PartsLibrary() {
   const onScroll = () => {
     const box = panel.current;
     if (!box) return;
-    const top = box.getBoundingClientRect().top + 64;
+    // A section jumped to lands just under the header.
+    const top = box.getBoundingClientRect().top + 48;
     const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 2;
     const passed = SECTIONS.filter(([id]) => (box.querySelector(`[data-section="${id}"]`)?.getBoundingClientRect().top ?? Infinity) <= top);
     setSection((atEnd ? SECTIONS.at(-1) : passed.at(-1))?.[0] ?? "parts");
@@ -660,13 +694,19 @@ function placeFromKeyboard(kind: PartKind | "label", width: number, definition?:
 /** The keyboard and gesture reference: from the toolbar, or `?` anywhere outside a field. */
 function ShortcutsHelp() {
   const dialog = useRef<HTMLDialogElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
   const id = useId();
+  // Focus starts at the title, so a short window opens on the top of the list and not on the button below it.
+  const open = () => {
+    dialog.current?.showModal();
+    title.current?.focus();
+  };
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       // Keeps working from a focused button: only a field or an open dialog takes the key.
       if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target) || document.querySelector("dialog[open]")) return;
       e.preventDefault();
-      dialog.current?.showModal();
+      open();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -680,7 +720,7 @@ function ShortcutsHelp() {
         iconOnly
         className="button-icon tip-end"
         aria-keyshortcuts="Shift+?"
-        onClick={() => dialog.current?.showModal()}
+        onClick={open}
       />
       <dialog
         ref={dialog}
@@ -689,7 +729,7 @@ function ShortcutsHelp() {
         onKeyDown={(e) => e.stopPropagation()}
         onClick={(e) => e.target === dialog.current && dialog.current.close()}
       >
-        <h2 id={`${id}-title`} className="type-title dialog-title">
+        <h2 ref={title} id={`${id}-title`} className="type-title dialog-title" tabIndex={-1}>
           Shortcuts and gestures
         </h2>
         <dl className="shortcut-list type-body">
@@ -701,7 +741,7 @@ function ShortcutsHelp() {
           ))}
         </dl>
         <div className="dialog-actions">
-          <button type="button" className="button type-label" onClick={() => dialog.current?.close()}>
+          <button type="button" className="button button-quiet type-label" onClick={() => dialog.current?.close()}>
             Close
           </button>
         </div>
@@ -761,8 +801,10 @@ function Canvas() {
   return (
     <div className="canvas-area">
       <main ref={host} className="canvas-host" aria-label="Circuit canvas" />
-      <EmptyHint />
-      <ZoomControls />
+      <div className="canvas-tools" role="region" aria-label="Canvas tools">
+        <EmptyHint />
+        <ZoomControls />
+      </div>
     </div>
   );
 }
@@ -810,13 +852,15 @@ function traceName(circuit: Circuit, loaded: Loaded, net: number, wire: string):
 /** One lane: a 1-bit trace as a high and low line, a wider one as a band with each value's hex digits where they fit. */
 function Lane({ trace, width, start, end }: { trace: Float64Array; width: number; start: number; end: number }) {
   // From the change in force at `start`: keyed by the tick each began, so a band keeps its element as time scrolls.
-  const segments: { tick: number; x0: number; x1: number; value: number }[] = [];
+  const segments: { tick: number; x0: number; x1: number; value: number; cutLeft: boolean; cutRight: boolean }[] = [];
   for (let i = Math.max(0, changeAt(trace, start)); 2 * i < trace.length; i++) {
     const [tick = 0, value = 0] = [trace[2 * i], trace[2 * i + 1]];
     if (tick > end) break;
     const to = Math.min(trace[2 * i + 2] ?? end + 1, end + 1);
     const from = Math.max(tick, start);
-    if (to > from) segments.push({ tick, x0: (from - start) * TICK_PX, x1: (to - start) * TICK_PX, value });
+    // A value running past the window's edge has no end to draw there.
+    const cutRight = (trace[2 * i + 2] ?? Infinity) > end;
+    if (to > from) segments.push({ tick, x0: (from - start) * TICK_PX, x1: (to - start) * TICK_PX, value, cutLeft: tick < start, cutRight });
   }
   const [top, bottom, middle] = [4, LANE_HEIGHT - 4, LANE_HEIGHT / 2];
   if (width === 1) {
@@ -830,14 +874,20 @@ function Lane({ trace, width, start, end }: { trace: Float64Array; width: number
       </>
     );
   }
-  return segments.map(({ tick, x0, x1, value }) => {
+  return segments.map(({ tick, x0, x1, value, cutLeft, cutRight }) => {
     // Without `0x`, so an 8-bit value fits in one cycle; the value column has it in full.
     const text = hex(value, width).slice(2);
     return (
       <g key={tick}>
         <polygon
           className="wave-bus"
-          points={`${x0 + 1},${middle} ${x0 + 3},${top} ${x1 - 3},${top} ${x1 - 1},${middle} ${x1 - 3},${bottom} ${x0 + 3},${bottom}`}
+          points={[
+            ...(cutLeft ? [[x0, bottom], [x0, top]] : [[x0 + 1, middle], [x0 + 3, top]]),
+            ...(cutRight ? [[x1, top], [x1, bottom]] : [[x1 - 3, top], [x1 - 1, middle], [x1 - 3, bottom]]),
+            ...(cutLeft ? [] : [[x0 + 3, bottom]]),
+          ]
+            .map(([x, y]) => `${x},${y}`)
+            .join(" ")}
         />
         {x1 - x0 >= text.length * 7 + 8 && (
           <text className="wave-text" x={(x0 + x1) / 2} y={middle} textAnchor="middle" dominantBaseline="central">
@@ -866,6 +916,7 @@ function WavePanel() {
   const loaded = useSim((s) => s.loaded);
   const waves = useSim((s) => s.waves);
   const stale = useSim((s) => s.stale);
+  const running = useSim((s) => s.running);
   const [cursor, setCursor] = useState<number | null>(null);
   const [lanes, setLanes] = useState<HTMLDivElement | null>(null);
   const [laneWidth, setLaneWidth] = useState(0);
@@ -891,16 +942,27 @@ function WavePanel() {
   const start = Math.max(0, time + 1 - Math.max(1, Math.floor(laneWidth / TICK_PX)));
   // A cursor scrolled out of the window is gone; a run under way does not drag it along.
   const at = cursor !== null && cursor >= start && cursor <= time ? cursor : null;
+  const following = running && at === null;
   const where = at === null ? `now, tick ${time}` : `tick ${at}, cycle ${Math.floor((at + 1) / 2)}`;
   const trace = (net: number) => (stale || !waves ? undefined : waves.traces[waves.nets.indexOf(net)]);
   const height = AXIS_HEIGHT + rows.length * LANE_HEIGHT;
   const tickAt = (e: ReactMouseEvent<HTMLDivElement>) =>
     Math.min(time, start + Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / TICK_PX));
+  // Moving the cursor by key says what the signals held there.
+  const moveTo = (tick: number) => {
+    setCursor(tick);
+    const held = rows.map(({ wires, net, width }) => {
+      const t = trace(net);
+      const value = t && valueAt(t, tick);
+      return `${loaded ? traceName(circuit, loaded, net, wires[0] ?? "") : ""} ${value === undefined ? "unknown" : showValue(value, width)}`;
+    });
+    announce(held.join(", "));
+  };
   const onKeyDown = (e: ReactKeyboardEvent) => {
     const step = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
-    if (step) setCursor(Math.min(Math.max((at ?? time) + step, start), time));
-    else if (e.key === "Home") setCursor(start);
-    else if (e.key === "End") setCursor(time);
+    if (step) moveTo(Math.min(Math.max((at ?? time) + step, start), time));
+    else if (e.key === "Home") moveTo(start);
+    else if (e.key === "End") moveTo(time);
     else if (e.key === "Escape") setCursor(null);
     else return;
     // Not the canvas's too: Escape there clears the selection.
@@ -931,17 +993,7 @@ function WavePanel() {
                   type="button"
                   className="button button-quiet waves-remove"
                   aria-label={`Stop watching ${name}`}
-                  onClick={(e) => {
-                    if (e.detail === 0) {
-                      // This row goes: from the keyboard, focus moves to a neighbour, or back to the canvas with the panel.
-                      const all = [...(e.currentTarget.closest("ul")?.querySelectorAll("button") ?? [])];
-                      const i = all.indexOf(e.currentTarget);
-                      const next = all[i + 1] ?? all[i - 1];
-                      if (next) next.focus();
-                      else focusPane();
-                    }
-                    wires.forEach((w) => watch(w, false));
-                  }}
+                  onClick={() => wires.forEach((w) => watch(w, false))}
                 >
                   <Icon name="close" size={12} />
                 </button>
@@ -957,10 +1009,11 @@ function WavePanel() {
         role="slider"
         aria-label="Waveform cursor"
         aria-describedby={help}
-        aria-valuemin={start}
-        aria-valuemax={time}
-        aria-valuenow={at ?? time}
-        aria-valuetext={where}
+        // Still while a run moves time on, or a screen reader would read every tick.
+        aria-valuemin={following ? 0 : start}
+        aria-valuemax={following ? 0 : time}
+        aria-valuenow={following ? 0 : (at ?? time)}
+        aria-valuetext={following ? "following the run" : where}
         onKeyDown={onKeyDown}
         onClick={(e) => setCursor(tickAt(e))}
       >
@@ -992,7 +1045,7 @@ function EmptyHint() {
   return (
     <div className="canvas-empty">
       <p className="type-body">
-        <strong>Empty sheet.</strong> Choose a part on the left, or press <kbd className="kbd">S</kbd> for a switch, then click here to place it.
+        <strong>Empty sheet.</strong> Choose a part, or press <kbd className="kbd">S</kbd> for a switch, then click here to place it.
       </p>
       <div className="canvas-empty-actions">
         <button type="button" className="button type-label" onClick={(e) => jumpTo("examples", e.detail === 0)}>
@@ -1035,7 +1088,7 @@ function ProjectsPanel() {
       <h2 id="projects-title" className="type-heading panel-title">
         PROJECTS
       </h2>
-      <button type="button" className="button type-label projects-new" onClick={() => void (mayReplace() && newCircuit())}>
+      <button type="button" className="button type-label projects-new" onClick={() => void (mayReplace() && newCircuit().then(() => announce("New circuit started.")))}>
         <Icon name="plus" size={14} />
         New circuit
       </button>
@@ -1054,7 +1107,7 @@ function ProjectsPanel() {
                     className="part-tile type-label project-tile"
                     aria-current={p.id === projectId ? "true" : undefined}
                     title={`Changed ${when(p.modifiedAt)}`}
-                    onClick={() => void (p.id !== projectId && openProject(p.id))}
+                    onClick={() => void (p.id !== projectId && openProject(p.id).then(() => announce(`Opened ${p.name}.`)))}
                   >
                     <span className="project-tile-name">{p.name}</span>
                     <span className="type-caption project-tile-when">{when(p.modifiedAt)}</span>
@@ -1065,7 +1118,8 @@ function ProjectsPanel() {
                     aria-label={`Delete project ${p.name}`}
                     title={`Delete project ${p.name}`}
                     onClick={() => {
-                      if (window.confirm(`Delete the project ${p.name} from this browser? This cannot be undone.`)) void deleteProject(p.id);
+                      if (window.confirm(`Delete the project ${p.name} from this browser? This cannot be undone.`))
+                        void deleteProject(p.id).then(() => announce(`Deleted ${p.name}.`));
                     }}
                   >
                     <Icon name="close" size={14} />
@@ -1088,7 +1142,10 @@ function ChallengeList() {
     // Bundled and proved to open by challenges.test.ts.
     const document = starterDocument(name);
     if (!mayReplace()) return;
-    if (await openDocument(document)) useEditor.getState().openSheet(challenge.definition);
+    if (await openDocument(document)) {
+      useEditor.getState().openSheet(challenge.definition);
+      announce(`Opened the challenge ${challenge.title}.`);
+    }
   };
   return (
     <section className="panel" aria-labelledby="challenges-title" data-section="challenges">
@@ -1321,7 +1378,7 @@ function AddComponents() {
           <button type="button" className="button button-primary type-label" disabled={picked.length === 0} onClick={add}>
             Add
           </button>
-          <button ref={close} type="button" className="button type-label" onClick={() => dialog.current?.close()}>
+          <button ref={close} type="button" className="button button-quiet type-label" onClick={() => dialog.current?.close()}>
             Close
           </button>
         </div>
@@ -1340,7 +1397,7 @@ function ExampleList() {
     setProblem(null);
     try {
       const document = await exampleDocument(name);
-      if (me === latest.current && mayReplace()) await openDocument(document);
+      if (me === latest.current && mayReplace() && (await openDocument(document))) announce(`Opened ${document.metadata.name}.`);
     } catch (error) {
       // Bundled and proved to open by examples.test.ts; what remains is the file failing to load.
       setProblem(`Could not open the example: ${error instanceof Error ? error.message : String(error)}`);
@@ -1374,7 +1431,7 @@ function NotesPanel() {
   const notes = useEditor((s) => s.metadata.notes ?? "");
   const id = useId();
   return (
-    <section className="panel" aria-labelledby={`${id}-title`}>
+    <section className="panel panel-notes" aria-labelledby={`${id}-title`}>
       <h2 id={`${id}-title`} className="type-heading panel-title">
         NOTES
       </h2>
@@ -1465,8 +1522,8 @@ function Inspector() {
       <section className="panel">
         <h2 className="type-heading panel-title">PROPERTIES</h2>
         {part ? (
-          // Remounts for another part, or when undo changes the label, so the field shows the saved value.
-          <PartProperties key={`${part.id}:${part.props.label ?? ""}`} part={part} />
+          // Remounts for another part; each field remounts itself when its own value changes.
+          <PartProperties key={part.id} part={part} />
         ) : wire ? (
           <div className="inspector-body">
             <p className="type-label inspector-kind">Wire</p>
@@ -1481,7 +1538,7 @@ function Inspector() {
             <WatchToggle wire={wire.id} />
           </div>
         ) : junction ? (
-          <JunctionProperties key={`${junction.id}:${junction.name ?? ""}`} junction={junction} />
+          <JunctionProperties key={junction.id} junction={junction} />
         ) : selection.length > 1 ? (
           <MakeComponent count={selection.length} />
         ) : (
@@ -1516,6 +1573,7 @@ function JunctionProperties({ junction }: { junction: Junction }) {
     <div className="inspector-body">
       <p className="type-label inspector-kind">{junction.name ? "Label" : "Junction"}</p>
       <CommitField
+        key={`name:${junction.name ?? ""}`}
         label="Name"
         saved={junction.name ?? ""}
         hint="Junctions with the same name on this sheet are one net."
@@ -1578,7 +1636,8 @@ function Breadcrumb() {
     <nav className="breadcrumb type-label" aria-label="Sheet">
       <span className="toolbar-sep" aria-hidden="true" />
       <button type="button" className="button button-quiet type-label" onClick={closeSheet}>
-        Main circuit
+        <Icon name="back" size={14} />
+        <span className="button-label">Main circuit</span>
       </button>
       <Icon name="chevron" size={12} />
       <span className="breadcrumb-current" aria-current="page" title={name}>
@@ -1602,6 +1661,7 @@ function CommitField({
   saved,
   hint,
   onCommit,
+  problem,
   maxLength = MAX_LABEL,
   focus = false,
 }: {
@@ -1609,11 +1669,14 @@ function CommitField({
   saved: string;
   hint: string;
   onCommit: (value: string) => void;
+  /** What is wrong with a value, if anything: it is not committed, and the field says why. */
+  problem?: (value: string) => string | null;
   maxLength?: number;
   /** Takes the keyboard once, when the canvas hands it over (a just-placed label). */
   focus?: boolean;
 }) {
   const [draft, setDraft] = useState(saved);
+  const [wrong, setWrong] = useState<string | null>(null);
   /** Escape leaves the field without saving. */
   const cancelled = useRef(false);
   const input = useRef<HTMLInputElement>(null);
@@ -1633,13 +1696,19 @@ function CommitField({
         ref={input}
         id={`${id}-input`}
         aria-describedby={`${id}-hint`}
+        aria-invalid={wrong !== null}
         className="input"
         value={draft}
         maxLength={maxLength}
         spellCheck={false}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setWrong(null);
+        }}
         onBlur={() => {
-          if (!cancelled.current) onCommit(draft);
+          const bad = cancelled.current ? null : (problem?.(draft) ?? null);
+          setWrong(bad && `${draft.trim() || "Empty"} was not applied: ${bad}`);
+          if (!cancelled.current && !bad) onCommit(draft);
           cancelled.current = false;
           // Show what was stored: when normalizing leaves the value unchanged, nothing remounts the field.
           setDraft(saved);
@@ -1652,8 +1721,8 @@ function CommitField({
           e.currentTarget.blur();
         }}
       />
-      <p id={`${id}-hint`} className="field-hint">
-        {hint}
+      <p id={`${id}-hint`} className={`field-hint${wrong ? " field-error" : ""}`} role={wrong ? "alert" : undefined}>
+        {wrong ?? hint}
       </p>
     </div>
   );
@@ -1668,6 +1737,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
         {kindName(part)}
       </p>
       <CommitField
+        key={`label:${part.props.label ?? ""}`}
         label="Label"
         saved={part.props.label ?? ""}
         hint={PIN_HINT[part.kind] ?? "Shown under the part on the canvas."}
@@ -1683,6 +1753,11 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           // One undoable edit; it also removes wires to fields that go. Invalid lists change nothing.
           // Room for 32 one-bit fields written "1, 1, …".
           maxLength={4 * MAX_WIDTH}
+          problem={(value) => {
+            const tokens = value.split(/[\s,]+/).filter(Boolean);
+            const why = tokens.every((t) => /^\d+$/.test(t)) ? fieldsProblem(tokens.map(Number)) : "use whole numbers separated by commas.";
+            return why && (why.endsWith(".") ? why : `fields ${why}.`);
+          }}
           onCommit={(value) => {
             // Digits only, as in Width: no 0x4, 1e1 or 4.0.
             const tokens = value.split(/[\s,]+/).filter(Boolean);
@@ -1697,6 +1772,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           label="Width"
           saved={String(part.props.width ?? 1)}
           hint={`Bits on every port, 1 to ${MAX_WIDTH}.`}
+          problem={wholeNumber(MAX_WIDTH)}
           // One undoable edit; anything but a whole number in range leaves the width as it was.
           onCommit={(value) => /^\s*\d+\s*$/.test(value) && useEditor.getState().setWidth(part.id, Number(value))}
         />
@@ -1708,6 +1784,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           label="Address bits"
           saved={String(part.props.addressWidth ?? DEFAULT_ADDRESS)}
           hint={`${2 ** (part.props.addressWidth ?? DEFAULT_ADDRESS)} words; 1 to ${MAX_ADDRESS} address bits.`}
+          problem={wholeNumber(MAX_ADDRESS)}
           // One undoable edit; a ROM keeps the words that still fit.
           onCommit={(value) => /^\s*\d+\s*$/.test(value) && useEditor.getState().setAddressWidth(part.id, Number(value))}
         />
@@ -1737,6 +1814,10 @@ function PartProperties({ part }: { part: CircuitComponent }) {
     </div>
   );
 }
+
+/** A whole number from 1 to `max`, as a field's `problem` check. */
+const wholeNumber = (max: number) => (value: string) =>
+  /^\s*\d+\s*$/.test(value) && Number(value) >= 1 && Number(value) <= max ? null : `enter a whole number from 1 to ${max}.`;
 
 /** Words as the inspector shows them: hex, eight to a line. */
 const wordLines = (words: readonly number[], width: number) =>
@@ -1951,6 +2032,7 @@ function ColumnsField({ part }: { part: CircuitComponent }) {
       label="Columns"
       saved={String(columns)}
       hint={`Pixels per row, 1 to ${MAX_COLUMNS}: ${columns} × ${rows} pixels from ${words} words, most significant bit leftmost.${cut}`}
+      problem={wholeNumber(MAX_COLUMNS)}
       // One undoable edit; anything but a whole number in range leaves the columns as they were.
       onCommit={(value) => /^\s*\d+\s*$/.test(value) && useEditor.getState().setColumns(part.id, Number(value))}
     />
@@ -2231,6 +2313,25 @@ function hasClocked(parts: CircuitComponent[], definitions: Definition[], seen =
   });
 }
 
+/** Time on the toolbar, beside what moves it: the cycle and the clock's level, once the sheet has anything clocked (ADR 0017). */
+function CycleReadout() {
+  const time = useSim((s) => s.time);
+  const components = useEditor((s) => s.circuit.components);
+  const definitions = useEditor((s) => s.definitions);
+  if (!hasClocked(components, definitions)) return null;
+  const high = time % 2 === 1;
+  return (
+    // Outside the status region, which it would flood while running.
+    <span className="cycle-readout">
+      {/* A clock at 1 is a logic 1: amber, as on a wire. */}
+      <span className={`cycle-led${high ? " cycle-led-high" : ""}`} aria-hidden="true" />
+      <span>
+        Cycle {Math.floor((time + 1) / 2)}, clock {high ? "high" : "low"}
+      </span>
+    </span>
+  );
+}
+
 function StatusBar() {
   const status = useSim((s) => s.status);
   const error = useSim((s) => s.error);
@@ -2278,10 +2379,10 @@ function StatusBar() {
           ? ["Unstable", "danger"]
           : errors.length > 0
             ? ["Invalid", "danger"]
-            : empty
-              ? ["No circuit", "muted"]
-              : running
-                ? ["Running", "ok"]
+            : running
+              ? ["Running", "ok"]
+              : empty
+                ? ["No circuit", "muted"]
                 : why
                   ? ["Stopped", "ok"]
                   : ["Settled", "ok"];
@@ -2298,18 +2399,30 @@ function StatusBar() {
         : placing ||
           why ||
           (first &&
-        `${first.code === "unstable" ? stoppedUnstable : ""}${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`);
+        `${first.code === "unstable" ? stoppedUnstable : ""}${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`) ||
+          (clocked && !running && time > 0 && !empty ? "Clock paused." : null);
 
-  // Said once, for what shows only on the canvas: time moved by Step or Reset, another project opened.
-  const projectId = useProjects((s) => s.projectId);
+  // Said once, for what shows only on the canvas: time moved by Step or Reset, another sheet opened.
+  const sheet = useEditor((s) => s.sheet);
   const said = useAnnouncement((s) => s.text);
-  const last = useRef({ time, projectId });
+  const last = useRef({ time, sheet });
   useEffect(() => {
-    const { time: lastTime, projectId: lastProject } = last.current;
-    last.current = { time, projectId };
-    if (lastProject && projectId && projectId !== lastProject) announce(`Opened ${useEditor.getState().metadata.name}.`);
-    else if (time !== lastTime && !running && clocked) announce(`Now at cycle ${Math.floor((time + 1) / 2)}, clock ${time % 2 === 1 ? "high" : "low"}.`);
-  }, [time, projectId, running, clocked]);
+    const { time: lastTime, sheet: lastSheet } = last.current;
+    last.current = { time, sheet };
+    if (sheet !== lastSheet) {
+      const name = useEditor.getState().definitions.find((d) => d.id === sheet)?.name;
+      announce(name ? `Editing ${name}.` : "Back on the main circuit.");
+    } else if (time !== lastTime && !running && clocked) {
+      announce(`Now at cycle ${Math.floor((time + 1) / 2)}, clock ${time % 2 === 1 ? "high" : "low"}.`);
+    }
+  }, [time, sheet, running, clocked]);
+  // Every problem, in plain words, for when the status line has room for one.
+  const details = useRef<HTMLDialogElement>(null);
+  const detailsId = useId();
+  const describe = (d: (typeof diagnostics)[number]) => {
+    const parts = components.filter((c) => c.props.label && d.ids.includes(c.id)).map((c) => partName(components, c));
+    return `${PLAIN[d.code] ?? d.message}${parts.length > 0 ? ` (${parts.join(", ")})` : ""}`;
+  };
 
   return (
     <footer className="statusbar">
@@ -2329,11 +2442,26 @@ function StatusBar() {
       {/* Follows the pointer, so it stays out of the status region. */}
       {probed !== undefined && <span className="status-probe">{`${bits} bits: ${probed}, ${hex(probed, bits)}`}</span>}
       <SaveStatus />
-      {clocked && (
-        <span className="status-cycle">
-          Cycle {Math.floor((time + 1) / 2)}, clock {time % 2 === 1 ? "high" : "low"}
-        </span>
+      {diagnostics.length > 1 && (
+        <button type="button" className="button button-quiet status-more" onClick={() => details.current?.showModal()}>
+          All {diagnostics.length} problems
+        </button>
       )}
+      <dialog ref={details} className="dialog" aria-labelledby={detailsId} onKeyDown={(e) => e.stopPropagation()}>
+        <h2 id={detailsId} className="type-title dialog-title">
+          Problems on this sheet
+        </h2>
+        <ul className="problem-list type-body">
+          {diagnostics.map((d, i) => (
+            <li key={`${d.code}:${i}`}>{describe(d)}</li>
+          ))}
+        </ul>
+        <div className="dialog-actions">
+          <button type="button" className="button button-quiet type-label" onClick={() => details.current?.close()}>
+            Close
+          </button>
+        </div>
+      </dialog>
     </footer>
   );
 }

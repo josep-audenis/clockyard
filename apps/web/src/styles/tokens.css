@@ -135,6 +135,7 @@
   --space-5: 20px;
   --library-nav-height: 36px;
   --toolbar-offset: var(--toolbar-height);
+  --wash: color-mix(in srgb, var(--ink) 4%, transparent);
   --hover: color-mix(in srgb, var(--ink) 7%, transparent);
   --press: color-mix(in srgb, var(--ink) 13%, transparent);
   --accent-strong: color-mix(in srgb, var(--accent) 85%, var(--ink));

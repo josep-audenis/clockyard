@@ -53,6 +53,23 @@ h2:focus-visible {
   border-radius: var(--radius-sm);
 }
 
+/* The dialog itself shows where focus went. */
+.dialog h2:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* In dense groups the ring sits inside the control, so it does not touch its neighbours. */
+.transport :focus-visible,
+.part-grid :focus-visible,
+.library-link:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.transport .button-primary:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--on-accent);
+}
+
 /* A pane reached with F6: the ring sits inside, because panes touch the window's edges. */
 .toolbar:focus-visible,
 .parts:focus-visible,
@@ -67,6 +84,7 @@ h2:focus-visible {
 }
 
 .shell {
+  position: relative;
   display: grid;
   grid-template-rows: var(--toolbar-height) minmax(0, 1fr) var(--statusbar-height);
   height: 100%;
@@ -143,8 +161,8 @@ h2:focus-visible {
 }
 
 .button-primary:disabled {
-  background: transparent;
-  border-color: var(--line);
+  background: var(--accent-soft);
+  border-color: transparent;
 }
 
 /* Tips: shown on hover after a moment, at once on keyboard focus, hidden by Escape. */
@@ -247,9 +265,51 @@ h2:focus-visible {
   gap: 2px;
 }
 
+/* The transport: everything that moves time, set into the bar like an instrument panel. */
+.transport {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  height: 36px;
+  padding: 0 3px;
+  background: var(--bench);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
 .run-controls {
   flex: none;
-  gap: var(--space-1);
+  gap: 2px;
+}
+
+.cycle-readout {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-left: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Shaped as well as coloured: a lit clock is a filled square, an unlit one an outline. */
+.cycle-led {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--signal-low);
+  border-radius: 1px;
+}
+
+.cycle-led-high {
+  background: var(--signal-high);
+  border-color: var(--signal-high);
 }
 
 .toolbar-sep {
@@ -312,6 +372,7 @@ input.project-name:focus {
 }
 
 .breadcrumb .button {
+  flex: none;
   color: var(--ink-muted);
 }
 
@@ -320,6 +381,7 @@ input.project-name:focus {
 }
 
 .breadcrumb-current {
+  min-width: 5ch;
   overflow: hidden;
   padding: 0 var(--space-1);
   color: var(--ink);
@@ -389,19 +451,21 @@ select.input {
 
 .run-controls select.input {
   background: transparent;
-  border-color: var(--line);
+  border-color: transparent;
+  border-radius: var(--radius-md);
 }
 
 .run-controls select.input:hover {
-  border-color: var(--line-strong);
+  background: var(--hover);
+  border-color: transparent;
 }
 
 .run-speed select.input {
-  width: 84px;
+  width: 76px;
 }
 
 .run-select select.input {
-  width: 132px;
+  width: 124px;
 }
 
 /* What Import, Export and Copy link have to say, floating over the canvas under the toolbar. */
@@ -457,10 +521,14 @@ select.input {
   min-height: 0;
 }
 
+/* A soft shade at the bottom edge says there is more, and scrolls away at the end. */
 .parts,
 .inspector {
-  overflow-y: auto;
-  background: var(--panel);
+  overflow: hidden auto;
+  background:
+    linear-gradient(transparent, var(--panel) 70%) bottom / 100% 36px no-repeat local,
+    linear-gradient(transparent, var(--press)) bottom / 100% 12px no-repeat scroll,
+    var(--panel);
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
 }
@@ -486,7 +554,6 @@ select.input {
 .panel {
   padding: var(--space-3);
   border-bottom: 1px solid var(--line);
-  scroll-margin-top: var(--library-nav-height);
 }
 
 /* Set in mono, like the labels engraved on a bench. */
@@ -503,17 +570,18 @@ select.input {
   position: sticky;
   top: 0;
   z-index: 2;
-  display: grid;
-  grid-template-columns: auto auto auto auto;
+  display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 2px;
-  height: var(--library-nav-height);
+  min-height: var(--library-nav-height);
   padding: var(--space-1) var(--space-2);
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
 
 .library-link {
+  min-height: 28px;
   padding: 0 var(--space-1);
   background: transparent;
   color: var(--ink-muted);
@@ -543,7 +611,6 @@ select.input {
 .palette {
   padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--line);
-  scroll-margin-top: var(--library-nav-height);
 }
 
 .palette .panel {
@@ -554,8 +621,8 @@ select.input {
 .part-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: 58px;
-  gap: 2px;
+  grid-auto-rows: minmax(58px, auto);
+  gap: var(--space-1);
 }
 
 /* A row in the parts panel's lists: chips, projects, challenges and examples. */
@@ -609,6 +676,7 @@ select.input {
   gap: 3px;
   min-height: 0;
   padding: var(--space-1) 2px;
+  background: var(--wash);
   border-radius: var(--radius-md);
   color: var(--ink-muted);
   font-size: 11px;
@@ -622,7 +690,8 @@ select.input {
 }
 
 .part-grid .part-tile:hover {
-  border-color: var(--line);
+  background: var(--hover);
+  border-color: var(--line-strong);
   color: var(--ink);
 }
 
@@ -631,15 +700,15 @@ select.input {
   overflow-wrap: anywhere;
 }
 
+/* The key sits against the symbol it arms, wherever the tile's width puts that. */
 .part-grid .kbd {
   position: absolute;
-  top: 2px;
-  right: 2px;
-  padding: 0 3px;
-  background: transparent;
-  border: 0;
-  font-size: 10px;
-  line-height: 12px;
+  top: 5px;
+  left: calc(50% + 14px);
+  min-width: 13px;
+  padding: 0 2px;
+  font-size: 9px;
+  line-height: 11px;
 }
 
 .part-tile[aria-pressed="true"],
@@ -799,19 +868,31 @@ select.input {
   line-height: 18px;
 }
 
-/* The engine's verdict: a failure until it says passed. Kept in the page while empty, to be announced. */
+/* The engine's verdict, in words and a mark: a square for a failure, a dot for a pass, as in the status bar. */
 .challenge-result:not(:empty) {
-  padding: var(--space-2) var(--space-3);
-  background: var(--danger-soft);
-  border-left: 3px solid var(--danger);
-  border-radius: var(--radius-sm);
+  display: flex;
+  gap: var(--space-2);
+  color: var(--danger);
   font-size: 13px;
   line-height: 18px;
 }
 
+.challenge-result:not(:empty)::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
 .challenge-result.challenge-passed:not(:empty) {
-  background: var(--ok-soft);
-  border-left-color: var(--ok);
+  color: var(--ok);
+}
+
+.challenge-result.challenge-passed::before {
+  border-radius: var(--radius-full);
 }
 
 /* ----------------------------------------------------------------- Canvas */
@@ -844,6 +925,10 @@ select.input {
 }
 
 /* The way in on an empty sheet. Clicks pass through to the canvas, except on its buttons. */
+.canvas-tools {
+  display: contents;
+}
+
 .canvas-empty {
   position: absolute;
   top: 40%;
@@ -1022,24 +1107,63 @@ select.input {
   text-overflow: ellipsis;
 }
 
-/* The cycle counter, at the right of the status bar: fixed digits, so it does not jitter while running. */
-.status-cycle {
+.status-more {
   flex: none;
+  height: 20px;
   margin-left: auto;
   color: var(--ink-muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
-.status-save + .status-cycle {
+.status-more:hover {
+  color: var(--ink);
+}
+
+.status-save + .status-more,
+.status-probe + .status-more {
   margin-left: 0;
-  padding-left: var(--space-3);
-  border-left: 1px solid var(--line);
+}
+
+.problem-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: 13px;
+  line-height: 18px;
 }
 
 /* -------------------------------------------------------------- Inspector */
+
+.inspector {
+  display: flex;
+  flex-direction: column;
+}
+
+.inspector .panel {
+  flex: none;
+}
+
+/* Notes take the height nothing else needs, so a long text is not cut with empty space below it. */
+.inspector .panel-notes {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  min-height: 220px;
+  border-bottom: 0;
+}
+
+.panel-notes .inspector-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.panel-notes .field-hint {
+  display: none;
+}
+
+.panel-notes:focus-within .field-hint {
+  display: block;
+}
 
 .inspector-empty {
   margin: 0;
@@ -1158,11 +1282,12 @@ pre.memory-words {
   padding: var(--space-2);
   font: 400 13px/20px var(--font-sans);
   white-space: pre-wrap;
-  resize: vertical;
-  /* Grows with its text, so a line is not cut at the bottom; browsers without this keep the rows. */
-  field-sizing: content;
-  min-height: 112px;
-  max-height: 340px;
+  /* Set into the panel, like the transport in the toolbar. */
+  flex: 1;
+  min-height: 120px;
+  background: var(--bench);
+  border-color: var(--line-strong);
+  resize: none;
 }
 
 /* -------------------------------------------------------------- Waveforms */
@@ -1422,7 +1547,9 @@ pre.memory-words {
 }
 
 @media (max-width: 1080px) {
-  .file-actions .button-label {
+  .file-actions .button-label,
+  .run-controls > .button:not(.run-toggle) .button-label,
+  .breadcrumb .button-label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -1430,74 +1557,34 @@ pre.memory-words {
     clip-path: inset(50%);
   }
 
-  .file-actions > .button {
+  .file-actions > .button,
+  .run-controls > .button:not(.run-toggle),
+  .breadcrumb .button {
     width: var(--control-height);
     padding: 0;
   }
-}
 
-@media (max-width: 860px) {
-  .run-controls > .button:not(.run-toggle) .button-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
+  .breadcrumb > .icon {
+    display: none;
   }
 
-  .run-controls > .button:not(.run-toggle) {
-    width: var(--control-height);
-    padding: 0;
+  .toolbar-start:has(.breadcrumb) input.project-name {
+    display: none;
   }
 
   .run-select select.input {
-    width: 112px;
+    width: 104px;
   }
 }
 
-/* Narrow screens: the inspector moves under the canvas as a short strip, its panels side by side. */
+/* Narrow screens: the toolbar takes two rows, and the inspector moves under the canvas with its panels side by side. */
 @media (max-width: 900px) {
-  .workspace {
-    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
-  }
-
-  .inspector {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    grid-column: 1 / -1;
-    max-height: min(30vh, 220px);
-    border-left: 0;
-    border-top: 1px solid var(--line);
-  }
-
-  .inspector .panel {
-    border-bottom: 0;
-  }
-
-  .inspector .panel + .panel {
-    border-left: 1px solid var(--line);
-  }
-
-  .inspector .notes {
-    height: 96px;
-    min-height: 0;
-    field-sizing: fixed;
-  }
-
-  .inspector .notes + .field-hint {
-    display: none;
-  }
-}
-
-/* Narrower still: the toolbar takes two rows, and the panels stack around the canvas. */
-@media (max-width: 700px) {
   :root {
     --toolbar-offset: 84px;
   }
 
   .shell {
-    grid-template-rows: auto minmax(0, 1fr) var(--statusbar-height);
+    grid-template-rows: auto minmax(0, 1fr) minmax(var(--statusbar-height), auto);
   }
 
   .toolbar {
@@ -1521,9 +1608,15 @@ pre.memory-words {
     margin: 0 2px;
   }
 
-  .run-controls {
+  .transport {
     flex: 1 1 100%;
     order: 3;
+    min-width: 0;
+  }
+
+  .run-controls {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .run-speed,
@@ -1537,8 +1630,42 @@ pre.memory-words {
   }
 
   .workspace {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .inspector {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    grid-column: 1 / -1;
+    min-height: 120px;
+    max-height: min(30vh, 220px);
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .inspector .panel {
+    border-bottom: 0;
+  }
+
+  .inspector .panel + .panel {
+    border-left: 1px solid var(--line);
+  }
+
+  .inspector .panel-notes {
+    min-height: 0;
+  }
+
+  .inspector .notes {
+    min-height: 72px;
+  }
+}
+
+/* Narrower still: the panels stack around the canvas, the palette becomes one strip, and the page area scrolls. */
+@media (max-width: 700px) {
+  .workspace {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 180px minmax(260px, 1fr) auto;
+    grid-template-rows: 124px minmax(260px, 1fr) auto;
     overflow-y: auto;
   }
 
@@ -1547,12 +1674,57 @@ pre.memory-words {
     border-bottom: 1px solid var(--line);
   }
 
-  .parts::after {
+  .parts::after,
+  .parts-hint,
+  .palette .panel-title {
     display: none;
+  }
+
+  .palette {
+    display: flex;
+    gap: var(--space-1);
+    overflow-x: auto;
+    padding: var(--space-1) var(--space-2);
+    scrollbar-width: thin;
+  }
+
+  .palette .panel {
+    flex: none;
+    padding: 0;
+  }
+
+  .part-grid {
+    display: flex;
+  }
+
+  .part-grid .part-tile {
+    width: 62px;
+    height: 62px;
   }
 
   .inspector {
     grid-column: auto;
+    min-height: 160px;
+    max-height: none;
+    overflow: visible;
+  }
+
+  /* Over the status bar, clear of the toolbar and the palette. */
+  .file-messages {
+    top: auto;
+    bottom: calc(var(--statusbar-height) + var(--space-2));
+  }
+
+  .status-save {
+    display: none;
+  }
+
+  .statusbar {
+    padding-block: var(--space-1);
+  }
+
+  .status-message {
+    white-space: normal;
   }
 
   .shortcut-list {
