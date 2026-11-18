@@ -1541,3 +1541,57 @@ test("a component saved to the library is added to another project, and a passed
   await openTab(page, "Learn");
   await expect(challenges(page).getByRole("button", { name: "2. XOR from NAND gates" })).not.toContainText("✓");
 });
+
+test("the chrome works from the keyboard: tabs, palette, placing a part, panes and a refused value (ADR 0032)", async ({ page }) => {
+  await page.goto("/");
+  const parts = page.getByRole("complementary", { name: "Parts" });
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  const canvas = page.getByRole("main", { name: "Circuit canvas" });
+
+  // Arrow keys walk the tabs, and each shows its own panel.
+  await page.getByRole("tab", { name: "Parts" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("button", { name: "New circuit" })).toBeVisible();
+  await page.keyboard.press("End");
+  await expect(page.getByRole("region", { name: "EXAMPLES" })).toBeVisible();
+  await page.keyboard.press("Home");
+
+  // Arrow keys walk the palette, and Enter puts the part on the sheet, selected.
+  await parts.getByRole("button", { name: /^Switch/ }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(parts.getByRole("button", { name: "Clock" })).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("Enter");
+  await expect(readout(page, "Switch 1")).toHaveCount(1);
+
+  // A refused value stays with its reason; Escape restores the old one and hands the keyboard to the canvas.
+  const width = inspector.getByRole("textbox", { name: "Width" });
+  await width.fill("99");
+  await width.press("Enter");
+  await expect(width).toBeFocused();
+  await expect(width).toHaveAttribute("aria-invalid", "true");
+  await expect(inspector.getByRole("alert")).toHaveText("Enter a whole number from 1 to 32.");
+  await width.press("Escape");
+  await expect(width).toHaveValue("1");
+  await expect(canvas).toBeFocused();
+
+  // F6 moves between panes, and part keys belong to the canvas, not to a focused control.
+  await page.keyboard.press("F6");
+  await expect(inspector).toBeFocused();
+  await page.keyboard.press("Shift+F6");
+  await expect(canvas).toBeFocused();
+  await page.getByRole("button", { name: "Step", exact: true }).focus();
+  await page.keyboard.press("l");
+  await expect(status(page)).not.toContainText("Placing");
+
+  // A click on a button leaves the keys with the canvas, without its focus ring.
+  await page.getByRole("button", { name: "Step", exact: true }).click();
+  await expect(canvas).not.toBeFocused();
+  await page.keyboard.press("l");
+  await expect(status(page)).toContainText("Placing LED");
+  await page.keyboard.press("Escape");
+
+  await page.keyboard.press("?");
+  await expect(page.getByRole("dialog", { name: "Shortcuts and gestures" })).toBeVisible();
+});

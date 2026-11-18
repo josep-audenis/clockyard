@@ -8,38 +8,53 @@
 
 The bars around the canvas grew one feature at a time. Every toolbar control
 had the same weight, so nothing said where to start. The parts panel opened
-with Projects, kept Examples and Challenges below everything else, and had no
-way to reach them but scrolling. File messages squeezed into the toolbar and
-were cut off. At 900px the file buttons fell off the end of the toolbar.
+with Projects, kept Examples and Challenges below everything else, and took
+some sixty Tab stops to cross. File messages squeezed into the toolbar and were
+cut off. At 900px the file buttons fell off the end of the toolbar.
 
 ## Decision
 
 - **The toolbar has three zones:** where you are on the left (mark, project,
-  sheet path), the simulation in the centre, and history, files and help on the
-  right. Run is the toolbar's one filled control, which is what ADR 0008 keeps
-  `--accent` for. While running it turns into a quiet accent Pause.
-- **The parts panel leads with parts.** Parts are tiles with their schematic
-  symbol over their name, three to a row, so the whole palette fits a laptop
-  screen. Chips, Projects and Learn (challenges, examples) follow, and a sticky
-  header jumps to each and marks the one in view. Every section stays in the
-  page, not behind tabs, so screen readers, search and tests read one list.
+  sheet path), the transport in the centre, and history, files and help on the
+  right. The transport is one inset well that stays centred. Run is the
+  toolbar's one filled control, which is what ADR 0008 keeps `--accent` for.
+  It is disabled until the sheet has a part, and turns into a quiet accent Pause
+  while running.
+- **The left panel has three tabs:** Parts (the palette and chips), Projects and
+  Learn (examples and challenges). Opening something from a tab returns to
+  Parts, to build with it.
+- **The palette is drawn in schematic symbols,** three to a row, and is one
+  keyboard stop: arrow keys move between tiles. Enter on a tile places the part
+  on the sheet, because the keyboard has no pointer to place it with.
+- **The canvas takes keyboard focus.** Part and canvas keys act only while it
+  has focus or nothing does, so a letter typed on a focused control does nothing
+  surprising. F6 steps through toolbar, panel, canvas and inspector.
+- **Fields say why.** A refused value stays in its field, marked invalid, with
+  the reason, until it is corrected or Escape restores the old one.
 - **Messages float.** Import, Export and Copy link report in a dismissible
-  message under the toolbar, and tips on hover or focus explain each control.
-  Escape hides a tip.
-- **Shortcuts get a dialog,** from the toolbar or `?`, in place of a folded list
-  at the bottom of the panel.
-- **An empty sheet offers a way in:** examples and challenges, beside the hint.
+  message under the toolbar. Tips explain each control on hover and focus, and
+  Escape hides them.
+- **Shortcuts get a dialog,** from the toolbar or `?`. **An empty sheet offers a
+  way in:** the place, wire, run loop, with links to examples and challenges.
+- **The status bar keeps time:** the cycle counter sits beside a small live trace
+  of the clock, amber where it is 1.
+- **Section headings are silkscreen:** a mono label with a trace running from it
+  to the panel's edge.
 - **House glyphs** live in `apps/web/src/app/icons.tsx`, all stroked in
   `currentColor`. This passes ADR 0008's dozen-icon mark for choosing an icon
   set, on purpose: the part symbols are specific to Clockyard, no set has them,
   and the toolbar glyphs are a few short paths in the same stroke.
-- **New tokens** are derived from the palette (`--hover`, `--press`,
+- **New tokens** are derived from the palette (`--wash`, `--hover`, `--press`,
   `--accent-strong`, `--scrim`), plus motion (`--ease-out`, `--duration-*`),
-  `--space-5` and `--library-nav-height`. Motion is limited to state changes
-  and stops under `prefers-reduced-motion`.
+  `--space-5`, `--library-nav-height` and `--toolbar-offset`. Motion is limited
+  to state changes and stops under `prefers-reduced-motion`.
 
 ## Consequences
 
+- Projects and Learn are hidden until chosen, so browser tests and
+  `apps/web/scripts/landing-shots.mjs` open the tab they need first.
+- Selecting and wiring on the sheet still need a pointer. A keyboard user can
+  place and configure parts, not connect them.
 - The design system artifact (ADR 0008) does not yet have these tokens or the
   glyphs, and should be brought up to date from `tokens.css` and `icons.tsx`.
 - The about page's screenshots show the previous chrome until

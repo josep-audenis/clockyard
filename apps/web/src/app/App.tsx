@@ -224,7 +224,8 @@ export function App() {
     const keepKeys = (e: MouseEvent) => {
       if (!(e.target instanceof Element) || !e.target.closest("button") || e.target.closest("dialog")) return;
       e.preventDefault();
-      focusCanvas();
+      // Not focusCanvas: after a click the canvas should not show the keyboard's ring.
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     };
     // Space acts when it is released.
     const onKeyUp = (e: KeyboardEvent) => {
@@ -1824,8 +1825,8 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           maxLength={4 * MAX_WIDTH}
           problem={(value) => {
             const tokens = value.split(/[\s,]+/).filter(Boolean);
-            const why = tokens.every((t) => /^\d+$/.test(t)) ? fieldsProblem(tokens.map(Number)) : "use whole numbers separated by commas.";
-            return why && (why.endsWith(".") ? why : `fields ${why}.`);
+            const why = tokens.every((t) => /^\d+$/.test(t)) ? fieldsProblem(tokens.map(Number)) : "Use whole numbers separated by commas.";
+            return why && (why.endsWith(".") ? why : `Fields ${why}.`);
           }}
           onCommit={(value) => {
             // Digits only, as in Width: no 0x4, 1e1 or 4.0.
@@ -1886,7 +1887,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
 
 /** A whole number from 1 to `max`, as a field's `problem` check. */
 const wholeNumber = (max: number) => (value: string) =>
-  /^\s*\d+\s*$/.test(value) && Number(value) >= 1 && Number(value) <= max ? null : `enter a whole number from 1 to ${max}.`;
+  /^\s*\d+\s*$/.test(value) && Number(value) >= 1 && Number(value) <= max ? null : `Enter a whole number from 1 to ${max}.`;
 
 /** Words as the inspector shows them: hex, eight to a line. */
 const wordLines = (words: readonly number[], width: number) =>
