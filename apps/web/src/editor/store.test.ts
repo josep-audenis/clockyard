@@ -720,6 +720,8 @@ test("opens counts the sheets and documents swapped in, not the edits", () => {
   const start = opens();
   useEditor.getState().add("led", { x: 9, y: 4 });
   useEditor.getState().undo();
+  useEditor.getState().redo();
+  useEditor.getState().closeSheet(); // already on the main circuit: nothing is swapped in
   expect(opens()).toBe(start);
   useEditor.getState().openSheet(id);
   expect(opens()).toBe(start + 1);

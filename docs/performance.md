@@ -167,7 +167,7 @@ Read so:
 
 | Target | Measured | Met |
 |---|---|---|
-| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s; with fewer cells searched (section 8, on battery, where the same builds are slower) `fanout` 10.8 → 3.4–3.5 s, `adder` 4.2 → 3.3–3.4 s, `counters` 3.7–3.9 → 3.1–3.2 s; on mains after section 8, `adder` 2.1 s, `counters` 2.3 s, `fanout` about 2.7 s; section 9 then takes 1.3 s, 0.5 s and 0.2 s off them on battery with other work running, where everything is two to three times as slow | for `chain` and `cpu` only, after them; not measured on mains power since section 9 |
+| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s; with fewer cells searched (section 8, on battery, where the same builds are slower) `fanout` 10.8 → 3.4–3.5 s, `adder` 4.2 → 3.3–3.4 s, `counters` 3.7–3.9 → 3.1–3.2 s; on mains after section 8 (nine rounds, section 9), `adder` 2.1 s, `counters` 2.3 s, `fanout` about 2.7 s; section 9 then takes about 20 %, 10 % and 3 % off an open, measured on battery | for `chain` and `cpu` only, after them; not measured on mains power since section 9 |
 | A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms | no |
 | Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder`; with shared part shapes (section 7) 30–60 for `chain`, `counters` and `fanout`, 20 for `adder` | partly |
 | 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k`; after step 3's routing index, `chain-50k` 6.3 s, `counters-50k` 22 s; with shared part shapes `chain-50k` 2.4 s; deleting every part of `chain-50k` takes about 1.2 s, over the 1 s asked (other edits not measured) | opening, for `chain` and `cpu` only, after it |
@@ -511,8 +511,9 @@ rest, drawing above all, is what remains: about 2.9 s of `adder-10k` and 2.2 s o
 
 ### 9. Label characters and long part lists
 
-A profile of the opens left after section 8, on mains power, put them at about 2.1–2.7 s and found two costs that had
-nothing to do with drawing or routing:
+On mains power, the opens left after section 8 had medians of 2.06 s for `adder-10k`, 2.27 s for `counters-10k` and about
+2.7 s for `fanout-10k`, over nine rounds of a production build. Some `fanout` readings in that run ended too early, so
+its figure is the least certain. A profile found two costs that neither the shapes nor routing explain:
 
 - **Pixi split every label with `Intl.Segmenter`**, 135–293 ms of `counters-10k` and `adder-10k`, to learn that each
   character of an ASCII label stands alone. Printable ASCII now skips it, through Pixi's `graphemeSegmenter` hook; any
@@ -540,7 +541,8 @@ time comes from Chromium's own counters, which other programs disturb less than 
 | fanout-10k | 6.28 | −184 | −385 | −166 |
 | chain-10k | 1.96 | +35 | +63 | −1 |
 
-`chain` has two list rows and no labels to speak of, so its change is noise. The largest costs left are routing on
+That is about 20 % off `adder`, 10 % off `counters` and 3 % off `fanout`. `chain` has two list rows and asks for no
+label splitting, so its change is noise. The largest costs left are routing on
 `counters` and `fanout`, then drawing. Each open also draws the whole sheet a second time when the engine's first state
 arrives, which is not yet looked into.
 
