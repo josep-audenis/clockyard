@@ -486,7 +486,8 @@ everywhere was tried first. Each search still found a route of the same cost on 
 searches compared, on the examples, the 1,000- and 10,000-part benchmarks and 400 random sheets). But when several routes
 tie it can take another of them, later wires then meet different obstacles, and a whole sheet can end up worse: on the
 reference CPU, wires no search could place went from 34 to 37, one of them a straight line through five parts. Routing a
-sheet that size takes about 0.2 s, so it has little to gain.
+sheet that size takes about 0.2 s, so it has little to gain. A fan-out just under the limit gives up more: at 1,999
+wires it still takes seconds to route, though no longer than before.
 
 **Larger sheets can change.** Of the 10,000- and 50,000-part benchmarks only `fanout` does: 18 wires, with the same total
 length and bends. On all of them, as many wires are left without a search's route as before. Another sheet of that size

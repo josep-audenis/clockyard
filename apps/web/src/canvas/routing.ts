@@ -14,9 +14,9 @@ const MARGINS = [8, 24];
 /** Largest search box, in grid cells; wires spanning more get the plain half-way route. */
 const MAX_CELLS = 40_000;
 /**
- * Wires from which a sheet's searches also count the bends still needed (`bendsLeft`). Below this routing is quick
- * anyway, and the count would only change which of several equal-cost routes is taken, and with it where later wires
- * fit: on the reference CPU that left four more wires without a route (ADR 0030).
+ * Wires from which a sheet's searches also count the bends still needed (`bendsLeft`). Below this, routes stay exactly
+ * as they were: the count would change how ties fall, and with them where later wires fit (on the reference CPU, 37
+ * wires left without a route instead of 34; ADR 0030). A fan-out just under the limit gives up its speed.
  */
 const LARGE_SHEET = 2_000;
 

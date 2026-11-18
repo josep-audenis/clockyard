@@ -258,8 +258,9 @@ What exists today:
    **Deviation:** earlier steps kept every route byte-identical; on
    large sheets this one does not (`fanout` changes 18 wires, with the
    same total length and bends, and no benchmark changes how many wires
-   go unplaced). In exchange, on battery, `fanout-10k` routes in 1.6 s
-   instead of 9.1 s, and `adder-10k` in 0.4–0.5 s instead of 1.4–1.5 s.
+   go unplaced). In exchange, on battery and measured just before the
+   limit was added, `fanout-10k` routes in 1.6 s instead of 9.1 s, and
+   `adder-10k` in 0.4–0.5 s instead of 1.4–1.5 s.
    Tiles also hold routes by net, and a taken port is found before any
    search box is built.
 
