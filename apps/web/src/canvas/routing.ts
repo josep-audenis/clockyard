@@ -13,6 +13,12 @@ const CROSS = 1;
 const MARGINS = [8, 24];
 /** Largest search box, in grid cells; wires spanning more get the plain half-way route. */
 const MAX_CELLS = 40_000;
+/**
+ * Wires from which a sheet's searches also count the bends still needed (`bendsLeft`). Below this routing is quick
+ * anyway, and the count would only change which of several equal-cost routes is taken, and with it where later wires
+ * fit: on the reference CPU that left four more wires without a route (ADR 0030).
+ */
+const LARGE_SHEET = 2_000;
 
 const endKey = (e: Endpoint) => (isJunction(e) ? `j:${e.junction}` : `p:${e.component}:${e.port}`);
 
@@ -355,6 +361,7 @@ function exitFree(end: Point, exit: number, obstacles: Obstacles, net: string) {
  * out of `a` and the last move into `b` (opposite `b`'s exit). A route never
  * runs along another net's wire, nor bends or ends on one: it may only cross
  * one straight through. Null when nothing fits, or the box is too large.
+ * `countBends` makes a search visit far fewer cells for a route of the same cost, though perhaps another one.
  */
 export function search(
   a: Point,
@@ -364,6 +371,7 @@ export function search(
   obstacles: Obstacles,
   net: string,
   margin: number,
+  countBends: boolean,
 ): Point[] | null {
   if (a.x === b.x && a.y === b.y) return [a, b];
   const minX = Math.min(a.x, b.x) - margin;
@@ -401,7 +409,7 @@ export function search(
     const py = row + minY;
     const here = costs[state] as number;
     const left = Math.abs(px - b.x) + Math.abs(py - b.y);
-    const bends = BEND * bendsLeft(d, arrive, b.x - px, b.y - py);
+    const bends = countBends ? BEND * bendsLeft(d, arrive, b.x - px, b.y - py) : 0;
     if (heap.top > (here + left + bends) * SCALE + left) continue; // a cheaper way here was found after this was queued
     if (left === 0) return simplify(path(state));
     for (let nd = 0; nd < 4; nd++) {
@@ -428,7 +436,8 @@ export function search(
         froms[next] = state;
         stamps[next] = stamp;
         const rest = Math.abs(qx - b.x) + Math.abs(qy - b.y);
-        heap.push((total + rest + BEND * bendsLeft(nd, arrive, b.x - qx, b.y - qy)) * SCALE + rest, next);
+        const bends = countBends ? BEND * bendsLeft(nd, arrive, b.x - qx, b.y - qy) : 0;
+        heap.push((total + rest + bends) * SCALE + rest, next);
       }
     }
   }
@@ -628,7 +637,7 @@ function route(circuit: Circuit, frozen: Map<string, Point[]>, size = TILE): Map
     const net = netOf.get(wire.id) as string;
     let points: Point[] | null = null;
     for (const margin of MARGINS) {
-      points = search(a, b, exitA, exitB, obstacles, net, margin);
+      points = search(a, b, exitA, exitB, obstacles, net, margin, circuit.wires.length >= LARGE_SHEET);
       if (points) break;
     }
     // shortcut: when nothing fits even the wider box, the plain route may touch another net; widen further if that shows up.

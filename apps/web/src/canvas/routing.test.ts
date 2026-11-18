@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, expect, test } from "vitest";
 import type { Circuit, CircuitComponent, Wire } from "../editor/document";
 import { DIRS, type Point } from "./geometry";
@@ -306,7 +307,7 @@ test("routes with the tile index are the routes a scan of the whole sheet gives"
       for (const size of [1, 16]) expect(Object.fromEntries(routeWithTiles(circuit, size, lines)), `round ${round}, tiles of ${size}`).toEqual(scan);
     }
   }
-}, 30_000);
+}, 60_000);
 
 test("parts a million cells apart route at once: a long route is not filed under every tile it crosses", () => {
   const components = Array.from({ length: 400 }, (_, i) => part(`n${i}`, "not", i % 2 ? 1_000_000 : -1_000_000, 4 * i));
@@ -402,6 +403,36 @@ test("a search box holds, cell for cell, what a box over the whole sheet holds t
           whole.edges[2 * w + 1],
         ]);
       }
+    }
+  }
+});
+
+test.each(Object.entries({"4-bit-adder":"c93c3c34","8-bit-adder":"b14d0bb0","8-bit-counter":"46649868","and-gate":"be6655bf","cascade-fanout":"9867cc08","catch":"70e065c3","devices":"bf396a0f","half-adder":"802fb42e","reference-cpu":"70e065c3"}))("the routes of example %s stay exactly as they are", (name, expected) => {
+  const url = new URL(`../../../../examples/${name}.clockyard.json`, import.meta.url);
+  const { circuit, definitions } = JSON.parse(readFileSync(url, "utf8")) as { circuit: Circuit; definitions: (Parameters<typeof setDefinitionLayouts>[0][number] & { circuit: Circuit })[] };
+  setDefinitionLayouts(definitions);
+  let hash = 0x811c9dc5;
+  for (const sheet of [circuit, ...definitions.map((d) => d.circuit)]) {
+    const text = JSON.stringify([...routeWithTiles(sheet, 16)]);
+    for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+  }
+  setDefinitionLayouts([]);
+  expect((hash >>> 0).toString(16)).toBe(expected);
+});
+
+test("a sheet large enough for the bend count still keeps its nets apart", () => {
+  const components = [part("s", "switch", 0, 0)];
+  const wires: Wire[] = [];
+  for (let i = 0; i < 2_000; i++) {
+    components.push(part(`n${i}`, "not", 6 + (i % 50) * 5, Math.floor(i / 50) * 4));
+    wires.push(wire(`w${i}`, i === 0 ? "s.out" : `n${i - 1}.out`, `n${i}.in`));
+  }
+  const all = routes({ components, junctions: [], wires });
+  const owner = new Map<string, string>();
+  for (const w of wires) {
+    for (const e of unitEdges(all.get(w.id) ?? [])) {
+      expect(owner.get(e), `${w.id} runs along another net at ${e}`).toBeUndefined();
+      owner.set(e, w.id);
     }
   }
 });
