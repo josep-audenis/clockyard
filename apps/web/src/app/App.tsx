@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { definitionName, definitionsVersion, layoutOf } from "../canvas/layout";
@@ -2232,6 +2232,7 @@ function partNames(components: CircuitComponent[]): Map<string, string> {
 /** The canvas is pixels only; this lists switch, keyboard, LED and seven-segment states for screen readers (and browser tests). */
 function Readout() {
   const components = useEditor((s) => s.circuit.components);
+  const opens = useEditor((s) => s.opens);
   // Named once per edit, not per state.
   const names = partNames(components);
   const loaded = useSim((s) => s.loaded);
@@ -2246,13 +2247,17 @@ function Readout() {
   const switches = components.filter((c) => c.kind === "switch" || c.kind === "keyboard");
   const leds = components.filter((c) => c.kind === "led" || c.kind === "seg7");
   return (
-    <ul className="visually-hidden" aria-label="Inputs and outputs">
-      {switches.map((c) => (
-        <li key={c.id}>{`${names.get(c.id)}: ${value(c, "out")}`}</li>
-      ))}
-      {leds.map((c) => (
-        <li key={c.id}>{`${names.get(c.id)}: ${value(c, c.kind === "seg7" ? "seg" : "in")}`}</li>
-      ))}
+    // The role is said outright: Safari stops calling a list without markers one.
+    <ul className="visually-hidden readout" role="list" aria-label="Inputs and outputs">
+      {/* Keyed so a new sheet's rows go in as one: placed one by one, each looks through all the rows after it. */}
+      <Fragment key={opens}>
+        {switches.map((c) => (
+          <li key={c.id}>{`${names.get(c.id)}: ${value(c, "out")}`}</li>
+        ))}
+        {leds.map((c) => (
+          <li key={c.id}>{`${names.get(c.id)}: ${value(c, c.kind === "seg7" ? "seg" : "in")}`}</li>
+        ))}
+      </Fragment>
     </ul>
   );
 }
@@ -2332,6 +2337,7 @@ function RunControls() {
   const speed = useSim((s) => s.speed);
   const until = useSim((s) => s.until);
   const components = useEditor((s) => s.circuit.components);
+  const opens = useEditor((s) => s.opens);
   // Any 1-bit LED on the open sheet can stop a run: an instruction step, a breakpoint, run to halt (ADR 0019).
   const leds = components.filter((c) => c.kind === "led" && (c.props.width ?? 1) === 1);
   const names = partNames(components);
@@ -2368,11 +2374,13 @@ function RunControls() {
         <span className="visually-hidden">Run until</span>
         <select className="input" value={chosen ?? ""} onChange={(e) => setUntil(e.target.value || null)}>
           <option value="">Until paused</option>
-          {leds.map((c) => (
-            <option key={c.id} value={c.id}>
-              Until {names.get(c.id)} lights
-            </option>
-          ))}
+          <Fragment key={opens}>
+            {leds.map((c) => (
+              <option key={c.id} value={c.id}>
+                Until {names.get(c.id)} lights
+              </option>
+            ))}
+          </Fragment>
         </select>
       </label>
     </div>

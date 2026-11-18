@@ -1043,6 +1043,28 @@ test("run until an LED lights: an instruction step on the reference CPU, then ru
   await expect(readout(page, "LED Halted")).toHaveText("LED Halted: on");
   await expect(readout(page, "LED Output")).toHaveText("LED Output: 8 (0x08)");
   await expect(counter(page)).toHaveText("Cycle 8, clock high");
+  // The same file opened again: the LED is still there, so the choice stays, and so does the keyboard's place in the menu.
+  await until.focus();
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  await expect(until.locator("option:checked")).toHaveText("Until LED Halted lights");
+  await expect(until).toBeFocused();
+  await expect(readout(page, "LED Halted")).toHaveText("LED Halted: off");
+});
+
+test("every readout row reaches the browser's accessibility tree", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("4-bit-adder"));
+  const rows = page.getByRole("list", { name: "Inputs and outputs" }).locator("li");
+  await expect(rows.first()).toHaveText(/: (on|off)$/);
+  const expected = await rows.allTextContents();
+  expect(expected.length).toBeGreaterThan(0);
+  // The browser's own tree: hiding rows from layout can remove them here while the page's DOM, and locators, still see them.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Accessibility.enable");
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  const spoken = nodes.filter((n) => n.role?.value === "StaticText" && !n.ignored).map((n) => String(n.name?.value));
+  expect(spoken).toEqual(expect.arrayContaining(expected));
 });
 
 test("the program editor assembles into the ROM, lists errors by line, and the CPU runs the new program (ADR 0019)", async ({ page }) => {

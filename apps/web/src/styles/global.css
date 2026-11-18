@@ -38,6 +38,11 @@ body {
   white-space: nowrap;
 }
 
+/* No markers: thousands of them cost layout, and nobody sees them. */
+.readout {
+  list-style: none;
+}
+
 button:focus-visible {
   outline: 2px solid transparent;
   box-shadow: var(--focus-ring);
