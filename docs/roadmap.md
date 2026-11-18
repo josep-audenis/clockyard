@@ -555,6 +555,11 @@ targets, as in Phase 5.
          mains power
          `chain-10k` opens in 0.6–0.7 s (was 1.3–1.4 s), `counters-10k` in
          2.1–2.2 s (was 2.8–3.2 s).
+      8. ✅ Route searches that visit fewer cells: from 2,000 wires the
+         estimate counts the bends still needed; smaller sheets route exactly
+         as before. On battery, measured just before that limit, `fanout-10k`
+         opens in 3.4–3.5 s (was 10.8 s) and `fanout-50k` in 14–15 s (was
+         26–30 s).
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.

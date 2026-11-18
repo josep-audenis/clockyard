@@ -167,7 +167,7 @@ Read so:
 
 | Target | Measured | Met |
 |---|---|---|
-| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s | for `chain` and `cpu` only, after them |
+| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s; with fewer cells searched (section 8, on battery, where the same builds are slower) `fanout` 10.8 → 3.4–3.5 s, `adder` 4.2 → 3.3–3.4 s, `counters` 3.7–3.9 → 3.1–3.2 s | for `chain` and `cpu` only, after them; not measured on mains power since section 8 |
 | A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms | no |
 | Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder`; with shared part shapes (section 7) 30–60 for `chain`, `counters` and `fanout`, 20 for `adder` | partly |
 | 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k`; after step 3's routing index, `chain-50k` 6.3 s, `counters-50k` 22 s; with shared part shapes `chain-50k` 2.4 s; deleting every part of `chain-50k` takes about 1.2 s, over the 1 s asked (other edits not measured) | opening, for `chain` and `cpu` only, after it |
@@ -175,9 +175,9 @@ Read so:
 | The reference CPU keeps 10,000 cycles per second | about 8,300 (`cpu-1k`, four CPUs; reads a few per cent low, and this run was loaded) | no, in this run |
 
 Step 3 of ADR 0030 has optimized panning, the wires an edit or a state redraws, what the page does with each engine
-state, routing a whole sheet, labels and part shapes (below). What these numbers point to next: routing, the largest
-measured part of an open now (section 7), above all `fanout`'s long searches (section 5), and drawing wires, which a toggle that
-changes every wire also pays.
+state, routing a whole sheet, labels, part shapes and the searches themselves (below). What these numbers point to
+next: the rest of an open, now mostly drawing outside routing (section 8), and drawing wires, which a toggle that changes
+every wire also pays.
 
 `pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
 twice as bad (and worse by more than 5), or one the run lost; `node scripts/bench-check.mjs --update` makes the last run
@@ -462,6 +462,52 @@ change was slow throughout, as a first run after a build can be:
 Routing is the largest single part of an open that is measured: of the open times above, about 30 % of `chain-10k`, a
 third of `adder-10k`, over two fifths of `counters-10k` and over four fifths of `fanout-10k`. The rest of an open has
 not been profiled again since this step.
+
+### 8. Searching fewer cells
+
+`fanout-10k` spent over four fifths of an open routing. Counting what its searches did showed three things. Half its
+wires, each NOT gate's to its LED, start at a port whose first cell is taken: each built two search boxes only to find
+that. The other wires that fit a box visited about 7,400 search states each, because the estimate of what was left
+counted distance alone, while every bend costs 3 more. And each search walked every route of its own net in every tile
+it touched, thousands of them where one net fans out across the sheet, only to skip them.
+
+Now:
+
+- On sheets of 2,000 wires or more, the estimate also counts the bends a route must still make, from its heading and
+  the direction it has to arrive in. The search then leaves out cells that cannot lie on a cheapest route. A test checks
+  the count against every position on an open grid: it is never more than a route needs, and no step lowers it by more
+  than that step costs, which is what keeps each search's route cheapest.
+- A port's first cell is checked on its own, before any box is built.
+- Each tile holds its routes by net, so a search skips its own net at once.
+- Routes beside a box are no longer walked along it, and the search's innermost loop is written out.
+
+**Sheets under 2,000 wires route exactly as before**, and a test holds every example to its routes. Counting bends
+everywhere was tried first. Each search still found a route of the same cost on the same obstacles (about 87,000
+searches compared, on the examples, the 1,000- and 10,000-part benchmarks and 400 random sheets). But when several routes
+tie it can take another of them, later wires then meet different obstacles, and a whole sheet can end up worse: on the
+reference CPU, wires no search could place went from 34 to 37, one of them a straight line through five parts. Routing a
+sheet that size takes about 0.2 s, so it has little to gain. A fan-out just under the limit gives up more: at 1,999
+wires it still takes seconds to route, though no longer than before.
+
+**Larger sheets can change.** Of the 10,000- and 50,000-part benchmarks only `fanout` does: 18 wires, with the same total
+length and bends. On all of them, as many wires are left without a search's route as before. Another sheet of that size
+could gain or lose such a wire.
+
+Opening, interleaved (A, B, A, B), **on battery**, so everything is slower than the tables above. These runs came just
+before the limit of 2,000 wires, which none of these sheets is under:
+
+| Benchmark | Open before, s | Open after, s | Routing before, s | Routing after, s |
+|---|---:|---:|---:|---:|
+| chain-10k | 1.13, 1.19 | 1.07, 1.02 | 0.31, 0.34 | 0.29, 0.29 |
+| adder-10k | 4.23, 4.24 | 3.30, 3.41 | 1.47, 1.43 | 0.43, 0.52 |
+| counters-10k | 3.73, 3.85 | 3.11, 3.16 | 1.59, 1.62 | 0.88, 0.89 |
+| fanout-10k | 10.8, 10.8 | 3.38, 3.53 | 9.08, 9.12 | 1.60, 1.66 |
+| chain-50k | 4.60, 4.62 | 4.62, 4.79 | 1.37, 1.51 | 1.42, 1.31 |
+| counters-50k | 13.7, 14.0 | 12.1, 11.4 | 4.80, 5.15 | 3.11, 3.13 |
+| fanout-50k | 30.1, 25.9 | 15.0, 14.2 | 19.4, 16.3 | 4.06, 4.10 |
+
+`chain` barely searches (22 states a wire), so it gains nothing. Routing is now under half of every open here, and the
+rest, drawing above all, is what remains: about 2.9 s of `adder-10k` and 2.2 s of `counters-10k` on this power.
 
 ## Earlier measurements
 
