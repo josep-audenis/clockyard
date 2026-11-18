@@ -49,9 +49,15 @@ button:focus-visible {
   box-shadow: var(--focus-ring);
 }
 
-h2:focus {
-  outline: none;
-  box-shadow: none;
+h2:focus-visible {
+  border-radius: var(--radius-sm);
+}
+
+/* A pane reached with F6: the ring sits inside, because panes touch the window's edges. */
+.toolbar:focus-visible,
+.parts:focus-visible,
+.inspector:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
 }
 
 .icon,
@@ -152,15 +158,25 @@ h2:focus {
   padding: var(--space-1) var(--space-2);
   background: var(--ink);
   color: var(--panel);
+  /* Transparent here; forced-colors mode draws it. */
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   font: 400 11px/14px var(--font-sans);
   white-space: normal;
   text-align: left;
-  pointer-events: none;
+  cursor: default;
   opacity: 0;
   visibility: hidden;
   transform: translateX(-50%);
   transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+/* Bridges the gap under the button, so the pointer can move onto the tip (WCAG 1.4.13). */
+.tip::before {
+  content: "";
+  position: absolute;
+  inset: -8px 0;
+  z-index: -1;
 }
 
 .button:hover > .tip {
@@ -197,7 +213,8 @@ h2:focus {
   position: relative;
   z-index: 3;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  /* The centre stays centred while there is room; only the left side gives way when there is not. */
+  grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
   align-items: center;
   gap: var(--space-4);
   padding: 0 var(--space-3);
@@ -231,6 +248,7 @@ h2:focus {
 }
 
 .run-controls {
+  flex: none;
   gap: var(--space-1);
 }
 
@@ -247,6 +265,7 @@ h2:focus {
   flex: none;
   align-items: center;
   gap: var(--space-2);
+  margin: 0;
   font-family: var(--font-mono);
   font-weight: 600;
   font-size: 15px;
@@ -266,7 +285,9 @@ input.project-name {
   color: var(--ink);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  /* The underline says it can be edited. */
+  border-bottom-color: var(--line-strong);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   text-overflow: ellipsis;
   transition: background-color var(--duration-fast) var(--ease-out);
 }
@@ -386,7 +407,7 @@ select.input {
 /* What Import, Export and Copy link have to say, floating over the canvas under the toolbar. */
 .file-messages {
   position: fixed;
-  top: calc(var(--toolbar-height) + var(--space-2));
+  top: calc(var(--toolbar-offset) + var(--space-2));
   left: 50%;
   z-index: 20;
   display: flex;
@@ -447,6 +468,15 @@ select.input {
 .parts {
   position: relative;
   border-right: 1px solid var(--line);
+  /* A focused control is never left under the sticky header or against the bottom edge. */
+  scroll-padding-block: calc(var(--library-nav-height) + var(--space-2)) var(--space-2);
+}
+
+/* Room for the last sections to scroll up to the header when the panel is tall. */
+.parts::after {
+  content: "";
+  display: block;
+  height: max(0px, calc(100vh - var(--toolbar-height) - var(--statusbar-height) - var(--library-nav-height) - 640px));
 }
 
 .inspector {
@@ -459,9 +489,13 @@ select.input {
   scroll-margin-top: var(--library-nav-height);
 }
 
+/* Set in mono, like the labels engraved on a bench. */
 .panel-title {
   margin: 0 0 var(--space-2);
   color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.06em;
 }
 
 /* The parts panel's header: where each kind of thing is, and which is in view. */
@@ -470,7 +504,8 @@ select.input {
   top: 0;
   z-index: 2;
   display: grid;
-  grid-template-columns: repeat(4, auto);
+  grid-template-columns: auto auto auto auto;
+  justify-content: space-between;
   gap: 2px;
   height: var(--library-nav-height);
   padding: var(--space-1) var(--space-2);
@@ -496,8 +531,13 @@ select.input {
 }
 
 .library-link[aria-current="true"] {
-  background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--ink);
+  box-shadow: inset 0 -2px var(--accent);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.library-link:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
 .palette {
@@ -514,7 +554,8 @@ select.input {
 .part-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-1);
+  grid-auto-rows: 58px;
+  gap: 2px;
 }
 
 /* A row in the parts panel's lists: chips, projects, challenges and examples. */
@@ -561,33 +602,28 @@ select.input {
   white-space: nowrap;
 }
 
-/* A palette tile: its symbol over its name, with the shortcut in the corner. */
+/* A palette tile: its symbol over its name, the shortcut in the corner. Quiet until pointed at: the canvas leads. */
 .part-grid .part-tile {
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
   gap: 3px;
-  min-height: 54px;
-  padding: 7px 2px 4px;
-  background: var(--panel-raised);
-  border-color: var(--line);
+  min-height: 0;
+  padding: var(--space-1) 2px;
   border-radius: var(--radius-md);
+  color: var(--ink-muted);
   font-size: 11px;
+  font-weight: 400;
   line-height: 13px;
   text-align: center;
 }
 
-.part-grid .part-tile:hover {
-  border-color: var(--line-strong);
+.part-grid .part-tile .glyph {
+  color: var(--ink);
 }
 
-/* A tile left alone on its row takes the whole row, on its side, so the grid has no holes. */
-.part-grid .part-tile:last-child:nth-child(3n + 1) {
-  grid-column: 1 / -1;
-  flex-direction: row;
-  justify-content: center;
-  gap: var(--space-2);
-  min-height: 32px;
-  padding: 0 var(--space-2);
+.part-grid .part-tile:hover {
+  border-color: var(--line);
+  color: var(--ink);
 }
 
 .part-grid .part-name {
@@ -609,10 +645,12 @@ select.input {
 .part-tile[aria-pressed="true"],
 .part-grid .part-tile[aria-pressed="true"] {
   background: var(--accent-soft);
+  color: var(--ink);
   border-color: var(--accent);
 }
 
 .part-tile[aria-pressed="true"] .glyph,
+.part-grid .part-tile[aria-pressed="true"] .glyph,
 .part-tile[aria-pressed="true"] .kbd {
   color: var(--accent);
 }
@@ -756,12 +794,24 @@ select.input {
   margin: 0;
 }
 
-.challenge-result:empty {
-  display: none;
+.challenge-text {
+  font-size: 13px;
+  line-height: 18px;
 }
 
-.challenge-passed {
-  color: var(--ok);
+/* The engine's verdict: a failure until it says passed. Kept in the page while empty, to be announced. */
+.challenge-result:not(:empty) {
+  padding: var(--space-2) var(--space-3);
+  background: var(--danger-soft);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.challenge-result.challenge-passed:not(:empty) {
+  background: var(--ok-soft);
+  border-left-color: var(--ok);
 }
 
 /* ----------------------------------------------------------------- Canvas */
@@ -865,7 +915,7 @@ select.input {
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
-  padding: 0 var(--space-3) 0 var(--space-1);
+  padding: 0 var(--space-3);
   background: var(--panel);
   border-top: 1px solid var(--line);
   font-family: var(--font-sans);
@@ -891,6 +941,7 @@ select.input {
   align-items: center;
   gap: 6px;
   height: 20px;
+  margin-left: calc(-1 * var(--space-2));
   padding: 0 var(--space-2);
   border-radius: var(--radius-sm);
   font-weight: 500;
@@ -922,6 +973,11 @@ select.input {
   color: var(--ink-muted);
 }
 
+.status-running {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .status-running .status-dot {
   animation: status-pulse 1.2s var(--ease-out) infinite;
 }
@@ -941,6 +997,15 @@ select.input {
 
 .statusbar:has(.status-danger) .status-message {
   color: var(--ink);
+}
+
+.status-probe {
+  flex: none;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .status-save {
@@ -1094,6 +1159,10 @@ pre.memory-words {
   font: 400 13px/20px var(--font-sans);
   white-space: pre-wrap;
   resize: vertical;
+  /* Grows with its text, so a line is not cut at the bottom; browsers without this keep the rows. */
+  field-sizing: content;
+  min-height: 112px;
+  max-height: 340px;
 }
 
 /* -------------------------------------------------------------- Waveforms */
@@ -1176,12 +1245,18 @@ pre.memory-words {
 
 .wave-bit {
   fill: none;
-  stroke: var(--signal-high);
+  stroke: var(--signal-low);
   stroke-width: 1.5;
 }
 
+.wave-high {
+  fill: none;
+  stroke: var(--signal-high);
+  stroke-width: 2;
+}
+
 .wave-bus {
-  fill: var(--signal-high-soft);
+  fill: color-mix(in srgb, var(--signal-bus) 14%, transparent);
   stroke: var(--signal-bus);
   stroke-width: 1;
 }
@@ -1230,13 +1305,6 @@ pre.memory-words {
 
 .dialog::backdrop {
   background: var(--scrim);
-}
-
-.dialog-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
 }
 
 .dialog-title,
@@ -1346,8 +1414,14 @@ pre.memory-words {
 
 /* ------------------------------------------------------------ Small widths */
 
-/* Button labels give way to their glyphs; the names stay for assistive technology and the tips stay for the eye. */
-@media (max-width: 1240px) {
+/* Button labels give way to their glyphs, last for Run; names stay for assistive technology, tips for the eye. */
+@media (max-width: 1180px) {
+  .wordmark-name {
+    display: none;
+  }
+}
+
+@media (max-width: 1080px) {
   .file-actions .button-label {
     position: absolute;
     width: 1px;
@@ -1362,11 +1436,7 @@ pre.memory-words {
   }
 }
 
-@media (max-width: 1000px) {
-  .wordmark-name {
-    display: none;
-  }
-
+@media (max-width: 860px) {
   .run-controls > .button:not(.run-toggle) .button-label {
     position: absolute;
     width: 1px;
@@ -1396,7 +1466,7 @@ pre.memory-words {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     grid-column: 1 / -1;
-    max-height: min(30vh, 240px);
+    max-height: min(30vh, 220px);
     border-left: 0;
     border-top: 1px solid var(--line);
   }
@@ -1410,25 +1480,79 @@ pre.memory-words {
   }
 
   .inspector .notes {
-    min-height: 72px;
+    height: 96px;
+    min-height: 0;
+    field-sizing: fixed;
+  }
+
+  .inspector .notes + .field-hint {
+    display: none;
   }
 }
 
+/* Narrower still: the toolbar takes two rows, and the panels stack around the canvas. */
 @media (max-width: 700px) {
+  :root {
+    --toolbar-offset: 84px;
+  }
+
+  .shell {
+    grid-template-rows: auto minmax(0, 1fr) var(--statusbar-height);
+  }
+
   .toolbar {
     display: flex;
-    gap: var(--space-2);
-    overflow-x: auto;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-2);
+    padding-block: var(--space-1);
   }
 
-  .toolbar-start,
+  .toolbar-start {
+    flex: 1 1 0;
+  }
+
   .toolbar-end {
     flex: none;
+    gap: 2px;
   }
 
-  .project-name,
-  .toolbar-start > .toolbar-sep {
+  .toolbar-end > .toolbar-sep {
+    margin: 0 2px;
+  }
+
+  .run-controls {
+    flex: 1 1 100%;
+    order: 3;
+  }
+
+  .run-speed,
+  .run-select {
+    flex: 1 1 0;
+  }
+
+  .run-speed select.input,
+  .run-select select.input {
+    width: 100%;
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 180px minmax(260px, 1fr) auto;
+    overflow-y: auto;
+  }
+
+  .parts {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .parts::after {
     display: none;
+  }
+
+  .inspector {
+    grid-column: auto;
   }
 
   .shortcut-list {
@@ -1454,6 +1578,10 @@ pre.memory-words {
   .library-link[aria-current="true"],
   .project-tile[aria-current="true"] {
     outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .library-link[aria-current="true"] {
     outline-offset: -2px;
   }
 

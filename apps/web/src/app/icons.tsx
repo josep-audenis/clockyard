@@ -20,6 +20,7 @@ const ICONS = {
   minus: <path d="M3 8h10" />,
   fit: <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" />,
   close: <path d="m4 4 8 8M12 4l-8 8" />,
+  bookmark: <path d="M4 2.5h8v11L8 10.5l-4 3z" />,
   check: <path d="m3 8.5 3.2 3.2L13 4.8" />,
   chevron: <path d="m6 3.5 4.5 4.5L6 12.5" />,
   keyboard: (

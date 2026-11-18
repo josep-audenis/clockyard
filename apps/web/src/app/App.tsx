@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import { definitionName, definitionsVersion } from "../canvas/layout";
+import { definitionName, definitionsVersion, layoutOf } from "../canvas/layout";
 import { mountCanvas, useCanvasHints, viewControls } from "../canvas/scene";
 import {
   contains,
@@ -148,25 +149,65 @@ function ToolButton({
       <Icon name={icon} />
       {!iconOnly && <span className="button-label">{label}</span>}
       {/* Hidden from the accessibility tree: the name stays the label, and the tip is the description above. */}
-      <span className="tip" aria-hidden="true">
+      <span className="tip" aria-hidden="true" onClick={(e) => e.stopPropagation()}>
         {tip}
       </span>
     </button>
   );
 }
 
+/** What the editor last did that shows only on the canvas or elsewhere: said once by the status bar's quiet region. */
+const useAnnouncement = create<{ text: string }>(() => ({ text: "" }));
+const announce = (text: string) => useAnnouncement.setState({ text });
+
+/** The panes F6 steps through; after the last, the keyboard goes back to the canvas. */
+const PANES = [".toolbar", ".parts", ".inspector"];
+
+/** Moves the keyboard to a pane, or with none to the canvas, whose keys work when nothing has focus. */
+function focusPane(selector?: string) {
+  const pane = selector ? document.querySelector<HTMLElement>(selector) : null;
+  if (pane) {
+    pane.tabIndex = -1;
+    pane.focus();
+  } else if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur();
+    announce("Canvas has the keyboard.");
+  }
+}
+
 export function App() {
   useEffect(() => connectEngine(), []);
-  // Escape hides an open tip (WCAG 1.4.13) until the pointer or focus moves on.
+  // Escape hides an open tip (WCAG 1.4.13), and using a control hides its tip, until the pointer or focus moves on.
   useEffect(() => {
     const root = document.documentElement;
-    const hide = (e: KeyboardEvent) => e.key === "Escape" && root.setAttribute("data-tips-off", "");
+    const hide = () => root.setAttribute("data-tips-off", "");
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" || e.key === "Enter" || e.key === " ") hide();
+      if (e.key !== "F6" || document.querySelector("dialog[open]")) return;
+      e.preventDefault();
+      const at = PANES.findIndex((pane) => document.activeElement?.closest(pane));
+      const count = PANES.length + 1;
+      // From the canvas (-1 counts as the slot after the last pane), forward or back, wrapping.
+      const from = at < 0 ? PANES.length : at;
+      focusPane(PANES[(from + (e.shiftKey ? -1 : 1) + count) % count]);
+    };
     const show = () => root.removeAttribute("data-tips-off");
-    window.addEventListener("keydown", hide);
+    // A click on a button leaves the keyboard with the canvas, as a press on the canvas does: a field being typed in
+    // commits, and part and canvas keys work next. Tab still reaches every button.
+    const keepKeys = (e: MouseEvent) => {
+      if (!(e.target instanceof Element) || !e.target.closest("button") || e.target.closest("dialog")) return;
+      e.preventDefault();
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", hide);
+    window.addEventListener("mousedown", keepKeys);
     window.addEventListener("pointerover", show);
     window.addEventListener("focusin", show);
     return () => {
-      window.removeEventListener("keydown", hide);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", hide);
+      window.removeEventListener("mousedown", keepKeys);
       window.removeEventListener("pointerover", show);
       window.removeEventListener("focusin", show);
     };
@@ -187,7 +228,7 @@ export function App() {
     <div className="shell">
       <header className="toolbar">
         <div className="toolbar-start">
-          <span className="wordmark">
+          <h1 className="wordmark">
             {/* The mark inline on tokens so it follows the theme; fixed-ink copies live in docs/assets. */}
             <svg viewBox="0 0 64 64" width="24" height="24" aria-hidden="true">
               <rect width="64" height="64" rx="6" fill="var(--bench)" stroke="var(--line)" strokeWidth="2" />
@@ -197,7 +238,7 @@ export function App() {
               <circle cx="48" cy="48" r="4.5" fill="var(--bench)" stroke="var(--signal-low)" strokeWidth="3" />
             </svg>
             <span className="wordmark-name">Clockyard</span>
-          </span>
+          </h1>
           <span className="toolbar-sep" aria-hidden="true" />
           <ProjectTitle />
           <Breadcrumb />
@@ -271,6 +312,7 @@ function ProjectTitle() {
 const LONG_LINK = 8000;
 
 function FileActions() {
+  const actions = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   // A link the clipboard refused, shown to copy by hand.
@@ -344,7 +386,7 @@ function FileActions() {
   };
 
   return (
-    <div className="file-actions">
+    <div ref={actions} className="file-actions">
       {/* Floats under the toolbar, so a long message is read whole and moves nothing. */}
       <div className="file-messages">
         {error && (
@@ -360,7 +402,16 @@ function FileActions() {
           <input className="input file-link" readOnly value={manual} aria-label="Link to this circuit" onFocus={(e) => e.target.select()} />
         )}
         {(error || notice) && (
-          <button type="button" className="button button-quiet button-icon" aria-label="Dismiss" onClick={() => report(null)}>
+          <button
+            type="button"
+            className="button button-quiet button-icon"
+            aria-label="Dismiss"
+            onClick={(e) => {
+              report(null);
+              // This button goes with the message: from the keyboard, focus moves on instead of falling back to the page.
+              if (e.detail === 0) actions.current?.querySelector<HTMLElement>(":scope > .button")?.focus();
+            }}
+          >
             <Icon name="close" />
           </button>
         )}
@@ -447,7 +498,8 @@ function PartsLibrary() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target) || document.querySelector("dialog[open]")) return;
+      // Only while the canvas has the keyboard (WCAG 2.1.4): a letter typed on a focused control does not arm a part.
+      if (e.ctrlKey || e.metaKey || e.altKey || e.target !== document.body || document.querySelector("dialog[open]")) return;
       const kind = SHORTCUTS.get(e.key.toUpperCase());
       if (kind && kind !== "label") useEditor.getState().arm(kind);
     };
@@ -459,7 +511,13 @@ function PartsLibrary() {
     <aside ref={panel} className="parts" aria-label="Parts" onScroll={onScroll}>
       <nav className="library-nav" aria-label="Library sections">
         {SECTIONS.map(([id, label]) => (
-          <button key={id} type="button" className="library-link type-label" aria-current={id === section ? "true" : undefined} onClick={() => jumpTo(id)}>
+          <button
+            key={id}
+            type="button"
+            className="library-link type-label"
+            aria-current={id === section ? "true" : undefined}
+            onClick={(e) => jumpTo(id, e.detail === 0)}
+          >
             {label}
           </button>
         ))}
@@ -476,9 +534,12 @@ function PartsLibrary() {
                   className="part-tile type-label"
                   aria-pressed={kind === "label" ? armedLabel : armed === kind && armedWidth === width}
                   aria-keyshortcuts={key}
-                  onClick={() =>
-                    kind === "label" ? armLabel(!armedLabel) : arm(armed === kind && armedWidth === width ? null : kind, width)
-                  }
+                  onClick={(e) => {
+                    // From the keyboard there is no pointer to place with: the part goes straight onto the sheet.
+                    if (e.detail === 0) placeFromKeyboard(kind, width);
+                    else if (kind === "label") armLabel(!armedLabel);
+                    else arm(armed === kind && armedWidth === width ? null : kind, width);
+                  }}
                 >
                   <PartGlyph name={name} />
                   <span className="part-name">{name}</span>
@@ -506,7 +567,7 @@ function PartsLibrary() {
                     type="button"
                     className="part-tile type-label"
                     aria-pressed={on}
-                    onClick={() => (on ? arm(null) : armChip(d.id))}
+                    onClick={(e) => (e.detail === 0 ? placeFromKeyboard("custom", 1, d.id) : on ? arm(null) : armChip(d.id))}
                   >
                     <PartGlyph />
                     <span className="part-name">{d.name}</span>
@@ -519,7 +580,7 @@ function PartsLibrary() {
                       title={`Save ${d.name} to your library, with the components it contains`}
                       onClick={() => void keep(d.name, d.id)}
                     >
-                      <Icon name="import" size={14} />
+                      <Icon name="bookmark" size={14} />
                     </button>
                   )}
                   <button
@@ -549,8 +610,8 @@ function PartsLibrary() {
         <AddComponents />
       </section>
       <ProjectsPanel />
-      <ChallengeList />
       <ExampleList />
+      <ChallengeList />
     </aside>
   );
 }
@@ -560,18 +621,40 @@ const SECTIONS = [
   ["parts", "Parts"],
   ["chips", "Chips"],
   ["projects", "Projects"],
-  ["learn", "Learn"],
+  ["examples", "Examples"],
 ] as const;
 
-/** Scrolls the parts panel to a section and moves the keyboard to its heading. */
-function jumpTo(id: string) {
+/** Scrolls the parts panel to a section; from the keyboard, focus goes to its heading so Tab carries on there. */
+function jumpTo(id: string, keyboard: boolean) {
   const section = document.querySelector<HTMLElement>(`[data-section="${id}"]`);
   const heading = section?.querySelector("h2");
   if (!section || !heading) return;
   const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   section.scrollIntoView({ block: "start", behavior: calm ? "auto" : "smooth" });
+  if (!keyboard) return;
   heading.tabIndex = -1;
   heading.focus({ preventScroll: true });
+}
+
+/** Puts a part on the sheet without a pointer: at the left, below everything there, selected for the inspector. */
+function placeFromKeyboard(kind: PartKind | "label", width: number, definition?: string) {
+  const editor = useEditor.getState();
+  const { components, junctions } = editor.circuit;
+  const bottom = Math.max(-2, ...components.map((c) => c.position.y + layoutOf(c).height), ...junctions.map((j) => j.position.y));
+  const position = { x: 2, y: bottom + 3 };
+  if (kind === "label") {
+    const id = editor.addLabel(position);
+    // Its Name field takes the keyboard, as after a click.
+    if (id) useCanvasHints.setState({ focusValue: id });
+  } else {
+    if (definition) editor.armChip(definition);
+    else editor.arm(kind, width);
+    const id = useEditor.getState().add(kind, position);
+    const { circuit } = useEditor.getState();
+    const part = circuit.components.find((c) => c.id === id);
+    if (part) announce(`${partName(circuit.components, part)} placed and selected.`);
+  }
+  viewControls.fit?.();
 }
 
 /** The keyboard and gesture reference: from the toolbar, or `?` anywhere outside a field. */
@@ -580,6 +663,7 @@ function ShortcutsHelp() {
   const id = useId();
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // Keeps working from a focused button: only a field or an open dialog takes the key.
       if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target) || document.querySelector("dialog[open]")) return;
       e.preventDefault();
       dialog.current?.showModal();
@@ -605,14 +689,9 @@ function ShortcutsHelp() {
         onKeyDown={(e) => e.stopPropagation()}
         onClick={(e) => e.target === dialog.current && dialog.current.close()}
       >
-        <div className="dialog-head">
-          <h2 id={`${id}-title`} className="type-title dialog-title">
-            Shortcuts and gestures
-          </h2>
-          <button type="button" className="button button-quiet button-icon" aria-label="Close" onClick={() => dialog.current?.close()}>
-            <Icon name="close" />
-          </button>
-        </div>
+        <h2 id={`${id}-title`} className="type-title dialog-title">
+          Shortcuts and gestures
+        </h2>
         <dl className="shortcut-list type-body">
           {HELP.map(([keys, action]) => (
             <div key={action}>
@@ -621,6 +700,11 @@ function ShortcutsHelp() {
             </div>
           ))}
         </dl>
+        <div className="dialog-actions">
+          <button type="button" className="button type-label" onClick={() => dialog.current?.close()}>
+            Close
+          </button>
+        </div>
       </dialog>
     </>
   );
@@ -648,6 +732,9 @@ const HELP: [ReactNode, string][] = [
   [keys(MOD, "D", "A"), "Duplicate, select all"],
   [keys(MOD, "Z"), "Undo"],
   [keys(MOD, "Shift", "Z"), "Redo"],
+  [<>{keys("Enter")} on a part</>, "Place it on the sheet"],
+  [keys("F6"), "Next pane; Shift goes back"],
+  [keys("?"), "This list"],
 ];
 
 function Canvas() {
@@ -734,7 +821,14 @@ function Lane({ trace, width, start, end }: { trace: Float64Array; width: number
   const [top, bottom, middle] = [4, LANE_HEIGHT - 4, LANE_HEIGHT / 2];
   if (width === 1) {
     const d = segments.map(({ x0, x1, value }, i) => `${i ? "V" : `M${x0} `}${value ? top : bottom}H${x1}`).join("");
-    return <path className="wave-bit" d={d} />;
+    // Amber only where the signal is 1, as on a wire (ADR 0008).
+    const high = segments.flatMap(({ x0, x1, value }) => (value ? [`M${x0} ${top}H${x1}`] : [])).join("");
+    return (
+      <>
+        <path className="wave-bit" d={d} />
+        <path className="wave-high" d={high} />
+      </>
+    );
   }
   return segments.map(({ tick, x0, x1, value }) => {
     // Without `0x`, so an 8-bit value fits in one cycle; the value column has it in full.
@@ -805,6 +899,8 @@ function WavePanel() {
   const onKeyDown = (e: ReactKeyboardEvent) => {
     const step = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
     if (step) setCursor(Math.min(Math.max((at ?? time) + step, start), time));
+    else if (e.key === "Home") setCursor(start);
+    else if (e.key === "End") setCursor(time);
     else if (e.key === "Escape") setCursor(null);
     else return;
     // Not the canvas's too: Escape there clears the selection.
@@ -831,7 +927,22 @@ function WavePanel() {
               <li key={net} className="waves-row">
                 <span className="type-label waves-name">{name}</span>
                 <span className="type-value waves-value">{value === undefined ? "unknown" : showValue(value, width)}</span>
-                <button type="button" className="button button-quiet waves-remove" aria-label={`Stop watching ${name}`} onClick={() => wires.forEach((w) => watch(w, false))}>
+                <button
+                  type="button"
+                  className="button button-quiet waves-remove"
+                  aria-label={`Stop watching ${name}`}
+                  onClick={(e) => {
+                    if (e.detail === 0) {
+                      // This row goes: from the keyboard, focus moves to a neighbour, or back to the canvas with the panel.
+                      const all = [...(e.currentTarget.closest("ul")?.querySelectorAll("button") ?? [])];
+                      const i = all.indexOf(e.currentTarget);
+                      const next = all[i + 1] ?? all[i - 1];
+                      if (next) next.focus();
+                      else focusPane();
+                    }
+                    wires.forEach((w) => watch(w, false));
+                  }}
+                >
                   <Icon name="close" size={12} />
                 </button>
               </li>
@@ -884,10 +995,10 @@ function EmptyHint() {
         <strong>Empty sheet.</strong> Choose a part on the left, or press <kbd className="kbd">S</kbd> for a switch, then click here to place it.
       </p>
       <div className="canvas-empty-actions">
-        <button type="button" className="button type-label" onClick={() => jumpTo("examples")}>
+        <button type="button" className="button type-label" onClick={(e) => jumpTo("examples", e.detail === 0)}>
           Browse examples
         </button>
-        <button type="button" className="button type-label" onClick={() => jumpTo("learn")}>
+        <button type="button" className="button type-label" onClick={(e) => jumpTo("challenges", e.detail === 0)}>
           Try a challenge
         </button>
       </div>
@@ -898,17 +1009,7 @@ function EmptyHint() {
 function ZoomControls() {
   const zoom = useCanvasHints((s) => s.zoom);
   return (
-    // A click hands the keyboard to the canvas, as a press on the canvas does: a field being typed in commits,
-    // and Space pans and F fits next. Tab still reaches the buttons.
-    <div
-      className="zoom-controls"
-      role="group"
-      aria-label="Zoom"
-      onMouseDown={(e) => {
-        e.preventDefault();
-        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-      }}
-    >
+    <div className="zoom-controls" role="group" aria-label="Zoom">
       <ToolButton icon="minus" label="Zoom out" tip="Zoom out" iconOnly className="button-icon" onClick={() => viewControls.zoomBy?.(1 / 1.25)} />
       <button type="button" className="button button-quiet zoom-level" title="Zoom to 100%" onClick={() => viewControls.zoomBy?.(1 / zoom)}>
         {Math.round(zoom * 100)}%
@@ -990,7 +1091,7 @@ function ChallengeList() {
     if (await openDocument(document)) useEditor.getState().openSheet(challenge.definition);
   };
   return (
-    <section className="panel" aria-labelledby="challenges-title" data-section="learn">
+    <section className="panel" aria-labelledby="challenges-title" data-section="challenges">
       <h2 id="challenges-title" className="type-heading panel-title">
         CHALLENGES
       </h2>
@@ -1475,7 +1576,7 @@ function Breadcrumb() {
   if (!sheet) return null;
   return (
     <nav className="breadcrumb type-label" aria-label="Sheet">
-      <Icon name="chevron" size={12} />
+      <span className="toolbar-sep" aria-hidden="true" />
       <button type="button" className="button button-quiet type-label" onClick={closeSheet}>
         Main circuit
       </button>
@@ -2194,12 +2295,21 @@ function StatusBar() {
       ? error
       : keyboard
         ? "The keyboard has the keys: what you type goes to the circuit. Esc, Tab or a click elsewhere gives them back."
-        : probed !== undefined
-          ? `${bits} bits: ${probed}, ${hex(probed, bits)}`
-          : placing ||
+        : placing ||
           why ||
           (first &&
         `${first.code === "unstable" ? stoppedUnstable : ""}${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`);
+
+  // Said once, for what shows only on the canvas: time moved by Step or Reset, another project opened.
+  const projectId = useProjects((s) => s.projectId);
+  const said = useAnnouncement((s) => s.text);
+  const last = useRef({ time, projectId });
+  useEffect(() => {
+    const { time: lastTime, projectId: lastProject } = last.current;
+    last.current = { time, projectId };
+    if (lastProject && projectId && projectId !== lastProject) announce(`Opened ${useEditor.getState().metadata.name}.`);
+    else if (time !== lastTime && !running && clocked) announce(`Now at cycle ${Math.floor((time + 1) / 2)}, clock ${time % 2 === 1 ? "high" : "low"}.`);
+  }, [time, projectId, running, clocked]);
 
   return (
     <footer className="statusbar">
@@ -2213,6 +2323,11 @@ function StatusBar() {
           {message}
         </span>
       </div>
+      <p className="visually-hidden" aria-live="polite">
+        {said}
+      </p>
+      {/* Follows the pointer, so it stays out of the status region. */}
+      {probed !== undefined && <span className="status-probe">{`${bits} bits: ${probed}, ${hex(probed, bits)}`}</span>}
       <SaveStatus />
       {clocked && (
         <span className="status-cycle">

@@ -134,6 +134,7 @@
   /* Editor chrome (ADR 0032): derived from the palette above, so each follows the theme. */
   --space-5: 20px;
   --library-nav-height: 36px;
+  --toolbar-offset: var(--toolbar-height);
   --hover: color-mix(in srgb, var(--ink) 7%, transparent);
   --press: color-mix(in srgb, var(--ink) 13%, transparent);
   --accent-strong: color-mix(in srgb, var(--accent) 85%, var(--ink));
