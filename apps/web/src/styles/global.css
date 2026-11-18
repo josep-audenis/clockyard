@@ -77,6 +77,17 @@ h2:focus-visible {
   box-shadow: inset 0 0 0 2px var(--focus);
 }
 
+/* The canvas's ring is an outline: its drawing surface would cover an inset shadow. */
+.canvas-host:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+[hidden] {
+  display: none !important;
+}
+
 .icon,
 .glyph {
   flex: none;
@@ -271,7 +282,6 @@ h2:focus-visible {
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--space-1);
   height: 36px;
   padding: 0 3px;
   background: var(--bench);
@@ -282,35 +292,6 @@ h2:focus-visible {
 .run-controls {
   flex: none;
   gap: 2px;
-}
-
-.cycle-readout {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 var(--space-2);
-  border-left: 1px solid var(--line);
-  color: var(--ink-muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-/* Shaped as well as coloured: a lit clock is a filled square, an unlit one an outline. */
-.cycle-led {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  border: 1px solid var(--signal-low);
-  border-radius: 1px;
-}
-
-.cycle-led-high {
-  background: var(--signal-high);
-  border-color: var(--signal-high);
 }
 
 .toolbar-sep {
@@ -334,7 +315,25 @@ h2:focus-visible {
 }
 
 .project-name {
-  min-width: 0;
+  min-width: 8ch;
+}
+
+/* Three tiers: Run, then the commands, then settings and file actions, which stay quiet until pointed at. */
+.file-actions .button,
+.tool-group .button,
+.toolbar-end > .button {
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+.file-actions .button:hover:not(:disabled),
+.tool-group .button:hover:not(:disabled),
+.toolbar-end > .button:hover {
+  color: var(--ink);
+}
+
+.tool-group .button:disabled {
+  color: var(--ink-faint);
 }
 
 input.project-name {
@@ -375,6 +374,7 @@ input.project-name:focus {
 .breadcrumb .button {
   flex: none;
   color: var(--ink-muted);
+  font-weight: 400;
 }
 
 .breadcrumb .button:hover {
@@ -442,7 +442,7 @@ input.project-name:focus {
 select.input {
   appearance: none;
   width: 100%;
-  padding-right: 24px;
+  padding-right: 22px;
   overflow: hidden;
   font: 500 12px/16px var(--font-sans);
   text-overflow: ellipsis;
@@ -451,22 +451,30 @@ select.input {
 }
 
 .run-controls select.input {
+  /* As wide as its value, so the chevron stays beside it. */
+  field-sizing: content;
+  max-width: 180px;
   background: transparent;
+  color: var(--ink-muted);
   border-color: transparent;
   border-radius: var(--radius-md);
+  font-weight: 400;
 }
 
 .run-controls select.input:hover {
   background: var(--hover);
+  color: var(--ink);
   border-color: transparent;
 }
 
-.run-speed select.input {
-  width: 76px;
-}
+@supports not (field-sizing: content) {
+  .run-speed select.input {
+    width: 76px;
+  }
 
-.run-select select.input {
-  width: 124px;
+  .run-select select.input {
+    width: 124px;
+  }
 }
 
 /* What Import, Export and Copy link have to say, floating over the canvas under the toolbar. */
@@ -522,14 +530,10 @@ select.input {
   min-height: 0;
 }
 
-/* A soft shade at the bottom edge says there is more, and scrolls away at the end. */
 .parts,
 .inspector {
   overflow: hidden auto;
-  background:
-    linear-gradient(transparent, var(--panel) 70%) bottom / 100% 36px no-repeat local,
-    linear-gradient(transparent, var(--press)) bottom / 100% 12px no-repeat scroll,
-    var(--panel);
+  background: var(--panel);
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
 }
@@ -537,19 +541,9 @@ select.input {
 .parts {
   position: relative;
   border-right: 1px solid var(--line);
-  /* A focused control is never left under the sticky header or against the bottom edge. */
+  /* A focused control is never left under the sticky tabs or against the bottom edge. */
   scroll-padding-block: calc(var(--library-nav-height) + var(--space-2)) var(--space-2);
-}
-
-/* Room for the last sections to scroll up to the header when the panel is tall. */
-.parts::after {
-  content: "";
-  display: block;
-  height: max(0px, calc(100vh - var(--toolbar-height) - var(--statusbar-height) - var(--library-nav-height) - 640px));
-}
-
-.inspector {
-  border-left: 1px solid var(--line);
+  padding-bottom: var(--space-4);
 }
 
 .panel {
@@ -557,13 +551,23 @@ select.input {
   border-bottom: 1px solid var(--line);
 }
 
-/* Set in mono, like the labels engraved on a bench. */
+/* Silkscreen: a mono label with a trace running from it to the board's edge. */
 .panel-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   margin: 0 0 var(--space-2);
   color: var(--ink-muted);
   font-family: var(--font-mono);
   font-weight: 500;
   letter-spacing: 0.06em;
+}
+
+.panel-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
 }
 
 /* The parts panel's header: where each kind of thing is, and which is in view. */
@@ -573,7 +577,6 @@ select.input {
   z-index: 2;
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
   gap: 2px;
   min-height: var(--library-nav-height);
   padding: var(--space-1) var(--space-2);
@@ -582,6 +585,7 @@ select.input {
 }
 
 .library-link {
+  flex: 1;
   min-height: 28px;
   padding: 0 var(--space-1);
   background: transparent;
@@ -599,14 +603,14 @@ select.input {
   color: var(--ink);
 }
 
-.library-link[aria-current="true"] {
+.library-link[aria-selected="true"] {
   color: var(--ink);
   box-shadow: inset 0 -2px var(--accent);
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 }
 
 .library-link:focus-visible {
-  box-shadow: var(--focus-ring);
+  box-shadow: inset 0 0 0 2px var(--focus);
 }
 
 .palette {
@@ -619,11 +623,24 @@ select.input {
   border-bottom: 0;
 }
 
+.palette .panel + .panel {
+  padding-top: var(--space-2);
+}
+
 .part-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-auto-rows: minmax(58px, auto);
   gap: var(--space-1);
+}
+
+/* No holes: four tiles make two rows of two, and a last tile alone takes its row. */
+.part-grid:has(> :nth-child(4):last-child) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.part-grid > :last-child:nth-child(3n + 1):not(:nth-child(4)) {
+  grid-column: 1 / -1;
 }
 
 /* A row in the parts panel's lists: chips, projects, challenges and examples. */
@@ -636,6 +653,7 @@ select.input {
   padding: 0 var(--space-2);
   background: transparent;
   color: var(--ink);
+  font-weight: 400;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -958,6 +976,43 @@ select.input {
   font-weight: 600;
 }
 
+/* Three stops on one wire. */
+.empty-steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-muted);
+}
+
+.empty-steps::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  right: 16.66%;
+  left: 16.66%;
+  height: 1px;
+  background: var(--signal-low);
+}
+
+.empty-steps li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.empty-steps .glyph {
+  box-sizing: content-box;
+  padding: 3px var(--space-1);
+  background: var(--panel);
+  color: var(--ink);
+}
+
 .canvas-empty-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1108,6 +1163,42 @@ select.input {
   text-overflow: ellipsis;
 }
 
+/* The cycle counter with a live trace of the clock: fixed digits, so it does not jitter while running. */
+.cycle-readout {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.status-save ~ .cycle-readout,
+.status-more ~ .cycle-readout {
+  margin-left: 0;
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--line);
+}
+
+.cycle-trace {
+  display: block;
+  fill: none;
+}
+
+.cycle-low {
+  stroke: var(--signal-low);
+  stroke-width: 1;
+}
+
+.cycle-high {
+  stroke: var(--signal-high);
+  stroke-width: 2;
+}
+
 .status-more {
   flex: none;
   height: 20px;
@@ -1144,20 +1235,11 @@ select.input {
   flex: none;
 }
 
-/* Notes take the height nothing else needs, so a long text is not cut with empty space below it. */
 .inspector .panel-notes {
-  display: flex;
-  flex: 1 0 auto;
-  flex-direction: column;
-  min-height: 220px;
   border-bottom: 0;
 }
 
-.panel-notes .inspector-body {
-  flex: 1;
-  min-height: 0;
-}
-
+/* The hint is for writing: it shows while the notes have focus. */
 .panel-notes .field-hint {
   display: none;
 }
@@ -1283,12 +1365,18 @@ pre.memory-words {
   padding: var(--space-2);
   font: 400 13px/20px var(--font-sans);
   white-space: pre-wrap;
-  /* Set into the panel, like the transport in the toolbar. */
-  flex: 1;
-  min-height: 120px;
-  background: var(--bench);
-  border-color: var(--line-strong);
+  /* Reads as text in the panel, underlined as editable like the project's name, and grows with what it holds. */
+  field-sizing: content;
+  min-height: 96px;
+  padding-inline: 0;
+  background: transparent;
+  border-width: 0 0 1px;
+  border-radius: 0;
   resize: none;
+}
+
+.notes:hover {
+  border-color: var(--ink-muted);
 }
 
 /* -------------------------------------------------------------- Waveforms */
@@ -1541,16 +1629,12 @@ pre.memory-words {
 /* ------------------------------------------------------------ Small widths */
 
 /* Button labels give way to their glyphs, last for Run; names stay for assistive technology, tips for the eye. */
-@media (max-width: 1180px) {
+@media (max-width: 1220px) {
   .wordmark-name {
     display: none;
   }
-}
 
-@media (max-width: 1080px) {
-  .file-actions .button-label,
-  .run-controls > .button:not(.run-toggle) .button-label,
-  .breadcrumb .button-label {
+  .file-actions .button-label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -1558,28 +1642,65 @@ pre.memory-words {
     clip-path: inset(50%);
   }
 
-  .file-actions > .button,
-  .run-controls > .button:not(.run-toggle),
-  .breadcrumb .button {
+  .file-actions > .button {
     width: var(--control-height);
     padding: 0;
   }
+}
 
-  .breadcrumb > .icon {
-    display: none;
-  }
-
+@media (max-width: 1080px) {
   .toolbar-start:has(.breadcrumb) input.project-name {
     display: none;
   }
+}
 
-  .run-select select.input {
-    width: 104px;
+@media (max-width: 860px) {
+  .run-controls > .button:not(.run-toggle) .button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .run-controls > .button:not(.run-toggle) {
+    width: var(--control-height);
+    padding: 0;
   }
 }
 
-/* Narrow screens: the toolbar takes two rows, and the inspector moves under the canvas with its panels side by side. */
+/* Narrow screens: the inspector moves under the canvas, with its panels side by side. */
 @media (max-width: 900px) {
+  .workspace {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .inspector {
+    display: grid;
+    grid-template-columns: minmax(200px, 1fr) minmax(240px, 2fr);
+    grid-column: 1 / -1;
+    min-height: 120px;
+    max-height: min(30vh, 220px);
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .inspector .panel {
+    border-bottom: 0;
+  }
+
+  .inspector .panel + .panel {
+    border-left: 1px solid var(--line);
+  }
+
+  .inspector .notes {
+    min-height: 60px;
+  }
+}
+
+/* The toolbar takes two rows, in reading order: name and transport, then history and files. */
+@media (max-width: 800px) {
   :root {
     --toolbar-offset: 84px;
   }
@@ -1597,57 +1718,16 @@ pre.memory-words {
   }
 
   .toolbar-start {
-    flex: 1 1 0;
+    flex: 1 1 96px;
   }
 
   .toolbar-end {
-    flex: none;
+    flex: 1 1 100%;
     gap: 2px;
   }
 
   .toolbar-end > .toolbar-sep {
     margin: 0 2px;
-  }
-
-  .transport {
-    flex: 1 1 100%;
-    order: 3;
-    min-width: 0;
-  }
-
-  .cycle-readout {
-    margin-left: auto;
-  }
-
-  .workspace {
-    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
-  }
-
-  .inspector {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    grid-column: 1 / -1;
-    min-height: 120px;
-    max-height: min(30vh, 220px);
-    border-left: 0;
-    border-top: 1px solid var(--line);
-  }
-
-  .inspector .panel {
-    border-bottom: 0;
-  }
-
-  .inspector .panel + .panel {
-    border-left: 1px solid var(--line);
-  }
-
-  .inspector .panel-notes {
-    min-height: 0;
-  }
-
-  .inspector .notes {
-    min-height: 72px;
   }
 }
 
@@ -1655,16 +1735,16 @@ pre.memory-words {
 @media (max-width: 700px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 124px minmax(260px, 1fr) auto;
+    grid-template-rows: 110px minmax(260px, 1fr) auto;
     overflow-y: auto;
   }
 
   .parts {
+    padding-bottom: 0;
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
 
-  .parts::after,
   .parts-hint,
   .palette .panel-title {
     display: none;
@@ -1678,25 +1758,34 @@ pre.memory-words {
     scrollbar-width: thin;
   }
 
-  .palette .panel {
+  .palette .panel,
+  .palette .panel + .panel {
     flex: none;
     padding: 0;
   }
 
   .part-grid {
     display: flex;
+    gap: var(--space-1);
   }
 
   .part-grid .part-tile {
     width: 62px;
     height: 62px;
+    flex: none;
   }
 
   .inspector {
+    grid-template-columns: minmax(0, 1fr);
     grid-column: auto;
     min-height: 160px;
     max-height: none;
     overflow: visible;
+  }
+
+  .inspector .panel + .panel {
+    border-top: 1px solid var(--line);
+    border-left: 0;
   }
 
   /* Over the status bar, clear of the toolbar and the palette. */
@@ -1705,7 +1794,9 @@ pre.memory-words {
     bottom: calc(var(--statusbar-height) + var(--space-2));
   }
 
-  .status-save {
+  /* All is well: nothing to say here. Warnings stay. */
+  .status-save:not(.status-warn),
+  .cycle-trace {
     display: none;
   }
 
@@ -1722,38 +1813,40 @@ pre.memory-words {
   }
 }
 
-/* Phone widths: the selects share the row left by the buttons, and the readout takes its own. */
+/* Phone widths: the settings take a row of their own, at full value; the zoom keeps its buttons. */
 @media (max-width: 520px) {
+  :root {
+    --toolbar-offset: 116px;
+  }
+
   .transport {
-    flex-wrap: wrap;
+    flex: 1 1 100%;
     height: auto;
     padding-block: 3px;
   }
 
   .run-controls {
     flex: 1 1 100%;
-    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .run-controls > .toolbar-sep {
+    display: none;
   }
 
   .run-speed,
   .run-select {
-    flex: 1 1 0;
+    flex: 1 1 40%;
   }
 
-  .run-speed select.input,
-  .run-select select.input {
+  .run-controls select.input {
+    field-sizing: fixed;
     width: 100%;
+    max-width: none;
   }
 
-  .cycle-readout {
-    flex: 1 1 100%;
-    height: 20px;
-    margin-left: 0;
-    border-left: 0;
-  }
-
-  :root {
-    --toolbar-offset: 108px;
+  .zoom-level {
+    display: none;
   }
 }
 
@@ -1772,14 +1865,18 @@ pre.memory-words {
 
 @media (forced-colors: active) {
   .part-tile[aria-pressed="true"],
-  .library-link[aria-current="true"],
+  .library-link[aria-selected="true"],
   .project-tile[aria-current="true"] {
     outline: 2px solid Highlight;
     outline-offset: -2px;
   }
 
-  .library-link[aria-current="true"] {
-    outline-offset: -2px;
+  /* Heavier than the marks above, so focus on a selected item still shows. */
+  .part-tile:focus-visible,
+  .library-link:focus-visible,
+  .project-tile:focus-visible {
+    outline: 3px solid CanvasText;
+    outline-offset: 1px;
   }
 
   .status-dot {
