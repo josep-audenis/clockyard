@@ -457,7 +457,7 @@ change was slow throughout, as a first run after a build can be:
 | chain-50k | theme change, ms | 8,684, 2,170 | 781, 734 |
 | chain-50k | delete all, ms | 1,179, 1,348 | 1,221, 1,241 |
 
-Routing is now what an open spends most on: of the open times above, 31 % of `chain-10k`, a third of `adder-10k`, over
+Routing is now what an open spends most on: of the open times above, about 30 % of `chain-10k`, a third of `adder-10k`, over
 two fifths of `counters-10k` and over four fifths of `fanout-10k`.
 
 ## Earlier measurements
