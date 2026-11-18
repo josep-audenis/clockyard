@@ -237,11 +237,13 @@ What exists today:
    font is left to Pixi builds a font per label; installing them is
    what makes it fast.
 
-   *As built (step 3, seventh):* parts that look alike show one drawn
-   shape, and a part's look holds only what its drawing reads, so a
-   toggle no longer rebuilds gates. The canvas stays pixel-identical in
-   30 compared states; `chain-10k` opens about 2.4 times faster and pans
-   at 60 fps. Routing and drawing wires are what remain of an open.
+   *As built (step 3, seventh):* parts that look alike share drawn
+   shapes, 256 per look so that deleting parts or changing theme stays
+   linear, and a part's look holds only what its drawing reads, so a
+   toggle no longer rebuilds gates. `chain-10k` opens in 0.6–0.7 s on
+   mains power (was 1.3–1.4 s). Routing is now the largest part of an
+   open: about a third for `chain` and `adder`, over two fifths for
+   `counters`, over four fifths for `fanout`.
 
 ## Alternatives considered
 

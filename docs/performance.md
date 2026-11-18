@@ -167,17 +167,17 @@ Read so:
 
 | Target | Measured | Met |
 |---|---|---|
-| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only) | for `chain` and `cpu` only, after them |
+| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s | for `chain` and `cpu` only, after them |
 | A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms | no |
-| Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder`; with shared part shapes (section 7, on battery) 60 for `chain`, 20–30 for `fanout`, 20 for `counters`, 12 for `adder` | partly |
-| 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k`; after step 3's routing index, `chain-50k` 6.3 s, `counters-50k` 22 s (edits not measured) | opening, for `chain` and `cpu` only, after it |
+| Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder`; with shared part shapes (section 7) 30–60 for `chain`, `counters` and `fanout`, 20 for `adder` | partly |
+| 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k`; after step 3's routing index, `chain-50k` 6.3 s, `counters-50k` 22 s; with shared part shapes `chain-50k` 2.4 s (edits not measured) | opening, for `chain` and `cpu` only, after it |
 | Run speed on `counters-10k` recorded | 2,017 cycles per second | yes |
 | The reference CPU keeps 10,000 cycles per second | about 8,300 (`cpu-1k`, four CPUs; reads a few per cent low, and this run was loaded) | no, in this run |
 
-Step 3 of ADR 0030 has optimized panning, the wires an edit or a state redraws, and what the page does with each
-engine state, and routing a whole sheet (below). What these numbers point to next: the rest of an open, which is now
-mostly drawing outside routing, and `fanout`'s long searches (section 5); a toggle that changes everything needs
-cheaper redraws of the gates' shapes and of Pixi's batches, found in section 3.
+Step 3 of ADR 0030 has optimized panning, the wires an edit or a state redraws, what the page does with each engine
+state, routing a whole sheet, labels and part shapes (below). What these numbers point to next: routing, the largest
+part of an open now (section 7), above all `fanout`'s long searches (section 5), and drawing wires, which a toggle that
+changes every wire also pays.
 
 `pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
 twice as bad (and worse by more than 5), or one the run lost; `node scripts/bench-check.mjs --update` makes the last run
@@ -416,29 +416,49 @@ its own shape, though thousands are identical, and a part's look held the value 
 that show no signal.
 
 A part's look now holds only what its drawing reads: its kind, its cached layout, the one signal it shows if any (an
-LED's, a switch's, a clock's, a display's segments), and its error and keyboard state. Parts with the same look show
-one shape. A screen keeps its own, since each shows its own picture. The canvas is pixel-identical to the code before
-this step in 30 states: every example at rest and stepped, toggles, both themes and a change between them, placement
-previews, and parts in error.
+LED's, a switch's, a clock's, a display's segments), and its error and keyboard state. Parts with the same look share
+shapes. A screen keeps its own, since each shows its own picture.
 
-Interleaved (A, B, A, B), on battery with other work running, so the runs vary more than usual; the first run before
-the change was the slowest:
+One shape per look was not enough. A Pixi `Graphics` listens to its shape, and removing a listener scans them all, so
+with every gate on one shape, deleting parts or changing theme became quadratic: 30–50 s at 50,000 parts. Each look is
+therefore split into 256 shapes by a hash of the part's ID. 64 left deleting slower than before at 50,000 parts, and
+1,024 gained nothing.
+
+Production builds of the code before and after this step were compared in 30 canvas states: every example at rest and
+stepped, toggles, both themes and a change between them, placement previews, and parts in error. 28 are byte-identical;
+in the other two, both of the Catch example, one pixel differs by one colour level.
+
+Opening and working on a sheet, interleaved (A, B, A, B), on mains power:
 
 | Benchmark | Measurement | Before, two runs | After, two runs |
 |---|---|---:|---:|
-| chain-10k | open, s | 2.8, 2.6 | 1.06, 1.13 |
-| adder-10k | open, s | 8.1, 5.6 | 4.0, 4.1 |
-| counters-10k | open, s | 11.4, 5.4 | 4.7, 4.8 |
-| fanout-10k | open, s | 22.5, 12.0 | 10.7, 11.6 |
-| chain-10k | pan, fps | 12, 20 | 60, 60 |
-| fanout-10k | pan, fps | 15, 15 | 30, 20 |
-| counters-10k | pan, fps | 12, 15 | 20, 20 |
-| adder-10k | pan, fps | 6, 10 | 12, 12 |
-| chain-10k | drag draw, ms | 101, 69 | 48, 51 |
-| fanout-10k | drag draw, ms | 108, 70 | 53, 49 |
+| chain-10k | open, s | 1.34, 1.43 | 0.61, 0.68 |
+| counters-10k | open, s | 2.76, 3.18 | 2.06, 2.22 |
+| adder-10k | open, s | 2.88, 3.00 | 2.31, 2.39 |
+| fanout-10k | open, s | 7.1, 8.7 | 5.7, 6.2 |
+| chain-10k | pan, fps | 30, 30 | 60, 30 |
+| counters-10k | pan, fps | 30, 30 | 60, 30 |
+| fanout-10k | pan, fps | 30, 15 | 60, 30 |
+| adder-10k | pan, fps | 20, 20 | 20, 20 |
 
-Toggles to the readout were also shorter (`chain-10k` 1,626 and 924 ms before, 122 and 356 after; `fanout-10k` 1,982
-and 1,164 before, 858 and 786 after), though these vary most between runs.
+Drags and toggles to the readout varied too much between these runs to show a change either way. Run speed did not
+fall (`counters-10k` 2,832 and 2,924 cycles per second before, 3,905 and 2,607 after).
+
+Changing theme and deleting every part, the longest redraw of each, interleaved the same way. The first run before the
+change was slow throughout, as a first run after a build can be:
+
+| Benchmark | Measurement | Before, two runs | After, two runs |
+|---|---|---:|---:|
+| chain-10k | theme change, ms | 1,305, 387 | 144, 138 |
+| chain-10k | delete all, ms | 306, 75 | 71, 71 |
+| counters-10k | theme change, ms | 2,780, 778 | 494, 511 |
+| counters-10k | delete all, ms | 552, 146 | 133, 137 |
+| chain-50k | open, s | 23.0, 6.0 | 2.43, 2.40 |
+| chain-50k | theme change, ms | 8,684, 2,170 | 781, 734 |
+| chain-50k | delete all, ms | 1,179, 1,348 | 1,221, 1,241 |
+
+Routing is now what an open spends most on: of the open times above, 31 % of `chain-10k`, a third of `adder-10k`, over
+two fifths of `counters-10k` and over four fifths of `fanout-10k`.
 
 ## Earlier measurements
 
