@@ -423,8 +423,8 @@ One shape per look was not enough. A Pixi `Graphics` listens to its shape, and r
 with every gate on one shape, deleting parts or changing theme became quadratic: 30–50 s at 50,000 parts. Each look is
 therefore split into 256 shapes by a hash of the part's ID. 64 left deleting slower than before at 50,000 parts, and
 1,024 gained nothing. Looks come and go, since every value a display shows is one, so once there are more than 1,024
-shapes those no part shows are dropped: without that, 32 displays passing through all 256 values held 426 MB of
-JavaScript heap, against 9 MB before this step.
+shapes those no part shows are dropped. 32 displays passing through all 256 values hold 24 MB of JavaScript heap;
+without the dropping they held 426 MB, and before this step 9 MB.
 
 Production builds of the code before and after this step were compared in 30 canvas states: every example at rest and
 stepped, toggles, both themes and a change between them, placement previews, and parts in error. They match, apart
