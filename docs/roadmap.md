@@ -561,9 +561,9 @@ targets, as in Phase 5.
          opens in 3.4–3.5 s (was 10.8 s) and `fanout-50k` in 14–15 s (was
          26–30 s).
       9. ✅ ASCII labels skip the full text segmenter, and a new sheet's
-         readout rows and "Run until" options go in as one. On battery,
-         with other work running, `adder-10k` opens 1.3 s sooner (of 6.5 s),
-         `counters-10k` 0.5 s and `fanout-10k` 0.2 s. Every row stays in
+         readout rows and "Run until" options go in as one. On mains power
+         `adder-10k` opens in 1.8 s (was 2.3 s) and `counters-10k` in 2.3 s
+         (was 2.5 s); `fanout-10k` stays at 2.5 s. Every row stays in
          Chromium's accessibility tree.
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
