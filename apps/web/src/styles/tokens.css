@@ -131,6 +131,16 @@
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Menlo, monospace;
   --font-display: "IBM Plex Sans Condensed", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  /* Editor chrome (ADR 0032): derived from the palette above, so each follows the theme. */
+  --space-5: 20px;
+  --library-nav-height: 36px;
+  --hover: color-mix(in srgb, var(--ink) 7%, transparent);
+  --press: color-mix(in srgb, var(--ink) 13%, transparent);
+  --accent-strong: color-mix(in srgb, var(--accent) 85%, var(--ink));
+  --scrim: color-mix(in srgb, var(--bench) 55%, #000000 25%);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-med: 180ms;
 }
 
 .type-title { font-family: var(--font-sans); font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -0.005em; }

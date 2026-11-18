@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { definitionName, definitionsVersion } from "../canvas/layout";
 import { mountCanvas, useCanvasHints, viewControls } from "../canvas/scene";
@@ -41,6 +41,7 @@ import { CHALLENGES, findChallenge, reportText, starterDocument, type ChallengeE
 import { EXAMPLES, exampleDocument } from "../storage/examples";
 import { libraryKey } from "../storage/projects";
 import { LINK_KEY, linkFragment, readLinkFragment } from "../storage/link";
+import { Icon, PartGlyph, type IconName } from "./icons";
 import {
   clearProgress,
   connectStorage,
@@ -84,13 +85,14 @@ const LIBRARY: { title: string; parts: Part[] }[] = [
   {
     title: "Gates",
     parts: [
-      { kind: "not", name: "NOT", key: "N" },
+      // In columns: each gate above its inverse.
       { kind: "and", name: "AND", key: "A" },
-      { kind: "nand", name: "NAND" },
       { kind: "or", name: "OR", key: "O" },
-      { kind: "nor", name: "NOR" },
       { kind: "xor", name: "XOR", key: "X" },
+      { kind: "nand", name: "NAND" },
+      { kind: "nor", name: "NOR" },
       { kind: "xnor", name: "XNOR" },
+      { kind: "not", name: "NOT", key: "N" },
     ],
   },
   {
@@ -128,8 +130,47 @@ const kindName = (part: Pick<CircuitComponent, "kind" | "definition" | "props">)
 const SHORTCUTS = new Map(LIBRARY.flatMap(({ parts }) => parts.flatMap(({ kind, key }) => (key ? [[key, kind] as const] : []))));
 /** The platform's name for the shortcut modifier (design system Kbd rule). */
 const MOD = navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl";
+/** Whether keys typed now belong to a field, not to the editor's shortcuts. */
+const isTyping = (target: EventTarget | null) =>
+  target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
+
+/** A toolbar or canvas control: a glyph, usually a label, and a tip shown on hover and keyboard focus. */
+function ToolButton({
+  icon,
+  label,
+  tip,
+  iconOnly = false,
+  className = "",
+  ...rest
+}: { icon: IconName; label: string; tip: string; iconOnly?: boolean } & ComponentProps<"button">) {
+  return (
+    <button type="button" className={`button button-quiet ${className}`} aria-label={iconOnly ? label : undefined} aria-description={tip} {...rest}>
+      <Icon name={icon} />
+      {!iconOnly && <span className="button-label">{label}</span>}
+      {/* Hidden from the accessibility tree: the name stays the label, and the tip is the description above. */}
+      <span className="tip" aria-hidden="true">
+        {tip}
+      </span>
+    </button>
+  );
+}
+
 export function App() {
   useEffect(() => connectEngine(), []);
+  // Escape hides an open tip (WCAG 1.4.13) until the pointer or focus moves on.
+  useEffect(() => {
+    const root = document.documentElement;
+    const hide = (e: KeyboardEvent) => e.key === "Escape" && root.setAttribute("data-tips-off", "");
+    const show = () => root.removeAttribute("data-tips-off");
+    window.addEventListener("keydown", hide);
+    window.addEventListener("pointerover", show);
+    window.addEventListener("focusin", show);
+    return () => {
+      window.removeEventListener("keydown", hide);
+      window.removeEventListener("pointerover", show);
+      window.removeEventListener("focusin", show);
+    };
+  }, []);
   // Projects in this browser (ADR 0029); a link in the address opens instead of the last project.
   useEffect(() => {
     let stop: (() => void) | undefined;
@@ -145,21 +186,30 @@ export function App() {
   return (
     <div className="shell">
       <header className="toolbar">
-        <span className="wordmark">
-          {/* The mark inline on tokens so it follows the theme; fixed-ink copies live in docs/assets. */}
-          <svg viewBox="0 0 64 64" width="24" height="24" aria-hidden="true">
-            <rect width="64" height="64" rx="6" fill="var(--bench)" stroke="var(--line)" strokeWidth="2" />
-            <path d="M44 48H16" fill="none" stroke="var(--signal-low)" strokeWidth="5" strokeLinecap="round" />
-            <path d="M16 48V16H47" fill="none" stroke="var(--signal-high)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx="48" cy="16" r="5.5" fill="var(--signal-high)" />
-            <circle cx="48" cy="48" r="4.5" fill="var(--bench)" stroke="var(--signal-low)" strokeWidth="3" />
-          </svg>
-          <span className="wordmark-name">Clockyard</span>
-        </span>
-        <Breadcrumb />
-        <HistoryControls />
+        <div className="toolbar-start">
+          <span className="wordmark">
+            {/* The mark inline on tokens so it follows the theme; fixed-ink copies live in docs/assets. */}
+            <svg viewBox="0 0 64 64" width="24" height="24" aria-hidden="true">
+              <rect width="64" height="64" rx="6" fill="var(--bench)" stroke="var(--line)" strokeWidth="2" />
+              <path d="M44 48H16" fill="none" stroke="var(--signal-low)" strokeWidth="5" strokeLinecap="round" />
+              <path d="M16 48V16H47" fill="none" stroke="var(--signal-high)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="48" cy="16" r="5.5" fill="var(--signal-high)" />
+              <circle cx="48" cy="48" r="4.5" fill="var(--bench)" stroke="var(--signal-low)" strokeWidth="3" />
+            </svg>
+            <span className="wordmark-name">Clockyard</span>
+          </span>
+          <span className="toolbar-sep" aria-hidden="true" />
+          <ProjectTitle />
+          <Breadcrumb />
+        </div>
         <RunControls />
-        <FileActions />
+        <div className="toolbar-end">
+          <HistoryControls />
+          <span className="toolbar-sep" aria-hidden="true" />
+          <FileActions />
+          <span className="toolbar-sep" aria-hidden="true" />
+          <ShortcutsHelp />
+        </div>
       </header>
       <div className="workspace">
         <PartsLibrary />
@@ -192,6 +242,7 @@ function ProjectName({ saved }: { saved: string }) {
       className="project-name type-label"
       aria-label="Project name"
       value={draft}
+      size={Math.max(draft.length, 8)}
       maxLength={64}
       spellCheck={false}
       onChange={(e) => setDraft(e.target.value)}
@@ -211,11 +262,15 @@ function ProjectName({ saved }: { saved: string }) {
   );
 }
 
+function ProjectTitle() {
+  const name = useEditor((s) => s.metadata.name);
+  return <ProjectName key={name} saved={name} />;
+}
+
 /** Above this, Copy link warns that some apps cut links (ADR 0024). */
 const LONG_LINK = 8000;
 
 function FileActions() {
-  const name = useEditor((s) => s.metadata.name);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   // A link the clipboard refused, shown to copy by hand.
@@ -290,33 +345,35 @@ function FileActions() {
 
   return (
     <div className="file-actions">
-      <ProjectName key={name} saved={name} />
-      {error && (
-        <span className="file-error type-caption" role="alert" title={error}>
-          {error}
+      {/* Floats under the toolbar, so a long message is read whole and moves nothing. */}
+      <div className="file-messages">
+        {error && (
+          <span className="file-error type-label" role="alert" title={error}>
+            {error}
+          </span>
+        )}
+        {/* Announced, but not a second status region next to the status bar's. */}
+        <span className="file-notice type-label" aria-live="polite" title={notice ?? undefined}>
+          {notice}
         </span>
-      )}
-      {/* Announced, but not a second status region next to the status bar's. */}
-      <span className="file-notice type-caption" aria-live="polite" title={notice ?? undefined}>
-        {notice}
-      </span>
-      {manual && (
-        <input className="file-link type-caption" readOnly value={manual} aria-label="Link to this circuit" onFocus={(e) => e.target.select()} />
-      )}
-      <button type="button" className="button type-label" onClick={() => picker.current?.click()}>
-        Import
-      </button>
-      <button type="button" className="button type-label" onClick={exportFile}>
-        Export
-      </button>
-      <button
-        type="button"
-        className="button type-label"
+        {manual && (
+          <input className="input file-link" readOnly value={manual} aria-label="Link to this circuit" onFocus={(e) => e.target.select()} />
+        )}
+        {(error || notice) && (
+          <button type="button" className="button button-quiet button-icon" aria-label="Dismiss" onClick={() => report(null)}>
+            <Icon name="close" />
+          </button>
+        )}
+      </div>
+      <ToolButton icon="import" label="Import" tip="Open a circuit from a file" onClick={() => picker.current?.click()} />
+      <ToolButton icon="export" label="Export" tip="Save this circuit as a file" onClick={exportFile} />
+      <ToolButton
+        icon="link"
+        label="Copy link"
+        className="tip-end"
+        tip="Copy a link that opens this circuit. Anyone with the link can read the whole circuit."
         onClick={() => void copyLink()}
-        title="Copy a link that opens this circuit. Anyone with the link can read the whole circuit."
-      >
-        Copy link
-      </button>
+      />
       <input
         ref={picker}
         type="file"
@@ -371,6 +428,17 @@ function PartsLibrary() {
     }
     keeping.current = false;
   };
+  // The section at the top of the panel, marked in its header as the panel scrolls.
+  const panel = useRef<HTMLElement>(null);
+  const [section, setSection] = useState<string>("parts");
+  const onScroll = () => {
+    const box = panel.current;
+    if (!box) return;
+    const top = box.getBoundingClientRect().top + 64;
+    const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 2;
+    const passed = SECTIONS.filter(([id]) => (box.querySelector(`[data-section="${id}"]`)?.getBoundingClientRect().top ?? Infinity) <= top);
+    setSection((atEnd ? SECTIONS.at(-1) : passed.at(-1))?.[0] ?? "parts");
+  };
   const deleteChip = (id: string, name: string) => {
     setRefused(id);
     if (deleteRefusal(useEditor.getState(), id) || !window.confirm(`Delete the component ${name}? This cannot be undone.`)) return;
@@ -379,8 +447,7 @@ function PartsLibrary() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
-      if (e.ctrlKey || e.metaKey || e.altKey || typing || document.querySelector("dialog[open]")) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target) || document.querySelector("dialog[open]")) return;
       const kind = SHORTCUTS.get(e.key.toUpperCase());
       if (kind && kind !== "label") useEditor.getState().arm(kind);
     };
@@ -389,31 +456,41 @@ function PartsLibrary() {
   }, []);
 
   return (
-    <aside className="parts" aria-label="Parts">
-      <ProjectsPanel />
-      {LIBRARY.map(({ title, parts }) => (
-        <section key={title} className="panel">
-          <h2 className="type-heading panel-title">{title.toUpperCase()}</h2>
-          <div className="part-grid">
-            {parts.map(({ kind, name, key, width = 1 }) => (
-              <button
-                key={name}
-                type="button"
-                className="part-tile type-label"
-                aria-pressed={kind === "label" ? armedLabel : armed === kind && armedWidth === width}
-                aria-keyshortcuts={key}
-                onClick={() =>
-                  kind === "label" ? armLabel(!armedLabel) : arm(armed === kind && armedWidth === width ? null : kind, width)
-                }
-              >
-                {name}
-                {key && <kbd className="kbd">{key}</kbd>}
-              </button>
-            ))}
-          </div>
-        </section>
-      ))}
-      <section className="panel">
+    <aside ref={panel} className="parts" aria-label="Parts" onScroll={onScroll}>
+      <nav className="library-nav" aria-label="Library sections">
+        {SECTIONS.map(([id, label]) => (
+          <button key={id} type="button" className="library-link type-label" aria-current={id === section ? "true" : undefined} onClick={() => jumpTo(id)}>
+            {label}
+          </button>
+        ))}
+      </nav>
+      <div className="palette" data-section="parts">
+        {LIBRARY.map(({ title, parts }) => (
+          <section key={title} className="panel">
+            <h2 className="type-heading panel-title">{title.toUpperCase()}</h2>
+            <div className="part-grid">
+              {parts.map(({ kind, name, key, width = 1 }) => (
+                <button
+                  key={name}
+                  type="button"
+                  className="part-tile type-label"
+                  aria-pressed={kind === "label" ? armedLabel : armed === kind && armedWidth === width}
+                  aria-keyshortcuts={key}
+                  onClick={() =>
+                    kind === "label" ? armLabel(!armedLabel) : arm(armed === kind && armedWidth === width ? null : kind, width)
+                  }
+                >
+                  <PartGlyph name={name} />
+                  <span className="part-name">{name}</span>
+                  {key && <kbd className="kbd">{key}</kbd>}
+                </button>
+              ))}
+            </div>
+          </section>
+        ))}
+        <p className="type-caption parts-hint">Pick a part or press its key, then click the canvas to place it. Esc cancels.</p>
+      </div>
+      <section className="panel" data-section="chips">
         <h2 className="type-heading panel-title">CHIPS</h2>
         {chips.length === 0 ? (
           <p className="type-caption parts-empty">
@@ -431,7 +508,8 @@ function PartsLibrary() {
                     aria-pressed={on}
                     onClick={() => (on ? arm(null) : armChip(d.id))}
                   >
-                    {d.name}
+                    <PartGlyph />
+                    <span className="part-name">{d.name}</span>
                   </button>
                   {stored && (
                     <button
@@ -441,7 +519,7 @@ function PartsLibrary() {
                       title={`Save ${d.name} to your library, with the components it contains`}
                       onClick={() => void keep(d.name, d.id)}
                     >
-                      ⇩
+                      <Icon name="import" size={14} />
                     </button>
                   )}
                   <button
@@ -451,7 +529,7 @@ function PartsLibrary() {
                     title={`Delete ${d.name}`}
                     onClick={() => deleteChip(d.id, d.name)}
                   >
-                    ×
+                    <Icon name="close" size={14} />
                   </button>
                 </li>
               );
@@ -470,23 +548,81 @@ function PartsLibrary() {
         )}
         <AddComponents />
       </section>
+      <ProjectsPanel />
       <ChallengeList />
       <ExampleList />
-      <div className="type-caption parts-hint">
-        <p>Pick a part or press its key, then click the canvas to place it. Esc cancels.</p>
-        <details>
-          <summary>Shortcuts and gestures</summary>
-          <dl className="shortcut-list">
-            {HELP.map(([keys, action]) => (
-              <div key={action}>
-                <dt>{keys}</dt>
-                <dd>{action}</dd>
-              </div>
-            ))}
-          </dl>
-        </details>
-      </div>
     </aside>
+  );
+}
+
+/** The parts panel's sections, in order: its header links to each and marks the one in view. */
+const SECTIONS = [
+  ["parts", "Parts"],
+  ["chips", "Chips"],
+  ["projects", "Projects"],
+  ["learn", "Learn"],
+] as const;
+
+/** Scrolls the parts panel to a section and moves the keyboard to its heading. */
+function jumpTo(id: string) {
+  const section = document.querySelector<HTMLElement>(`[data-section="${id}"]`);
+  const heading = section?.querySelector("h2");
+  if (!section || !heading) return;
+  const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  section.scrollIntoView({ block: "start", behavior: calm ? "auto" : "smooth" });
+  heading.tabIndex = -1;
+  heading.focus({ preventScroll: true });
+}
+
+/** The keyboard and gesture reference: from the toolbar, or `?` anywhere outside a field. */
+function ShortcutsHelp() {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const id = useId();
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target) || document.querySelector("dialog[open]")) return;
+      e.preventDefault();
+      dialog.current?.showModal();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+  return (
+    <>
+      <ToolButton
+        icon="keyboard"
+        label="Keyboard shortcuts"
+        tip="Keyboard shortcuts and gestures (?)"
+        iconOnly
+        className="button-icon tip-end"
+        aria-keyshortcuts="Shift+?"
+        onClick={() => dialog.current?.showModal()}
+      />
+      <dialog
+        ref={dialog}
+        className="dialog dialog-wide"
+        aria-labelledby={`${id}-title`}
+        onKeyDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.target === dialog.current && dialog.current.close()}
+      >
+        <div className="dialog-head">
+          <h2 id={`${id}-title`} className="type-title dialog-title">
+            Shortcuts and gestures
+          </h2>
+          <button type="button" className="button button-quiet button-icon" aria-label="Close" onClick={() => dialog.current?.close()}>
+            <Icon name="close" />
+          </button>
+        </div>
+        <dl className="shortcut-list type-body">
+          {HELP.map(([keys, action]) => (
+            <div key={action}>
+              <dt>{keys}</dt>
+              <dd>{action}</dd>
+            </div>
+          ))}
+        </dl>
+      </dialog>
+    </>
   );
 }
 
@@ -695,8 +831,8 @@ function WavePanel() {
               <li key={net} className="waves-row">
                 <span className="type-label waves-name">{name}</span>
                 <span className="type-value waves-value">{value === undefined ? "unknown" : showValue(value, width)}</span>
-                <button type="button" className="button waves-remove" aria-label={`Stop watching ${name}`} onClick={() => wires.forEach((w) => watch(w, false))}>
-                  ×
+                <button type="button" className="button button-quiet waves-remove" aria-label={`Stop watching ${name}`} onClick={() => wires.forEach((w) => watch(w, false))}>
+                  <Icon name="close" size={12} />
                 </button>
               </li>
             );
@@ -743,9 +879,19 @@ function EmptyHint() {
   const show = useEditor((s) => s.circuit.components.length === 0 && s.circuit.junctions.length === 0 && !s.armed && !s.armedLabel);
   if (!show) return null;
   return (
-    <p className="canvas-empty type-body">
-      Empty sheet. Choose a part on the left, or press <kbd className="kbd">S</kbd> for a switch, then click here to place it.
-    </p>
+    <div className="canvas-empty">
+      <p className="type-body">
+        <strong>Empty sheet.</strong> Choose a part on the left, or press <kbd className="kbd">S</kbd> for a switch, then click here to place it.
+      </p>
+      <div className="canvas-empty-actions">
+        <button type="button" className="button type-label" onClick={() => jumpTo("examples")}>
+          Browse examples
+        </button>
+        <button type="button" className="button type-label" onClick={() => jumpTo("learn")}>
+          Try a challenge
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -763,18 +909,13 @@ function ZoomControls() {
         if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
       }}
     >
-      <button type="button" className="button" aria-label="Zoom out" title="Zoom out" onClick={() => viewControls.zoomBy?.(1 / 1.25)}>
-        −
-      </button>
-      <button type="button" className="button zoom-level" title="Zoom to 100%" onClick={() => viewControls.zoomBy?.(1 / zoom)}>
+      <ToolButton icon="minus" label="Zoom out" tip="Zoom out" iconOnly className="button-icon" onClick={() => viewControls.zoomBy?.(1 / 1.25)} />
+      <button type="button" className="button button-quiet zoom-level" title="Zoom to 100%" onClick={() => viewControls.zoomBy?.(1 / zoom)}>
         {Math.round(zoom * 100)}%
       </button>
-      <button type="button" className="button" aria-label="Zoom in" title="Zoom in" onClick={() => viewControls.zoomBy?.(1.25)}>
-        +
-      </button>
-      <button type="button" className="button" title="Fit the sheet in view (F)" aria-keyshortcuts="F" onClick={() => viewControls.fit?.()}>
-        Fit
-      </button>
+      <ToolButton icon="plus" label="Zoom in" tip="Zoom in" iconOnly className="button-icon" onClick={() => viewControls.zoomBy?.(1.25)} />
+      <span className="toolbar-sep" aria-hidden="true" />
+      <ToolButton icon="fit" label="Fit" tip="Fit the sheet in view (F)" className="tip-end" aria-keyshortcuts="F" onClick={() => viewControls.fit?.()} />
     </div>
   );
 }
@@ -789,11 +930,12 @@ const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "nu
 function ProjectsPanel() {
   const { available, reason, projectId, projects } = useProjects();
   return (
-    <section className="panel" aria-labelledby="projects-title">
+    <section className="panel" aria-labelledby="projects-title" data-section="projects">
       <h2 id="projects-title" className="type-heading panel-title">
         PROJECTS
       </h2>
       <button type="button" className="button type-label projects-new" onClick={() => void (mayReplace() && newCircuit())}>
+        <Icon name="plus" size={14} />
         New circuit
       </button>
       {available === false ? (
@@ -825,7 +967,7 @@ function ProjectsPanel() {
                       if (window.confirm(`Delete the project ${p.name} from this browser? This cannot be undone.`)) void deleteProject(p.id);
                     }}
                   >
-                    ×
+                    <Icon name="close" size={14} />
                   </button>
                 </li>
               ))}
@@ -848,7 +990,7 @@ function ChallengeList() {
     if (await openDocument(document)) useEditor.getState().openSheet(challenge.definition);
   };
   return (
-    <section className="panel" aria-labelledby="challenges-title">
+    <section className="panel" aria-labelledby="challenges-title" data-section="learn">
       <h2 id="challenges-title" className="type-heading panel-title">
         CHALLENGES
       </h2>
@@ -857,10 +999,12 @@ function ChallengeList() {
           <li key={entry.name}>
             {/* Numbered: they are an order to work through, and a chip may share a title. */}
             <button type="button" className="part-tile type-label" onClick={() => void start(entry)}>
-              {i + 1}. {entry.challenge.title}
+              <span className="part-name">
+                <span className="challenge-number">{i + 1}.</span> {entry.challenge.title}
+              </span>
               {progress[entry.name] && (
                 <span className="challenge-done" role="img" aria-label="passed">
-                  ✓
+                  <Icon name="check" size={14} />
                 </span>
               )}
             </button>
@@ -964,6 +1108,7 @@ function AddComponents() {
           dialog.current?.showModal();
         }}
       >
+        <Icon name="plus" size={14} />
         Add components…
       </button>
       {/* Keys typed here are the dialog's, not part shortcuts. */}
@@ -979,6 +1124,7 @@ function AddComponents() {
           <label className="field-label" htmlFor={`${id}-example`}>
             From an example or your library
           </label>
+          <span className="select">
           <select
             id={`${id}-example`}
             className="input"
@@ -1010,6 +1156,7 @@ function AddComponents() {
               </optgroup>
             )}
           </select>
+          </span>
           <button type="button" className="button type-label" onClick={() => picker.current?.click()}>
             From a file…
           </button>
@@ -1070,7 +1217,7 @@ function AddComponents() {
               Remove from library
             </button>
           )}
-          <button type="button" className="button type-label" disabled={picked.length === 0} onClick={add}>
+          <button type="button" className="button button-primary type-label" disabled={picked.length === 0} onClick={add}>
             Add
           </button>
           <button ref={close} type="button" className="button type-label" onClick={() => dialog.current?.close()}>
@@ -1099,7 +1246,7 @@ function ExampleList() {
     }
   };
   return (
-    <section className="panel" aria-labelledby="examples-title">
+    <section className="panel" aria-labelledby="examples-title" data-section="examples">
       <h2 id="examples-title" className="type-heading panel-title">
         EXAMPLES
       </h2>
@@ -1107,7 +1254,7 @@ function ExampleList() {
         {EXAMPLES.map(({ name, title }) => (
           <li key={name}>
             <button type="button" className="part-tile type-label" onClick={() => void open(name)}>
-              {title}
+              <span className="part-name">{title}</span>
             </button>
           </li>
         ))}
@@ -1328,11 +1475,14 @@ function Breadcrumb() {
   if (!sheet) return null;
   return (
     <nav className="breadcrumb type-label" aria-label="Sheet">
-      <button type="button" className="button type-label" onClick={closeSheet}>
+      <Icon name="chevron" size={12} />
+      <button type="button" className="button button-quiet type-label" onClick={closeSheet}>
         Main circuit
       </button>
-      <span aria-hidden="true">›</span>
-      <span aria-current="page">{name}</span>
+      <Icon name="chevron" size={12} />
+      <span className="breadcrumb-current" aria-current="page" title={name}>
+        {name}
+      </span>
     </nav>
   );
 }
@@ -1412,7 +1562,10 @@ function PartProperties({ part }: { part: CircuitComponent }) {
   const name = useEditor((s) => s.definitions.find((d) => d.id === part.definition)?.name);
   return (
     <div className="inspector-body">
-      <p className="type-label inspector-kind">{kindName(part)}</p>
+      <p className="type-label inspector-kind">
+        <PartGlyph name={part.kind === "custom" ? undefined : kindName(part)} />
+        {kindName(part)}
+      </p>
       <CommitField
         label="Label"
         saved={part.props.label ?? ""}
@@ -1889,13 +2042,27 @@ function HistoryControls() {
   const canUndo = useEditor((s) => s.past.length > 0);
   const canRedo = useEditor((s) => s.future.length > 0);
   return (
-    <div className="run-controls" role="group" aria-label="History">
-      <button type="button" className="button" title={`Undo (${MOD}+Z)`} disabled={!canUndo} onClick={() => useEditor.getState().undo()}>
-        Undo
-      </button>
-      <button type="button" className="button" title={`Redo (${MOD}+Shift+Z)`} disabled={!canRedo} onClick={() => useEditor.getState().redo()}>
-        Redo
-      </button>
+    <div className="tool-group" role="group" aria-label="History">
+      <ToolButton
+        icon="undo"
+        label="Undo"
+        tip={`Undo (${MOD}+Z)`}
+        iconOnly
+        className="button-icon"
+        aria-keyshortcuts="Control+Z Meta+Z"
+        disabled={!canUndo}
+        onClick={() => useEditor.getState().undo()}
+      />
+      <ToolButton
+        icon="redo"
+        label="Redo"
+        tip={`Redo (${MOD}+Shift+Z)`}
+        iconOnly
+        className="button-icon"
+        aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z"
+        disabled={!canRedo}
+        onClick={() => useEditor.getState().redo()}
+      />
     </div>
   );
 }
@@ -1917,15 +2084,16 @@ function RunControls() {
   return (
     <div className="run-controls" role="group" aria-label="Simulation">
       {/* As wide for Pause as for Run, so the toolbar does not shift. */}
-      <button type="button" className="button run-toggle" onClick={() => control(running ? "pause" : "run")}>
-        {running ? "Pause" : "Run"}
-      </button>
-      <button type="button" className="button" onClick={() => control("step")}>
-        Step
-      </button>
-      <button type="button" className="button" onClick={() => control("reset")}>
-        Reset
-      </button>
+      <ToolButton
+        icon={running ? "pause" : "run"}
+        label={running ? "Pause" : "Run"}
+        tip={running ? "Stop the clock here" : "Start the clock"}
+        className={`run-toggle ${running ? "is-running" : "button-primary"}`}
+        onClick={() => control(running ? "pause" : "run")}
+      />
+      <ToolButton icon="step" label="Step" tip="Advance one clock cycle" onClick={() => control("step")} />
+      <ToolButton icon="reset" label="Reset" tip="Clear the state and go back to cycle 0" onClick={() => control("reset")} />
+      <span className="toolbar-sep" aria-hidden="true" />
       <label className="run-speed">
         <span className="visually-hidden">Speed</span>
         <select className="input" value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
@@ -2037,7 +2205,7 @@ function StatusBar() {
     <footer className="statusbar">
       {/* Announced on change; the cycle counter, which changes many times a second while running, is not. */}
       <div className="status-live" role="status">
-        <span className={`status-state status-${tone}`}>
+        <span className={`status-state status-${tone}${state === "Running" ? " status-running" : ""}`}>
           <span className="status-dot" aria-hidden="true" />
           {state}
         </span>
