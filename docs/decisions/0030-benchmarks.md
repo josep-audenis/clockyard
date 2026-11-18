@@ -246,18 +246,22 @@ What exists today:
    of an open: about a third for `chain` and `adder`, over two fifths
    for `counters`, over four fifths for `fanout`.
 
-   *As built (step 3, eighth):* a route search's estimate also counts
-   the bends still needed, from its heading and the direction it must
-   arrive in. It never overstates what is left, so every search finds
-   a route of the same cost as before, checked on about 87,000 searches.
-   **Deviation:** earlier steps kept every route byte-identical; this
-   one does not, because a route that ties may now be another one, and
-   later wires then route around it. The reference CPU example changes
-   28 of its 174 wires (250 cells shorter in all, 8 fewer bends);
-   `fanout-10k` changes 18 of 9,998. In exchange, on battery,
-   `fanout-10k` routes in 1.6 s instead of 9.1 s, and `adder-10k` in
-   0.4–0.5 s instead of 1.4–1.5 s. Tiles also hold routes by net, and a
-   taken port is found before any search box is built.
+   *As built (step 3, eighth):* on sheets of 2,000 wires or more, a
+   route search's estimate also counts the bends still needed, from its
+   heading and the direction it must arrive in. It never overstates what
+   is left, so on the same obstacles a search finds a route of the same
+   cost (checked on about 87,000 searches). A tie may go another way,
+   though, and later wires then meet different obstacles. Used on every
+   sheet, that left the reference CPU with 37 wires no search could
+   place instead of 34, so smaller sheets do without it and route
+   exactly as before; a test holds every example to its routes.
+   **Deviation:** earlier steps kept every route byte-identical; on
+   large sheets this one does not (`fanout` changes 18 wires, with the
+   same total length and bends, and no benchmark changes how many wires
+   go unplaced). In exchange, on battery, `fanout-10k` routes in 1.6 s
+   instead of 9.1 s, and `adder-10k` in 0.4–0.5 s instead of 1.4–1.5 s.
+   Tiles also hold routes by net, and a taken port is found before any
+   search box is built.
 
 ## Alternatives considered
 

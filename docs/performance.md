@@ -473,23 +473,27 @@ it touched, thousands of them where one net fans out across the sheet, only to s
 
 Now:
 
-- The estimate also counts the bends a route must still make, from its heading and the direction it has to arrive in.
-  The search then leaves out cells that cannot lie on a cheapest route. A test checks the count against every position
-  on an open grid: it is never more than a route needs, and no step lowers it by more than that step costs, which is
-  what keeps the routes cheapest.
+- On sheets of 2,000 wires or more, the estimate also counts the bends a route must still make, from its heading and
+  the direction it has to arrive in. The search then leaves out cells that cannot lie on a cheapest route. A test checks
+  the count against every position on an open grid: it is never more than a route needs, and no step lowers it by more
+  than that step costs, which is what keeps each search's route cheapest.
 - A port's first cell is checked on its own, before any box is built.
 - Each tile holds its routes by net, so a search skips its own net at once.
 - Routes beside a box are no longer walked along it, and the search's innermost loop is written out.
 
-**Routes can change, at the same cost.** Every search on the examples, the 1,000- and 10,000-part benchmarks and 400
-random sheets was run with and without the new estimate on the same obstacles: about 87,000 searches, the same cost
-every time. When several routes tie, the new one may be another of them, and later wires then route around it. On the
-benchmark sheets only `fanout` changes (18 of 9,998 wires at 10,000 parts, with the same total length and bends). Of the
-examples, only the two built on the reference CPU change, as does that CPU inside the `cpu` benchmark: 28 of its 174
-wires, with 250 cells less wire and 8 fewer bends in all. Their canvas shots differ for that reason, and the 26 other
-shots of the 30 are byte-identical.
+**Sheets under 2,000 wires route exactly as before**, and a test holds every example to its routes. Counting bends
+everywhere was tried first. Each search still found a route of the same cost on the same obstacles (about 87,000
+searches compared, on the examples, the 1,000- and 10,000-part benchmarks and 400 random sheets). But when several routes
+tie it can take another of them, later wires then meet different obstacles, and a whole sheet can end up worse: on the
+reference CPU, wires no search could place went from 34 to 37, one of them a straight line through five parts. Routing a
+sheet that size takes about 0.2 s, so it has little to gain.
 
-Opening, interleaved (A, B, A, B), **on battery**, so everything is slower than the tables above:
+**Larger sheets can change.** Of the 10,000- and 50,000-part benchmarks only `fanout` does: 18 wires, with the same total
+length and bends. On all of them, as many wires are left without a search's route as before. Another sheet of that size
+could gain or lose such a wire.
+
+Opening, interleaved (A, B, A, B), **on battery**, so everything is slower than the tables above. These runs came just
+before the limit of 2,000 wires, which none of these sheets is under:
 
 | Benchmark | Open before, s | Open after, s | Routing before, s | Routing after, s |
 |---|---:|---:|---:|---:|
