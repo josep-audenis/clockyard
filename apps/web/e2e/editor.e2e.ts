@@ -1036,6 +1036,11 @@ test("run until an LED lights: an instruction step on the reference CPU, then ru
   await expect(readout(page, "LED Halted")).toHaveText("LED Halted: on");
   await expect(readout(page, "LED Output")).toHaveText("LED Output: 8 (0x08)");
   await expect(counter(page)).toHaveText("Cycle 8, clock high");
+  // Opening the file again rebuilds the menu's options and the readout's rows; the LED is still there, so the choice stays.
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  await expect(until.locator("option:checked")).toHaveText("Until LED Halted lights");
+  await expect(readout(page, "LED Halted")).toHaveText("LED Halted: off");
 });
 
 test("the program editor assembles into the ROM, lists errors by line, and the CPU runs the new program (ADR 0019)", async ({ page }) => {

@@ -711,6 +711,27 @@ test("make component refuses a selection without pins, with an unnamed pin or a 
   expect(useEditor.getState().definitions).toEqual([]);
 });
 
+test("opens counts the sheets and documents swapped in, not the edits", () => {
+  const { i, n, o } = inverter();
+  useEditor.getState().select([i, n, o]);
+  useEditor.getState().makeComponent("Inverter");
+  const id = useEditor.getState().definitions[0]?.id ?? "";
+  const opens = () => useEditor.getState().opens;
+  const start = opens();
+  useEditor.getState().add("led", { x: 9, y: 4 });
+  useEditor.getState().undo();
+  expect(opens()).toBe(start);
+  useEditor.getState().openSheet(id);
+  expect(opens()).toBe(start + 1);
+  useEditor.getState().openSheet(id); // already open: nothing is swapped in
+  expect(opens()).toBe(start + 1);
+  useEditor.getState().closeSheet();
+  expect(opens()).toBe(start + 2);
+  const { metadata } = useEditor.getState();
+  useEditor.getState().load({ format: "clockyard", version: 11, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  expect(opens()).toBe(start + 3);
+});
+
 test("a definition opens on its own sheet; edits apply to it, each sheet keeps its undo, and back restores the main", () => {
   const { i, n, o } = inverter();
   useEditor.getState().select([i, n, o]);
