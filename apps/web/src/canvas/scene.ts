@@ -130,6 +130,12 @@ type Gesture =
 /** Shape ID of the placement preview; never a document ID (those are UUIDs). */
 const GHOST = "placement-preview";
 
+/**
+ * How many shapes one look is split into, by part ID. A Graphics listens to its shape and Pixi removes a listener by
+ * scanning them all, so thousands of parts on one shape made deleting them or changing theme quadratic.
+ */
+const SHAPES_PER_LOOK = 256;
+
 /** Numbers mounted canvases, so two alive at once (React's double mount) never share a label font's name. */
 let canvases = 0;
 
@@ -644,10 +650,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     return id;
   };
   /**
-   * One drawn shape per look (ADR 0030), never on the stage: every part that looks the same shows its context, so
-   * thousands of gates build one shape. Screens draw their own, since each shows its own picture.
-   * shortcut: kept until the theme changes, though a look may have no parts left; count parts per look if editing
-   * definitions for a long session ever makes that matter.
+   * Drawn shapes by look and bucket (ADR 0030), never on the stage: parts that look the same show the same few, so
+   * thousands of gates build at most `SHAPES_PER_LOOK` shapes. Screens draw their own, since each shows its own picture.
+   * shortcut: kept until the theme changes, though a look may have no parts left, and a change of any definition's pins
+   * makes new layouts and so new looks; count parts per shape if a long editing session ever makes that matter.
    */
   const templates = new Map<string, Graphics>();
   /** The last theme's shapes, destroyed once the next draw has moved every part off them. */
@@ -693,11 +699,12 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     const changed = looks.get(component.id) !== look;
     let template: Graphics | undefined;
     if (changed && !screen) {
-      template = templates.get(look);
+      const key = `${look}|${chunkOf(component.id, SHAPES_PER_LOOK)}`;
+      template = templates.get(key);
       if (!template) {
         template = new Graphics();
         paintBody(template, component, local, culprit, value, words);
-        templates.set(look, template);
+        templates.set(key, template);
       }
     }
     if (!g) {

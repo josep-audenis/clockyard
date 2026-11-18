@@ -316,7 +316,7 @@ test("undo and redo edits; a drag undoes in one step", async ({ page }) => {
   await expect(readout(page, "LED 1")).toHaveCount(0);
 });
 
-test("parts that look alike share a shape, yet each shows its own signal (ADR 0030)", async ({ page }) => {
+test("identical LEDs each show their own signal as switches change (ADR 0030)", async ({ page }) => {
   await page.goto("/");
   await expect(status(page)).toContainText("No circuit");
   const at = await grid(page);
