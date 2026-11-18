@@ -941,7 +941,6 @@ select.input {
   align-items: center;
   gap: 6px;
   height: 20px;
-  margin-left: calc(-1 * var(--space-2));
   padding: 0 var(--space-2);
   border-radius: var(--radius-sm);
   font-weight: 500;
@@ -970,6 +969,7 @@ select.input {
 }
 
 .status-muted {
+  background: var(--hover);
   color: var(--ink-muted);
 }
 
