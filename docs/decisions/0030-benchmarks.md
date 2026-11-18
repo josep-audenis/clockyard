@@ -238,12 +238,13 @@ What exists today:
    what makes it fast.
 
    *As built (step 3, seventh):* parts that look alike share drawn
-   shapes, 256 per look so that deleting parts or changing theme stays
-   linear, and a part's look holds only what its drawing reads, so a
-   toggle no longer rebuilds gates. `chain-10k` opens in 0.6–0.7 s on
-   mains power (was 1.3–1.4 s). Routing is now the largest part of an
-   open: about a third for `chain` and `adder`, over two fifths for
-   `counters`, over four fifths for `fanout`.
+   shapes, 256 per look so that deleting parts or changing theme is no
+   slower than before, and shapes no part shows are dropped once there
+   are more than 1,024. A part's look holds only what its drawing reads,
+   so a toggle no longer rebuilds gates. `chain-10k` opens in 0.6–0.7 s
+   on mains power (was 1.3–1.4 s). Routing is the largest measured part
+   of an open: about a third for `chain` and `adder`, over two fifths
+   for `counters`, over four fifths for `fanout`.
 
 ## Alternatives considered
 

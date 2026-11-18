@@ -550,7 +550,7 @@ targets, as in Phase 5.
          texture each: `adder-10k` opens in 2.8–3.2 s (was 5.0–5.8 s),
          `counters-10k` in 2.7–3.3 s.
       7. ✅ Shapes shared between parts that look alike (256 per look, so
-         deleting parts stays linear), and a look that holds only what a
+         deleting parts is no slower than before), and a look that holds only what a
          part shows, so a toggle no longer rebuilds gates: on mains power
          `chain-10k` opens in 0.6–0.7 s (was 1.3–1.4 s), `counters-10k` in
          2.1–2.2 s (was 2.8–3.2 s).

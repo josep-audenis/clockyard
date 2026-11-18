@@ -40,6 +40,7 @@ import {
   type Point,
 } from "./geometry";
 import { definitionName, layoutOf, PICTURE, pinLabel, PIXEL } from "./layout";
+import { dropUnused, MIN_TEMPLATE_LIMIT } from "./templates";
 import { routes, routesKeeping } from "./routing";
 import { timed } from "../bench";
 
@@ -497,6 +498,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       shape.destroy();
     }
     for (const template of retired.splice(0)) template.destroy();
+    if (templates.size > templateLimit) {
+      const shown = new Set([...shapes.values()].map((shape) => shape.context));
+      templateLimit = dropUnused(templates, (template) => shown.has(template.context), (template) => template.destroy());
+    }
 
     if (gesture?.type === "wire") {
       const start = endAt(at, gesture.from);
@@ -652,10 +657,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   /**
    * Drawn shapes by look and bucket (ADR 0030), never on the stage: parts that look the same show the same few, so
    * thousands of gates build at most `SHAPES_PER_LOOK` shapes. Screens draw their own, since each shows its own picture.
-   * shortcut: kept until the theme changes, though a look may have no parts left, and a change of any definition's pins
-   * makes new layouts and so new looks; count parts per shape if a long editing session ever makes that matter.
+   * Looks come and go (a display's every value is one), so shapes no part shows are dropped once there are many.
    */
   const templates = new Map<string, Graphics>();
+  let templateLimit = MIN_TEMPLATE_LIMIT;
   /** The last theme's shapes, destroyed once the next draw has moved every part off them. */
   const retired: Graphics[] = [];
 
