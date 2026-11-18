@@ -316,6 +316,35 @@ test("undo and redo edits; a drag undoes in one step", async ({ page }) => {
   await expect(readout(page, "LED 1")).toHaveCount(0);
 });
 
+test("identical LEDs each show their own signal as switches change (ADR 0030)", async ({ page }) => {
+  await page.goto("/");
+  await expect(status(page)).toContainText("No circuit");
+  const at = await grid(page);
+  for (const [key, x, y] of [["s", 1, 1], ["s", 1, 6], ["l", 8, 1], ["l", 8, 6]] as const) {
+    await page.keyboard.press(key);
+    await expect(status(page)).toContainText("Placing");
+    await click(page, at(x, y));
+  }
+  await drag(page, at(2, 1), at(7, 1));
+  await drag(page, at(2, 6), at(7, 6));
+  await expect(status(page)).toContainText("Settled");
+  const led = async (y: number) => {
+    const { x, y: top } = at(8, y);
+    return (await page.screenshot({ clip: { x: x - 14, y: top - 14, width: 28, height: 28 } })).toString("base64");
+  };
+  const same = async () => (await led(1)) === (await led(6));
+
+  await click(page, at(1, 1));
+  await expectStates(page, { "LED 1": 1, "LED 2": 0 });
+  await expect.poll(same).toBe(false);
+  await click(page, at(1, 6));
+  await expectStates(page, { "LED 1": 1, "LED 2": 1 });
+  await expect.poll(same).toBe(true);
+  await click(page, at(1, 1));
+  await expectStates(page, { "LED 1": 0, "LED 2": 1 });
+  await expect.poll(same).toBe(false);
+});
+
 test("a middle-button pan moves the view only: a part is clicked where it now shows (ADR 0030)", async ({ page }) => {
   await page.goto("/");
   await expect(status(page)).toContainText("No circuit");
