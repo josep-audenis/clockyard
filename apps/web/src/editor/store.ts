@@ -178,6 +178,8 @@ export type EditorState = {
   closeSheet: () => void;
   /** Replaces the whole document, e.g. from an imported file. Clears history. */
   load: (document: CircuitDocument) => void;
+  /** Counts the times another sheet or document took the canvas's place: what lists of its parts are rebuilt on. */
+  opens: number;
   /** Earlier circuits, most recent last; `undo` restores them. */
   past: Circuit[];
   /** Circuits undone, next first; any new edit clears them. */
@@ -467,6 +469,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   sheet: null,
   main: null,
   histories: {},
+  opens: 0,
   past: [],
   future: [],
   clipboard: null,
@@ -610,7 +613,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
       if (s.sheet) histories[s.sheet] = { past: s.past, future: s.future };
       const main = s.sheet ? s.main : { circuit: s.circuit, past: s.past, future: s.future };
       const { past, future } = histories[id] ?? { past: [], future: [] };
-      return { definitions, sheet: id, main, histories, circuit: target.circuit, past, future, ...fresh };
+      return { definitions, sheet: id, main, histories, opens: s.opens + 1, circuit: target.circuit, past, future, ...fresh };
     }),
 
   closeSheet: () =>
@@ -618,7 +621,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
       if (!s.sheet || !s.main) return s;
       const histories = { ...s.histories, [s.sheet]: { past: s.past, future: s.future } };
       const { circuit, past, future } = s.main;
-      return { definitions: liveDefinitions(s), sheet: null, main: null, histories, circuit, past, future, ...fresh };
+      return { definitions: liveDefinitions(s), sheet: null, main: null, histories, opens: s.opens + 1, circuit, past, future, ...fresh };
     }),
 
   move: (positions) =>
@@ -921,7 +924,20 @@ export const useEditor = create<EditorState>()((set, get) => ({
     // An opened file is routed afresh, never shaped by whatever was on screen before.
     forgetRoutes();
     // The clipboard may hold instances of the old document's definitions.
-    set({ metadata, circuit, definitions, sheet: null, main: null, histories: {}, past: [], future: [], clipboard: null, pastes: 0, ...fresh });
+    set((s) => ({
+      metadata,
+      circuit,
+      definitions,
+      sheet: null,
+      main: null,
+      histories: {},
+      opens: s.opens + 1,
+      past: [],
+      future: [],
+      clipboard: null,
+      pastes: 0,
+      ...fresh,
+    }));
   },
 
   record: () => set(remember),

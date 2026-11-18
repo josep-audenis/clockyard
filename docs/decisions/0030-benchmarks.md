@@ -264,6 +264,16 @@ What exists today:
    Tiles also hold routes by net, and a taken port is found before any
    search box is built.
 
+   *As built (step 3, ninth):* printable ASCII labels skip Pixi's call to
+   `Intl.Segmenter`, and the hidden readout's rows and the "Run until"
+   options sit in a fragment keyed by a count of the sheets opened, so a
+   new sheet's rows are placed as one instead of each looking through
+   those after it. On mains power `adder-10k` opens in 1.8 s (was 2.3 s)
+   and `counters-10k` in 2.3 s (was 2.5 s); `fanout-10k` shows no clear
+   change. Skipping the readout's layout with `content-visibility: auto` saved
+   about 300 ms more on battery, but it removed the rows from Chromium's
+   accessibility tree, so the list keeps its full layout.
+
 ## Alternatives considered
 
 - **Criterion for the native benchmarks.** It gives better statistics, but
