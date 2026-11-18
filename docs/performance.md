@@ -167,7 +167,7 @@ Read so:
 
 | Target | Measured | Met |
 |---|---|---|
-| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s; with fewer cells searched (section 8, on battery, where the same builds are slower) `fanout` 10.8 → 3.4–3.5 s, `adder` 4.2 → 3.3–3.4 s, `counters` 3.7–3.9 → 3.1–3.2 s; on mains with section 9's changes, `chain` 0.8 s, `adder` 1.8 s (was 2.3 s), `counters` 2.3 s (was 2.5 s), `fanout` 2.5 s (unchanged) | for `chain`, `cpu` and `adder` |
+| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s; with fewer cells searched (section 8, on battery, where the same builds are slower) `fanout` 10.8 → 3.4–3.5 s, `adder` 4.2 → 3.3–3.4 s, `counters` 3.7–3.9 → 3.1–3.2 s; on mains with section 9's changes and other work on the machine, `chain` 0.8 s, `adder` 1.8 s (was 2.3 s), `counters` 2.3 s (was 2.5 s), `fanout` 2.5 s (no clear change) | for `chain`, `cpu` and `adder` |
 | A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms | no |
 | Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder`; with shared part shapes (section 7) 30–60 for `chain`, `counters` and `fanout`, 20 for `adder` | partly |
 | 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k`; after step 3's routing index, `chain-50k` 6.3 s, `counters-50k` 22 s; with shared part shapes `chain-50k` 2.4 s; deleting every part of `chain-50k` takes about 1.2 s, over the 1 s asked (other edits not measured) | opening, for `chain` and `cpu` only, after it |
@@ -529,8 +529,8 @@ says `role="list"`, since Safari otherwise stops announcing it as one.
 Chromium's accessibility tree**, which is the list's whole purpose, so it was dropped. `contain: strict` saved nothing.
 
 Each open against main's build, production builds alternating, nine rounds, **on mains power**, with other work on the
-machine. The times are medians, the changes medians of each round's difference. Main-thread time comes from Chromium's
-own counters, which other programs disturb less than the clock:
+machine. The times are medians, the changes medians of each round's difference (layout and style: the sum of the two).
+Main-thread time comes from Chromium's own counters, which other programs disturb less than the clock:
 
 | Benchmark | Open before, s | Open after, s | Open, change, ms | Main thread, change, ms | Layout and style, change, ms |
 |---|---:|---:|---:|---:|---:|
@@ -539,10 +539,10 @@ own counters, which other programs disturb less than the clock:
 | fanout-10k | 2.51 | 2.51 | +3 | −94 | −41 |
 | chain-10k | 0.81 | 0.82 | −9 | 0 | 0 |
 
-`adder-10k` now opens within the 2 s asked. `fanout` has no labels to split and spends less of its open on its lists, so
-the clock does not show its smaller saving. `chain` has two list rows and asks for no label splitting. The largest costs
-left are routing on `counters` and `fanout`, then drawing. Each open also draws the whole sheet a second time when the
-engine's first state arrives, which is not yet looked into.
+`adder-10k` opened within the 2 s asked in this run. `fanout` has no labels to split; its main thread saved 94 ms, but
+its open time did not change measurably. `chain` has two list rows and asks for no label splitting. Routing is the
+largest cost left on `fanout`, and drawing on `counters` and `adder`. Each open also draws the whole sheet a second time
+when the engine's first state arrives, which is not yet looked into.
 
 ## Earlier measurements
 

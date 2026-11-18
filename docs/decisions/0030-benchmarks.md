@@ -269,8 +269,8 @@ What exists today:
    options sit in a fragment keyed by a count of the sheets opened, so a
    new sheet's rows are placed as one instead of each looking through
    those after it. On mains power `adder-10k` opens in 1.8 s (was 2.3 s)
-   and `counters-10k` in 2.3 s (was 2.5 s); `fanout-10k` stays at 2.5 s.
-   Skipping the readout's layout with `content-visibility: auto` saved
+   and `counters-10k` in 2.3 s (was 2.5 s); `fanout-10k` shows no clear
+   change. Skipping the readout's layout with `content-visibility: auto` saved
    about 300 ms more on battery, but it removed the rows from Chromium's
    accessibility tree, so the list keeps its full layout.
 
