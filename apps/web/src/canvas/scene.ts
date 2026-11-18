@@ -39,7 +39,7 @@ import {
   type Hit,
   type Point,
 } from "./geometry";
-import { definitionName, layoutOf, layoutsVersion, PICTURE, pinLabel, PIXEL } from "./layout";
+import { definitionName, layoutOf, PICTURE, pinLabel, PIXEL } from "./layout";
 import { routes, routesKeeping } from "./routing";
 import { timed } from "../bench";
 
@@ -490,6 +490,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       looks.delete(id);
       shape.destroy();
     }
+    for (const template of retired.splice(0)) template.destroy();
 
     if (gesture?.type === "wire") {
       const start = endAt(at, gesture.from);
@@ -634,35 +635,102 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     return g;
   }
 
-  function drawBody(component: CircuitComponent, culprit: boolean, value: (port: string) => number | null) {
-    const { color, size } = theme;
-    const c = cell();
-    let g = shapes.get(component.id);
-    if (!g) {
-      g = new Graphics();
-      shapes.set(component.id, g);
-      bodies.addChild(g);
+  /** A number per layout object: layouts are cached, so parts laid out alike have the same one. */
+  const layoutIds = new WeakMap<object, number>();
+  let layoutCount = 0;
+  const layoutId = (layout: object) => {
+    let id = layoutIds.get(layout);
+    if (id === undefined) layoutIds.set(layout, (id = ++layoutCount));
+    return id;
+  };
+  /**
+   * One drawn shape per look (ADR 0030), never on the stage: every part that looks the same shows its context, so
+   * thousands of gates build one shape. Screens draw their own, since each shows its own picture.
+   * shortcut: kept until the theme changes, though a look may have no parts left; count parts per look if editing
+   * definitions for a long session ever makes that matter.
+   */
+  const templates = new Map<string, Graphics>();
+  /** The last theme's shapes, destroyed once the next draw has moved every part off them. */
+  const retired: Graphics[] = [];
+
+  /** The signal a part's shape shows, if any: gates show none, so a change of their values redraws nothing. */
+  function shownValue(component: CircuitComponent, width: number, value: (port: string) => number | null) {
+    switch (component.kind) {
+      case "led":
+        return width <= 2 && value("in") === 1 ? 1 : 0;
+      case "switch":
+        return width <= 2 && value("out") === 1 ? 1 : 0;
+      case "clock":
+        return value("out") === 1 ? 1 : 0;
+      case "seg7":
+        return (value("seg") ?? 0) & 255;
+      default:
+        return 0;
     }
+  }
+
+  function drawBody(component: CircuitComponent, culprit: boolean, value: (port: string) => number | null) {
+    const c = cell();
     // Drawn in the part's own unrotated frame, then turned about its centre into the placed box.
     const local = layoutOf({ ...component, rotation: 0 });
     const placed = layoutOf(component);
     const at = px(component.position);
+    const screen = component.kind === "screen";
+    // A screen's picture is its words: each reply is a new array (ADR 0021).
+    const words = screen ? useSim.getState().memory[component.id] : undefined;
+    const picture = screen ? `${pictureVersion(words)}:${component.props.width}:${component.props.columns}` : "";
+    const focus = component.kind === "keyboard" && useCanvasHints.getState().keyboard === component.id;
+    // Everything `paintBody` reads, since parts with the same look share what it paints.
+    const look = `${component.kind}|${layoutId(local)}|${shownValue(component, local.width, value)}|${picture}|${focus}|${culprit}|${themeVersion}`;
+    let g = shapes.get(component.id);
+    // The placement preview keeps its ID from kind to kind; a screen's own shape and a shared one do not mix.
+    if (g && screen !== (looks.get(component.id)?.startsWith("screen|") ?? false)) {
+      g.destroy();
+      shapes.delete(component.id);
+      looks.delete(component.id);
+      g = undefined;
+    }
+    const changed = looks.get(component.id) !== look;
+    let template: Graphics | undefined;
+    if (changed && !screen) {
+      template = templates.get(look);
+      if (!template) {
+        template = new Graphics();
+        paintBody(template, component, local, culprit, value, words);
+        templates.set(look, template);
+      }
+    }
+    if (!g) {
+      g = template ? new Graphics(template.context) : new Graphics();
+      shapes.set(component.id, g);
+      bodies.addChild(g);
+    }
     g.pivot.set((local.width * c) / 2, (local.height * c) / 2);
     g.position.set(at.x + (placed.width * c) / 2, at.y + (placed.height * c) / 2);
     g.angle = component.rotation;
     g.alpha = component.id === GHOST ? 0.5 : 1;
-    // Moving or turning a part is only a transform; its shape is rebuilt only when what it shows changes.
-    const ports = [...Object.keys(local.inputs), ...Object.keys(local.outputs)];
-    // A chip's size and port places follow its definition's pins, so they are part of what is shown.
-    const chip = component.kind === "custom" ? layoutsVersion() : "";
-    // A screen's picture is its words: each reply is a new array (ADR 0021).
-    const words = component.kind === "screen" ? useSim.getState().memory[component.id] : undefined;
-    const picture = component.kind === "screen" ? `${pictureVersion(words)}:${component.props.width}:${component.props.columns}` : "";
-    const focus = component.kind === "keyboard" && useCanvasHints.getState().keyboard === component.id;
-    const look = `${component.kind}|${local.width}x${local.height}|${chip}|${picture}|${focus}|${culprit}|${ports.map(value).join()}|${themeVersion}`;
-    if (looks.get(component.id) === look) return;
+    // Moving or turning a part is only a transform; its shape changes only when what it shows does.
+    if (!changed) return;
     looks.set(component.id, look);
-    g.clear();
+    if (template) {
+      g.context = template.context;
+    } else {
+      g.clear();
+      paintBody(g, component, local, culprit, value, words);
+    }
+  }
+
+  /** Draws a part's body and ports into `g`. What it reads must be in `drawBody`'s look. */
+  function paintBody(
+    g: Graphics,
+    component: CircuitComponent,
+    local: ReturnType<typeof layoutOf>,
+    culprit: boolean,
+    value: (port: string) => number | null,
+    words: Uint32Array | undefined,
+  ) {
+    const { color, size } = theme;
+    const c = cell();
     const [x, y] = [0, 0];
     const body = { color: color["panel-raised"] };
     const outline = { width: 1.5, color: culprit ? color.danger : color["line-strong"] };
@@ -1246,6 +1314,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     for (const text of texts.values()) text.destroy();
     texts.clear();
     dropFonts();
+    retired.push(...templates.values());
+    templates.clear();
     schedule();
   };
   scheme.addEventListener("change", onScheme);
@@ -1286,6 +1356,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     window.removeEventListener("blur", releaseSpace);
     app.destroy(true, { children: true });
     dropFonts();
+    for (const template of [...templates.values(), ...retired]) template.destroy();
   };
   return { stop, bind };
 }
