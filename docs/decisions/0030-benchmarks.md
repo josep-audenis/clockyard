@@ -307,6 +307,18 @@ What exists today:
    code; not measured), and so does an open whose engine is that slow.
    A pan made during the wait waits with it.
 
+   *As built (step 3, fourteenth):* a toggle drew the sheet before the
+   engine's answer, with old wire values, and again with it; the answer
+   (2–5 ms after the inputs are sent) waited behind the first draw. While
+   inputs are sent and unanswered, the canvas now waits up to the same
+   150 ms, from the first unanswered send, so a toggle is drawn once
+   (not while a load is pending, whose wait covers it, nor on a sheet
+   with validation errors, which the worker does not answer); a `clockyard:engine-input` measure
+   spans from the inputs being sent to their state being shown. On mains, toggles on `adder-10k`,
+   `fanout-10k` and `chain-10k` are drawn 151, 128 and 40 ms sooner
+   (medians of seven). The drawing with the answer, 140–370 ms, is still
+   over the 100 ms target.
+
 ## Alternatives considered
 
 - **Criterion for the native benchmarks.** It gives better statistics, but

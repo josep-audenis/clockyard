@@ -580,13 +580,17 @@ targets, as in Phase 5.
          the engine's answer, so an edit is usually drawn once, with values,
          instead of once dimmed and again. On battery, deleting one part is 0.17–0.76 s
          faster on three of the four 10,000-part benchmarks.
+     14. ✅ A toggle waits up to the same 150 ms for its answer, so it is
+         drawn once, with values: on mains, a toggle on a 10,000-part sheet
+         is drawn 40–150 ms sooner (medians 0.21–0.41 s from the click). Drawing the
+         answer is what is left.
 
       Re-measured after these, on mains power (`docs/performance.md`, the
       new `bench:check` baseline): every 10,000-part sheet opens in
       0.25–1.6 s, and the 50,000-part ones that open in 0.85–5.1 s
       (`adder-50k` is refused after 6.1 s). Still missing or not shown:
-      toggles at 10,000 parts (0.09–0.34 s to the readout, the canvas's
-      redraw not measured), deleting one part (0.38–1.55 s before item 13),
+      toggles at 10,000 parts (0.09–0.34 s to the readout; medians of
+      0.21–0.41 s until drawn after item 14), deleting one part (0.38–1.55 s before item 13),
       edits at 50,000 parts (not measured since), panning `adder-10k`
       (15 fps), and the reference CPU's 10,000 cycles per second (9,614
       here, read a few per cent low).

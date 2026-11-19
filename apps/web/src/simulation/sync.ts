@@ -7,6 +7,14 @@ import { startSimulation } from "./client";
 import { since, timed } from "../bench";
 import type { AsmError, Challenge, CircuitDescription, Command, Diagnostic, Report, Result, Stopped } from "./protocol";
 
+// When the oldest inputs still unanswered were sent (a `performance.now()`), or -1.
+let inputsSent = -1;
+/**
+ * Whether the engine owes a state for inputs sent less than `ms` ago. The canvas waits that long for it, so a toggle is
+ * drawn once, with its values (ADR 0030).
+ */
+export const awaitingInputs = (ms: number) => inputsSent >= 0 && performance.now() - inputsSent < ms;
+
 export type Loaded = Extract<Result, { type: "loaded" }>;
 export type Waves = Extract<Result, { type: "waves" }>;
 
@@ -181,6 +189,12 @@ export function connectEngine(): () => void {
     useSim.setState({ running: message.running, stopped: message.stopped ?? null });
     // A state from before the latest load describes an older circuit.
     if (!state.current || state.loads !== loads) return;
+    // The answer to the inputs last sent (the benchmarks' end of a toggle); while running, possibly a state the worker
+    // sent before it took them, which the next one follows within a frame.
+    if (inputsSent >= 0) {
+      since("engine-input", inputsSent);
+      inputsSent = -1;
+    }
     const { nets, diagnostics: runtime, time } = message;
     useSim.setState(({ time: before, epoch }) => ({
       nets,
@@ -291,13 +305,20 @@ export function connectEngine(): () => void {
       // The record describes the circuit before this one, its nets numbered differently.
       useSim.setState({ stale: true, waves: null });
       loadsSent.push(performance.now());
+      // The load's answer covers inputs still unanswered.
+      inputsSent = -1;
       client.send({ type: "load", circuit: projected });
       sent = {};
     }
     // One command, so switches restored after a load change together and a flip-flop clocked by one of
     // them cannot sample the others in the order they were first toggled (ADR 0017).
     const changed = Object.fromEntries(Object.entries(inputs).filter(([component, value]) => sent[component] !== value));
-    if (Object.keys(changed).length > 0) client.send({ type: "setInputs", values: changed });
+    if (Object.keys(changed).length > 0) {
+      client.send({ type: "setInputs", values: changed });
+      // Answered only by a state of the current circuit: with a load pending, the load's own wait covers them, and after
+      // validation errors (no nets) the worker answers nothing. Timed from the first unanswered send, so the wait is capped.
+      if (pending === 0 && (useSim.getState().loaded?.netCount ?? 0) > 0 && inputsSent < 0) inputsSent = performance.now();
+    }
     sent = inputs;
     // After the load, so the worker resolves the wires in the circuit they belong to; it watches them again on every
     // later load by itself.
@@ -319,6 +340,7 @@ export function connectEngine(): () => void {
     latest = null;
     holding = false;
     send = null;
+    inputsSent = -1;
     // A new worker watches nothing until told.
     watchedWires = [];
     // Nothing will answer what is still awaited.

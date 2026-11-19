@@ -20,18 +20,20 @@ async function grid(page: Page): Promise<(x: number, y: number) => At> {
 }
 
 const click = (page: Page, at: At) => page.mouse.click(at.x, at.y);
-/** Under `?bench`: the canvas was not drawn between sending the last load and its first state, and was drawn after it. */
-async function drawnOnceWithState(page: Page) {
+/**
+ * Under `?bench`: the canvas was not drawn between a load or inputs being sent and their state being shown, and was drawn
+ * after it. `answer` is the measure spanning the two: `engine-ready` for a load, `engine-input` for inputs.
+ */
+async function drawnOnceWithState(page: Page, answer = "engine-ready") {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  const { sent, ready, draws } = await page.evaluate(() => {
-    const load = performance.getEntriesByName("clockyard:engine-load").at(-1);
-    const state = performance.getEntriesByName("clockyard:engine-ready").at(-1);
+  const { sent, ready, draws } = await page.evaluate((answer) => {
+    const state = performance.getEntriesByName(`clockyard:${answer}`).at(-1);
     return {
-      sent: load?.startTime ?? NaN,
+      sent: state?.startTime ?? NaN,
       ready: (state?.startTime ?? NaN) + (state?.duration ?? NaN),
       draws: performance.getEntriesByName("clockyard:draw").map((e) => e.startTime),
     };
-  });
+  }, answer);
   // Drawn before the state, every wire would be drawn again when it came.
   expect(draws.filter((t) => t >= sent && t < ready)).toEqual([]);
   expect(draws.some((t) => t >= ready)).toBe(true);
@@ -1095,6 +1097,20 @@ test("a connectivity edit is drawn once its state is in, not before it (ADR 0030
   await page.keyboard.press("Delete");
   await page.waitForFunction(() => performance.getEntriesByName("clockyard:engine-ready").length > 0);
   await drawnOnceWithState(page);
+});
+
+test("a toggle is drawn once its state is in, not before it (ADR 0030)", async ({ page }) => {
+  await page.goto("/?bench");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("8-bit-adder"));
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+  // Cin at (0,24), toggled a few times: on a sheet this small the answer sometimes beats the next frame anyway.
+  for (let i = 0; i < 6; i++) {
+    await page.evaluate(() => performance.clearMeasures());
+    await click(page, at(1, 25));
+    await page.waitForFunction(() => performance.getEntriesByName("clockyard:engine-input").length > 0);
+    await drawnOnceWithState(page, "engine-input");
+  }
 });
 
 test("every readout row reaches the browser's accessibility tree", async ({ page }) => {
