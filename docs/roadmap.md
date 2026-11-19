@@ -595,10 +595,13 @@ targets, as in Phase 5.
       (15 fps), and the reference CPU's 10,000 cycles per second (9,614
       here, read a few per cent low).
 
-      Closed after item 14: at 1,000 parts the interactive targets are
-      met, so the 10,000- and 50,000-part sheets are now stress tests
-      rather than goals (ADR 0030 item 4). What a later step would start from is in
-      `docs/performance.md`, "Left for later".
+      Closed after item 14. Real circuits are far smaller (a reference
+      CPU is about 300 nets), so the interactive targets now apply at
+      1,000 parts, where they are met as far as measured, and the
+      10,000- and 50,000-part sheets are stress tests rather than goals
+      (ADR 0030 item 4). The reference CPU's run speed stays nearly met.
+      What a later step would start from is in `docs/performance.md`,
+      "Left for later".
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
@@ -639,9 +642,10 @@ in the editor with notes and components added from other files (ADR 0027),
 are built too, which completes the plan of ADR 0020. Phase 6 is planned in
 ADR 0028 (accepted); its first increment, local persistence (ADR 0029), is
 built. Increment 2, benchmarks (ADR 0030), is built: fourteen
-optimizations of the canvas, after which the interactive targets are met
-at 1,000 parts and the larger sheets are kept as stress tests. Increment 3,
-editing a running circuit, is next.
+optimizations, mostly of the canvas and routing, after which the
+interactive targets apply at 1,000 parts and the larger sheets are kept
+as stress tests. Increment 3, editing a running circuit, is next, with its
+own ADR.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is

@@ -147,20 +147,31 @@ Read so:
 
 ### Against the targets (ADR 0030 item 4)
 
-| Target | Measured | Met |
+Since step 3 closed, the interactive targets apply at 1,000 parts, and the 10,000- and 50,000-part rows below are stress
+tests rather than goals (ADR 0030 item 4). Real circuits are far smaller: a reference CPU is about 300 nets.
+
+| At 1,000 parts | Measured | Met |
+|---|---|---|
+| Open in under 2 s | 0.13–0.45 s (`cpu` 0.13, `chain` 0.19, `fanout` 0.37, `counters` 0.37, `adder` 0.45) | yes |
+| A toggle, or moving a part, shows within 100 ms | toggle 34–65 ms to the readout (`adder`, `chain`, `fanout`; the others have no switch), not timed until drawn; a drag step 4–9 ms for flat circuits, under 1 ms for `cpu`; deleting a part not measured | where measured |
+| Panning at 30 fps or more | 60 fps for all five | yes |
+
+| Stress test | Measured | Met |
 |---|---|---|
 | 10,000 parts open in under 2 s | 0.25–1.6 s (`cpu` 0.25, `chain` 0.58, `counters` 1.37, `adder` 1.40, `fanout` 1.58); 9–24 s for flat circuits after step 3's first three optimizations. How each step got there is in sections 4–13 | yes, in this run |
 | A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.09–0.34 s (single runs of 0.20–0.44 s until its state is drawn after section 14, medians 0.21–0.41 s, not in this table); a drag step 29–78 ms; deleting one part, until its state is drawn, 0.38–1.55 s after section 11, less after section 13 (not in this table) | for drag steps only |
 | Panning at 30 fps or more at 10,000 parts | 60 fps for `fanout` and `cpu`, 30 for `chain` and `counters`, 15 for `adder` | all but `adder` |
 | 50,000 parts open in under 10 s, edits under 1 s | open 0.85–5.1 s for the three that open (`adder-50k` is refused after 6.1 s); deleting every part of `chain-50k` took about 1.2 s when last measured, before sections 11–13 (other edits not measured) | opening, yes; edits not measured since |
+
+| Runs | Measured | Met |
+|---|---|---|
 | Run speed on `counters-10k` recorded | 3,752 cycles per second | yes |
-| The reference CPU keeps 10,000 cycles per second | 9,614 (`cpu-1k`, four CPUs), and the rate reads a few per cent low; about 9,950 measured on its own (ADR 0019) | nearly, as measured here |
+| The reference CPU keeps 10,000 cycles per second | 9,614 (`cpu-1k`, four CPUs), and the rate reads a few per cent low; about 9,950 when last measured on its own, in Phase 4 (ADR 0019) | nearly |
 
 Step 3 of ADR 0030 has optimized panning, the wires an edit or a state redraws, what the page does with each engine
 state, routing a whole sheet, labels, part shapes, the searches themselves, the page's long part lists and the second
-draw of an open, an edit or a toggle (below). Step 3 is closed: at 1,000 parts the interactive targets are met, and the 10,000- and
-50,000-part sheets are now stress tests rather than goals (ADR 0030 item 4). What a later step would start from is under
-"Left for later", below.
+draw of an open, an edit or a toggle (below). Step 3 is closed, with the targets as above; what a later step would start
+from is under "Left for later", below.
 
 `pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
 twice as bad (and worse by more than 5), or one the run lost; `node scripts/bench-check.mjs --update` makes the last run
@@ -193,7 +204,7 @@ history), every 1,000-part benchmark panned at 60 frames a second and the 10,000
 loaded run of 2026-11-16). A pan frame still takes main-thread time with nothing drawn: 35–45 ms for `chain-10k` and about
 110 ms for `adder-10k` (`clockyard:view`, on battery). That is Pixi's render, most likely its walk over every object,
 off screen too (not yet profiled). Culling what is off screen is the next
-candidate for panning.
+candidate for panning. (A later profile found the cost to be draw calls, one per part, instead: "Left for later".)
 
 ### 2. Rebuilding only the wires that changed
 
@@ -684,18 +695,20 @@ within a frame, as before.
 
 ### Left for later
 
-Step 3 closed with the 10,000-part toggle and edit targets, and `adder-10k` panning, unmet. A profile of the canvas
-before closing it, in throwaway builds timed against main's on battery (so slower than mains), found two causes:
+Step 3 closed with toggles and deletes within 100 ms at 10,000 parts, and `adder-10k` panning, unmet. A profile of the
+canvas before closing it, in throwaway builds timed against main's on battery (so slower than mains), with three or four
+runs per build and single readings for draw calls and frame rates, found two causes:
 
 - **No part is batched.** Pixi batches a shape only under 400 vertex values, and every part body is larger, so each frame
-  makes one draw call per part: about 10,000 on a 10,000-part sheet. Pan frames on `adder-10k` were mostly WebGL calls.
-  Batching the shared part shapes (`batchMode = "batch"`) in 64 render groups brought it to 321 draw calls, 60 frames a
-  second when panning `adder`, `chain` and `fanout`, and redraws that change nothing to a 2–12 ms render. However, a
-  change to any part then re-packs its whole group: a `fanout-10k` toggle, which changes 5,000 LEDs across every group,
-  rendered in 672–731 ms instead of 219–376.
+  makes one draw call per part: about 10,000 on a 10,000-part sheet. A profile of panning `adder-10k` was mostly WebGL
+  calls. Batching the shared part shapes (`batchMode = "batch"`) brought panning `adder`, `chain` and `fanout` to 60
+  frames a second; in 64 render groups, it made 321 draw calls on `adder-10k`, and redraws that change nothing rendered
+  in 2–12 ms. A change to any part then re-packs its whole group, though: toggle renders fell on `adder-10k` (19–67 ms,
+  from 98–225), stayed about the same on `chain-10k` (170–231, from 130–256), and doubled on `fanout-10k`, whose toggle
+  changes 5,000 LEDs across every group (672–731, from 219–376).
 - **A value change rebuilds shapes.** Pixi bakes colour and width into a shape's vertices, so a toggle that changes every
-  wire rebuilds every wire chunk: 45–125 ms building them and 150–490 ms in Pixi tessellating, packing and uploading
-  them, across these runs. Wires and parts in their own render groups stop unrelated changes re-packing them, but do not avoid this.
+  wire rebuilds every wire chunk: on main's build, 29–120 ms building them, and most of a 130–490 ms render in which
+  Pixi tessellates, packs and uploads them (a redraw that changes no wire rendered in 17–37 ms on these two sheets). Wires and parts in their own render groups stop unrelated changes re-packing them, but do not avoid this.
   Keeping the shapes fixed and taking colour and width from the engine's values in a shader would make a toggle upload a
   small table instead. That changes how the canvas draws, so it would need its own ADR.
 

@@ -156,15 +156,28 @@ What exists today:
    step 3 works toward them.
 
    *As built (step 3 closed):* the 10,000- and 50,000-part targets are
-   now stress tests, not goals. Nobody is expected to build circuits
-   that large by hand, and at 1,000 parts the interactive targets are met
-   (toggles in 34–65 ms, drag steps in 4–9 ms, panning at 60 frames per
-   second, opens in 0.13–0.45 s). The reference CPU, the largest circuit
-   in the project, runs at about 9,950 cycles per second on its own. Still unmet at 10,000 parts: a toggle or
-   an edit within 100 ms, and panning `adder-10k`. Edits at 50,000 parts
-   have not been measured since step 3's first optimizations.
-   `pnpm bench:check` stays as the guard against regressions, and
-   `docs/performance.md` notes what a later step would start from.
+   now stress tests, not goals, and the interactive targets apply at
+   1,000 parts. Real circuits are far smaller than 10,000 parts: the
+   reference CPU, the project's largest, is about 300 nets. Where measured
+   at 1,000 parts, those targets are met: opens in 0.13–0.45 s, panning
+   at 60 frames per second on all five benchmarks, drag steps in 4–9 ms
+   on flat circuits (under 1 ms for `cpu`), and toggles in 34–65 ms to
+   the readout on the three with a switch. Deleting a part was not
+   measured at 1,000 parts, and no toggle there was timed until drawn.
+   This also stands in for ADR 0028's target for this increment (the
+   largest benchmark opens, runs and can be edited at the recorded
+   speeds): at 50,000 parts only opening is measured now.
+
+   The reference CPU's run-speed target is unchanged and nearly met:
+   9,614 cycles per second for four copies in the latest run (a rate that
+   reads a few per cent low), and about 9,950 when last measured alone,
+   in Phase 4 (ADR 0019).
+
+   Still unmet at 10,000 parts: a toggle, or deleting a part, within
+   100 ms, and panning `adder-10k`. Edits at 50,000 parts have not been
+   measured since step 3's first optimizations. `pnpm bench:check` stays
+   as the guard against regressions, and `docs/performance.md` notes what
+   a later step would start from.
 5. **Optimize only what the numbers show.**
    - Each optimization is its own step, with its before and after in
      `docs/performance.md` and the benchmark that motivated it.
@@ -331,8 +344,8 @@ What exists today:
    (medians of seven). The drawing with the answer, 140–370 ms, is still
    over the 100 ms target.
 
-   Step 3 closes here, with the targets changed as item 4's last note
-   says.
+   Step 3 closes here, with the targets changed as item 4's as-built
+   note (step 3 closed) says.
 
 ## Alternatives considered
 
