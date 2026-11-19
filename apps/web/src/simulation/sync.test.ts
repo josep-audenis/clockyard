@@ -12,7 +12,7 @@ vi.mock("./client", () => ({
   },
 }));
 
-const { connectEngine, useSim, watchMemory } = await import("./sync");
+const { awaitingInputs, connectEngine, useSim, watchMemory } = await import("./sync");
 const { useEditor } = await import("../editor/store");
 
 test("a load the engine fails on answers that load: the error shows, nothing stays loaded or pending", () => {
@@ -227,4 +227,32 @@ test("waveforms: watch follows the load it belongs to, a sent load drops the rec
   stop();
   useEditor.setState(before, true);
   vi.useRealTimers();
+});
+
+test("inputs sent are awaited until a state of the current circuit, and only when the engine will answer them (ADR 0030)", () => {
+  const loaded = (netCount: number) => worker.reply({ type: "loaded", netCount, portNets: {}, wireNets: {} } as unknown as Result);
+  const state = { type: "state", nets: new Uint32Array(2), diagnostics: [], time: 1, running: false } as unknown as Result;
+  const awaited = () => awaitingInputs(60_000);
+  const toggle = (value: number) => useEditor.getState().setInput("awaited", value);
+  // Validation errors: no nets, and the worker answers no inputs.
+  let stop = connectEngine();
+  loaded(0);
+  toggle(1);
+  expect(worker.sent.at(-1)).toEqual({ type: "setInputs", values: { awaited: 1 } });
+  expect(awaited()).toBe(false);
+  stop();
+  // Inputs sent with a load pending (here, restored after it) are the load's to answer.
+  stop = connectEngine();
+  expect(worker.sent.slice(-2).map((c) => c.type)).toEqual(["load", "setInputs"]);
+  expect(awaited()).toBe(false);
+  loaded(2);
+  toggle(0);
+  expect(awaited()).toBe(true);
+  worker.reply(state);
+  expect(awaited()).toBe(false);
+  // A stopped engine owes nothing.
+  toggle(1);
+  expect(awaited()).toBe(true);
+  stop();
+  expect(awaited()).toBe(false);
 });

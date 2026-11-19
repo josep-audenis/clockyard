@@ -24,7 +24,7 @@ import {
 import { heldCode, keyStep, type Held } from "../editor/keyboard";
 import { armedProps, useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
-import { inputsSent, useSim, watchMemory } from "../simulation/sync";
+import { awaitingInputs, useSim, watchMemory } from "../simulation/sync";
 import {
   endAt,
   dragSegment,
@@ -52,7 +52,7 @@ const MAX_ZOOM = 4;
 /**
  * How long, after routing, a redraw waits for the engine's answer to a load before drawing without it, and after inputs
  * are sent, for their answer (ADR 0030). On 10,000-part sheets the engine answers within about 0.3 s of an edit, often
- * sooner than routing ends, and within about 25 ms of a toggle.
+ * sooner than routing ends, and within a few ms of a toggle's inputs being sent.
  */
 const ANSWER_WAIT_MS = 150;
 /** Pointer travel (px) before a press on a part counts as a drag, not a click. */
@@ -256,12 +256,13 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       // Drawn before it, every wire was drawn twice, the first time dimmed. The view waits too (a pan, for that long).
       // Inputs sent (a toggle) wait up to as long: drawn before their answer, the switch flipped but its wires kept their
       // old values, and every chunk the answer changed was built twice.
-      if (dirty && inputsSent >= 0 && performance.now() - inputsSent < ANSWER_WAIT_MS) {
-        paint(true);
-        return;
-      }
-      if (!useSim.getState().stale) waitingSince = -1;
-      else if (dirty) {
+      if (!useSim.getState().stale) {
+        waitingSince = -1;
+        if (dirty && awaitingInputs(ANSWER_WAIT_MS)) {
+          paint(true);
+          return;
+        }
+      } else if (dirty) {
         if (waitingSince < 0) {
           currentRoutes(useEditor.getState().circuit);
           waitingSince = performance.now();

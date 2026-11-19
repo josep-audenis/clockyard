@@ -137,8 +137,9 @@ Read so:
 - **A drag step** takes 4–9 ms at 1,000 parts and 29–78 ms at 10,000 for flat circuits (under 2 ms for `cpu`); the
   sync is 5 ms or less.
 - **A toggle takes 0.09–0.34 s at 10,000 parts** to the hidden readout, though the engine settles it in 2 ms or less.
-  Section 14, which profiled it later, found this measure includes most of the canvas's drawing too: Playwright cannot
-  check the readout while a draw holds the page.
+  Section 14, which profiled it later, found that on `adder` and `fanout` this measure includes most of the canvas's
+  drawing too, since Playwright cannot check the readout while a draw holds the page; on `chain` it is checked between
+  draws and ends before the drawing does.
 - **Running a large circuit**: `counters-10k` runs at 3,752 cycles per second and `cpu-10k` at 3,200 (2,017 and 1,569
   in the previous, loaded table). At 1,000 parts the run speed is 9,550–9,610 of the 10,000 asked, and the rate reads a few per cent low.
 - **Autosave** takes 40–59 ms at 10,000 parts for flat circuits (6 ms for `cpu`) and 7–20 ms at 1,000.
@@ -149,7 +150,7 @@ Read so:
 | Target | Measured | Met |
 |---|---|---|
 | 10,000 parts open in under 2 s | 0.25–1.6 s (`cpu` 0.25, `chain` 0.58, `counters` 1.37, `adder` 1.40, `fanout` 1.58); 9–24 s for flat circuits after step 3's first three optimizations. How each step got there is in sections 4–13 | yes, in this run |
-| A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.09–0.34 s (0.20–0.44 s until its state is drawn after section 14, not in this table); a drag step 29–78 ms; deleting one part, until its state is drawn, 0.38–1.55 s after section 11, less after section 13 (not in this table) | for drag steps only |
+| A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.09–0.34 s (single runs of 0.20–0.44 s until its state is drawn after section 14, medians 0.21–0.41 s, not in this table); a drag step 29–78 ms; deleting one part, until its state is drawn, 0.38–1.55 s after section 11, less after section 13 (not in this table) | for drag steps only |
 | Panning at 30 fps or more at 10,000 parts | 60 fps for `fanout` and `cpu`, 30 for `chain` and `counters`, 15 for `adder` | all but `adder` |
 | 50,000 parts open in under 10 s, edits under 1 s | open 0.85–5.1 s for the three that open (`adder-50k` is refused after 6.1 s); deleting every part of `chain-50k` took about 1.2 s when last measured, before sections 11–13 (other edits not measured) | opening, yes; edits not measured since |
 | Run speed on `counters-10k` recorded | 3,752 cycles per second | yes |
@@ -646,12 +647,14 @@ slower processor, review saw it fail.
 ### 14. Waiting for a toggle's answer
 
 Profiled on main's build, on mains power, a click on a switch drew the whole sheet twice: once before the engine
-answered, with the switch flipped but its wires at their old values (35–150 ms), then again with the answer (100–450
-ms). The answer came while the first draw ran and waited behind it. The engine itself answers within 2–5 ms of the
+answered, with the switch flipped but its wires at their old values, then again with the answer: 38–203 ms and
+136–405 ms in the timed runs below. The answer came while the first draw ran and waited behind it. The engine itself answers within 2–5 ms of the
 inputs being sent; most of what comes before that is the click's own handling.
 
 Now, while inputs have been sent and no state of the current circuit has come since, the canvas waits for that state
-the same up to 150 ms it waits for a load's answer (section 13). A new measure, `clockyard:engine-input`, spans from the
+the same up to 150 ms it waits for a load's answer (section 13), counted from the first inputs still unanswered. Inputs
+are not awaited when nothing will answer them: while a load is pending, whose own wait covers them, and on a sheet with
+validation errors, where the worker has no circuit to set them in. A new measure, `clockyard:engine-input`, spans from the
 inputs being sent to their state being shown.
 
 One switch toggled on each benchmark, main's build against this change, alternating, seven rounds, **on mains**.

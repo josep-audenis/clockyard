@@ -20,8 +20,10 @@ async function grid(page: Page): Promise<(x: number, y: number) => At> {
 }
 
 const click = (page: Page, at: At) => page.mouse.click(at.x, at.y);
-/** Under `?bench`: the canvas was not drawn between sending the last load and its first state, and was drawn after it. */
-/** `answer` spans from a load or inputs being sent to their state being shown: `engine-ready` or `engine-input`. */
+/**
+ * Under `?bench`: the canvas was not drawn between a load or inputs being sent and their state being shown, and was drawn
+ * after it. `answer` is the measure spanning the two: `engine-ready` for a load, `engine-input` for inputs.
+ */
 async function drawnOnceWithState(page: Page, answer = "engine-ready") {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const { sent, ready, draws } = await page.evaluate((answer) => {

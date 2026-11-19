@@ -7,11 +7,13 @@ import { startSimulation } from "./client";
 import { since, timed } from "../bench";
 import type { AsmError, Challenge, CircuitDescription, Command, Diagnostic, Report, Result, Stopped } from "./protocol";
 
+// When the oldest inputs still unanswered were sent (a `performance.now()`), or -1.
+let inputsSent = -1;
 /**
- * When inputs were last sent (a `performance.now()`) with no state of the current circuit since, or -1. The canvas waits
- * up to its answer wait for that state, so a toggle is drawn once, with its values (ADR 0030).
+ * Whether the engine owes a state for inputs sent less than `ms` ago. The canvas waits that long for it, so a toggle is
+ * drawn once, with its values (ADR 0030).
  */
-export let inputsSent = -1;
+export const awaitingInputs = (ms: number) => inputsSent >= 0 && performance.now() - inputsSent < ms;
 
 export type Loaded = Extract<Result, { type: "loaded" }>;
 export type Waves = Extract<Result, { type: "waves" }>;
@@ -303,6 +305,8 @@ export function connectEngine(): () => void {
       // The record describes the circuit before this one, its nets numbered differently.
       useSim.setState({ stale: true, waves: null });
       loadsSent.push(performance.now());
+      // The load's answer covers inputs still unanswered.
+      inputsSent = -1;
       client.send({ type: "load", circuit: projected });
       sent = {};
     }
@@ -311,7 +315,9 @@ export function connectEngine(): () => void {
     const changed = Object.fromEntries(Object.entries(inputs).filter(([component, value]) => sent[component] !== value));
     if (Object.keys(changed).length > 0) {
       client.send({ type: "setInputs", values: changed });
-      inputsSent = performance.now();
+      // Answered only by a state of the current circuit: with a load pending, the load's own wait covers them, and after
+      // validation errors (no nets) the worker answers nothing. Timed from the first unanswered send, so the wait is capped.
+      if (pending === 0 && (useSim.getState().loaded?.netCount ?? 0) > 0 && inputsSent < 0) inputsSent = performance.now();
     }
     sent = inputs;
     // After the load, so the worker resolves the wires in the circuit they belong to; it watches them again on every
