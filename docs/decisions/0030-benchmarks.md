@@ -154,6 +154,17 @@ What exists today:
    speed froze the page, so its run speed could not be recorded. The
    engine and the sync are not the cause. The targets stay as they are;
    step 3 works toward them.
+
+   *As built (step 3 closed):* the 10,000- and 50,000-part targets are
+   now stress tests, not goals. Nobody is expected to build circuits
+   that large by hand, and at 1,000 parts the interactive targets are met
+   (toggles in 34–65 ms, drag steps in 4–9 ms, panning at 60 frames per
+   second, opens in 0.13–0.45 s). The reference CPU, the largest circuit
+   in the project, runs at about 9,950 cycles per second on its own. Still unmet at 10,000 parts: a toggle or
+   an edit within 100 ms, and panning `adder-10k`. Edits at 50,000 parts
+   have not been measured since step 3's first optimizations.
+   `pnpm bench:check` stays as the guard against regressions, and
+   `docs/performance.md` notes what a later step would start from.
 5. **Optimize only what the numbers show.**
    - Each optimization is its own step, with its before and after in
      `docs/performance.md` and the benchmark that motivated it.
@@ -313,11 +324,15 @@ What exists today:
    inputs are sent and unanswered, the canvas now waits up to the same
    150 ms, from the first unanswered send, so a toggle is drawn once
    (not while a load is pending, whose wait covers it, nor on a sheet
-   with validation errors, which the worker does not answer); a `clockyard:engine-input` measure
-   spans from the inputs being sent to their state being shown. On mains, toggles on `adder-10k`,
+   with validation errors, which the worker does not answer); a
+   `clockyard:engine-input` measure spans from the inputs being sent to
+   their state being shown. On mains, toggles on `adder-10k`,
    `fanout-10k` and `chain-10k` are drawn 151, 128 and 40 ms sooner
    (medians of seven). The drawing with the answer, 140–370 ms, is still
    over the 100 ms target.
+
+   Step 3 closes here, with the targets changed as item 4's last note
+   says.
 
 ## Alternatives considered
 

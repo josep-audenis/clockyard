@@ -158,8 +158,9 @@ Read so:
 
 Step 3 of ADR 0030 has optimized panning, the wires an edit or a state redraws, what the page does with each engine
 state, routing a whole sheet, labels, part shapes, the searches themselves, the page's long part lists and the second
-draw of an open, an edit or a toggle (below). What these numbers point to next: the rest of an open, now mostly routing and drawing
-(section 9), and drawing wires, which a toggle that changes every wire also pays.
+draw of an open, an edit or a toggle (below). Step 3 is closed: at 1,000 parts the interactive targets are met, and the 10,000- and
+50,000-part sheets are now stress tests rather than goals (ADR 0030 item 4). What a later step would start from is under
+"Left for later", below.
 
 `pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
 twice as bad (and worse by more than 5), or one the run lost; `node scripts/bench-check.mjs --update` makes the last run
@@ -680,6 +681,23 @@ A browser test toggles the 8-bit adder's carry-in six times and fails if the she
 being sent and its state being shown; with main's `scene.ts` it failed 10 of 10 runs, with this change it passed 20 of
 20. While a clock runs, a state the worker sent before it took the inputs can end the wait; the next state follows
 within a frame, as before.
+
+### Left for later
+
+Step 3 closed with the 10,000-part toggle and edit targets, and `adder-10k` panning, unmet. A profile of the canvas
+before closing it, in throwaway builds timed against main's on battery (so slower than mains), found two causes:
+
+- **No part is batched.** Pixi batches a shape only under 400 vertex values, and every part body is larger, so each frame
+  makes one draw call per part: about 10,000 on a 10,000-part sheet. Pan frames on `adder-10k` were mostly WebGL calls.
+  Batching the shared part shapes (`batchMode = "batch"`) in 64 render groups brought it to 321 draw calls, 60 frames a
+  second when panning `adder`, `chain` and `fanout`, and redraws that change nothing to a 2–12 ms render. However, a
+  change to any part then re-packs its whole group: a `fanout-10k` toggle, which changes 5,000 LEDs across every group,
+  rendered in 672–731 ms instead of 219–376.
+- **A value change rebuilds shapes.** Pixi bakes colour and width into a shape's vertices, so a toggle that changes every
+  wire rebuilds every wire chunk: 45–125 ms building them and 150–490 ms in Pixi tessellating, packing and uploading
+  them, across these runs. Wires and parts in their own render groups stop unrelated changes re-packing them, but do not avoid this.
+  Keeping the shapes fixed and taking colour and width from the engine's values in a shader would make a toggle upload a
+  small table instead. That changes how the canvas draws, so it would need its own ADR.
 
 ## Earlier measurements
 

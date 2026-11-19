@@ -508,7 +508,7 @@ targets, as in Phase 5.
       remembered, with *Clear progress*. Playwright: the 4-bit adder's full
       adder saved, replaced after asking, and added to a new project; the
       inverter passed stays ticked after a reload.
-2. ⬜ Benchmarks (ADR 0030, accepted): generated circuits of about 1,000,
+2. ✅ Benchmarks (ADR 0030, accepted): generated circuits of about 1,000,
    10,000 and 50,000 parts (gate chain, fan-out, wide adder, counters, CPU
    parts), measured natively and in the browser, with results and targets
    in `docs/performance.md`; optimize what they show unmet.
@@ -524,7 +524,7 @@ targets, as in Phase 5.
       at about one frame a second, a drag step redraws everything, and
       running `counters-10k` at full speed froze the page; the engine and
       sync are cheap. Routing and drawing on the main thread are the cost.
-   3. ⬜ Optimizations, one per pull request, as the numbers require.
+   3. ✅ Optimizations, one per pull request, as the numbers require.
       1. ✅ Panning without redrawing: 60 fps at 1,000 parts, 2.5–5
          times faster at 10,000 (8.6–30 fps on mains power, the target met
          for two of four families in that run; one of four in the loaded
@@ -594,6 +594,11 @@ targets, as in Phase 5.
       edits at 50,000 parts (not measured since), panning `adder-10k`
       (15 fps), and the reference CPU's 10,000 cycles per second (9,614
       here, read a few per cent low).
+
+      Closed after item 14: at 1,000 parts the interactive targets are
+      met, so the 10,000- and 50,000-part sheets are now stress tests
+      rather than goals (ADR 0030 item 4). What a later step would start from is in
+      `docs/performance.md`, "Left for later".
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
@@ -633,8 +638,10 @@ watched wires recorded by the engine (ADR 0026), and increment 7, examples
 in the editor with notes and components added from other files (ADR 0027),
 are built too, which completes the plan of ADR 0020. Phase 6 is planned in
 ADR 0028 (accepted); its first increment, local persistence (ADR 0029), is
-built. Increment 2, benchmarks (ADR 0030), has its measurements built;
-step 3 optimizes the canvas, which they show is the bottleneck.
+built. Increment 2, benchmarks (ADR 0030), is built: fourteen
+optimizations of the canvas, after which the interactive targets are met
+at 1,000 parts and the larger sheets are kept as stress tests. Increment 3,
+editing a running circuit, is next.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
