@@ -355,6 +355,14 @@ body:has(.button:hover) .button:focus-visible:not(:hover) > .tip {
   letter-spacing: -0.02em;
 }
 
+.wordmark a {
+  display: inherit;
+  align-items: inherit;
+  gap: inherit;
+  color: inherit;
+  text-decoration: none;
+}
+
 .project-name {
   min-width: 8ch;
 }
