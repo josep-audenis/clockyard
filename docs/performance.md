@@ -162,7 +162,7 @@ draw of an open or an edit (below). What these numbers point to next: the rest o
 
 `pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
 twice as bad (and worse by more than 5), or one the run lost; `node scripts/bench-check.mjs --update` makes the last run
-the baseline. The baseline is this table's run, on a quiet machine: single runs here vary up to two times (section 4),
+the baseline. The baseline is this table's run, with no other work known to run: single runs here vary up to two times (section 4),
 so a failure may be noise, and an interleaved comparison should confirm it before it is called a regression.
 
 ## Optimizations (ADR 0030 step 3)
@@ -268,7 +268,7 @@ the next candidate: Pixi rebuilding its batches, and the gates' shapes.
 ### 4. Comparing on this machine, and the first state of a burst
 
 A run on a quiet machine (under 12 % of the processor for two and a half minutes first, on mains power) did not settle
-the six measurements `bench:check` flagged in the loaded run of 2026-11-16 (autosave at 1,000 parts for `chain` and
+six of the ten measurements `bench:check` flagged in the loaded run of 2026-11-16 (autosave at 1,000 parts for `chain` and
 `adder` and `cpu-10k`'s, `cpu-1k`'s drawing on open, `counters-10k`'s pan and `chain-1k`'s toggle): its numbers moved up to two times in both directions against both earlier runs, and the
 native harness ran two to five times faster than the native table, so the load that can be seen is not what moves them
 (the processor's clock and which of its cores run Chromium are likely, not verified). A single run's numbers on this
