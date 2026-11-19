@@ -49,6 +49,24 @@ cut off. At 900px the file buttons fell off the end of the toolbar.
   `--space-5`, `--library-nav-height` and `--toolbar-offset`. Motion is limited
   to state changes and stops under `prefers-reduced-motion`.
 
+## Amendment, 2026-11-19
+
+A second set of review rounds added:
+
+- **A More menu.** Below 800px, history, files and help fold into a popover
+  behind More, so the toolbar keeps one row. It is the same element as the
+  desktop controls, laid out inline by CSS, so nothing is duplicated.
+- **Room for the canvas.** Notes are a disclosure, closed by default below
+  900px. The waveform panel has a grip that resizes it by drag or arrow keys.
+  The empty Properties panel steps aside on narrow windows.
+- **Clearer problems.** The status bar counts warnings. Warnings use a hollow
+  dot, never amber. A dialog lists each distinct problem once, with how often
+  it occurs, the parts it names and a Select button.
+- **Controls that wait.** Run, Step, Reset and Run until stay focusable while
+  unavailable, and say why.
+- **Fields.** Escape first restores a field's old value; a second Escape hands
+  the keyboard to the canvas.
+
 ## Consequences
 
 - Projects and Learn are hidden until chosen, so browser tests and

@@ -16,6 +16,7 @@ const ICONS = {
   import: <path d="M8 2.5v7.5M4.8 7 8 10.2 11.2 7M2.5 13.5h11" />,
   export: <path d="M8 10.5V3M4.8 6 8 2.8 11.2 6M2.5 13.5h11" />,
   link: <path d="m6.3 9.7 3.4-3.4M7.2 4.3l1-1a3 3 0 0 1 4.5 4.5l-1 1M8.8 11.7l-1 1a3 3 0 0 1-4.5-4.5l1-1" />,
+  more: <path d="M3.5 8h.01M8 8h.01M12.5 8h.01" strokeWidth="2.6" />,
   plus: <path d="M8 3v10M3 8h10" />,
   minus: <path d="M3 8h10" />,
   fit: <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" />,
