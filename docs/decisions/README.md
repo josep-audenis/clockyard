@@ -38,6 +38,7 @@ replacement.
 | [0030](0030-benchmarks.md) | Benchmarks: generated circuits, measured in the engine and in the browser | Accepted |
 | [0031](0031-about-page.md) | An about page built from the running app | Accepted |
 | [0032](0032-editor-chrome.md) | Editor chrome: one primary action, a palette of symbols | Accepted |
+| [0033](0033-editing-a-running-circuit.md) | Editing a running circuit: state kept across edits, matched by part ID | Accepted |
 
 ## Template
 
