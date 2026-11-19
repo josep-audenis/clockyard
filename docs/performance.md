@@ -95,12 +95,12 @@ dash.
   trips, so the rate reads a few per cent low.
 - **Autosave**: the slowest save after the drag (ADR 0029), from its start until IndexedDB has written it. It is
   asynchronous, so it includes any wait behind the main thread's drawing.
-- At 50,000 parts only the open is measured: every later step takes minutes there.
+- At 50,000 parts only the open is measured: every later step took minutes there when this benchmark was written.
 
 Measured 2026-11-19, after step 3's thirteen optimizations (below), on an Intel Core i7-13700H, 16 GB, Windows 11, on
-mains power, with Playwright 1.64.1's Chromium drawing on the Intel Iris Xe graphics card (Direct3D 11). The whole run
-took 1.2 minutes; the opens alone in the previous table, after the first three steps, added up to over 23 minutes.
-Earlier tables are in this file's history. Single runs on this laptop vary widely (section 4), so read one row as a
+mains power, with Playwright 1.64.1's Chromium drawing on the Intel Iris Xe graphics card (Direct3D 11). No other work
+was known to run. The whole run took 1.2 minutes; the opens alone in the previous table, after the first three steps
+and with 30–40 % of the processor busy, added up to about 25 minutes. Earlier tables are in this file's history. Single runs on this laptop vary widely (section 4), so read one row as a
 rough figure.
 
 | Benchmark | Open, ms | Of it: routing, ms | Of it: drawing, ms | Toggle, ms | Drag: draw, ms | Drag: sync, ms | Pan, fps | Cycles per second | Autosave, ms |
@@ -127,29 +127,31 @@ the open, no longer one inside the other.
 
 Read so:
 
-- **Every 10,000-part sheet opens in under 2 s**, and every 50,000-part one in under 10 s: 0.25–1.6 s and 0.85–5.1 s
-  (they took 9–24 s and 4.8–7.5 minutes in the previous table). Routing is still the largest share for `fanout`; drawing
+- **Every 10,000-part sheet opens in under 2 s**, and every 50,000-part one that opens in under 10 s: 0.25–1.6 s and
+  0.85–5.1 s (`adder-50k` is refused after 6.1 s). Flat circuits took 9–24 s and 4.8–7.5 minutes in the previous, loaded
+  table. Routing is still the largest share for `fanout`; drawing
   for `adder` and `counters`.
 - **Refusing a circuit still takes as long as opening it**, now 6.1 s for `adder-50k` (nearly six minutes before).
 - **Panning** keeps 60 frames a second at 1,000 parts. At 10,000 it is 60 for `fanout` and `cpu`, 30 for `chain` and
   `counters`, and 15 for `adder`, the one under the 30 asked.
 - **A drag step** takes 4–9 ms at 1,000 parts and 29–78 ms at 10,000 for flat circuits (under 2 ms for `cpu`); the
   sync is 5 ms or less.
-- **A toggle takes 0.09–0.34 s at 10,000 parts**, though the engine settles it in 2 ms or less: most of it is the
-  redraw when every wire and gate changes.
+- **A toggle takes 0.09–0.34 s at 10,000 parts** to the hidden readout, though the engine settles it in 2 ms or less.
+  The canvas is drawn again after the readout, so its redraw is not in these figures; where the time goes was not
+  profiled in this run.
 - **Running a large circuit**: `counters-10k` runs at 3,752 cycles per second and `cpu-10k` at 3,200 (2,017 and 1,569
-  before). At 1,000 parts the run speed is 9,550–9,610 of the 10,000 asked, and the rate reads a few per cent low.
+  in the previous, loaded table). At 1,000 parts the run speed is 9,550–9,610 of the 10,000 asked, and the rate reads a few per cent low.
 - **Autosave** takes 40–59 ms at 10,000 parts for flat circuits (6 ms for `cpu`) and 7–20 ms at 1,000.
-- `bench:check` against the previous baseline found nothing slower; this run is now the baseline.
+- `bench:check` against the previous baseline found no regression; this run is now the baseline.
 
 ### Against the targets (ADR 0030 item 4)
 
 | Target | Measured | Met |
 |---|---|---|
-| 10,000 parts open in under 2 s | 0.25–1.6 s (`cpu` 0.25, `chain` 0.58, `counters` 1.37, `adder` 1.40, `fanout` 1.58); 9–24 s for flat circuits before step 3. How each step got there is in sections 5–13 | yes, in this run |
-| A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.09–0.34 s; a drag step 29–78 ms; deleting one part, until its state is drawn, 0.38–1.55 s after section 11, less after section 13 (not in this table) | for drag steps and `chain`'s toggle only |
+| 10,000 parts open in under 2 s | 0.25–1.6 s (`cpu` 0.25, `chain` 0.58, `counters` 1.37, `adder` 1.40, `fanout` 1.58); 9–24 s for flat circuits after step 3's first three optimizations. How each step got there is in sections 4–13 | yes, in this run |
+| A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.09–0.34 s; a drag step 29–78 ms; deleting one part, until its state is drawn, 0.38–1.55 s after section 11, less after section 13 (not in this table) | for drag steps only; toggles are measured to the readout, not the canvas |
 | Panning at 30 fps or more at 10,000 parts | 60 fps for `fanout` and `cpu`, 30 for `chain` and `counters`, 15 for `adder` | all but `adder` |
-| 50,000 parts open in under 10 s, edits under 1 s | open 0.85–5.1 s; deleting every part of `chain-50k` took about 1.2 s when last measured, before sections 11–13 (other edits not measured) | opening, yes; edits not measured since |
+| 50,000 parts open in under 10 s, edits under 1 s | open 0.85–5.1 s for the three that open (`adder-50k` is refused after 6.1 s); deleting every part of `chain-50k` took about 1.2 s when last measured, before sections 11–13 (other edits not measured) | opening, yes; edits not measured since |
 | Run speed on `counters-10k` recorded | 3,752 cycles per second | yes |
 | The reference CPU keeps 10,000 cycles per second | 9,614 (`cpu-1k`, four CPUs), and the rate reads a few per cent low; about 9,950 measured on its own (ADR 0019) | nearly, as measured here |
 
@@ -160,7 +162,8 @@ draw of an open or an edit (below). What these numbers point to next: the rest o
 
 `pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
 twice as bad (and worse by more than 5), or one the run lost; `node scripts/bench-check.mjs --update` makes the last run
-the baseline. The baseline is this table's run, which makes the check about as strict as it can be on this laptop.
+the baseline. The baseline is this table's run, on a quiet machine: single runs here vary up to two times (section 4),
+so a failure may be noise, and an interleaved comparison should confirm it before it is called a regression.
 
 ## Optimizations (ADR 0030 step 3)
 
@@ -185,7 +188,7 @@ back to back on the graphics card:
 That pair ran on battery, with everything about twice as slow as on mains power (routing, which the change does not
 touch, too), so its columns compare only with each other. On mains power, in the previous full run (in this file's
 history), every 1,000-part benchmark panned at 60 frames a second and the 10,000-part ones at 8.6–30 (6.7–30 in the
-loaded run above). A pan frame still takes main-thread time with nothing drawn: 35–45 ms for `chain-10k` and about
+loaded run of 2026-11-16). A pan frame still takes main-thread time with nothing drawn: 35–45 ms for `chain-10k` and about
 110 ms for `adder-10k` (`clockyard:view`, on battery). That is Pixi's render, most likely its walk over every object,
 off screen too (not yet profiled). Culling what is off screen is the next
 candidate for panning.
@@ -265,7 +268,8 @@ the next candidate: Pixi rebuilding its batches, and the gates' shapes.
 ### 4. Comparing on this machine, and the first state of a burst
 
 A run on a quiet machine (under 12 % of the processor for two and a half minutes first, on mains power) did not settle
-the six measurements above: its numbers moved up to two times in both directions against both earlier runs, and the
+the six measurements `bench:check` flagged in the loaded run of 2026-11-16 (autosave at 1,000 parts for `chain` and
+`adder` and `cpu-10k`'s, `cpu-1k`'s drawing on open, `counters-10k`'s pan and `chain-1k`'s toggle): its numbers moved up to two times in both directions against both earlier runs, and the
 native harness ran two to five times faster than the native table, so the load that can be seen is not what moves them
 (the processor's clock and which of its cores run Chromium are likely, not verified). A single run's numbers on this
 laptop are only good for differences of more than two times.
@@ -284,7 +288,7 @@ the code before steps 3.2 and 3.3 against after them:
 
 Of the six, this measured two: `chain-1k`'s autosave is noise, and its toggle was a regression: since step 3.3 every
 state waited for a timer task, so the readout and the redraw could slip a frame or two. `cpu-10k`'s run speed, which
-the loaded run's text had also questioned, is no regression. The other four, compared the same way in three rounds
+that run's text had also questioned, is no regression. The other four, compared the same way in three rounds
 each, before steps 3.2 and 3.3 against main after the fix below:
 
 | Measurement | Before, three runs | After, three runs |
@@ -315,7 +319,7 @@ before this change against after it:
 
 The toggle is measured to the readout, which now updates before the canvas is drawn again; the canvas still takes the
 redraw after it, a few hundred milliseconds at 10,000 parts when every wire changes, which this benchmark does not see.
-In this second comparison drags, autosaves and pans were the same on both sides. The table above predates this
+In this second comparison drags, autosaves and pans were the same on both sides. The 2026-11-16 table predated this
 change.
 
 ### 5. Routing with an index
@@ -355,7 +359,7 @@ large box, and in a profile in Node (6.6 s that run) about a third is still spen
 long routes, filed in many tiles), the rest in the searches. These tables were measured before long routes were kept
 in a list: where a sheet has many (`fanout-50k`, `counters-50k`), checking that list makes routing about a tenth
 slower in Node, still far faster than before the index. Toggles, drags,
-pans and run speed were the same on both sides. The table above predates this step.
+pans and run speed were the same on both sides. The 2026-11-16 table predated this step.
 
 ### 6. Labels from bitmap fonts
 
@@ -543,7 +547,7 @@ sheet is drawn as before. Since section 13, every load, an open included, also w
 drawing without the answer. A browser test opens the reference CPU and fails if it is drawn between the load and its first state; with
 main's code it failed in every run (5 of 5 here, 10 of 10 in review), and on a small sheet the answer often beats the first frame, so that one would not
 do. Since an open's routing is now outside its drawing, the benchmark's open drawing time is lower by it, and no longer
-compares with earlier runs or the baseline.
+compares with runs before it (the 2026-11-19 table and baseline are after it).
 
 Each open against main's build, production builds alternating, nine rounds, **on mains power**. Main opened faster in this
 run than in section 9's (by about 0.5 s), so read the changes rather than comparing the two tables:

@@ -153,7 +153,7 @@ for (const name of files) {
       row.notes.push((await page.locator(".status-message").textContent()) ?? "invalid");
       return keep();
     }
-    // Every later step takes minutes at the largest size, where opening is the measurement that matters.
+    // Every later step took minutes at the largest size when this was written; opening is the measurement that matters there.
     if (size === "50k") {
       row.notes.push("opening only at this size");
       return keep();
