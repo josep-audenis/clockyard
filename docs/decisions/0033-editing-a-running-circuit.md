@@ -1,6 +1,6 @@
 # 0033. Editing a running circuit: state kept across edits, matched by part ID
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-20
 - Depends on: ADR 0028 (Phase 6 plan, increment 3); ADR 0017 (clocks,
   flip-flops and load starting at time 0); ADR 0018 (ROM and RAM);
