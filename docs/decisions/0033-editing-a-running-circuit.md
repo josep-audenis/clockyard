@@ -89,7 +89,8 @@ What the engine has to work with:
    input's value as the clock it last saw. So moving the wire to a
    register's clock never clocks it by itself: the register is clocked on
    the next rising edge it sees.
-   - This changes nothing for opens, whose loads already never clock.
+   - This changes nothing for opens, whose loads already never change a
+     flip-flop or RAM.
    - It removes the re-send edge described above.
    - If the load's settle hits its delta limit, the clocks last seen are
      taken from where it stopped, as after any unstable settle, and the
@@ -114,7 +115,10 @@ What the engine has to work with:
    - The next load with `keep` carries from it, so a fix restores the
      state the errors interrupted. A load without `keep` discards it.
    - Time stands still meanwhile, and `time()` reports the kept
-     circuit's time, so the cycle counter does not show 0.
+     circuit's time, so the cycle counter does not show 0. Nets, memories
+     and screens show nothing, as with errors now.
+   - Step is ignored meanwhile, as now. Reset drops the kept circuit, so
+     the load after the fix starts clean.
 5. **A run continues.** A run under way keeps running across an edit,
    from the kept time, at the same speed. *Run until* still waits for its
    LED (ADR 0019). As now, a load clears why the last run stopped (ADR
@@ -176,7 +180,9 @@ What the engine has to work with:
    - every custom component on the open sheet that holds state at any
      depth (a flip-flop, RAM or screen inside it), by label and output
      pin, as "PC q: 12". That covers the reference CPU's registers, which
-     are all `Register 8` and `Register 1` instances.
+     are all `Register 8` and `Register 1` instances. The engine reports
+     an instance's output pins in `portNets`, as it does a primitive's
+     ports; today a pin becomes a junction and is not reported.
 
    Memories and screens themselves are still not listed, since their
    contents are larger than a row should read out. The roadmap's rough
@@ -192,8 +198,9 @@ What the engine has to work with:
 11. **Docs.**
     - `docs/simulation-model.md` replaces "a load also starts at time 0"
       and "a load clears the record" with these rules.
-    - ADR 0017 item 5 and ADR 0026 item 1 get as-built notes pointing
-      here.
+    - ADR 0017 item 5 and ADR 0026 items 1 to 3 (one trace per net,
+      `watch` and what clears the record, the worker resolving wires) get
+      as-built notes pointing here.
     - The roadmap drops the rough edges this closes: edits resetting
       registers and time, and files opening at the default view. It
       narrows the readout's to memories and screens.
@@ -205,10 +212,10 @@ What the engine has to work with:
   do.
 - **Seeding nets from their old values.** A new net could start from the
   value of the old net driven by the same part's same port, instead of 0.
-  That would keep a latch built from gates. But the settle would then start
-  from a state no load from zero reaches, and its result would depend on
-  old net values the user cannot see. It is left for later, if gate
-  latches turn out to matter.
+  That would keep a latch built from gates. But a net the edit split or
+  joined has no single old value, its old driver may be gone, and the
+  settle would start from a state no load from zero reaches. It is left
+  for later, if gate latches turn out to matter.
 - **Replaying from time 0.** Re-running the new circuit through the
   recorded inputs would give the state the new circuit "would have had".
   It costs time proportional to the run, needs every input change
