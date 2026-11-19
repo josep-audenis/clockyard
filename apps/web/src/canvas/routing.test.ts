@@ -189,6 +189,31 @@ test("after an edit, wires on a junction keep their routes while it stays, and a
   expect(moved.get("b")).not.toBe(before.get("b"));
 });
 
+test("after an edit, routes and shapes too long to file by tile are still checked against what changed", () => {
+  const base: Circuit = {
+    components: [part("s", "switch", 0, 0), part("l", "led", 3000, 0), part("s2", "switch", 0, 10), part("l2", "led", 20, 10)],
+    junctions: [],
+    wires: [wire("long", "s.out", "l.in"), wire("short", "s2.out", "l2.in")],
+  };
+  const before = routes(base);
+  expect(before.get("long")).toBeDefined();
+  const y = (before.get("long") ?? [])[0]?.y ?? 0;
+  // A part dropped on the long route, far along it: only that route is routed again.
+  const dropped = routes({ ...base, components: [...base.components, part("x", "not", 1500, y - 1)] });
+  expect(dropped.get("long")).not.toBe(before.get("long"));
+  expect(dropped.get("short")).toBe(before.get("short"));
+  // A new shaped wire with a segment thousands of cells long, laid across the short route: that one moves. Routing
+  // `base` again makes it the circuit the next edit is compared with.
+  routes(base);
+  const shaped = { ...wire("tall", "s3.out", "l3.in"), bends: [{ x: 8, y: -1500 }, { x: 8, y: 1500 }] };
+  const crossed = routes({
+    ...base,
+    components: [...base.components, part("s3", "switch", 0, -1500), part("l3", "led", 20, 1500)],
+    wires: [...base.wires, shaped],
+  });
+  expect(crossed.get("short")).not.toBe(before.get("short"));
+});
+
 test("a shaped wire moved onto an automatic one of another net makes that one move away", () => {
   const k = wire("k", "s1.out", "l1.in");
   const s = { ...wire("s", "s2.out", "l2.in"), bends: [{ x: 5, y: 11 }] };

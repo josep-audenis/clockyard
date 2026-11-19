@@ -290,6 +290,12 @@ What exists today:
    until its state is drawn (was 1.3–2.3 s); the routes kept are the
    same.
 
+   *As built (step 3, twelfth):* three more checks in routing grew with
+   the square of the sheet: joining nets through a chain of junctions
+   (6.5 s with 8,000 of them, now 0.1 s), checking kept routes against
+   every moved part (now by tile), and comparing nets by names made of
+   all their wire IDs (now numbers). The routes are the same.
+
 ## Alternatives considered
 
 - **Criterion for the native benchmarks.** It gives better statistics, but

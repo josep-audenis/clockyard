@@ -572,6 +572,10 @@ targets, as in Phase 5.
      11. ✅ After an edit, routing looks parts and junctions up by ID
          instead of searching for each: deleting one part on a 10,000-part
          sheet takes 0.38–1.55 s until its state is drawn (was 1.3–2.3 s).
+     12. ✅ Three more routing checks that grew with the square of the sheet:
+         nets through long chains of junctions, kept routes against many
+         moved parts, and comparing large nets. Keeping routes on a sheet with an
+         8,000-junction chain takes 0.1 s (was 6.5 s).
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
