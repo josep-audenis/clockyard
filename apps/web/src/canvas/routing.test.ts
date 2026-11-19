@@ -170,6 +170,25 @@ test("after an edit, wires it leaves alone keep their routes; wires it touches o
   expect(cells(rerouted.get("back") ?? []).some((p) => p.x === onRoute.x && p.y === onRoute.y)).toBe(false);
 });
 
+test("after an edit, wires on a junction keep their routes while it stays, and are routed again once it moves", () => {
+  const base: Circuit = {
+    components: [part("s", "switch", 0, 0), part("l", "led", 20, 6)],
+    junctions: [{ id: "j", position: { x: 10, y: 1 } }],
+    wires: [
+      { id: "a", from: { component: "s", port: "out" }, to: { junction: "j" } },
+      { id: "b", from: { junction: "j" }, to: { component: "l", port: "in" } },
+    ],
+  };
+  const before = routes(base);
+  const far: Circuit = { ...base, components: [...base.components, part("x", "switch", 40, 40)] };
+  const after = routes(far);
+  expect(after.get("a")).toBe(before.get("a"));
+  expect(after.get("b")).toBe(before.get("b"));
+  const moved = routes({ ...far, junctions: [{ id: "j", position: { x: 10, y: 3 } }] });
+  expect(moved.get("a")).not.toBe(before.get("a"));
+  expect(moved.get("b")).not.toBe(before.get("b"));
+});
+
 test("a shaped wire moved onto an automatic one of another net makes that one move away", () => {
   const k = wire("k", "s1.out", "l1.in");
   const s = { ...wire("s", "s2.out", "l2.in"), bends: [{ x: 5, y: 11 }] };

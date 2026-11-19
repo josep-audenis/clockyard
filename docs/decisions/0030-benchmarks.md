@@ -284,7 +284,8 @@ What exists today:
 
    *As built (step 3, eleventh):* deciding which routes an edit keeps
    searched the new circuit's list of parts for each part, which on
-   10,000 parts took 0.7–1.1 s of every connectivity edit. Parts and
+   10,000 parts took 0.7–1.1 s of deleting one part, and other
+   connectivity edits go through the same code. Parts and
    junctions are now looked up by ID. Deleting one part takes 0.38–1.55 s
    until its state is drawn (was 1.3–2.3 s); the routes kept are the
    same.

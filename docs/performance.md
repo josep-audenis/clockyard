@@ -585,7 +585,7 @@ comes with its first state change instead was not measured.
 
 A profile of deleting one part found routing took 1.0–1.7 s of it, more than routing the whole sheet when it opens. To
 keep the routes an edit leaves alone, `unaffected` asks of every part and junction whether it stayed where it was, and
-each answer searched the new circuit's whole list for that ID: on 10,000 parts, up to 100 million comparisons, which
+each answer searched the new circuit's list for that ID: on 10,000 parts, hundreds of millions of comparisons, which
 took 0.7–1.1 s. It now looks them up in maps built once. Which routes are kept does not change.
 
 From pressing Delete with one part selected until the edit's state is in and two frames are drawn, main's build and this
@@ -599,8 +599,9 @@ one alternating, five rounds, on mains power:
 | chain-10k | 1.32 | 0.38 | −943 | 957 | 59 |
 
 `fanout` still routes for about 0.9 s: the gate deleted was on the net that fans out to every gate, so that net no
-longer holds the same wires, and each of its 5,000 wires is routed again, as `unaffected` asks. An edit also still draws
-twice, once before the engine's answer and once after it; the second draw took 110–340 ms here.
+longer holds the same wires, and each of its nearly 5,000 wires is routed again, as `unaffected` asks. An edit also still draws
+twice, once before the engine's answer and once after it; the second draw took 110–340 ms here. A test now checks that a
+junction's wires keep their routes while it stays and are routed again once it moves, which no test covered.
 
 ## Earlier measurements
 
