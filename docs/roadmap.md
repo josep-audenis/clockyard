@@ -565,6 +565,10 @@ targets, as in Phase 5.
          `adder-10k` opens in 1.8 s (was 2.3 s) and `counters-10k` in 2.3 s
          (was 2.5 s); `fanout-10k` shows no clear change. Every row stays
          in Chromium's accessibility tree.
+     10. ✅ An opened sheet is routed first and drawn once, with the engine's
+         first state, instead of once unknown and again with the state. On
+         mains power, 10,000-part opens are 120–360 ms faster; `counters-10k`
+         opens in 1.4 s (was 1.7 s in the same run).
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.

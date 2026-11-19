@@ -167,7 +167,7 @@ Read so:
 
 | Target | Measured | Met |
 |---|---|---|
-| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s; with fewer cells searched (section 8, on battery, where the same builds are slower) `fanout` 10.8 → 3.4–3.5 s, `adder` 4.2 → 3.3–3.4 s, `counters` 3.7–3.9 → 3.1–3.2 s; on mains with section 9's changes and other work on the machine, `chain` 0.8 s, `adder` 1.8 s (was 2.3 s), `counters` 2.3 s (was 2.5 s), `fanout` 2.5 s (no clear change) | for `chain`, `cpu` and `adder` |
+| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s; with fewer cells searched (section 8, on battery, where the same builds are slower) `fanout` 10.8 → 3.4–3.5 s, `adder` 4.2 → 3.3–3.4 s, `counters` 3.7–3.9 → 3.1–3.2 s; on mains with section 9's changes and other work on the machine, `chain` 0.8 s, `adder` 1.8 s (was 2.3 s), `counters` 2.3 s (was 2.5 s), `fanout` 2.5 s (no clear change); routing before the first state (section 10), in a run where main itself opened faster, `adder` 1.74 → 1.46 s, `counters` 1.74 → 1.37 s, `fanout` 1.98 → 1.78 s | for `chain`, `cpu` and `adder`; for all four flat sheets in section 10's run, though runs vary by up to 0.5 s |
 | A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms | no |
 | Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder`; with shared part shapes (section 7) 30–60 for `chain`, `counters` and `fanout`, 20 for `adder` | partly |
 | 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k`; after step 3's routing index, `chain-50k` 6.3 s, `counters-50k` 22 s; with shared part shapes `chain-50k` 2.4 s; deleting every part of `chain-50k` takes about 1.2 s, over the 1 s asked (other edits not measured) | opening, for `chain` and `cpu` only, after it |
@@ -175,9 +175,10 @@ Read so:
 | The reference CPU keeps 10,000 cycles per second | about 8,300 (`cpu-1k`, four CPUs; reads a few per cent low, and this run was loaded) | no, in this run |
 
 Step 3 of ADR 0030 has optimized panning, the wires an edit or a state redraws, what the page does with each engine
-state, routing a whole sheet, labels, part shapes, the searches themselves and the page's long part lists (below). What
-these numbers point to next: the rest of an open, now mostly routing and drawing (section 9), and drawing wires, which a
-toggle that changes every wire also pays.
+state, routing a whole sheet, labels, part shapes, the searches themselves, the page's long part lists and the second
+draw of an open (below). What these numbers point to next: the rest of an open, now mostly routing and drawing (section
+9), the double draw a connectivity edit still makes (section 10), and drawing wires, which a toggle that changes every
+wire also pays.
 
 `pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
 twice as bad (and worse by more than 5), or one the run lost; `node scripts/bench-check.mjs --update` makes the last run
@@ -542,7 +543,39 @@ Main-thread time comes from Chromium's own counters, which other programs distur
 `adder-10k` opened within the 2 s asked in this run. `fanout` has no labels to split; its main thread saved 94 ms, but
 its open time did not change measurably. `chain` has two list rows and asks for no label splitting. Routing is the
 largest cost left on `fanout`, and drawing on `counters` and `adder`. Each open also draws the whole sheet a second time
-when the engine's first state arrives, which is not yet looked into.
+when the engine's first state arrives (section 10).
+
+### 10. Routing before the first state
+
+Every open drew the whole sheet twice: once with every wire unknown, half see-through, and again when the engine's first
+state came, which changes every wire's look and so rebuilds every wire chunk. A build whose worker logged its own times
+showed the engine was not what the second draw waited for. Times from sending the load, three opens each, on mains:
+
+| Benchmark | Engine answered, ms | First draw ended, s | Page handled the answer, s | Second draw, ms |
+|---|---:|---:|---:|---:|
+| adder-10k | 315 | 1.04–1.14 | 1.16–1.26 | 240–250 |
+| counters-10k | 140–150 | 1.41–1.58 | 1.45–1.62 | 320–350 |
+| fanout-10k | 110 | 1.42–1.52 | 1.53–1.63 | 260–300 |
+| chain-10k | 110–120 | 0.43–0.46 | 0.46–0.48 | 140–160 |
+
+The answer waited about a second behind the first draw, which had begun before it arrived. Now the first frame after a
+sheet opens only routes, which needs no state, and returns; the answer is handled before the next frame, which draws the
+sheet once, with its values. If the answer has not come by then (an engine slower than routing, as `cpu-50k` may be), the
+sheet is drawn as before. Only opening a sheet does this: a connectivity edit still draws once unknown and once with the
+answer. A browser test fails if an open draws between the load and its first state.
+
+Each open against main's build, production builds alternating, nine rounds, **on mains power**. Main opened faster in this
+run than in section 9's (by up to 0.5 s), so read the changes rather than comparing the two tables:
+
+| Benchmark | Open before, s | Open after, s | Open, change, ms | Main thread, change, ms |
+|---|---:|---:|---:|---:|
+| adder-10k | 1.74 | 1.46 | −180 | −192 |
+| counters-10k | 1.74 | 1.37 | −363 | −388 |
+| fanout-10k | 1.98 | 1.78 | −195 | −196 |
+| chain-10k | 0.66 | 0.52 | −123 | −143 |
+
+`counters-10k` gains most: its second draw also compiled shaders, 145–171 ms of it in the profile. Whether that cost now
+comes with its first state change instead was not measured.
 
 ## Earlier measurements
 
