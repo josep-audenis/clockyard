@@ -137,8 +137,8 @@ Read so:
 - **A drag step** takes 4–9 ms at 1,000 parts and 29–78 ms at 10,000 for flat circuits (under 2 ms for `cpu`); the
   sync is 5 ms or less.
 - **A toggle takes 0.09–0.34 s at 10,000 parts** to the hidden readout, though the engine settles it in 2 ms or less.
-  The canvas is drawn again after the readout, so its redraw is not in these figures; where the time goes was not
-  profiled in this run.
+  Section 14, which profiled it later, found this measure includes most of the canvas's drawing too: Playwright cannot
+  check the readout while a draw holds the page.
 - **Running a large circuit**: `counters-10k` runs at 3,752 cycles per second and `cpu-10k` at 3,200 (2,017 and 1,569
   in the previous, loaded table). At 1,000 parts the run speed is 9,550–9,610 of the 10,000 asked, and the rate reads a few per cent low.
 - **Autosave** takes 40–59 ms at 10,000 parts for flat circuits (6 ms for `cpu`) and 7–20 ms at 1,000.
@@ -149,7 +149,7 @@ Read so:
 | Target | Measured | Met |
 |---|---|---|
 | 10,000 parts open in under 2 s | 0.25–1.6 s (`cpu` 0.25, `chain` 0.58, `counters` 1.37, `adder` 1.40, `fanout` 1.58); 9–24 s for flat circuits after step 3's first three optimizations. How each step got there is in sections 4–13 | yes, in this run |
-| A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.09–0.34 s; a drag step 29–78 ms; deleting one part, until its state is drawn, 0.38–1.55 s after section 11, less after section 13 (not in this table) | for drag steps only; toggles are measured to the readout, not the canvas |
+| A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.09–0.34 s (0.20–0.44 s until its state is drawn after section 14, not in this table); a drag step 29–78 ms; deleting one part, until its state is drawn, 0.38–1.55 s after section 11, less after section 13 (not in this table) | for drag steps only |
 | Panning at 30 fps or more at 10,000 parts | 60 fps for `fanout` and `cpu`, 30 for `chain` and `counters`, 15 for `adder` | all but `adder` |
 | 50,000 parts open in under 10 s, edits under 1 s | open 0.85–5.1 s for the three that open (`adder-50k` is refused after 6.1 s); deleting every part of `chain-50k` took about 1.2 s when last measured, before sections 11–13 (other edits not measured) | opening, yes; edits not measured since |
 | Run speed on `counters-10k` recorded | 3,752 cycles per second | yes |
@@ -157,7 +157,7 @@ Read so:
 
 Step 3 of ADR 0030 has optimized panning, the wires an edit or a state redraws, what the page does with each engine
 state, routing a whole sheet, labels, part shapes, the searches themselves, the page's long part lists and the second
-draw of an open or an edit (below). What these numbers point to next: the rest of an open, now mostly routing and drawing
+draw of an open, an edit or a toggle (below). What these numbers point to next: the rest of an open, now mostly routing and drawing
 (section 9), and drawing wires, which a toggle that changes every wire also pays.
 
 `pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
@@ -642,6 +642,41 @@ same way, up to 150 ms (measured 45–116 ms); on an empty sheet nothing is draw
 A browser test deletes a part of the reference CPU and fails if the sheet is drawn between that load and its first state;
 with main's code it failed 8 of 8 runs. It assumes the answer comes within routing and the wait: under a 4- to 8-fold
 slower processor, review saw it fail.
+
+### 14. Waiting for a toggle's answer
+
+Profiled on main's build, on mains power, a click on a switch drew the whole sheet twice: once before the engine
+answered, with the switch flipped but its wires at their old values (35–150 ms), then again with the answer (100–450
+ms). The answer came while the first draw ran and waited behind it. The engine itself answers within 2–5 ms of the
+inputs being sent; most of what comes before that is the click's own handling.
+
+Now, while inputs have been sent and no state of the current circuit has come since, the canvas waits for that state
+the same up to 150 ms it waits for a load's answer (section 13). A new measure, `clockyard:engine-input`, spans from the
+inputs being sent to their state being shown.
+
+One switch toggled on each benchmark, main's build against this change, alternating, seven rounds, **on mains**.
+"Drawn" is until the drawing with the answer ends; "readout" is the browser benchmark's toggle measure, until the
+hidden readout says the switch is on, as Playwright sees it:
+
+| Benchmark | Drawn, main → change, ms | Readout, main → change, ms | Full draws, main → change |
+|---|---:|---:|---|
+| adder-10k | 451 → 300 | 462 → 319 | 2 → 1, every run |
+| fanout-10k | 537 → 409 | 612 → 460 | 2 → 1, every run |
+| chain-10k | 245 → 205 | 96 → 61 | 2 → 1, every run |
+
+Medians; the change's runs were 220–418, 360–444 and 197–295 ms drawn. The readout measure includes most of the canvas
+after all: Playwright's check of it cannot run while a draw holds the page. On `chain-10k` it is checked between the
+two draws, so it ends before the drawing does.
+
+What is left is the drawing with the answer itself: 140–370 ms on these runs. A switch that changes every wire
+(`fanout-10k`) rebuilds every wire chunk, and the profile split the time between building wire strokes, uploading them,
+garbage collection and making each wire's look for every wire, for about the same share each. Redrawing only the wires
+whose values changed, without building them again, is what a toggle under 100 ms at this size needs.
+
+A browser test toggles the 8-bit adder's carry-in six times and fails if the sheet is drawn between any toggle's inputs
+being sent and its state being shown; with main's `scene.ts` it failed 10 of 10 runs, with this change it passed 20 of
+20. While a clock runs, a state the worker sent before it took the inputs can end the wait; the next state follows
+within a frame, as before.
 
 ## Earlier measurements
 
