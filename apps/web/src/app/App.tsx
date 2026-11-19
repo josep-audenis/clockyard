@@ -329,8 +329,15 @@ function ToolbarEnd() {
     const onToggle = (e: Event) => {
       if ((e as ToggleEvent).newState === "open") element.querySelector<HTMLElement>("button:not(:disabled)")?.focus();
     };
+    // Widened past the menu's breakpoint while open: close it, so its controls go back into the toolbar.
+    const narrow = window.matchMedia("(max-width: 800px)");
+    const onWiden = () => !narrow.matches && element.matches(":popover-open") && element.hidePopover();
     element.addEventListener("toggle", onToggle);
-    return () => element.removeEventListener("toggle", onToggle);
+    narrow.addEventListener("change", onWiden);
+    return () => {
+      element.removeEventListener("toggle", onToggle);
+      narrow.removeEventListener("change", onWiden);
+    };
   }, []);
   return (
     <>
@@ -843,6 +850,13 @@ function ShortcutsHelp() {
         aria-labelledby={`${id}-title`}
         onKeyDown={(e) => e.stopPropagation()}
         onClick={(e) => e.target === dialog.current && dialog.current.close()}
+        // Opened from the More menu, its button is hidden again by now: focus goes back to More instead of the page.
+        onClose={() =>
+          requestAnimationFrame(() => {
+            const more = document.querySelector<HTMLElement>(".toolbar-more");
+            if (document.activeElement === document.body && more?.offsetParent) more.focus();
+          })
+        }
       >
         <h2 ref={title} id={`${id}-title`} className="type-title dialog-title" tabIndex={-1}>
           Shortcuts and gestures
@@ -1127,6 +1141,7 @@ function WavePanel({ height: chosen, setHeight }: { height: number | null; setHe
         }}
         onPointerMove={(e) => drag.current && resize(drag.current.height - (e.clientY - drag.current.y))}
         onPointerUp={() => (drag.current = null)}
+        onPointerCancel={() => (drag.current = null)}
         onDoubleClick={() => setHeight(null)}
         onKeyDown={(e) => {
           const to = { ArrowUp: shown() + WAVES_STEP, ArrowDown: shown() - WAVES_STEP, Home: WAVES_MIN, End: wavesMax() }[e.key];
@@ -1889,8 +1904,6 @@ function CommitField({
 }) {
   const [draft, setDraft] = useState(saved);
   const [wrong, setWrong] = useState<string | null>(null);
-  /** Escape leaves the field without saving. */
-  const cancelled = useRef(false);
   const input = useRef<HTMLInputElement>(null);
   const id = useId();
   useEffect(() => {
@@ -1919,13 +1932,11 @@ function CommitField({
           setWrong(null);
         }}
         onBlur={() => {
-          const bad = cancelled.current ? null : (problem?.(draft) ?? null);
-          const wasCancelled = cancelled.current;
-          cancelled.current = false;
+          const bad = problem?.(draft) ?? null;
           // A refused value stays in the field with its reason, until it is corrected or Escape puts the old one back.
           setWrong(bad);
           if (bad) return;
-          if (!wasCancelled) onCommit(draft);
+          onCommit(draft);
           // Show what was stored: when normalizing leaves the value unchanged, nothing remounts the field.
           setDraft(saved);
         }}
@@ -2717,7 +2728,8 @@ function StatusBar() {
   const show = (ids: string[]) => {
     const { circuit } = useEditor.getState();
     const known = new Set([...circuit.components, ...circuit.junctions, ...circuit.wires].map((item) => item.id));
-    useEditor.getState().select(ids.filter((id) => known.has(id)));
+    // A problem met twice names the same parts twice: select each once.
+    useEditor.getState().select([...new Set(ids)].filter((id) => known.has(id)));
     details.current?.close();
     focusCanvas();
   };
