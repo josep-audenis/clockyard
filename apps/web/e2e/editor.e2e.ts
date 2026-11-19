@@ -26,6 +26,8 @@ async function drag(page: Page, from: At, to: At) {
 }
 
 const status = (page: Page) => page.getByRole("status");
+/** Shows a tab of the left panel; opening something from it goes back to Parts. */
+const openTab = (page: Page, name: "Parts" | "Projects" | "Learn") => page.getByRole("tab", { name }).click();
 /** The cycle counter: outside the status region, which it would flood while running (ADR 0017). */
 const counter = (page: Page) => page.getByText(/^Cycle \d+, clock (high|low)$/);
 const readout = (page: Page, name: string) =>
@@ -82,6 +84,7 @@ test("build two switches → AND → LED by hand, move a part, save and reload",
   expect(saved.suggestedFilename()).toBe("untitled.clockyard.json");
   const file = await saved.path();
   await page.reload();
+  await openTab(page, "Projects");
   await page.getByRole("button", { name: "New circuit" }).click();
   await expect(status(page)).toContainText("No circuit");
   await page.locator('[data-testid="import-file"]').setInputFiles(file);
@@ -171,6 +174,7 @@ const checked = (page: Page) => challenge(page).locator(".challenge-result");
 test("start the inverter challenge, build it from a NAND gate, Check passes; a link reopens it with its panel (ADR 0025)", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/");
+  await openTab(page, "Learn");
   await challenges(page).getByRole("button", { name: "Inverter" }).click();
   // The starter opens on the sheet of the component to build, its pins already placed.
   await expect(page.getByRole("navigation", { name: "Sheet" })).toContainText("Inverter");
@@ -206,6 +210,7 @@ test("start the inverter challenge, build it from a NAND gate, Check passes; a l
 
 test("a wrong attempt names its first failing step; a part the challenge does not allow is named (ADR 0025)", async ({ page }) => {
   await page.goto("/");
+  await openTab(page, "Learn");
   await challenges(page).getByRole("button", { name: "XOR from NAND gates" }).click();
   await expect(page.getByRole("navigation", { name: "Sheet" })).toContainText("XOR");
   const at = await grid(page);
@@ -227,6 +232,7 @@ test("a wrong attempt names its first failing step; a part the challenge does no
 
 test("the one-bit register: the starter fails at the first edge that loads; the solution passes every step (ADR 0025)", async ({ page }) => {
   await page.goto("/");
+  await openTab(page, "Learn");
   await challenges(page).getByRole("button", { name: "One-bit register" }).click();
   await expect(challenge(page)).toContainText("At each rising edge of clk");
   await challenge(page).getByRole("button", { name: "Check" }).click();
@@ -525,6 +531,7 @@ test("label parts in the inspector; labels name pins in the readout and status b
   await page.getByRole("button", { name: "Export" }).click();
   const file = await (await download).path();
   await page.reload();
+  await openTab(page, "Projects");
   await page.getByRole("button", { name: "New circuit" }).click();
   await expect(status(page)).toContainText("No circuit");
   await page.locator('[data-testid="import-file"]').setInputFiles(file);
@@ -1324,12 +1331,14 @@ test("examples open from the list with their notes; notes edited here travel in 
   const examples = page.getByRole("region", { name: "EXAMPLES" });
   const notes = page.getByRole("textbox", { name: "Notes" });
   await expect(notes).toHaveValue("");
+  await openTab(page, "Learn");
   await examples.getByRole("button", { name: "4-bit adder" }).click();
   await expect(notes).toHaveValue(/^Four full adders in a chain add two 4-bit numbers/);
   await expect(page.getByRole("list", { name: "Inputs and outputs" })).toContainText("LED Cout");
 
   // Another example replaces it without asking: the work on screen is saved in the browser (ADR 0029). Where it
   // cannot be, the question stays (the persistence tests).
+  await openTab(page, "Learn");
   await examples.getByRole("button", { name: "AND gate" }).click();
   await expect(notes).toHaveValue(/^The simplest circuit/);
   await expect(status(page)).toContainText("Settled");
@@ -1380,6 +1389,7 @@ test("components come from an example: its 8-bit adder, with the full adder insi
 test("components whose IDs are taken by others arrive under new IDs and numbered names, and adding again adds nothing (ADR 0027)", async ({ page }) => {
   await page.goto("/");
   // Challenge 5's starter has its own 8-bit adder (pins only) and full adder, under the example's IDs.
+  await openTab(page, "Learn");
   await challenges(page).getByRole("button", { name: "5. 8-bit adder" }).click();
   const parts = page.getByRole("complementary", { name: "Parts" });
   const dialog = page.getByRole("dialog", { name: "Add components" });
@@ -1392,7 +1402,7 @@ test("components whose IDs are taken by others arrive under new IDs and numbered
   await addAdder();
   await expect(dialog).toContainText("Added Full adder 2 and 8-bit adder 2.");
   await dialog.getByRole("button", { name: "Close" }).click();
-  const chips = parts.locator(".chip-list .part-tile");
+  const chips = parts.locator("[data-section=chips] .part-tile");
   // The open sheet is the starter's 8-bit adder, which is not offered as a chip on itself.
   await expect(chips).toHaveText(["Full adder", "Full adder 2", "8-bit adder 2"]);
   await addAdder();
@@ -1409,6 +1419,7 @@ test("work is kept in the browser: a reload brings it back, New starts another, 
   const projects = page.getByRole("region", { name: "PROJECTS" });
   const name = page.getByLabel("Project name");
   const saved = page.locator(".status-save");
+  await openTab(page, "Projects");
   await expect(projects).toContainText("Saved in this browser as you work.");
   const at = await grid(page);
   await page.keyboard.press("s");
@@ -1416,6 +1427,7 @@ test("work is kept in the browser: a reload brings it back, New starts another, 
   await name.fill("Bench");
   await name.press("Enter");
   await expect(saved).toHaveText(/^Saved /);
+  await openTab(page, "Projects");
   await expect(projects.getByRole("button", { name: /^Bench/ })).toHaveAttribute("aria-current", "true");
 
   await page.reload();
@@ -1423,13 +1435,17 @@ test("work is kept in the browser: a reload brings it back, New starts another, 
   await expect(page.getByRole("list", { name: "Inputs and outputs" })).toContainText("Switch 1");
 
   // A new circuit is not a project until it changes; the first is still listed and reopens.
+  await openTab(page, "Projects");
   await projects.getByRole("button", { name: "New circuit" }).click();
   await expect(name).toHaveValue("Untitled");
   await expect(page.getByRole("list", { name: "Inputs and outputs" })).not.toContainText("Switch 1");
+  await openTab(page, "Projects");
   await expect(projects.getByRole("listitem")).toHaveCount(1);
   await page.keyboard.press("l");
   await click(page, at(2, 2));
+  await openTab(page, "Projects");
   await expect(projects.getByRole("listitem")).toHaveCount(2);
+  await openTab(page, "Projects");
   await projects.getByRole("button", { name: /^Bench/ }).click();
   await expect(name).toHaveValue("Bench");
   await expect(page.getByRole("list", { name: "Inputs and outputs" })).toContainText("Switch 1");
@@ -1440,7 +1456,9 @@ test("work is kept in the browser: a reload brings it back, New starts another, 
     asked = dialog.message();
     void dialog.accept();
   });
+  await openTab(page, "Projects");
   await projects.getByRole("button", { name: "Delete project Untitled" }).click();
+  await openTab(page, "Projects");
   await expect(projects.getByRole("listitem")).toHaveCount(1);
   expect(asked).toBe("Delete the project Untitled from this browser? This cannot be undone.");
 });
@@ -1483,12 +1501,14 @@ test("a project another tab saved first is not overwritten: this tab's work beco
   await click(page, at(8, 8));
   await expect(page.locator(".status-save")).toHaveText("Another tab changed or deleted this project, so this work was saved as a copy.");
   await expect(page.getByLabel("Project name")).toHaveValue("Untitled (copy)");
+  await openTab(page, "Projects");
   await expect(page.getByRole("region", { name: "PROJECTS" }).getByRole("listitem")).toHaveCount(2);
 });
 
 test("where the browser keeps no storage, the editor still works, says so, and asks before replacing (ADR 0029)", async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(window, "indexedDB", { value: undefined }));
   await page.goto("/");
+  await openTab(page, "Projects");
   await expect(page.getByRole("region", { name: "PROJECTS" })).toContainText("Not saved in this browser: this browser keeps no storage for the page.");
   await expect(page.locator(".status-save")).toHaveText("Not saved in this browser");
   const at = await grid(page);
@@ -1499,6 +1519,7 @@ test("where the browser keeps no storage, the editor still works, says so, and a
     asked = dialog.message();
     void dialog.dismiss();
   });
+  await openTab(page, "Learn");
   await page.getByRole("region", { name: "EXAMPLES" }).getByRole("button", { name: "AND gate" }).click();
   await expect.poll(() => asked).toBe("Replace the current circuit? Changes since your last export will be lost.");
   await expect(page.getByRole("list", { name: "Inputs and outputs" })).toContainText("Switch 1");
@@ -1507,6 +1528,7 @@ test("where the browser keeps no storage, the editor still works, says so, and a
 test("a component saved to the library is added to another project, and a passed challenge stays marked (ADR 0029)", async ({ page }) => {
   await page.goto("/");
   const parts = page.getByRole("complementary", { name: "Parts" });
+  await openTab(page, "Learn");
   await page.getByRole("region", { name: "EXAMPLES" }).getByRole("button", { name: "4-bit adder" }).click();
   await parts.getByRole("button", { name: "Save Full adder to your library" }).click();
   await expect(parts).toContainText("Full adder saved in your library.");
@@ -1520,6 +1542,7 @@ test("a component saved to the library is added to another project, and a passed
   await expect(parts).toContainText("Full adder replaced in your library.");
   expect(asked).toBe("Replace Full adder in your library? Projects that already added it keep their copy.");
 
+  await openTab(page, "Projects");
   await page.getByRole("button", { name: "New circuit" }).click();
   await parts.getByRole("button", { name: "Add components…" }).click();
   const dialog = page.getByRole("dialog", { name: "Add components" });
@@ -1535,6 +1558,62 @@ test("a component saved to the library is added to another project, and a passed
   await page.getByRole("region", { name: "CHALLENGE", exact: true }).getByRole("button", { name: "Check" }).click();
   await expect(page.getByRole("region", { name: "CHALLENGE", exact: true })).toContainText("First passed");
   await page.reload();
+  await openTab(page, "Learn");
   await expect(challenges(page).getByRole("button", { name: "1. Inverter passed" })).toBeVisible();
+  await openTab(page, "Learn");
   await expect(challenges(page).getByRole("button", { name: "2. XOR from NAND gates" })).not.toContainText("✓");
+});
+
+test("the chrome works from the keyboard: tabs, palette, placing a part, panes and a refused value (ADR 0032)", async ({ page }) => {
+  await page.goto("/");
+  const parts = page.getByRole("complementary", { name: "Parts" });
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  const canvas = page.getByRole("main", { name: "Circuit canvas" });
+
+  // Arrow keys walk the tabs, and each shows its own panel.
+  await page.getByRole("tab", { name: "Parts" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("button", { name: "New circuit" })).toBeVisible();
+  await page.keyboard.press("End");
+  await expect(page.getByRole("region", { name: "EXAMPLES" })).toBeVisible();
+  await page.keyboard.press("Home");
+
+  // Arrow keys walk the palette, and Enter puts the part on the sheet, selected.
+  await parts.getByRole("button", { name: /^Switch/ }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(parts.getByRole("button", { name: "Clock" })).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("Enter");
+  await expect(readout(page, "Switch 1")).toHaveCount(1);
+
+  // A refused value stays with its reason; Escape restores the old one and hands the keyboard to the canvas.
+  const width = inspector.getByRole("textbox", { name: "Width" });
+  await width.fill("99");
+  await width.press("Enter");
+  await expect(width).toBeFocused();
+  await expect(width).toHaveAttribute("aria-invalid", "true");
+  await expect(inspector.getByRole("alert")).toHaveText("Enter a whole number from 1 to 32.");
+  await width.press("Escape");
+  await expect(width).toHaveValue("1");
+  await expect(canvas).toBeFocused();
+
+  // F6 moves between panes, and part keys belong to the canvas, not to a focused control.
+  await page.keyboard.press("F6");
+  await expect(inspector).toBeFocused();
+  await page.keyboard.press("Shift+F6");
+  await expect(canvas).toBeFocused();
+  await page.getByRole("button", { name: "Step", exact: true }).focus();
+  await page.keyboard.press("l");
+  await expect(status(page)).not.toContainText("Placing");
+
+  // A click on a button leaves the keys with the canvas, without its focus ring.
+  await page.getByRole("button", { name: "Step", exact: true }).click();
+  await expect(canvas).not.toBeFocused();
+  await page.keyboard.press("l");
+  await expect(status(page)).toContainText("Placing LED");
+  await page.keyboard.press("Escape");
+
+  await page.keyboard.press("?");
+  await expect(page.getByRole("dialog", { name: "Shortcuts and gestures" })).toBeVisible();
 });

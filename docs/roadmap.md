@@ -578,6 +578,10 @@ targets, as in Phase 5.
 - ✅ An about page at `/about/` (ADR 0031): what Clockyard is, every figure a
   capture of the real editor made by `apps/web/scripts/landing-shots.mjs`,
   the half adder loadable in place, and a recording of Catch.
+- ✅ Editor chrome redesign (ADR 0032): a three-zone toolbar with Run as its
+  one primary action, a tabbed left panel with a palette of part symbols, a
+  focusable canvas with keyboard placement, floating messages, a shortcuts
+  dialog and a way in from an empty sheet.
 
 ## Out of scope (for now)
 

@@ -142,6 +142,7 @@ for (const theme of ["dark", "light"]) {
 
   // A failing Check: XOR from NAND gates with A wired straight to Y, so the bench names the step.
   await page.goto(base);
+  await page.getByRole("tab", { name: "Learn" }).click();
   await page.getByRole("region", { name: "CHALLENGES" }).getByRole("button", { name: "XOR from NAND gates" }).click();
   await page.getByRole("navigation", { name: "Sheet" }).filter({ hasText: "XOR" }).waitFor();
   await drag([2, 1], [36, 1]);

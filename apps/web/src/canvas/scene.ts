@@ -1226,8 +1226,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     // A modal dialog (Add components, ADR 0027) has the keys, even when focus fell back to the page behind it.
     if (document.querySelector("dialog[open]")) return;
     const editor = useEditor.getState();
-    // Only with focus on the page itself: Backspace on a focused button or field is not a canvas edit.
-    const onCanvas = e.target === document.body;
+    // Only with focus on the canvas or on nothing: Backspace on a focused button or field is not a canvas edit.
+    const onCanvas = e.target === document.body || e.target === host;
     const key = e.key.toLowerCase();
     const undo = (e.ctrlKey || e.metaKey) && !e.altKey && key === "z" && !e.shiftKey;
     const redo = (e.ctrlKey || e.metaKey) && !e.altKey && ((key === "z" && e.shiftKey) || (key === "y" && !e.shiftKey));

@@ -26,6 +26,7 @@ body {
   background: var(--bench);
   color: var(--ink);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
 .visually-hidden {
@@ -43,97 +44,490 @@ body {
 }
 
 button:focus-visible {
-  outline: none;
+  outline: 2px solid transparent;
   box-shadow: var(--focus-ring);
 }
 
+/* One focus ring everywhere; the transparent outline is what forced-colors mode draws. */
+:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
+}
+
+h2:focus-visible {
+  border-radius: var(--radius-sm);
+}
+
+/* The dialog itself shows where focus went. */
+.dialog h2:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* In dense groups the ring sits inside the control, so it does not touch its neighbours. */
+.transport :focus-visible,
+.part-grid :focus-visible,
+.library-link:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.transport .button-primary:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--on-accent);
+}
+
+/* A pane reached with F6: the ring sits inside, because panes touch the window's edges. */
+.toolbar:focus-visible,
+.parts:focus-visible,
+.inspector:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+/* The canvas's ring is an outline: its drawing surface would cover an inset shadow. */
+.canvas-host:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.icon,
+.glyph {
+  flex: none;
+  display: block;
+}
+
 .shell {
+  position: relative;
   display: grid;
   grid-template-rows: var(--toolbar-height) minmax(0, 1fr) var(--statusbar-height);
+  grid-template-columns: minmax(0, 1fr);
   height: 100%;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  /* Scrolls sideways rather than widening the page when the controls outgrow it. */
-  overflow-x: auto;
-  padding: 0 var(--space-4);
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
-}
-
-.file-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  margin-left: auto;
-  padding-left: var(--space-4);
-}
-
-.project-name {
-  margin-right: var(--space-2);
-  color: var(--ink-muted);
-  white-space: nowrap;
-}
-
-.file-error,
-.file-notice {
   overflow: hidden;
-  color: var(--danger);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.file-notice {
-  color: var(--ink-muted);
-}
-
-.file-link {
-  width: 16rem;
-  min-width: 0;
-}
-
-/* The messages give way first; the buttons keep their labels on one line. */
-.file-actions > .button {
-  flex: none;
-  white-space: nowrap;
-}
+/* ---------------------------------------------------------------- Buttons */
 
 .button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   height: var(--control-height);
   padding: 0 var(--space-3);
-  background: transparent;
+  background: var(--panel-raised);
   color: var(--ink);
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line);
   border-radius: var(--radius-md);
+  font: 500 12px/16px var(--font-sans);
+  white-space: nowrap;
   cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .button:hover:not(:disabled) {
-  background: var(--panel-raised);
+  border-color: var(--line-strong);
+}
+
+.button:active:not(:disabled) {
+  background: var(--press);
 }
 
 .button:disabled {
   color: var(--ink-faint);
-  border-color: var(--line);
   cursor: default;
 }
 
-.run-toggle {
-  min-width: 5em;
+.button-quiet {
+  padding: 0 var(--space-2);
+  background: transparent;
+  border-color: transparent;
+}
+
+.button-quiet:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: transparent;
+}
+
+.button-icon {
+  width: var(--control-height);
+  padding: 0;
+}
+
+/* The one primary action of a surface (ADR 0008): blue is intent. */
+.button-primary,
+.button-primary:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+
+.button-primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+.button-primary:active:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.button-primary:disabled {
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+
+/* Tips: shown on hover after a moment, at once on keyboard focus, hidden by Escape. */
+.tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 30;
+  width: max-content;
+  max-width: 240px;
+  padding: var(--space-1) var(--space-2);
+  background: var(--ink);
+  color: var(--panel);
+  /* Transparent here; forced-colors mode draws it. */
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: 400 11px/14px var(--font-sans);
+  white-space: normal;
+  text-align: left;
+  cursor: default;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%);
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+/* Bridges the gap under the button, so the pointer can move onto the tip (WCAG 1.4.13). */
+.tip::before {
+  content: "";
+  position: absolute;
+  inset: -8px 0;
+  z-index: -1;
+}
+
+.button:hover > .tip {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 450ms;
+}
+
+.button:focus-visible > .tip {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0ms;
+}
+
+[data-tips-off] .button > .tip {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.tip-end > .tip {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
+.zoom-controls .tip {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+
+/* ---------------------------------------------------------------- Toolbar */
+
+.toolbar {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  /* The centre stays centred while there is room; only the left side gives way when there is not. */
+  grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-3);
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.toolbar-start,
+.toolbar-end,
+.tool-group,
+.run-controls,
+.file-actions {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.toolbar-start {
+  gap: var(--space-2);
+}
+
+.toolbar-end {
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.tool-group,
+.file-actions {
+  flex: none;
+  gap: 2px;
+}
+
+/* The transport: everything that moves time, set into the bar like an instrument panel. */
+.transport {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: 36px;
+  padding: 0 3px;
+  background: var(--bench);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.run-controls {
+  flex: none;
+  gap: 2px;
+}
+
+.toolbar-sep {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 var(--space-1);
+  background: var(--line);
 }
 
 .wordmark {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: var(--space-2);
+  margin: 0;
   font-family: var(--font-mono);
   font-weight: 600;
-  font-size: 16px;
+  font-size: 15px;
   letter-spacing: -0.02em;
 }
+
+.project-name {
+  min-width: 8ch;
+}
+
+/* Three tiers: Run, then the commands, then settings and file actions, which stay quiet until pointed at. */
+.file-actions .button,
+.tool-group .button,
+.toolbar-end > .button {
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+.file-actions .button:hover:not(:disabled),
+.tool-group .button:hover:not(:disabled),
+.toolbar-end > .button:hover {
+  color: var(--ink);
+}
+
+.tool-group .button:disabled {
+  color: var(--ink-faint);
+}
+
+input.project-name {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 22ch;
+  height: var(--control-height);
+  padding: 0 var(--space-2);
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid transparent;
+  /* The underline says it can be edited. */
+  border-bottom-color: var(--line-strong);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  text-overflow: ellipsis;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+input.project-name:hover {
+  background: var(--hover);
+}
+
+input.project-name:focus {
+  background: var(--panel-raised);
+  border-color: var(--line-strong);
+}
+
+/* Sheet breadcrumb (ADR 0012): the main circuit, then the definition open for editing. */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  gap: 2px;
+  min-width: 0;
+  color: var(--ink-muted);
+}
+
+.breadcrumb .button {
+  flex: none;
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+.breadcrumb .button:hover {
+  color: var(--ink);
+}
+
+.breadcrumb-current {
+  min-width: 5ch;
+  overflow: hidden;
+  padding: 0 var(--space-1);
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* On a component's sheet the path needs the room: the wordmark's name and the project's width give way. */
+@media (max-width: 1500px) {
+  .toolbar-start:has(.breadcrumb) .wordmark-name {
+    display: none;
+  }
+
+  .toolbar-start:has(.breadcrumb) input.project-name {
+    max-width: 12ch;
+  }
+}
+
+/* Run controls (ADR 0017): the toolbar's centre. The toggle keeps its width between Run and Pause. */
+.run-toggle {
+  min-width: 76px;
+  padding: 0 var(--space-3);
+}
+
+.run-toggle.is-running,
+.run-toggle.is-running:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.run-speed,
+.run-select,
+.select {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+/* A native select, for its keyboard and screen-reader behaviour, with a chevron drawn in the theme's ink. */
+.run-speed::after,
+.run-select::after,
+.select::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  width: 6px;
+  height: 6px;
+  margin-top: -5px;
+  border-right: 1.5px solid var(--ink-muted);
+  border-bottom: 1.5px solid var(--ink-muted);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+select.input {
+  appearance: none;
+  width: 100%;
+  padding-right: 22px;
+  overflow: hidden;
+  font: 500 12px/16px var(--font-sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.run-controls select.input {
+  /* As wide as its value, so the chevron stays beside it. */
+  field-sizing: content;
+  max-width: 180px;
+  background: transparent;
+  color: var(--ink-muted);
+  border-color: transparent;
+  border-radius: var(--radius-md);
+  font-weight: 400;
+}
+
+.run-controls select.input:hover {
+  background: var(--hover);
+  color: var(--ink);
+  border-color: transparent;
+}
+
+@supports not (field-sizing: content) {
+  .run-speed select.input {
+    width: 76px;
+  }
+
+  .run-select select.input {
+    width: 124px;
+  }
+}
+
+/* What Import, Export and Copy link have to say, floating over the canvas under the toolbar. */
+.file-messages {
+  position: fixed;
+  top: calc(var(--toolbar-offset) + var(--space-2));
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: max-content;
+  max-width: min(520px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.file-messages:has(.file-error, .file-link, .file-notice:not(:empty)) {
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  background: var(--panel-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lift);
+}
+
+.file-messages > .button,
+.file-link {
+  flex: none;
+  pointer-events: auto;
+}
+
+.file-error {
+  color: var(--danger);
+}
+
+.file-notice {
+  color: var(--ink);
+}
+
+.file-notice:empty {
+  display: inline;
+}
+
+.file-link {
+  width: 14rem;
+}
+
+/* -------------------------------------------------------------- Workspace */
 
 .workspace {
   display: grid;
@@ -141,58 +535,237 @@ button:focus-visible {
   min-height: 0;
 }
 
-.parts {
-  overflow-y: auto;
+.parts,
+.inspector {
+  overflow: hidden auto;
   background: var(--panel);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.parts {
+  position: relative;
   border-right: 1px solid var(--line);
+  /* A focused control is never left under the sticky tabs or against the bottom edge. */
+  scroll-padding-block: calc(var(--library-nav-height) + var(--space-2)) var(--space-2);
+  padding-bottom: var(--space-4);
 }
 
 .panel {
-  padding: var(--space-3) var(--space-3) var(--space-4);
+  padding: var(--space-3);
   border-bottom: 1px solid var(--line);
 }
 
+/* Silkscreen: a mono label with a trace running from it to the board's edge. */
 .panel-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   margin: 0 0 var(--space-2);
   color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.panel-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* The parts panel's header: where each kind of thing is, and which is in view. */
+.library-nav {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-height: var(--library-nav-height);
+  padding: var(--space-1) var(--space-2);
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.library-link {
+  flex: 1;
+  min-height: 28px;
+  padding: 0 var(--space-1);
+  background: transparent;
+  color: var(--ink-muted);
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.library-link:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.library-link[aria-selected="true"] {
+  color: var(--ink);
+  box-shadow: inset 0 -2px var(--accent);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.library-link:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.palette {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.palette .panel {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.palette .panel + .panel {
+  padding-top: var(--space-2);
 }
 
 .part-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-2);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(58px, auto);
+  gap: var(--space-1);
 }
 
+/* No holes: four tiles make two rows of two, and a last tile alone takes its row. */
+.part-grid:has(> :nth-child(4):last-child) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.part-grid > :last-child:nth-child(3n + 1):not(:nth-child(4)) {
+  grid-column: 1 / -1;
+}
+
+/* A row in the parts panel's lists: chips, projects, challenges and examples. */
 .part-tile {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: var(--control-height);
+  gap: var(--space-2);
+  min-height: var(--control-height);
   padding: 0 var(--space-2);
-  background: var(--panel-raised);
+  background: transparent;
   color: var(--ink);
-  border: 1px solid var(--line);
+  font-weight: 400;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
   text-align: left;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .part-tile:hover {
-  border-color: var(--line-strong);
+  background: var(--hover);
 }
 
-/* Chips (ADR 0012): one per row, each with its delete button. */
-.chip-list {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0 0 var(--space-2);
+.part-tile:active {
+  background: var(--press);
+}
+
+.part-tile .glyph {
+  color: var(--ink-muted);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.part-tile:hover .glyph {
+  color: var(--ink);
+}
+
+.part-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A palette tile: its symbol over its name, the shortcut in the corner. Quiet until pointed at: the canvas leads. */
+.part-grid .part-tile {
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-height: 0;
+  padding: var(--space-1) 2px;
+  background: var(--wash);
+  border-radius: var(--radius-md);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 13px;
+  text-align: center;
+}
+
+.part-grid .part-tile .glyph {
+  color: var(--ink);
+}
+
+.part-grid .part-tile:hover {
+  background: var(--hover);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.part-grid .part-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* The key sits against the symbol it arms, wherever the tile's width puts that. */
+.part-grid .kbd {
+  position: absolute;
+  top: 5px;
+  left: calc(50% + 14px);
+  min-width: 13px;
+  padding: 0 2px;
+  font-size: 9px;
+  line-height: 11px;
+}
+
+.part-tile[aria-pressed="true"],
+.part-grid .part-tile[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+.part-tile[aria-pressed="true"] .glyph,
+.part-grid .part-tile[aria-pressed="true"] .glyph,
+.part-tile[aria-pressed="true"] .kbd {
+  color: var(--accent);
+}
+
+.chip-list,
+.challenge-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.chip-list {
+  margin-bottom: var(--space-2);
+}
+
 .chip-row {
   display: flex;
-  gap: var(--space-1);
+  align-items: center;
+  gap: 2px;
 }
 
 .chip-row .part-tile {
@@ -201,26 +774,36 @@ button:focus-visible {
 }
 
 .chip-delete {
-  width: var(--control-height);
-  height: var(--control-height);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   background: transparent;
   color: var(--ink-muted);
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: var(--radius-sm);
   cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .chip-delete:hover {
+  background: var(--danger-soft);
   color: var(--danger);
-  border-color: var(--line-strong);
 }
 
-.part-tile[aria-pressed="true"] {
+/* Saving to the library is not destructive: no red on hover, unlike delete. */
+.chip-save:hover {
   background: var(--accent-soft);
-  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .kbd {
+  display: inline-block;
+  min-width: 16px;
   padding: 0 var(--space-1);
   background: var(--panel-raised);
   color: var(--ink-muted);
@@ -228,80 +811,128 @@ button:focus-visible {
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 11px;
+  font-weight: 500;
   line-height: 16px;
+  text-align: center;
 }
 
 .parts-hint {
-  margin: var(--space-3);
+  margin: var(--space-3) var(--space-3) 0;
   color: var(--ink-muted);
 }
 
-.parts-hint p {
-  margin: 0 0 var(--space-2);
+.parts-empty {
+  margin: 0;
+  color: var(--ink-muted);
 }
 
-.parts-hint summary {
-  color: var(--ink);
-  cursor: pointer;
+.add-components,
+.projects-new,
+.challenge-clear {
+  width: 100%;
 }
 
-.shortcut-list {
-  display: grid;
-  gap: var(--space-2);
-  margin: var(--space-2) 0 0;
+.add-components,
+.challenge-clear {
+  margin-top: var(--space-2);
 }
 
-.shortcut-list dt {
-  color: var(--ink);
+.projects-new {
+  margin-bottom: var(--space-2);
 }
 
-.shortcut-list dd {
+/* Projects (ADR 0029): each saved project with when it changed. */
+.project-tile {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  min-height: 36px;
+  padding-block: var(--space-1);
+}
+
+.project-tile[aria-current="true"] {
+  background: var(--accent-soft);
+}
+
+.project-tile-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-tile-when {
+  color: var(--ink-muted);
+}
+
+/* Challenges (ADR 0025) and examples: numbered or plain rows, a tick on those passed. */
+.challenge-list .part-tile {
+  width: 100%;
+}
+
+.challenge-number {
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.challenge-done {
+  flex: none;
+  margin-left: auto;
+  color: var(--ok);
+}
+
+.challenge-text,
+.challenge-result {
   margin: 0;
 }
 
-/* The canvas and what floats over it: the empty-sheet hint and the zoom controls. */
+.challenge-text {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* The engine's verdict, in words and a mark: a square for a failure, a dot for a pass, as in the status bar. */
+.challenge-result:not(:empty) {
+  display: flex;
+  gap: var(--space-2);
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.challenge-result:not(:empty)::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.challenge-result.challenge-passed:not(:empty) {
+  color: var(--ok);
+}
+
+.challenge-result.challenge-passed::before {
+  border-radius: var(--radius-full);
+}
+
+/* ----------------------------------------------------------------- Canvas */
+
+.canvas-column {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+}
+
 .canvas-area {
   position: relative;
   display: grid;
   min-width: 0;
   min-height: 0;
-}
-
-.canvas-empty {
-  position: absolute;
-  top: 40%;
-  left: 50%;
-  width: min(360px, 80%);
-  margin: 0;
-  transform: translate(-50%, -50%);
-  color: var(--ink-muted);
-  text-align: center;
-  pointer-events: none;
-}
-
-.zoom-controls {
-  position: absolute;
-  right: var(--space-3);
-  bottom: var(--space-3);
-  display: flex;
-  gap: var(--space-1);
-  padding: var(--space-1);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lift);
-}
-
-.zoom-controls .button {
-  min-width: var(--control-height);
-  padding: 0 var(--space-2);
-  border-color: transparent;
-  font: 500 12px/16px var(--font-sans);
-}
-
-.zoom-level {
-  min-width: 4.5em;
-  font-variant-numeric: tabular-nums;
 }
 
 .canvas-host {
@@ -317,37 +948,165 @@ button:focus-visible {
   touch-action: none;
 }
 
+/* The way in on an empty sheet. Clicks pass through to the canvas, except on its buttons. */
+.canvas-tools {
+  display: contents;
+}
+
+.canvas-empty {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: min(380px, calc(100% - 32px));
+  padding: var(--space-4);
+  transform: translate(-50%, -50%);
+  background: var(--panel);
+  color: var(--ink-muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  pointer-events: none;
+}
+
+.canvas-empty p {
+  margin: 0;
+}
+
+.canvas-empty strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Three stops on one wire. */
+.empty-steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-muted);
+}
+
+.empty-steps::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  right: 16.66%;
+  left: 16.66%;
+  height: 1px;
+  background: var(--signal-low);
+}
+
+.empty-steps li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.empty-steps .glyph {
+  box-sizing: content-box;
+  padding: 3px var(--space-1);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.canvas-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.canvas-empty .button {
+  pointer-events: auto;
+}
+
+.zoom-controls {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lift);
+}
+
+.zoom-controls .toolbar-sep {
+  margin: 0 2px;
+}
+
+.zoom-level {
+  min-width: 48px;
+  padding: 0 var(--space-1);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------- Status bar */
+
 .statusbar {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: 0 var(--space-4);
   min-width: 0;
+  padding: 0 var(--space-3);
   background: var(--panel);
   border-top: 1px solid var(--line);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.statusbar:has(.status-danger) {
+  border-top-color: var(--danger);
+}
+
+/* The status bar's live region: state and message, announced on change. */
+.status-live {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .status-state {
   display: inline-flex;
+  flex: none;
   align-items: center;
-  gap: var(--space-2);
+  gap: 6px;
+  height: 20px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-weight: 500;
   white-space: nowrap;
 }
 
 .status-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: var(--radius-full);
   background: currentColor;
 }
 
 .status-ok {
+  background: var(--ok-soft);
   color: var(--ok);
 }
 
 .status-danger {
+  background: var(--danger-soft);
   color: var(--danger);
 }
 
@@ -356,7 +1115,23 @@ button:focus-visible {
 }
 
 .status-muted {
+  background: var(--hover);
   color: var(--ink-muted);
+}
+
+.status-running {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.status-running .status-dot {
+  animation: status-pulse 1.2s var(--ease-out) infinite;
+}
+
+@keyframes status-pulse {
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .status-message {
@@ -366,31 +1141,123 @@ button:focus-visible {
   white-space: nowrap;
 }
 
-/* Inspector (design system Editor, Panel and Field) */
-.inspector {
-  overflow-y: auto;
-  background: var(--panel);
+.statusbar:has(.status-danger) .status-message {
+  color: var(--ink);
+}
+
+.status-probe {
+  flex: none;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.status-save {
+  flex: none;
+  margin-left: auto;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.status-warn {
+  flex: 0 1 auto;
+  overflow: hidden;
+  color: var(--caution);
+  text-overflow: ellipsis;
+}
+
+/* The cycle counter with a live trace of the clock: fixed digits, so it does not jitter while running. */
+.cycle-readout {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.status-save ~ .cycle-readout,
+.status-more ~ .cycle-readout {
+  margin-left: 0;
+  padding-left: var(--space-3);
   border-left: 1px solid var(--line);
 }
 
-/* Narrow screens: the inspector moves under the canvas as a short strip, so the canvas keeps its width. */
-@media (max-width: 900px) {
-  .workspace {
-    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
-  }
+.cycle-trace {
+  display: block;
+  fill: none;
+}
 
-  .inspector {
-    grid-column: 1 / -1;
-    max-height: 35vh;
-    border-left: 0;
-    border-top: 1px solid var(--line);
-  }
+.cycle-low {
+  stroke: var(--signal-low);
+  stroke-width: 1;
+}
+
+.cycle-high {
+  stroke: var(--signal-high);
+  stroke-width: 2;
+}
+
+.status-more {
+  flex: none;
+  height: 20px;
+  margin-left: auto;
+  color: var(--ink-muted);
+}
+
+.status-more:hover {
+  color: var(--ink);
+}
+
+.status-save + .status-more,
+.status-probe + .status-more {
+  margin-left: 0;
+}
+
+.problem-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* -------------------------------------------------------------- Inspector */
+
+.inspector {
+  display: flex;
+  flex-direction: column;
+}
+
+.inspector .panel {
+  flex: none;
+}
+
+.inspector .panel-notes {
+  border-bottom: 0;
+}
+
+/* The hint is for writing: it shows while the notes have focus. */
+.panel-notes .field-hint {
+  display: none;
+}
+
+.panel-notes:focus-within .field-hint {
+  display: block;
 }
 
 .inspector-empty {
   margin: 0;
   color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .inspector-body {
@@ -400,8 +1267,22 @@ button:focus-visible {
 }
 
 .inspector-kind {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   margin: 0;
   color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.inspector-kind .glyph {
+  color: var(--ink-muted);
+}
+
+.inspector-body > .button,
+.field > .button {
+  align-self: stretch;
 }
 
 .field {
@@ -411,12 +1292,14 @@ button:focus-visible {
 }
 
 .field-label {
+  margin: 0;
   font: 500 12px/16px var(--font-sans);
   color: var(--ink-muted);
 }
 
 .input {
   height: var(--control-height);
+  min-width: 0;
   padding: 0 var(--space-2);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
@@ -424,11 +1307,19 @@ button:focus-visible {
   color: var(--ink);
   font: 400 13px/16px var(--font-mono);
   font-variant-numeric: tabular-nums;
+  transition: border-color var(--duration-fast) var(--ease-out);
 }
 
-.input:focus-visible {
-  outline: 2px solid transparent;
-  box-shadow: var(--focus-ring);
+.input:hover {
+  border-color: var(--ink-muted);
+}
+
+.input::placeholder {
+  color: var(--ink-muted);
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--danger);
 }
 
 .field-hint {
@@ -437,80 +1328,16 @@ button:focus-visible {
   color: var(--ink-muted);
 }
 
-.inspector-body .button {
-  align-self: flex-start;
+.field-hint:empty {
+  display: none;
 }
 
-/* Sheet breadcrumb (ADR 0012): the main circuit, then the definition open for editing. */
-.breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-left: var(--space-6);
-  color: var(--ink-muted);
-}
-
-.breadcrumb [aria-current] {
-  color: var(--ink);
-}
-
-.parts-empty {
-  margin: 0;
-  color: var(--ink-faint);
-}
-
-.field-hint.field-error {
+.field-hint.field-error,
+.field-error {
   color: var(--danger);
 }
 
-/* Run controls (ADR 0017): Run/Pause, Step, Reset and speed, after the breadcrumb. */
-.run-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-left: var(--space-4);
-}
-
-.run-speed .input,
-.run-select .input {
-  height: var(--control-height);
-  width: auto;
-}
-
-/* The status bar's live region: state and message, announced on change. */
-.status-live {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-/* Narrow screens: the toolbar drops the names. */
-@media (max-width: 700px) {
-  .toolbar {
-    gap: var(--space-2);
-  }
-
-  .run-controls {
-    margin-left: 0;
-  }
-
-  .wordmark-name,
-  .project-name {
-    display: none;
-  }
-}
-
-/* The cycle counter, at the right of the status bar. */
-.status-cycle {
-  margin-left: auto;
-  padding-left: var(--space-3);
-  color: var(--ink-muted);
-  font-family: var(--font-mono);
-  white-space: nowrap;
-}
-
-/* A memory's words in the inspector (ADR 0018): monospace, eight to a line. */
+/* A memory's words (ADR 0018): monospace, eight to a line. */
 .memory-words {
   height: auto;
   margin: 0;
@@ -536,38 +1363,30 @@ pre.memory-words {
   padding-left: var(--space-4);
 }
 
-/* Challenges (ADR 0025): the list under the chips, and the panel under the inspector's properties. */
-.challenge-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.challenge-list .part-tile {
+/* Notes (ADR 0027): read as much as written, so in the body font and wrapping. */
+.notes {
   width: 100%;
-  justify-content: flex-start;
+  height: auto;
+  padding: var(--space-2);
+  font: 400 13px/20px var(--font-sans);
+  white-space: pre-wrap;
+  /* Reads as text in the panel, underlined as editable like the project's name, and grows with what it holds. */
+  field-sizing: content;
+  min-height: 96px;
+  padding-inline: 0;
+  background: transparent;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  resize: none;
 }
 
-.challenge-text,
-.challenge-result {
-  margin: 0;
+.notes:hover {
+  border-color: var(--ink-muted);
 }
 
-.challenge-passed {
-  color: var(--ok);
-}
+/* -------------------------------------------------------------- Waveforms */
 
-/* The canvas over the waveform panel (ADR 0026); the panel takes only the height its rows need. */
-.canvas-column {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  min-width: 0;
-  min-height: 0;
-}
-
+/* The panel takes only the height its rows need (ADR 0026). Heights match the lanes: a 20px axis, then 24px per row. */
 .waves {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -575,19 +1394,20 @@ pre.memory-words {
   overflow-y: auto;
   background: var(--panel);
   border-top: 1px solid var(--line);
+  scrollbar-width: thin;
 }
 
 .waves-names {
-  padding: 0 var(--space-2);
+  padding: 0 var(--space-1) 0 var(--space-3);
   border-right: 1px solid var(--line);
 }
 
-/* Heights match the lanes: a 20px axis, then 24px per row. */
 .waves-time {
   height: 20px;
   margin: 0;
-  padding-top: 2px;
   color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 20px;
   white-space: nowrap;
 }
 
@@ -602,32 +1422,39 @@ pre.memory-words {
   align-items: center;
   gap: var(--space-2);
   height: 24px;
+  box-shadow: inset 0 1px var(--line);
 }
 
 .waves-name {
-  min-width: 8em;
+  width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .waves-value {
-  min-width: 7em;
+  min-width: 6.5em;
+  color: var(--ink-muted);
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
 .waves-remove {
+  width: 20px;
   height: 20px;
-  min-width: 20px;
   padding: 0;
-  border-color: transparent;
+  color: var(--ink-muted);
 }
 
 .waves-lanes {
   overflow: hidden;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px);
+  background-position: 0 20px;
+  background-size: 100% 24px;
 }
 
 .waves-lanes:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
+  box-shadow: inset 0 0 0 2px var(--focus);
 }
 
 .waves-lanes svg {
@@ -637,12 +1464,18 @@ pre.memory-words {
 
 .wave-bit {
   fill: none;
-  stroke: var(--signal-high);
+  stroke: var(--signal-low);
   stroke-width: 1.5;
 }
 
+.wave-high {
+  fill: none;
+  stroke: var(--signal-high);
+  stroke-width: 2;
+}
+
 .wave-bus {
-  fill: var(--signal-high-soft);
+  fill: color-mix(in srgb, var(--signal-bus) 14%, transparent);
   stroke: var(--signal-bus);
   stroke-width: 1;
 }
@@ -654,7 +1487,7 @@ pre.memory-words {
 
 .wave-axis {
   fill: var(--ink-muted);
-  font: 400 11px var(--font-sans);
+  font: 400 11px var(--font-mono);
 }
 
 .wave-cursor {
@@ -662,25 +1495,11 @@ pre.memory-words {
   stroke-width: 1;
 }
 
-/* Notes (ADR 0027): read as much as written, so in the body font and wrapping. */
-.notes {
-  width: 100%;
-  height: auto;
-  padding: var(--space-2);
-  font: 400 13px/20px var(--font-sans);
-  white-space: pre-wrap;
-  resize: vertical;
-}
-
-/* Add components (ADR 0027): a modal dialog over the editor. */
-.add-components {
-  width: 100%;
-  margin-top: var(--space-2);
-}
+/* ---------------------------------------------------------------- Dialogs */
 
 .dialog {
   width: min(480px, calc(100vw - 32px));
-  padding: var(--space-4);
+  padding: var(--space-5);
   color: var(--ink);
   background: var(--panel-raised);
   border: 1px solid var(--line-strong);
@@ -688,13 +1507,42 @@ pre.memory-words {
   box-shadow: var(--shadow-pop);
 }
 
+.dialog[open] {
+  animation: dialog-in var(--duration-med) var(--ease-out);
+}
+
+.dialog-wide {
+  width: min(560px, calc(100vw - 32px));
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
 .dialog::backdrop {
-  background: rgb(0 0 0 / 40%);
+  background: var(--scrim);
 }
 
 .dialog-title,
 .dialog-text {
   margin: 0 0 var(--space-3);
+}
+
+.dialog-text {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.dialog-text:empty {
+  display: none;
+}
+
+.dialog-text.field-error {
+  color: var(--danger);
 }
 
 .dialog-row {
@@ -705,20 +1553,39 @@ pre.memory-words {
   margin-bottom: var(--space-3);
 }
 
+.dialog-row .field-label {
+  flex: 0 0 100%;
+}
+
+.dialog-row .select {
+  flex: 1 1 200px;
+}
+
 .dialog-choices {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   margin: 0 0 var(--space-3);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
 }
 
+.dialog-choices legend {
+  padding: 0 var(--space-1);
+  color: var(--ink-muted);
+}
+
 .dialog-choice {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--space-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dialog-choice input {
+  accent-color: var(--accent);
 }
 
 .dialog-hint {
@@ -729,79 +1596,296 @@ pre.memory-words {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+  margin-top: var(--space-4);
 }
 
-/* Projects (ADR 0029): New circuit, then each saved project with when it changed. */
-.projects-new {
-  width: 100%;
-  margin-bottom: var(--space-2);
+.shortcut-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-6);
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
 }
 
-.project-tile {
-  flex-direction: column;
-  align-items: flex-start;
-  height: auto;
-  min-height: var(--control-height);
-  padding-block: var(--space-1);
+.shortcut-list > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
 }
 
-.project-tile[aria-current="true"] {
-  border-color: var(--accent);
+.shortcut-list dt {
+  color: var(--ink);
 }
 
-.project-tile-name {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.shortcut-list dt .kbd + .kbd {
+  margin-left: 2px;
 }
 
-.project-tile-when {
+.shortcut-list dd {
+  margin: 0;
   color: var(--ink-muted);
+  text-align: right;
 }
 
-input.project-name {
-  min-width: 8em;
-  max-width: 20em;
-  padding: 0 var(--space-2);
-  color: inherit;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+/* ------------------------------------------------------------ Small widths */
+
+/* Button labels give way to their glyphs, last for Run; names stay for assistive technology, tips for the eye. */
+@media (max-width: 1220px) {
+  .wordmark-name {
+    display: none;
+  }
+
+  .file-actions .button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .file-actions > .button {
+    width: var(--control-height);
+    padding: 0;
+  }
 }
 
-input.project-name:hover,
-input.project-name:focus {
-  border-color: var(--line);
-  outline: none;
+@media (max-width: 1080px) {
+  .toolbar-start:has(.breadcrumb) input.project-name {
+    display: none;
+  }
 }
 
-input.project-name:focus-visible {
-  box-shadow: var(--focus-ring);
+@media (max-width: 860px) {
+  .run-controls > .button:not(.run-toggle) .button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .run-controls > .button:not(.run-toggle) {
+    width: var(--control-height);
+    padding: 0;
+  }
 }
 
-.status-save {
-  margin-left: auto;
-  color: var(--ink-muted);
-  white-space: nowrap;
+/* Narrow screens: the inspector moves under the canvas, with its panels side by side. */
+@media (max-width: 900px) {
+  .workspace {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .inspector {
+    display: grid;
+    grid-template-columns: minmax(200px, 1fr) minmax(240px, 2fr);
+    grid-column: 1 / -1;
+    min-height: 120px;
+    max-height: min(30vh, 220px);
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .inspector .panel {
+    border-bottom: 0;
+  }
+
+  .inspector .panel + .panel {
+    border-left: 1px solid var(--line);
+  }
+
+  .inspector .notes {
+    min-height: 60px;
+  }
 }
 
-.status-warn {
-  color: var(--caution);
+/* The toolbar takes two rows, in reading order: name and transport, then history and files. */
+@media (max-width: 800px) {
+  :root {
+    --toolbar-offset: 84px;
+  }
+
+  .shell {
+    grid-template-rows: auto minmax(0, 1fr) minmax(var(--statusbar-height), auto);
+  }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-2);
+    padding-block: var(--space-1);
+  }
+
+  .toolbar-start {
+    flex: 1 1 96px;
+  }
+
+  .toolbar-end {
+    flex: 1 1 100%;
+    gap: 2px;
+  }
+
+  .toolbar-end > .toolbar-sep {
+    margin: 0 2px;
+  }
 }
 
-/* Challenge progress (ADR 0029): a tick on those passed. */
-.challenge-done {
-  margin-left: auto;
-  color: var(--ok);
+/* Narrower still: the panels stack around the canvas, the palette becomes one strip, and the page area scrolls. */
+@media (max-width: 700px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 110px minmax(260px, 1fr) auto;
+    overflow-y: auto;
+  }
+
+  .parts {
+    padding-bottom: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .parts-hint,
+  .palette .panel-title {
+    display: none;
+  }
+
+  .palette {
+    display: flex;
+    gap: var(--space-1);
+    overflow-x: auto;
+    padding: var(--space-1) var(--space-2);
+    scrollbar-width: thin;
+  }
+
+  .palette .panel,
+  .palette .panel + .panel {
+    flex: none;
+    padding: 0;
+  }
+
+  .part-grid {
+    display: flex;
+    gap: var(--space-1);
+  }
+
+  .part-grid .part-tile {
+    width: 62px;
+    height: 62px;
+    flex: none;
+  }
+
+  .inspector {
+    grid-template-columns: minmax(0, 1fr);
+    grid-column: auto;
+    min-height: 160px;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .inspector .panel + .panel {
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+
+  /* Over the status bar, clear of the toolbar and the palette. */
+  .file-messages {
+    top: auto;
+    bottom: calc(var(--statusbar-height) + var(--space-2));
+  }
+
+  /* All is well: nothing to say here. Warnings stay. */
+  .status-save:not(.status-warn),
+  .cycle-trace {
+    display: none;
+  }
+
+  .statusbar {
+    padding-block: var(--space-1);
+  }
+
+  .status-message {
+    white-space: normal;
+  }
+
+  .shortcut-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
-.challenge-clear {
-  width: 100%;
-  margin-top: var(--space-2);
+/* Phone widths: the settings take a row of their own, at full value; the zoom keeps its buttons. */
+@media (max-width: 520px) {
+  :root {
+    --toolbar-offset: 116px;
+  }
+
+  .transport {
+    flex: 1 1 100%;
+    height: auto;
+    padding-block: 3px;
+  }
+
+  .run-controls {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+
+  .run-controls > .toolbar-sep {
+    display: none;
+  }
+
+  .run-speed,
+  .run-select {
+    flex: 1 1 40%;
+  }
+
+  .run-controls select.input {
+    field-sizing: fixed;
+    width: 100%;
+    max-width: none;
+  }
+
+  .zoom-level {
+    display: none;
+  }
 }
 
-/* Saving to the library is not destructive: no red on hover, unlike delete. */
-.chip-save:hover {
-  color: var(--accent);
+/* ------------------------------------------------- User preferences */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after,
+  ::backdrop {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .part-tile[aria-pressed="true"],
+  .library-link[aria-selected="true"],
+  .project-tile[aria-current="true"] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  /* Heavier than the marks above, so focus on a selected item still shows. */
+  .part-tile:focus-visible,
+  .library-link:focus-visible,
+  .project-tile:focus-visible {
+    outline: 3px solid CanvasText;
+    outline-offset: 1px;
+  }
+
+  .status-dot {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
 }
