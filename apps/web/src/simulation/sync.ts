@@ -7,6 +7,12 @@ import { startSimulation } from "./client";
 import { since, timed } from "../bench";
 import type { AsmError, Challenge, CircuitDescription, Command, Diagnostic, Report, Result, Stopped } from "./protocol";
 
+/**
+ * When inputs were last sent (a `performance.now()`) with no state of the current circuit since, or -1. The canvas waits
+ * up to its answer wait for that state, so a toggle is drawn once, with its values (ADR 0030).
+ */
+export let inputsSent = -1;
+
 export type Loaded = Extract<Result, { type: "loaded" }>;
 export type Waves = Extract<Result, { type: "waves" }>;
 
@@ -181,6 +187,12 @@ export function connectEngine(): () => void {
     useSim.setState({ running: message.running, stopped: message.stopped ?? null });
     // A state from before the latest load describes an older circuit.
     if (!state.current || state.loads !== loads) return;
+    // The answer to the inputs last sent (the benchmarks' end of a toggle); while running, possibly a state the worker
+    // sent before it took them, which the next one follows within a frame.
+    if (inputsSent >= 0) {
+      since("engine-input", inputsSent);
+      inputsSent = -1;
+    }
     const { nets, diagnostics: runtime, time } = message;
     useSim.setState(({ time: before, epoch }) => ({
       nets,
@@ -297,7 +309,10 @@ export function connectEngine(): () => void {
     // One command, so switches restored after a load change together and a flip-flop clocked by one of
     // them cannot sample the others in the order they were first toggled (ADR 0017).
     const changed = Object.fromEntries(Object.entries(inputs).filter(([component, value]) => sent[component] !== value));
-    if (Object.keys(changed).length > 0) client.send({ type: "setInputs", values: changed });
+    if (Object.keys(changed).length > 0) {
+      client.send({ type: "setInputs", values: changed });
+      inputsSent = performance.now();
+    }
     sent = inputs;
     // After the load, so the worker resolves the wires in the circuit they belong to; it watches them again on every
     // later load by itself.
@@ -319,6 +334,7 @@ export function connectEngine(): () => void {
     latest = null;
     holding = false;
     send = null;
+    inputsSent = -1;
     // A new worker watches nothing until told.
     watchedWires = [];
     // Nothing will answer what is still awaited.

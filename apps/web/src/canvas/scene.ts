@@ -24,7 +24,7 @@ import {
 import { heldCode, keyStep, type Held } from "../editor/keyboard";
 import { armedProps, useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
-import { useSim, watchMemory } from "../simulation/sync";
+import { inputsSent, useSim, watchMemory } from "../simulation/sync";
 import {
   endAt,
   dragSegment,
@@ -50,8 +50,9 @@ CanvasTextMetrics.graphemeSegmenter = withAsciiShortcut(CanvasTextMetrics.graphe
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
 /**
- * How long, after routing, a redraw waits for the engine's answer to a load before drawing without it (ADR 0030). On
- * 10,000-part sheets the engine answers within about 0.3 s of an edit, often sooner than routing ends.
+ * How long, after routing, a redraw waits for the engine's answer to a load before drawing without it, and after inputs
+ * are sent, for their answer (ADR 0030). On 10,000-part sheets the engine answers within about 0.3 s of an edit, often
+ * sooner than routing ends, and within about 25 ms of a toggle.
  */
 const ANSWER_WAIT_MS = 150;
 /** Pointer travel (px) before a press on a part counts as a drag, not a click. */
@@ -253,6 +254,12 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       // A load awaits its answer (a sheet opened, a connection changed): the first frame only routes, which needs no
       // state, and later frames wait up to `ANSWER_WAIT_MS` for the answer, so the sheet is drawn once, with values.
       // Drawn before it, every wire was drawn twice, the first time dimmed. The view waits too (a pan, for that long).
+      // Inputs sent (a toggle) wait up to as long: drawn before their answer, the switch flipped but its wires kept their
+      // old values, and every chunk the answer changed was built twice.
+      if (dirty && inputsSent >= 0 && performance.now() - inputsSent < ANSWER_WAIT_MS) {
+        paint(true);
+        return;
+      }
       if (!useSim.getState().stale) waitingSince = -1;
       else if (dirty) {
         if (waitingSince < 0) {
