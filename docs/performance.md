@@ -626,6 +626,7 @@ the routes matched main's code exactly. Deciding which routes to keep, alone, in
 | Half of `chain-10k` shifted down a cell | 704 | 70 |
 | Half of `fanout-10k` moved far away | 251 | 118 |
 | An LED of `fanout-10k` deleted, with IDs as long as the editor's | 239 | 217 |
+| A gate of `counters-10k` deleted | 187 | 174 |
 
 The last gains little: building each net's name from 5,000 long IDs, not comparing it, is most of what is left. A test
 checks that routes and shapes too long to file by tile are still checked.

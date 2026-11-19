@@ -196,12 +196,14 @@ test("after an edit, routes and shapes too long to file by tile are still checke
     wires: [wire("long", "s.out", "l.in"), wire("short", "s2.out", "l2.in")],
   };
   const before = routes(base);
+  expect(before.get("long")).toBeDefined();
   const y = (before.get("long") ?? [])[0]?.y ?? 0;
   // A part dropped on the long route, far along it: only that route is routed again.
   const dropped = routes({ ...base, components: [...base.components, part("x", "not", 1500, y - 1)] });
   expect(dropped.get("long")).not.toBe(before.get("long"));
   expect(dropped.get("short")).toBe(before.get("short"));
-  // A new shaped wire with a segment thousands of cells long, laid across the short route: that one moves.
+  // A new shaped wire with a segment thousands of cells long, laid across the short route: that one moves. Routing
+  // `base` again makes it the circuit the next edit is compared with.
   routes(base);
   const shaped = { ...wire("tall", "s3.out", "l3.in"), bends: [{ x: 8, y: -1500 }, { x: 8, y: 1500 }] };
   const crossed = routes({

@@ -571,6 +571,8 @@ function unaffected(
   const [netBefore, netNow] = [members(prev), members(next)];
   // Boxes by tile, so each route is checked against the boxes near it, not all of them (dropping a large selection moves
   // thousands); a box or segment across more than `LONG` tiles is checked plainly.
+  // shortcut: many segments over 1,024 cells, or many such shaped wires changed at once, are still checked against every
+  // box; file them by tile too if sheets with that many long wires appear.
   type Rect = (typeof obstacles)[number];
   const near = new Tiles<Rect>(TILE);
   const wide: Rect[] = [];
