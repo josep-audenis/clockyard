@@ -282,6 +282,13 @@ What exists today:
    drawn as before. On mains power, 10,000-part opens are 120–360 ms
    faster. Edits still draw twice.
 
+   *As built (step 3, eleventh):* deciding which routes an edit keeps
+   searched the new circuit's list of parts for each part, which on
+   10,000 parts took 0.7–1.1 s of every connectivity edit. Parts and
+   junctions are now looked up by ID. Deleting one part takes 0.38–1.55 s
+   until its state is drawn (was 1.3–2.3 s); the routes kept are the
+   same.
+
 ## Alternatives considered
 
 - **Criterion for the native benchmarks.** It gives better statistics, but

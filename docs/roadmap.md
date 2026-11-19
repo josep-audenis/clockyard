@@ -569,6 +569,9 @@ targets, as in Phase 5.
          first state, instead of once unknown and again with the state. On
          mains power, 10,000-part opens are 120–360 ms faster; `counters-10k`
          opens in 1.4 s (was 1.7 s in the same run).
+     11. ✅ After an edit, routing looks parts and junctions up by ID
+         instead of searching for each: deleting one part on a 10,000-part
+         sheet takes 0.38–1.55 s until its state is drawn (was 1.3–2.3 s).
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
