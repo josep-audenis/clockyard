@@ -506,8 +506,10 @@ function unaffected(
   const parts = new Map(prev.components.map((c) => [c.id, c]));
   const dots = new Map(prev.junctions.map((j) => [j.id, j.position]));
   const wires = new Map(prev.wires.map((w) => [w.id, w]));
+  const nextParts = new Map(next.components.map((c) => [c.id, c]));
+  const nextDots = new Map(next.junctions.map((j) => [j.id, j.position]));
   const stays = (id: string) => {
-    const [old, now] = [parts.get(id), next.components.find((c) => c.id === id)];
+    const [old, now] = [parts.get(id), nextParts.get(id)];
     if (old || now) {
       return (
         !!old &&
@@ -521,7 +523,7 @@ function unaffected(
         samePoint(old.position, now.position)
       );
     }
-    const [was, is] = [dots.get(id), next.junctions.find((j) => j.id === id)?.position];
+    const [was, is] = [dots.get(id), nextDots.get(id)];
     return !!was && !!is && samePoint(was, is);
   };
   // Boxes of parts and junctions that moved, turned or appeared: a kept route must not run into one.

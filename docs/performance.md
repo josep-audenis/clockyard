@@ -169,7 +169,7 @@ Read so:
 | Target | Measured | Met |
 |---|---|---|
 | 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s; with fewer cells searched (section 8, on battery, where the same builds are slower) `fanout` 10.8 → 3.4–3.5 s, `adder` 4.2 → 3.3–3.4 s, `counters` 3.7–3.9 → 3.1–3.2 s; on mains with section 9's changes and other work on the machine, `chain` 0.8 s, `adder` 1.8 s (was 2.3 s), `counters` 2.3 s (was 2.5 s), `fanout` 2.5 s (no clear change); routing before the first state (section 10), in a run where main itself opened faster, `adder` 1.74 → 1.46 s, `counters` 1.74 → 1.37 s, `fanout` 1.98 → 1.78 s, `chain` 0.66 → 0.52 s | for `chain`, `cpu` and `adder`; for all four flat sheets in section 10's run, before this change as well as after it, though runs vary by about 0.5 s |
-| A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms | no |
+| A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms; deleting one part, until its state is drawn, 1.3–2.3 s, then 0.38–1.55 s with section 11 | no |
 | Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder`; with shared part shapes (section 7) 30–60 for `chain`, `counters` and `fanout`, 20 for `adder` | partly |
 | 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k`; after step 3's routing index, `chain-50k` 6.3 s, `counters-50k` 22 s; with shared part shapes `chain-50k` 2.4 s; deleting every part of `chain-50k` takes about 1.2 s, over the 1 s asked (other edits not measured) | opening, for `chain` and `cpu` only, after it |
 | Run speed on `counters-10k` recorded | 2,017 cycles per second | yes |
@@ -580,6 +580,28 @@ run than in section 9's (by about 0.5 s), so read the changes rather than compar
 
 `counters-10k` gains most: its second draw also compiled shaders, 145–171 ms of it in the profile. Whether that cost now
 comes with its first state change instead was not measured.
+
+### 11. Looking parts up by ID after an edit
+
+A profile of deleting one part found routing took 1.0–1.7 s of it, more than routing the whole sheet when it opens. To
+keep the routes an edit leaves alone, `unaffected` asks of every part and junction whether it stayed where it was, and
+each answer searched the new circuit's list for that ID: on 10,000 parts, hundreds of millions of comparisons, which
+took 0.7–1.1 s. It now looks them up in maps built once. Which routes are kept does not change.
+
+From pressing Delete with one part selected until the edit's state is in and two frames are drawn, main's build and this
+one alternating, five rounds, on mains power:
+
+| Benchmark | Delete before, s | Delete after, s | Change, ms | Routing before, ms | Routing after, ms |
+|---|---:|---:|---:|---:|---:|
+| adder-10k | 1.88 | 0.74 | −1,040 | 1,165 | 84 |
+| counters-10k | 1.67 | 0.86 | −841 | 1,017 | 235 |
+| fanout-10k | 2.27 | 1.55 | −741 | 1,702 | 965 |
+| chain-10k | 1.32 | 0.38 | −943 | 957 | 59 |
+
+`fanout` still routes for about 0.9 s: the gate deleted was on the net that fans out to every gate, so that net no
+longer holds the same wires, and each of its nearly 5,000 wires is routed again, as `unaffected` asks. An edit also still draws
+twice, once before the engine's answer and once after it; the second draw took 110–340 ms here. A test now checks that a
+junction's wires keep their routes while it stays and are routed again once it moves, which no test covered.
 
 ## Earlier measurements
 
