@@ -9,9 +9,12 @@ const CELL = 16;
 
 type At = { x: number; y: number };
 
-/** Screen position of a grid point at the default view. */
+/** Screen position of a grid point at the default view, once the canvas is up to hear clicks there. */
 async function grid(page: Page): Promise<(x: number, y: number) => At> {
-  const box = await page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
+  const host = page.getByRole("main", { name: "Circuit canvas" });
+  // Pixi starts asynchronously; its <canvas> goes in with its pointer handlers, so a click before it hits bare <main>.
+  await host.locator("canvas").waitFor();
+  const box = await host.boundingBox();
   if (!box) throw new Error("canvas not visible");
   return (x, y) => ({ x: box.x + ORIGIN + x * CELL, y: box.y + ORIGIN + y * CELL });
 }
