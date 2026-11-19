@@ -139,7 +139,7 @@
   --hover: color-mix(in srgb, var(--ink) 7%, transparent);
   --press: color-mix(in srgb, var(--ink) 13%, transparent);
   --accent-strong: color-mix(in srgb, var(--accent) 85%, var(--ink));
-  --scrim: color-mix(in srgb, var(--bench) 55%, #000000 25%);
+  --scrim: rgb(0 0 0 / 50%);
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --duration-fast: 120ms;
   --duration-med: 180ms;

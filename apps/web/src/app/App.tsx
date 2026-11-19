@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useId, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { definitionName, definitionsVersion, layoutOf } from "../canvas/layout";
@@ -137,15 +138,33 @@ function ToolButton({
   label,
   tip,
   iconOnly = false,
+  unavailable = false,
   className = "",
+  onClick,
   ...rest
-}: { icon: IconName; label: string; tip: string; iconOnly?: boolean } & ComponentProps<"button">) {
+}: {
+  icon: IconName;
+  label: string;
+  tip: string;
+  iconOnly?: boolean;
+  /** Not usable now, but still focusable, so the tip can say why. */
+  unavailable?: boolean;
+} & ComponentProps<"button">) {
+  const tipId = useId();
   return (
-    <button type="button" className={`button button-quiet ${className}`} aria-label={iconOnly ? label : undefined} aria-description={tip} {...rest}>
+    <button
+      type="button"
+      className={`button button-quiet ${className}`}
+      aria-label={iconOnly ? label : undefined}
+      aria-describedby={tipId}
+      aria-disabled={unavailable || undefined}
+      onClick={unavailable ? undefined : onClick}
+      {...rest}
+    >
       <Icon name={icon} />
       {!iconOnly && <span className="button-label">{label}</span>}
-      {/* Hidden from the accessibility tree: the name stays the label, and the tip is the description above. */}
-      <span className="tip" aria-hidden="true" onClick={(e) => e.stopPropagation()}>
+      {/* Out of the accessibility tree, so the name stays the label; read as the button's description. */}
+      <span id={tipId} className="tip" aria-hidden="true" onClick={(e) => e.stopPropagation()}>
         {tip}
       </span>
     </button>
@@ -157,7 +176,7 @@ const useAnnouncement = create<{ text: string }>(() => ({ text: "" }));
 const announce = (text: string) => useAnnouncement.setState({ text });
 
 /** The panes F6 steps through, in the order they sit on screen. */
-const PANES = [".toolbar", ".parts", "main", ".inspector"];
+const PANES = [".toolbar", ".parts", "main", ".waves", ".inspector"];
 
 /** Hands the keyboard to the canvas: a field being typed in commits, and part and canvas keys work next. */
 const focusCanvas = () => document.querySelector<HTMLElement>("main")?.focus({ preventScroll: true });
@@ -212,10 +231,12 @@ export function App() {
       if (e.key === "Enter") keepFocus();
       if (e.key !== "F6" || document.querySelector("dialog[open]")) return;
       e.preventDefault();
-      const at = PANES.findIndex((pane) => document.activeElement?.closest(pane));
+      // Only the panes on screen: the waveform panel shows while something is watched.
+      const panes = PANES.filter((pane) => document.querySelector(pane));
+      const at = panes.findIndex((pane) => document.activeElement?.closest(pane));
       // From outside every pane, forward starts at the first and back at the last.
       const from = at >= 0 ? at : e.shiftKey ? 0 : -1;
-      focusPane(PANES[(from + (e.shiftKey ? -1 : 1) + PANES.length) % PANES.length] ?? "main");
+      focusPane(panes[(from + (e.shiftKey ? -1 : 1) + panes.length) % panes.length] ?? "main");
     };
     const show = (e: Event) => {
       if (e.type === "focusin" || !(e.target instanceof Element) || e.target.closest(".button") !== tipped) root.removeAttribute("data-tips-off");
@@ -280,13 +301,7 @@ export function App() {
         <div className="transport">
           <RunControls />
         </div>
-        <div className="toolbar-end">
-          <HistoryControls />
-          <span className="toolbar-sep" aria-hidden="true" />
-          <FileActions />
-          <span className="toolbar-sep" aria-hidden="true" />
-          <ShortcutsHelp />
-        </div>
+        <ToolbarEnd />
       </header>
       <div className="workspace">
         <PartsLibrary />
@@ -295,10 +310,55 @@ export function App() {
           <WavePanels />
         </div>
         <Inspector />
-        <Readout />
       </div>
       <StatusBar />
     </div>
+  );
+}
+
+/**
+ * History, files and help. On a wide window they sit at the toolbar's right; on a narrow one the same controls fold
+ * into a menu behind More, so the toolbar keeps one row. They are one element either way: a popover CSS shows inline.
+ */
+function ToolbarEnd() {
+  const menu = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = menu.current;
+    if (!element) return;
+    // Opened as a menu: focus goes to its first control. Choosing a file action closes it.
+    const onToggle = (e: Event) => {
+      if ((e as ToggleEvent).newState === "open") element.querySelector<HTMLElement>("button:not(:disabled)")?.focus();
+    };
+    // Widened past the menu's breakpoint while open: close it, so its controls go back into the toolbar.
+    const narrow = window.matchMedia("(max-width: 800px)");
+    const onWiden = () => !narrow.matches && element.matches(":popover-open") && element.hidePopover();
+    element.addEventListener("toggle", onToggle);
+    narrow.addEventListener("change", onWiden);
+    return () => {
+      element.removeEventListener("toggle", onToggle);
+      narrow.removeEventListener("change", onWiden);
+    };
+  }, []);
+  return (
+    <>
+      <div
+        ref={menu}
+        id="toolbar-more"
+        className="toolbar-end"
+        popover="auto"
+        onClick={(e) => {
+          const chosen = e.target instanceof Element && e.target.closest(".file-actions .button, .toolbar-help");
+          if (chosen && menu.current?.matches(":popover-open")) menu.current.hidePopover();
+        }}
+      >
+        <HistoryControls />
+        <span className="toolbar-sep" aria-hidden="true" />
+        <FileActions />
+        <span className="toolbar-sep" aria-hidden="true" />
+        <ShortcutsHelp />
+      </div>
+      <ToolButton icon="more" label="More" tip="Undo, files and shortcuts" iconOnly className="button-icon toolbar-more tip-end" popoverTarget="toolbar-more" />
+    </>
   );
 }
 
@@ -341,6 +401,9 @@ function ProjectName({ saved }: { saved: string }) {
 
 function ProjectTitle() {
   const name = useEditor((s) => s.metadata.name);
+  // A challenge's project is named after the component it builds: on that sheet the path already says it.
+  const repeated = useEditor((s) => s.sheet !== null && s.definitions.find((d) => d.id === s.sheet)?.name === name);
+  if (repeated) return null;
   return <ProjectName key={name} saved={name} />;
 }
 
@@ -358,6 +421,16 @@ function FileActions() {
     setNotice(isError ? null : message);
     setManual(null);
   };
+  // A message about one sheet does not follow you to another.
+  const sheet = useEditor((s) => s.sheet);
+  const shownSheet = useRef(sheet);
+  useEffect(() => {
+    if (shownSheet.current === sheet) return;
+    shownSheet.current = sheet;
+    setError(null);
+    setNotice(null);
+    setManual(null);
+  }, [sheet]);
 
   // A circuit in the address's fragment (ADR 0024): opened as Import opens a file, on load and when
   // the fragment changes in this tab, then removed from the address either way.
@@ -423,6 +496,7 @@ function FileActions() {
   return (
     <div className="file-actions">
       {/* Floats under the toolbar, so a long message is read whole and moves nothing. */}
+      {createPortal(
       <div className="file-messages">
         {error && (
           <span className="file-error type-label" role="alert" title={error}>
@@ -446,7 +520,9 @@ function FileActions() {
             <Icon name="close" />
           </button>
         )}
-      </div>
+      </div>,
+        document.body,
+      )}
       <ToolButton icon="import" label="Import" tip="Open a circuit from a file" onClick={() => picker.current?.click()} />
       <ToolButton icon="export" label="Export" tip="Save this circuit as a file" onClick={exportFile} />
       <ToolButton
@@ -576,8 +652,10 @@ function PartsLibrary() {
       <div {...panelProps("parts")}>
       <div className="palette" role="toolbar" aria-label="Part palette" onKeyDown={onPaletteKey}>
         {LIBRARY.map(({ title, parts }) => (
-          <section key={title} className="panel">
-            <h2 className="type-heading panel-title">{title.toUpperCase()}</h2>
+          <section key={title} className="panel" role="group" aria-labelledby={`${baseId}-${title}`}>
+            <h2 id={`${baseId}-${title}`} className="type-heading panel-title">
+              {title}
+            </h2>
             <div className="part-grid">
               {parts.map(({ kind, name, key, width = 1 }) => (
                 <button
@@ -606,7 +684,7 @@ function PartsLibrary() {
         <p className="type-caption parts-hint">Pick a part or press its key, then click the canvas to place it. Esc cancels.</p>
       </div>
       <section className="panel" data-section="chips">
-        <h2 className="type-heading panel-title">CHIPS</h2>
+        <h2 className="type-heading panel-title">Chips</h2>
         {chips.length === 0 ? (
           <p className="type-caption parts-empty">
             Select a circuit with labelled switches and LEDs, then use Make component in the inspector, or add components from an example or a file.
@@ -696,13 +774,13 @@ function showTab(tab: LibraryTab) {
   });
 }
 
-/** Opens the Learn tab at a section; from the keyboard, focus goes to its heading so Tab carries on there. */
-function showLearn(section: "examples" | "challenges", keyboard: boolean) {
+/** Opens the Learn tab at a section, with focus on its heading, so Tab carries on there. */
+function showLearn(section: "examples" | "challenges") {
   useLibrary.setState({ tab: "learn" });
   requestAnimationFrame(() => {
     const heading = document.querySelector<HTMLElement>(`[data-section="${section}"] h2`);
     heading?.scrollIntoView({ block: "nearest" });
-    if (!heading || !keyboard) return;
+    if (!heading) return;
     heading.tabIndex = -1;
     heading.focus({ preventScroll: true });
   });
@@ -761,16 +839,24 @@ function ShortcutsHelp() {
         label="Keyboard shortcuts"
         tip="Keyboard shortcuts and gestures (?)"
         iconOnly
-        className="button-icon tip-end"
+        className="button-icon tip-end toolbar-help"
         aria-keyshortcuts="Shift+?"
         onClick={open}
       />
+      {createPortal(
       <dialog
         ref={dialog}
         className="dialog dialog-wide"
         aria-labelledby={`${id}-title`}
         onKeyDown={(e) => e.stopPropagation()}
         onClick={(e) => e.target === dialog.current && dialog.current.close()}
+        // Opened from the More menu, its button is hidden again by now: focus goes back to More instead of the page.
+        onClose={() =>
+          requestAnimationFrame(() => {
+            const more = document.querySelector<HTMLElement>(".toolbar-more");
+            if (document.activeElement === document.body && more?.offsetParent) more.focus();
+          })
+        }
       >
         <h2 ref={title} id={`${id}-title`} className="type-title dialog-title" tabIndex={-1}>
           Shortcuts and gestures
@@ -784,11 +870,13 @@ function ShortcutsHelp() {
           ))}
         </dl>
         <div className="dialog-actions">
-          <button type="button" className="button button-quiet type-label" onClick={() => dialog.current?.close()}>
+          <button type="button" className="button type-label" onClick={() => dialog.current?.close()}>
             Close
           </button>
         </div>
-      </dialog>
+      </dialog>,
+        document.body,
+      )}
     </>
   );
 }
@@ -816,7 +904,7 @@ const HELP: [ReactNode, string][] = [
   [keys(MOD, "Z"), "Undo"],
   [keys(MOD, "Shift", "Z"), "Redo"],
   [<>{keys("Enter")} on a part</>, "Place it on the sheet"],
-  [<>{keys("←", "→", "↑", "↓")} in the palette</>, "Move between parts"],
+  [keys("←→↑↓"), "Move in the palette"],
   [keys("F6"), "Next pane; Shift goes back"],
   [keys("?"), "This list"],
 ];
@@ -925,6 +1013,7 @@ function Lane({ trace, width, start, end }: { trace: Float64Array; width: number
     );
   }
   return segments.map(({ tick, x0, x1, value, cutLeft, cutRight }) => {
+    if (x1 - x0 < 8) return null;
     // Without `0x`, so an 8-bit value fits in one cycle; the value column has it in full.
     const text = hex(value, width).slice(2);
     return (
@@ -932,9 +1021,9 @@ function Lane({ trace, width, start, end }: { trace: Float64Array; width: number
         <polygon
           className="wave-bus"
           points={[
-            ...(cutLeft ? [[x0, bottom], [x0, top]] : [[x0 + 1, middle], [x0 + 3, top]]),
-            ...(cutRight ? [[x1, top], [x1, bottom]] : [[x1 - 3, top], [x1 - 1, middle], [x1 - 3, bottom]]),
-            ...(cutLeft ? [] : [[x0 + 3, bottom]]),
+            ...(cutLeft ? [[x0, bottom], [x0, top]] : [[x0 + 2, middle], [x0 + 4, top]]),
+            ...(cutRight ? [[x1, top], [x1, bottom]] : [[x1 - 4, top], [x1 - 2, middle], [x1 - 4, bottom]]),
+            ...(cutLeft ? [] : [[x0 + 4, bottom]]),
           ]
             .map(([x, y]) => `${x},${y}`)
             .join(" ")}
@@ -952,14 +1041,21 @@ function Lane({ trace, width, start, end }: { trace: Float64Array; width: number
 /** The waveform panel, started afresh whenever time goes back (a load or a reset), so no cursor outlives its record. */
 function WavePanels() {
   const epoch = useSim((s) => s.epoch);
-  return <WavePanel key={epoch} />;
+  // The height a drag set, kept when the panel starts afresh; null lets it fit its rows.
+  const [height, setHeight] = useState<number | null>(null);
+  return <WavePanel key={epoch} height={height} setHeight={setHeight} />;
 }
+
+/** Smallest and largest heights a drag gives the waveform panel, and a key press's step. */
+const WAVES_MIN = 72;
+const wavesMax = () => Math.round(window.innerHeight * 0.7);
+const WAVES_STEP = 24;
 
 /**
  * The watched wires' recorded values over ticks (ADR 0026), drawn from the engine's record alone. A click places a
  * cursor; Left and Right move it a tick, Escape removes it; the value column shows the cursor's tick, or now.
  */
-function WavePanel() {
+function WavePanel({ height: chosen, setHeight }: { height: number | null; setHeight: (height: number | null) => void }) {
   const watches = useEditor(useShallow(liveWatches));
   const circuit = useEditor((s) => s.circuit);
   const watch = useEditor((s) => s.watch);
@@ -968,6 +1064,10 @@ function WavePanel() {
   const stale = useSim((s) => s.stale);
   const running = useSim((s) => s.running);
   const [cursor, setCursor] = useState<number | null>(null);
+  const panel = useRef<HTMLElement>(null);
+  const drag = useRef<{ y: number; height: number } | null>(null);
+  const resize = (to: number) => setHeight(Math.min(Math.max(Math.round(to), WAVES_MIN), wavesMax()));
+  const shown = () => panel.current?.getBoundingClientRect().height ?? WAVES_MIN;
   const [lanes, setLanes] = useState<HTMLDivElement | null>(null);
   const [laneWidth, setLaneWidth] = useState(0);
   const help = useId();
@@ -1024,9 +1124,42 @@ function WavePanel() {
   for (let c = Math.max(1, Math.ceil((start + 1) / 2 / CYCLE_LABELS)) * CYCLE_LABELS; 2 * c - 1 <= time; c += CYCLE_LABELS) cycles.push(c);
 
   return (
-    <section className="waves" aria-label="Waveforms">
+    <section ref={panel} className="waves" aria-label="Waveforms" style={chosen === null ? undefined : { height: chosen, maxHeight: "none" }}>
+      <div
+        className="waves-grip"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize waveforms"
+        tabIndex={0}
+        aria-valuemin={WAVES_MIN}
+        aria-valuemax={wavesMax()}
+        aria-valuenow={chosen ?? WAVES_MIN}
+        aria-valuetext={chosen === null ? "fits its rows" : `${chosen} pixels tall`}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          drag.current = { y: e.clientY, height: shown() };
+        }}
+        onPointerMove={(e) => drag.current && resize(drag.current.height - (e.clientY - drag.current.y))}
+        onPointerUp={() => (drag.current = null)}
+        onPointerCancel={() => (drag.current = null)}
+        onDoubleClick={() => setHeight(null)}
+        onKeyDown={(e) => {
+          const to = { ArrowUp: shown() + WAVES_STEP, ArrowDown: shown() - WAVES_STEP, Home: WAVES_MIN, End: wavesMax() }[e.key];
+          if (to === undefined) return;
+          e.preventDefault();
+          resize(to);
+        }}
+      />
+      <div className="waves-head">
+        <h2 className="type-heading panel-title">Waveforms</h2>
+        <p className="waves-time">{at === null ? `Now: tick ${time}, cycle ${Math.floor((time + 1) / 2)}` : `Cursor: tick ${at}, cycle ${Math.floor((at + 1) / 2)}`}</p>
+      </div>
       <div className="waves-names">
-        <p className="type-label waves-time">{at === null ? `Now: tick ${time}` : `Cursor: tick ${at}, cycle ${Math.floor((at + 1) / 2)}`}</p>
+        {/* Level with the time axis beside it. */}
+        <p className="waves-columns" aria-hidden="true">
+          <span>Signal</span>
+          <span>Value</span>
+        </p>
         <p id={help} className="visually-hidden">
           Click a lane to place the cursor. Left and Right move it a tick, Escape removes it.
         </p>
@@ -1069,9 +1202,12 @@ function WavePanel() {
       >
         <svg width={(time + 1 - start) * TICK_PX} height={height} aria-hidden="true">
           {cycles.map((c) => (
-            <text key={c} className="wave-axis" x={(2 * c - 1 - start) * TICK_PX} y={12}>
-              {c}
-            </text>
+            <g key={c}>
+              <text className="wave-axis" x={(2 * c - 1 - start) * TICK_PX} y={11} textAnchor="middle">
+                {c}
+              </text>
+              <line className="wave-tick" x1={(2 * c - 1 - start) * TICK_PX} x2={(2 * c - 1 - start) * TICK_PX} y1={14} y2={AXIS_HEIGHT} />
+            </g>
           ))}
           {rows.map(({ net, width }, i) => {
             const t = trace(net);
@@ -1113,10 +1249,10 @@ function EmptyHint() {
         </li>
       </ol>
       <div className="canvas-empty-actions">
-        <button type="button" className="button type-label" onClick={(e) => showLearn("examples", e.detail === 0)}>
+        <button type="button" className="button type-label" onClick={() => showLearn("examples")}>
           Browse examples
         </button>
-        <button type="button" className="button type-label" onClick={(e) => showLearn("challenges", e.detail === 0)}>
+        <button type="button" className="button type-label" onClick={() => showLearn("challenges")}>
           Try a challenge
         </button>
       </div>
@@ -1151,7 +1287,7 @@ function ProjectsPanel() {
   return (
     <section className="panel" aria-labelledby="projects-title" data-section="projects">
       <h2 id="projects-title" className="type-heading panel-title">
-        PROJECTS
+        Projects
       </h2>
       <button type="button" className="button type-label projects-new" onClick={() => void (mayReplace() && newCircuit().then(() => opened("New circuit started.")))}>
         <Icon name="plus" size={14} />
@@ -1215,7 +1351,7 @@ function ChallengeList() {
   return (
     <section className="panel" aria-labelledby="challenges-title" data-section="challenges">
       <h2 id="challenges-title" className="type-heading panel-title">
-        CHALLENGES
+        Challenges
       </h2>
       <ol className="challenge-list">
         {CHALLENGES.map((entry, i) => (
@@ -1297,7 +1433,7 @@ function AddComponents() {
     return result.document;
   };
   const add = () => {
-    if (!source) return;
+    if (!source || picked.length === 0) return;
     const { added, reused } = useEditor.getState().addComponents(source.definitions, picked);
     const names = (ds: Definition[]) => [...new Set(ds.map((d) => d.name))];
     const text = [
@@ -1420,6 +1556,9 @@ function AddComponents() {
         <p className={`type-body dialog-text${message?.error ? " field-error" : ""}`} aria-live="polite">
           {message?.text}
         </p>
+        <p id={`${id}-add-why`} className="visually-hidden">
+          Tick at least one component to add.
+        </p>
         <div className="dialog-actions">
           {shelf && (
             <button
@@ -1440,10 +1579,16 @@ function AddComponents() {
               Remove from library
             </button>
           )}
-          <button type="button" className="button button-primary type-label" disabled={picked.length === 0} onClick={add}>
+          <button
+            type="button"
+            className="button button-primary type-label"
+            aria-disabled={picked.length === 0 || undefined}
+            aria-describedby={picked.length === 0 ? `${id}-add-why` : undefined}
+            onClick={add}
+          >
             Add
           </button>
-          <button ref={close} type="button" className="button button-quiet type-label" onClick={() => dialog.current?.close()}>
+          <button ref={close} type="button" className="button type-label" onClick={() => dialog.current?.close()}>
             Close
           </button>
         </div>
@@ -1471,7 +1616,7 @@ function ExampleList() {
   return (
     <section className="panel" aria-labelledby="examples-title" data-section="examples">
       <h2 id="examples-title" className="type-heading panel-title">
-        EXAMPLES
+        Examples
       </h2>
       <ol className="challenge-list">
         {EXAMPLES.map(({ name, title }) => (
@@ -1495,17 +1640,19 @@ function ExampleList() {
 function NotesPanel() {
   const notes = useEditor((s) => s.metadata.notes ?? "");
   const id = useId();
+  // Open on a wide window; on a narrow one the canvas needs the height more, until asked.
+  const [open, setOpen] = useState(() => !window.matchMedia("(max-width: 900px)").matches);
   return (
     <section className="panel panel-notes" aria-labelledby={`${id}-title`}>
       <h2 id={`${id}-title`} className="type-heading panel-title">
-        NOTES
-      </h2>
-      <div className="inspector-body">
-        <label className="visually-hidden" htmlFor={`${id}-notes`}>
+        <button type="button" className="panel-toggle" aria-expanded={open} aria-controls={`${id}-body`} onClick={() => setOpen(!open)}>
+          <Icon name="chevron" size={12} />
           Notes
-        </label>
+        </button>
+      </h2>
+      <div id={`${id}-body`} className="inspector-body" hidden={!open}>
         <textarea
-          id={`${id}-notes`}
+          aria-labelledby={`${id}-title`}
           aria-describedby={`${id}-hint`}
           className="input notes"
           rows={8}
@@ -1551,7 +1698,7 @@ function ChallengePanel() {
   return (
     <section className="panel" aria-labelledby="challenge-title">
       <h2 id="challenge-title" className="type-heading panel-title">
-        CHALLENGE
+        Challenge
       </h2>
       <div className="inspector-body">
         <p className="type-label inspector-kind">{challenge.title}</p>
@@ -1562,7 +1709,8 @@ function ChallengePanel() {
             Open {built.name}
           </button>
         )}
-        <button type="button" className="button type-label" onClick={() => void run()}>
+        {/* The panel's one action until the challenge is passed. */}
+        <button type="button" className={`button type-label${progress[entry.name] ? "" : " button-primary"}`} onClick={() => void run()}>
           Check
         </button>
         {/* Announced, but not a second status region next to the status bar's. */}
@@ -1585,7 +1733,7 @@ function Inspector() {
   return (
     <aside className="inspector" aria-label="Inspector">
       <section className="panel">
-        <h2 className="type-heading panel-title">PROPERTIES</h2>
+        <h2 className="type-heading panel-title">Properties</h2>
         {part ? (
           // Remounts for another part; each field remounts itself when its own value changes.
           <PartProperties key={part.id} part={part} />
@@ -1607,7 +1755,23 @@ function Inspector() {
         ) : selection.length > 1 ? (
           <MakeComponent count={selection.length} />
         ) : (
-          <p className="type-body inspector-empty">Select a component to edit its properties.</p>
+          <div className="inspector-body">
+            <p className="type-body inspector-empty">Select a component to edit its properties.</p>
+            <dl className="field-hint inspector-keys">
+              <div>
+                <dt>{keys("R")}</dt>
+                <dd>Turn it</dd>
+              </div>
+              <div>
+                <dt>{keys("Del")}</dt>
+                <dd>Delete it</dd>
+              </div>
+              <div>
+                <dt>{keys("?")}</dt>
+                <dd>Every shortcut</dd>
+              </div>
+            </dl>
+          </div>
         )}
       </section>
       <ChallengePanel />
@@ -1724,6 +1888,7 @@ function CommitField({
   onCommit,
   problem,
   maxLength = MAX_LABEL,
+  inputMode,
   focus = false,
 }: {
   label: string;
@@ -1733,13 +1898,12 @@ function CommitField({
   /** What is wrong with a value, if anything: it is not committed, and the field says why. */
   problem?: (value: string) => string | null;
   maxLength?: number;
+  inputMode?: "numeric";
   /** Takes the keyboard once, when the canvas hands it over (a just-placed label). */
   focus?: boolean;
 }) {
   const [draft, setDraft] = useState(saved);
   const [wrong, setWrong] = useState<string | null>(null);
-  /** Escape leaves the field without saving. */
-  const cancelled = useRef(false);
   const input = useRef<HTMLInputElement>(null);
   const id = useId();
   useEffect(() => {
@@ -1761,19 +1925,18 @@ function CommitField({
         className="input"
         value={draft}
         maxLength={maxLength}
+        inputMode={inputMode}
         spellCheck={false}
         onChange={(e) => {
           setDraft(e.target.value);
           setWrong(null);
         }}
         onBlur={() => {
-          const bad = cancelled.current ? null : (problem?.(draft) ?? null);
-          const wasCancelled = cancelled.current;
-          cancelled.current = false;
+          const bad = problem?.(draft) ?? null;
           // A refused value stays in the field with its reason, until it is corrected or Escape puts the old one back.
           setWrong(bad);
           if (bad) return;
-          if (!wasCancelled) onCommit(draft);
+          onCommit(draft);
           // Show what was stored: when normalizing leaves the value unchanged, nothing remounts the field.
           setDraft(saved);
         }}
@@ -1785,9 +1948,11 @@ function CommitField({
             setWrong(bad);
             if (!bad) focusCanvas();
           } else if (e.key === "Escape") {
-            cancelled.current = true;
-            setWrong(null);
-            focusCanvas();
+            // First the old value back, staying here; a second Escape hands the keyboard to the canvas.
+            if (draft !== saved || wrong) {
+              setDraft(saved);
+              setWrong(null);
+            } else focusCanvas();
           }
         }}
       />
@@ -1843,6 +2008,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           saved={String(part.props.width ?? 1)}
           hint={`Bits on every port, 1 to ${MAX_WIDTH}.`}
           problem={wholeNumber(MAX_WIDTH)}
+          inputMode="numeric"
           // One undoable edit; anything but a whole number in range leaves the width as it was.
           onCommit={(value) => /^\s*\d+\s*$/.test(value) && useEditor.getState().setWidth(part.id, Number(value))}
         />
@@ -1855,6 +2021,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           saved={String(part.props.addressWidth ?? DEFAULT_ADDRESS)}
           hint={`${2 ** (part.props.addressWidth ?? DEFAULT_ADDRESS)} words; 1 to ${MAX_ADDRESS} address bits.`}
           problem={wholeNumber(MAX_ADDRESS)}
+          inputMode="numeric"
           // One undoable edit; a ROM keeps the words that still fit.
           onCommit={(value) => /^\s*\d+\s*$/.test(value) && useEditor.getState().setAddressWidth(part.id, Number(value))}
         />
@@ -1928,7 +2095,7 @@ function RomContents({ part }: { part: CircuitComponent }) {
         id={`${id}-contents`}
         aria-describedby={`${id}-hint`}
         aria-invalid={problem !== null}
-        className="input memory-words"
+        className="input memory-words memory-words-wrap"
         rows={6}
         spellCheck={false}
         value={draft}
@@ -2104,6 +2271,7 @@ function ColumnsField({ part }: { part: CircuitComponent }) {
       saved={String(columns)}
       hint={`Pixels per row, 1 to ${MAX_COLUMNS}: ${columns} × ${rows} pixels from ${words} words, most significant bit leftmost.${cut}`}
       problem={wholeNumber(MAX_COLUMNS)}
+      inputMode="numeric"
       // One undoable edit; anything but a whole number in range leaves the columns as they were.
       onCommit={(value) => /^\s*\d+\s*$/.test(value) && useEditor.getState().setColumns(part.id, Number(value))}
     />
@@ -2177,6 +2345,8 @@ function ValueField({ part }: { part: CircuitComponent }) {
           if (e.nativeEvent.isComposing || e.keyCode === 229) return;
           if (e.key === "Enter") commit();
           else if (e.key === "Escape") {
+            // As in every field: first the old value back, then the keyboard to the canvas.
+            if (draft === null && !wrong) focusCanvas();
             setDraft(null);
             setWrong(false);
           } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
@@ -2333,6 +2503,7 @@ function HistoryControls() {
 
 /** Run/Pause, Step, Reset and the run speed (ADR 0017): the worker runs the clock, the editor only asks. */
 function RunControls() {
+  const untilWhy = useId();
   const running = useSim((s) => s.running);
   const speed = useSim((s) => s.speed);
   const until = useSim((s) => s.until);
@@ -2354,11 +2525,24 @@ function RunControls() {
         label={running ? "Pause" : "Run"}
         tip={running ? "Stop the clock here" : components.length === 0 ? "Place a part first" : "Start the clock"}
         className={`run-toggle ${running ? "is-running" : "button-primary"}`}
-        disabled={!running && components.length === 0}
+        unavailable={!running && components.length === 0}
         onClick={() => control(running ? "pause" : "run")}
       />
-      <ToolButton icon="step" label="Step" tip="Advance one clock cycle" onClick={() => control("step")} />
-      <ToolButton icon="reset" label="Reset" tip="Clear the state and go back to cycle 0" onClick={() => control("reset")} />
+      {/* Nothing to step or reset on an empty sheet. */}
+      <ToolButton
+        icon="step"
+        label="Step"
+        tip={components.length === 0 ? "Place a part first" : "Advance one clock cycle"}
+        unavailable={components.length === 0}
+        onClick={() => control("step")}
+      />
+      <ToolButton
+        icon="reset"
+        label="Reset"
+        tip={components.length === 0 ? "Place a part first" : "Clear the state and go back to cycle 0"}
+        unavailable={components.length === 0}
+        onClick={() => control("reset")}
+      />
       <span className="toolbar-sep" aria-hidden="true" />
       <label className="run-speed">
         <span className="visually-hidden">Speed</span>
@@ -2370,9 +2554,18 @@ function RunControls() {
           ))}
         </select>
       </label>
+      <span id={untilWhy} className="visually-hidden">
+        Place a 1-bit LED to stop a run when it lights.
+      </span>
       <label className="run-select">
         <span className="visually-hidden">Run until</span>
-        <select className="input" value={chosen ?? ""} onChange={(e) => setUntil(e.target.value || null)}>
+        <select
+          className="input"
+          value={chosen ?? ""}
+          aria-disabled={leds.length === 0 || undefined}
+          aria-describedby={leds.length === 0 ? untilWhy : undefined}
+          onChange={(e) => setUntil(e.target.value || null)}
+        >
           <option value="">Until paused</option>
           <Fragment key={opens}>
             {leds.map((c) => (
@@ -2416,11 +2609,13 @@ function CycleReadout() {
   return (
     // Outside the status region, which it would flood while running.
     <span className="cycle-readout">
+      {time > 0 && (
       <svg className="cycle-trace" viewBox={`0 0 ${TRACE_TICKS * TRACE_STEP} 12`} width={TRACE_TICKS * TRACE_STEP} height="12" aria-hidden="true">
         <path className="cycle-low" d={ticks.map((t, i) => `${i ? "V" : `M${x(t)} `}${y(t)}H${x(t) + TRACE_STEP}`).join("")} />
         {/* A clock at 1 is a logic 1: amber, as on a wire. */}
         <path className="cycle-high" d={ticks.flatMap((t) => (t % 2 === 1 ? [`M${x(t)} 2H${x(t) + TRACE_STEP}`] : [])).join("")} />
       </svg>
+      )}
       <span>
         Cycle {Math.floor((time + 1) / 2)}, clock {high ? "high" : "low"}
       </span>
@@ -2481,12 +2676,30 @@ function StatusBar() {
                 ? ["Running", "ok"]
                 : why
                   ? ["Stopped", "ok"]
-                  : ["Settled", "ok"];
+                  : diagnostics.length > 0
+                    ? [`Settled, ${diagnostics.length} ${diagnostics.length === 1 ? "warning" : "warnings"}`, "caution"]
+                    : ["Settled", "ok"];
   const first = errors[0] ?? diagnostics[0];
   // Name the labelled parts involved; unlabelled ones are highlighted on the canvas.
   const named = first
     ? components.filter((c) => c.props.label && first.ids.includes(c.id)).map((c) => partName(components, c))
     : [];
+  // Every problem, in plain words: one row per distinct problem, with how often it occurs and the items it is about.
+  const details = useRef<HTMLDialogElement>(null);
+  const detailsId = useId();
+  const describe = (d: (typeof diagnostics)[number]) => {
+    const parts = components.filter((c) => d.ids.includes(c.id)).map((c) => partName(components, c));
+    return `${PLAIN[d.code] ?? d.message}${parts.length > 0 ? ` (${parts.join(", ")})` : ""}`;
+  };
+  const problems: { text: string; count: number; ids: string[] }[] = [];
+  for (const d of diagnostics) {
+    const text = describe(d);
+    const row = problems.find((p) => p.text === text);
+    if (row) {
+      row.count++;
+      row.ids.push(...d.ids);
+    } else problems.push({ text, count: 1, ids: [...d.ids] });
+  }
   const message =
     status === "error"
       ? error
@@ -2495,7 +2708,7 @@ function StatusBar() {
         : placing ||
           why ||
           (first &&
-        `${first.code === "unstable" ? stoppedUnstable : ""}${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${diagnostics.length > 1 ? ` (+${diagnostics.length - 1} more)` : ""}`) ||
+        `${first.code === "unstable" ? stoppedUnstable : ""}${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${problems.length > 1 ? ` (+${problems.length - 1} more)` : ""}`) ||
           (clocked && !running && time > 0 && !empty ? "Clock paused." : null);
 
   // Said once, for what shows only on the canvas: time moved by Step or Reset, another sheet opened.
@@ -2512,12 +2725,13 @@ function StatusBar() {
       announce(`Now at cycle ${Math.floor((time + 1) / 2)}, clock ${time % 2 === 1 ? "high" : "low"}.`);
     }
   }, [time, sheet, running, clocked]);
-  // Every problem, in plain words, for when the status line has room for one.
-  const details = useRef<HTMLDialogElement>(null);
-  const detailsId = useId();
-  const describe = (d: (typeof diagnostics)[number]) => {
-    const parts = components.filter((c) => c.props.label && d.ids.includes(c.id)).map((c) => partName(components, c));
-    return `${PLAIN[d.code] ?? d.message}${parts.length > 0 ? ` (${parts.join(", ")})` : ""}`;
+  const show = (ids: string[]) => {
+    const { circuit } = useEditor.getState();
+    const known = new Set([...circuit.components, ...circuit.junctions, ...circuit.wires].map((item) => item.id));
+    // A problem met twice names the same parts twice: select each once.
+    useEditor.getState().select([...new Set(ids)].filter((id) => known.has(id)));
+    details.current?.close();
+    focusCanvas();
   };
 
   return (
@@ -2538,23 +2752,35 @@ function StatusBar() {
       {/* Follows the pointer, so it stays out of the status region. */}
       {probed !== undefined && <span className="status-probe">{`${bits} bits: ${probed}, ${hex(probed, bits)}`}</span>}
       <SaveStatus />
-      {diagnostics.length > 1 && (
+      {/* Also when there is one: a narrow bar cuts the message short. */}
+      {diagnostics.length > 0 && (
         <button type="button" className="button button-quiet status-more" onClick={() => details.current?.showModal()}>
-          All {diagnostics.length} problems
+          {problems.length === 1 ? "Details" : `All ${problems.length} problems`}
         </button>
       )}
       <CycleReadout />
+      <Readout />
       <dialog ref={details} className="dialog" aria-labelledby={detailsId} onKeyDown={(e) => e.stopPropagation()}>
         <h2 id={detailsId} className="type-title dialog-title">
           Problems on this sheet
         </h2>
         <ul className="problem-list type-body">
-          {diagnostics.map((d, i) => (
-            <li key={`${d.code}:${i}`}>{describe(d)}</li>
+          {problems.map(({ text, count, ids }) => (
+            <li key={text}>
+              <span>
+                {text}
+                {count > 1 && <span className="problem-count">{` ×${count}`}</span>}
+              </span>
+              {ids.length > 0 && (
+                <button type="button" className="button button-quiet" onClick={() => show(ids)}>
+                  Select
+                </button>
+              )}
+            </li>
           ))}
         </ul>
         <div className="dialog-actions">
-          <button type="button" className="button button-quiet type-label" onClick={() => details.current?.close()}>
+          <button type="button" className="button type-label" onClick={() => details.current?.close()}>
             Close
           </button>
         </div>

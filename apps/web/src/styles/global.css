@@ -75,6 +75,10 @@ h2:focus-visible {
   box-shadow: inset 0 0 0 2px var(--on-accent);
 }
 
+.transport .button-primary[aria-disabled="true"]:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
 /* A pane reached with F6: the ring sits inside, because panes touch the window's edges. */
 .toolbar:focus-visible,
 .parts:focus-visible,
@@ -139,8 +143,12 @@ h2:focus-visible {
   background: var(--press);
 }
 
-.button:disabled {
+.button:disabled,
+.button[aria-disabled="true"],
+.button[aria-disabled="true"]:hover {
   color: var(--ink-faint);
+  background: transparent;
+  border-color: transparent;
   cursor: default;
 }
 
@@ -177,9 +185,19 @@ h2:focus-visible {
   background: var(--accent-strong);
 }
 
-.button-primary:disabled {
-  background: var(--accent-soft);
-  border-color: transparent;
+/* Not yet usable: neutral, so it never reads as ready or as selected. */
+.button-primary:disabled,
+.button-primary[aria-disabled="true"],
+.button-primary[aria-disabled="true"]:hover {
+  background: transparent;
+  color: var(--ink-faint);
+  border-color: var(--line);
+}
+
+/* One tip at a time: a hovered button's tip wins over a focused one's. */
+body:has(.button:hover) .button:focus-visible:not(:hover) > .tip {
+  opacity: 0;
+  visibility: hidden;
 }
 
 /* Tips: shown on hover after a moment, at once on keyboard focus, hidden by Escape. */
@@ -272,8 +290,26 @@ h2:focus-visible {
 }
 
 .toolbar-end {
+  position: static;
+  inset: auto;
   justify-content: flex-end;
   gap: var(--space-2);
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  color: inherit;
+  background: none;
+  border: 0;
+}
+
+.toolbar-end:not(:popover-open) {
+  display: flex;
+}
+
+.toolbar-more {
+  display: none;
 }
 
 .tool-group,
@@ -344,14 +380,16 @@ h2:focus-visible {
 input.project-name {
   flex: 0 1 auto;
   width: auto;
+  /* As wide as the name, so its underline is too. */
+  field-sizing: content;
   max-width: 22ch;
   height: var(--control-height);
   padding: 0 var(--space-2);
   color: var(--ink);
   background: transparent;
   border: 1px solid transparent;
-  /* The underline says it can be edited. */
-  border-bottom-color: var(--line-strong);
+  /* Dashed, so it reads as an editable field and not as the tabs' solid underline. */
+  border-bottom: 1px dashed var(--line-strong);
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   text-overflow: ellipsis;
   transition: background-color var(--duration-fast) var(--ease-out);
@@ -376,6 +414,11 @@ input.project-name:focus {
   color: var(--ink-muted);
 }
 
+/* Without the project's name between them, the mark's separator is enough. */
+.toolbar-start > .toolbar-sep + .breadcrumb > .toolbar-sep:first-child {
+  display: none;
+}
+
 .breadcrumb .button {
   flex: none;
   color: var(--ink-muted);
@@ -397,7 +440,7 @@ input.project-name:focus {
 
 /* On a component's sheet the path needs the room: the wordmark's name and the project's width give way. */
 @media (max-width: 1500px) {
-  .toolbar-start:has(.breadcrumb) .wordmark-name {
+  .toolbar-start:has(.project-name):has(.breadcrumb) .wordmark-name {
     display: none;
   }
 
@@ -456,10 +499,10 @@ select.input {
 }
 
 .run-controls select.input {
-  /* As wide as its value, so the chevron stays beside it. */
+  /* As wide as its value, so the chevron stays beside it; a soft fill marks it as a control, as the buttons beside it are. */
   field-sizing: content;
   max-width: 180px;
-  background: transparent;
+  background: var(--wash);
   color: var(--ink-muted);
   border-color: transparent;
   border-radius: var(--radius-md);
@@ -469,7 +512,6 @@ select.input {
 .run-controls select.input:hover {
   background: var(--hover);
   color: var(--ink);
-  border-color: transparent;
 }
 
 @supports not (field-sizing: content) {
@@ -540,6 +582,9 @@ select.input {
   overflow: hidden auto;
   background: var(--panel);
   scrollbar-width: thin;
+  /* The last pixels fade into the edge, so a cut-off row reads as more below, not as clipping. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
+  padding-bottom: var(--space-4);
   scrollbar-color: var(--line-strong) transparent;
 }
 
@@ -566,6 +611,36 @@ select.input {
   font-family: var(--font-mono);
   font-weight: 500;
   letter-spacing: 0.06em;
+  /* Capitals for the eye only: screen readers get the words. */
+  text-transform: uppercase;
+}
+
+.panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: -2px -4px;
+  padding: 2px 4px;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.panel-toggle:hover {
+  color: var(--ink);
+}
+
+.panel-toggle .icon {
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.panel-toggle[aria-expanded="true"] .icon {
+  transform: rotate(90deg);
 }
 
 .panel-title::after {
@@ -590,9 +665,9 @@ select.input {
 }
 
 .library-link {
-  flex: 1;
+  flex: none;
   min-height: 28px;
-  padding: 0 var(--space-1);
+  padding: 0 var(--space-2);
   background: transparent;
   color: var(--ink-muted);
   border: 0;
@@ -604,7 +679,6 @@ select.input {
 }
 
 .library-link:hover {
-  background: var(--hover);
   color: var(--ink);
 }
 
@@ -637,15 +711,6 @@ select.input {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-auto-rows: minmax(58px, auto);
   gap: var(--space-1);
-}
-
-/* No holes: four tiles make two rows of two, and a last tile alone takes its row. */
-.part-grid:has(> :nth-child(4):last-child) {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.part-grid > :last-child:nth-child(3n + 1):not(:nth-child(4)) {
-  grid-column: 1 / -1;
 }
 
 /* A row in the parts panel's lists: chips, projects, challenges and examples. */
@@ -696,10 +761,11 @@ select.input {
 /* A palette tile: its symbol over its name, the shortcut in the corner. Quiet until pointed at: the canvas leads. */
 .part-grid .part-tile {
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 3px;
   min-height: 0;
-  padding: var(--space-1) 2px;
+  /* From the top, so every symbol sits on one line whatever its label's length. */
+  padding: 11px 2px var(--space-1);
   background: var(--wash);
   border-radius: var(--radius-md);
   color: var(--ink-muted);
@@ -721,7 +787,7 @@ select.input {
 
 .part-grid .part-name {
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 
 /* The key sits against the symbol it arms, wherever the tile's width puts that. */
@@ -771,6 +837,11 @@ select.input {
 .chip-row .part-tile {
   flex: 1;
   min-width: 0;
+}
+
+.chip-list,
+.challenge-list {
+  margin-inline: calc(-1 * var(--space-2));
 }
 
 .chip-delete {
@@ -1100,8 +1171,13 @@ select.input {
   background: currentColor;
 }
 
-.status-ok {
-  background: var(--ok-soft);
+/* At rest the state is a dot and a word; only trouble gets a fill. */
+.status-state {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.status-ok .status-dot {
   color: var(--ok);
 }
 
@@ -1115,17 +1191,41 @@ select.input {
 }
 
 .status-muted {
-  background: var(--hover);
   color: var(--ink-muted);
 }
 
+.status-muted .status-dot {
+  color: var(--ink-faint);
+}
+
 .status-running {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--hover);
+  color: var(--ink);
 }
 
 .status-running .status-dot {
-  animation: status-pulse 1.2s var(--ease-out) infinite;
+  color: var(--ok);
+}
+
+/* A few beats as the run starts, then a steady dot (WCAG 2.2.2). */
+.status-running .status-dot {
+  animation: status-pulse 1.2s var(--ease-out) 3;
+}
+
+/* Settled, but something to know: the first message names it. */
+/* Not amber, which means a logic 1: a hollow dot in ink, and the message beside it says what. */
+.status-caution {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.status-caution .status-dot {
+  background: transparent;
+  border: 1.5px solid var(--ink-muted);
+}
+
+.statusbar:has(.status-caution) .status-message {
+  color: var(--ink);
 }
 
 @keyframes status-pulse {
@@ -1222,11 +1322,26 @@ select.input {
 
 .problem-list {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
   margin: 0;
-  padding-left: var(--space-4);
+  padding: 0;
+  list-style: none;
   font-size: 13px;
   line-height: 18px;
+}
+
+.problem-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  border-top: 1px solid var(--line);
+}
+
+.problem-count {
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
 }
 
 /* -------------------------------------------------------------- Inspector */
@@ -1280,9 +1395,38 @@ select.input {
   color: var(--ink-muted);
 }
 
+/* Actions are as wide as their words, at the left: the fields, not the buttons, carry the panel. */
 .inspector-body > .button,
 .field > .button {
-  align-self: stretch;
+  align-self: flex-start;
+}
+
+.inspector-keys {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.inspector-keys div {
+  display: grid;
+  grid-template-columns: 4em 1fr;
+  align-items: center;
+}
+
+.inspector-keys dd {
+  margin: 0;
+}
+
+.field > .button {
+  margin-top: var(--space-1);
+}
+
+textarea.memory-words-wrap {
+  white-space: pre-wrap;
+}
+
+.key-pair {
+  white-space: nowrap;
 }
 
 .field {
@@ -1348,6 +1492,15 @@ select.input {
   resize: vertical;
 }
 
+/* What is typed wraps rather than hiding past the edge, and the box grows with it. */
+/* Code keeps its columns and scrolls sideways; the box grows with its lines. */
+textarea.memory-words {
+  width: 100%;
+  field-sizing: content;
+  min-height: 5lh;
+  max-height: 20rem;
+}
+
 pre.memory-words {
   max-height: 16rem;
   overflow-y: auto;
@@ -1366,6 +1519,7 @@ pre.memory-words {
 /* Notes (ADR 0027): read as much as written, so in the body font and wrapping. */
 .notes {
   width: 100%;
+  max-width: 72ch;
   height: auto;
   padding: var(--space-2);
   font: 400 13px/20px var(--font-sans);
@@ -1375,9 +1529,20 @@ pre.memory-words {
   min-height: 96px;
   padding-inline: 0;
   background: transparent;
+  color: var(--ink-muted);
+  /* Underlined as editable, as the project's name is (WCAG 1.4.11). */
   border-width: 0 0 1px;
+  border-color: var(--line-strong);
   border-radius: 0;
   resize: none;
+}
+
+.notes:focus {
+  color: var(--ink);
+}
+
+.notes:not(:hover, :focus) {
+  border-color: transparent;
 }
 
 .notes:hover {
@@ -1402,13 +1567,88 @@ pre.memory-words {
   border-right: 1px solid var(--line);
 }
 
+/* A grip along the top edge: drag, or focus it and use the arrow keys; a double click fits the rows again. */
+.waves {
+  position: relative;
+}
+
+.waves-grip {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  /* A touch drag resizes rather than scrolling the panel. */
+  touch-action: none;
+  grid-column: 1 / -1;
+  height: 6px;
+  margin-bottom: -6px;
+  cursor: row-resize;
+}
+
+.waves-grip::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  width: 32px;
+  height: 3px;
+  margin-left: -16px;
+  border-radius: var(--radius-full);
+  background: var(--line-strong);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.waves:hover .waves-grip::before,
+.waves-grip:focus-visible::before {
+  opacity: 1;
+}
+
+.waves-grip:focus-visible {
+  box-shadow: inset 0 2px var(--focus);
+}
+
+/* A header like every other panel's, with the time it shows at the right. */
+.waves-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: var(--space-3);
+  height: 28px;
+  padding: 0 var(--space-3);
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.waves-head .panel-title {
+  flex: 1;
+  margin: 0;
+}
+
 .waves-time {
+  margin: 0;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Column labels, level with the time axis: 20px, as the axis is. */
+.waves-columns {
+  display: flex;
+  gap: var(--space-2);
   height: 20px;
   margin: 0;
   color: var(--ink-muted);
-  font-size: 11px;
-  line-height: 20px;
-  white-space: nowrap;
+  font: 500 10px/20px var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.waves-columns span:first-child {
+  width: 9em;
 }
 
 .waves-rows {
@@ -1440,10 +1680,16 @@ pre.memory-words {
 }
 
 .waves-remove {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   color: var(--ink-muted);
+}
+
+@media (hover: hover) {
+  .waves-row:not(:hover) .waves-remove:not(:focus-visible) {
+    opacity: 0;
+  }
 }
 
 .waves-lanes {
@@ -1485,6 +1731,11 @@ pre.memory-words {
   font: 500 11px var(--font-mono);
 }
 
+.wave-tick {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+
 .wave-axis {
   fill: var(--ink-muted);
   font: 400 11px var(--font-mono);
@@ -1502,7 +1753,8 @@ pre.memory-words {
   padding: var(--space-5);
   color: var(--ink);
   background: var(--panel-raised);
-  border: 1px solid var(--line-strong);
+  /* The pop shadow draws the one hairline edge. */
+  border: 0;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-pop);
 }
@@ -1584,8 +1836,35 @@ pre.memory-words {
   cursor: pointer;
 }
 
+/* Drawn from the tokens, so it matches both themes; ticked is the accent, as other choices are. */
 .dialog-choice input {
-  accent-color: var(--accent);
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  transform: translateY(3px);
+  background: var(--panel-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.dialog-choice input:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.dialog-choice input:checked::after {
+  content: "";
+  width: 8px;
+  height: 4px;
+  margin-top: -2px;
+  border-bottom: 2px solid var(--on-accent);
+  border-left: 2px solid var(--on-accent);
+  transform: rotate(-45deg);
 }
 
 .dialog-hint {
@@ -1685,7 +1964,7 @@ pre.memory-words {
     display: grid;
     grid-template-columns: minmax(200px, 1fr) minmax(240px, 2fr);
     grid-column: 1 / -1;
-    min-height: 120px;
+    min-height: 0;
     max-height: min(30vh, 220px);
     border-left: 0;
     border-top: 1px solid var(--line);
@@ -1702,37 +1981,99 @@ pre.memory-words {
   .inspector .notes {
     min-height: 60px;
   }
-}
-
-/* The toolbar takes two rows, in reading order: name and transport, then history and files. */
-@media (max-width: 800px) {
-  :root {
-    --toolbar-offset: 84px;
-  }
 
   .shell {
-    grid-template-rows: auto minmax(0, 1fr) minmax(var(--statusbar-height), auto);
+    grid-template-rows: var(--toolbar-height) minmax(0, 1fr) minmax(var(--statusbar-height), auto);
   }
 
-  .toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-1) var(--space-2);
+  .statusbar {
     padding-block: var(--space-1);
   }
 
+  .status-message {
+    white-space: normal;
+  }
+
+  /* In the strip, an empty Properties panel gives its room to the notes and the canvas. */
+  .inspector {
+    max-height: min(26vh, 200px);
+  }
+
+  .inspector .panel:has(.inspector-keys) {
+    display: none;
+  }
+
+  .inspector .panel:has(.inspector-keys) + .panel {
+    border-left: 0;
+  }
+
+  .inspector:has(.inspector-keys) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Narrow windows: history, files and help fold into the More menu, so the toolbar keeps one row. */
+@media (max-width: 800px) {
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
   .toolbar-start {
-    flex: 1 1 96px;
+    flex: 1 1 auto;
   }
 
-  .toolbar-end {
-    flex: 1 1 100%;
+  .toolbar-more {
+    display: inline-flex;
+  }
+
+  .toolbar-end:not(:popover-open) {
+    display: none;
+  }
+
+  .toolbar-end:popover-open {
+    position: fixed;
+    inset: calc(var(--toolbar-offset) + var(--space-1)) var(--space-2) auto auto;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
     gap: 2px;
+    min-width: 208px;
+    padding: var(--space-1);
+    background: var(--panel-raised);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-pop);
   }
 
-  .toolbar-end > .toolbar-sep {
-    margin: 0 2px;
+  .toolbar-end:popover-open .toolbar-sep {
+    width: auto;
+    height: 1px;
+    margin: 2px 0;
+  }
+
+  .toolbar-end:popover-open .file-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar-end:popover-open .file-actions > .button {
+    width: auto;
+    justify-content: flex-start;
+    padding: 0 var(--space-2);
+  }
+
+  .toolbar-end:popover-open .button-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+
+  /* Every item in the menu has its words: no tips needed. */
+  .toolbar-end:popover-open .file-actions .tip {
+    display: none;
   }
 }
 
@@ -1760,7 +2101,9 @@ pre.memory-words {
     gap: var(--space-1);
     overflow-x: auto;
     padding: var(--space-1) var(--space-2);
+    border-bottom: 0;
     scrollbar-width: thin;
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
   }
 
   .palette .panel,
@@ -1780,12 +2123,14 @@ pre.memory-words {
     flex: none;
   }
 
+  /* The page area scrolls here, so the inspector shows all it holds: no height cap, no fade. */
   .inspector {
     grid-template-columns: minmax(0, 1fr);
     grid-column: auto;
-    min-height: 160px;
+    min-height: 0;
     max-height: none;
     overflow: visible;
+    mask-image: none;
   }
 
   .inspector .panel + .panel {
@@ -1818,13 +2163,23 @@ pre.memory-words {
   }
 }
 
-/* Phone widths: the settings take a row of their own, at full value; the zoom keeps its buttons. */
+/* Phone widths: the transport takes a row of its own under the name and More. */
 @media (max-width: 520px) {
   :root {
-    --toolbar-offset: 116px;
+    --toolbar-offset: 84px;
+  }
+
+  .shell {
+    grid-template-rows: auto minmax(0, 1fr) minmax(var(--statusbar-height), auto);
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+    padding-block: var(--space-1);
   }
 
   .transport {
+    order: 3;
     flex: 1 1 100%;
     height: auto;
     padding-block: 3px;
@@ -1841,17 +2196,15 @@ pre.memory-words {
 
   .run-speed,
   .run-select {
-    flex: 1 1 40%;
+    flex: 0 1 auto;
   }
 
-  .run-controls select.input {
-    field-sizing: fixed;
-    width: 100%;
-    max-width: none;
-  }
+}
 
-  .zoom-level {
-    display: none;
+/* Short windows (or 200% zoom): the waveform panel gives the canvas its height back. */
+@media (max-height: 500px) {
+  .waves {
+    max-height: 25vh;
   }
 }
 

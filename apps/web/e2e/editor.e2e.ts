@@ -168,7 +168,7 @@ test("a link the clipboard refuses is shown to copy by hand (ADR 0024)", async (
 });
 
 const challenges = (page: Page) => page.getByRole("region", { name: "CHALLENGES" });
-const challenge = (page: Page) => page.getByRole("region", { name: "CHALLENGE", exact: true });
+const challenge = (page: Page) => page.getByRole("region", { name: "Challenge", exact: true });
 const checked = (page: Page) => challenge(page).locator(".challenge-result");
 
 test("start the inverter challenge, build it from a NAND gate, Check passes; a link reopens it with its panel (ADR 0025)", async ({ page, context }) => {
@@ -512,6 +512,8 @@ test("label parts in the inspector; labels name pins in the readout and status b
   await label.fill("B");
   await label.press("Escape");
   await expect(label).toHaveValue("A");
+  // A second Escape hands the keyboard back to the canvas, where undo is the editor's.
+  await label.press("Escape");
   await expect(readout(page, "Switch A")).toHaveCount(1);
 
   // Each label is one undo step.
@@ -1577,8 +1579,8 @@ test("a component saved to the library is added to another project, and a passed
 
   // The inverter, solved by its reference solution: checked, it is marked passed, and stays so after a reload.
   await page.locator('[data-testid="import-file"]').setInputFiles(solution("01-inverter"));
-  await page.getByRole("region", { name: "CHALLENGE", exact: true }).getByRole("button", { name: "Check" }).click();
-  await expect(page.getByRole("region", { name: "CHALLENGE", exact: true })).toContainText("First passed");
+  await page.getByRole("region", { name: "Challenge", exact: true }).getByRole("button", { name: "Check" }).click();
+  await expect(page.getByRole("region", { name: "Challenge", exact: true })).toContainText("First passed");
   await page.reload();
   await openTab(page, "Learn");
   await expect(challenges(page).getByRole("button", { name: "1. Inverter passed" })).toBeVisible();
@@ -1609,7 +1611,7 @@ test("the chrome works from the keyboard: tabs, palette, placing a part, panes a
   await page.keyboard.press("Enter");
   await expect(readout(page, "Switch 1")).toHaveCount(1);
 
-  // A refused value stays with its reason; Escape restores the old one and hands the keyboard to the canvas.
+  // A refused value stays with its reason; Escape restores the old one, and a second hands the keyboard to the canvas.
   const width = inspector.getByRole("textbox", { name: "Width" });
   await width.fill("99");
   await width.press("Enter");
@@ -1618,6 +1620,8 @@ test("the chrome works from the keyboard: tabs, palette, placing a part, panes a
   await expect(inspector.getByRole("alert")).toHaveText("Enter a whole number from 1 to 32.");
   await width.press("Escape");
   await expect(width).toHaveValue("1");
+  await expect(width).toBeFocused();
+  await width.press("Escape");
   await expect(canvas).toBeFocused();
 
   // F6 moves between panes, and part keys belong to the canvas, not to a focused control.
@@ -1638,4 +1642,20 @@ test("the chrome works from the keyboard: tabs, palette, placing a part, panes a
 
   await page.keyboard.press("?");
   await expect(page.getByRole("dialog", { name: "Shortcuts and gestures" })).toBeVisible();
+});
+
+test("a narrow window folds history and files into More, and starts with the notes closed (ADR 0032)", async ({ page }) => {
+  await page.setViewportSize({ width: 700, height: 700 });
+  await page.goto("/");
+  const exportButton = page.getByRole("button", { name: "Export" });
+  await expect(exportButton).toBeHidden();
+  await page.getByRole("button", { name: "More" }).click();
+  await expect(exportButton).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(exportButton).toBeHidden();
+
+  const notes = page.getByRole("button", { name: "Notes" });
+  await expect(notes).toHaveAttribute("aria-expanded", "false");
+  await notes.click();
+  await expect(page.getByRole("textbox", { name: "Notes" })).toBeVisible();
 });
