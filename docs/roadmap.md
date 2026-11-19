@@ -580,6 +580,11 @@ targets, as in Phase 5.
          the engine's answer, so an edit is usually drawn once, with values,
          instead of once dimmed and again. On battery, deleting one part is 0.17–0.76 s
          faster on three of the four 10,000-part benchmarks.
+      Re-measured after these, on mains power (`docs/performance.md`, the
+      new `bench:check` baseline): every 10,000-part sheet opens in
+      0.25–1.6 s and every 50,000-part one in 0.85–5.1 s. Still missing
+      their targets: toggles at 10,000 parts (0.32–0.34 s; `chain` 0.09 s)
+      and panning `adder-10k` (15 fps).
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
