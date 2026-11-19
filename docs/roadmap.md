@@ -602,8 +602,9 @@ targets, as in Phase 5.
       (ADR 0030 item 4). The reference CPU's run speed stays nearly met.
       What a later step would start from is in `docs/performance.md`,
       "Left for later".
-3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
-   and the waveform record; a file opens fitted to its circuit.
+3. ⬜ Editing a running circuit (ADR 0033, proposed): an edit keeps
+   flip-flops, memories, time and the waveform record; a file opens fitted
+   to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
 5. ⬜ Four-state signals: `X`, `Z`, a multiple-driver rule, a tri-state
    buffer.
@@ -644,8 +645,8 @@ ADR 0028 (accepted); its first increment, local persistence (ADR 0029), is
 built. Increment 2, benchmarks (ADR 0030), is built: fourteen
 optimizations, mostly of the canvas and routing, after which the
 interactive targets apply at 1,000 parts and the larger sheets are kept
-as stress tests. Increment 3, editing a running circuit, is next, with its
-own ADR.
+as stress tests. Increment 3, editing a running circuit, is next; ADR 0033
+(proposed) designs it.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
