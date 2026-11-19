@@ -603,6 +603,33 @@ longer holds the same wires, and each of its nearly 5,000 wires is routed again,
 twice, once before the engine's answer and once after it; the second draw took 110–340 ms here. A test now checks that a
 junction's wires keep their routes while it stays and are routed again once it moves, which no test covered.
 
+### 12. Three more checks that grew with the square of the sheet
+
+Review of section 11 found three more places in routing whose work grew with the square of something on the sheet, none
+of which the benchmarks show:
+
+- **Nets.** Wires are joined into nets by following each end to its root, and only the end asked about was then pointed
+  at the root. A net running through a chain of junctions, as tapping a wire's far end again and again makes one, was
+  followed end to end for every wire. Every end on the way now points at the root, which leaves every net as it was.
+- **Kept routes against moved parts.** Each route an edit might keep was checked against the box of every part that
+  moved. Dropping a large selection moves thousands. The boxes are now filed by tile, and a route is checked against
+  those near it; a box or segment across more than 64 tiles is checked as before.
+- **Same wires in a net.** Whether a wire's net kept the same wires was decided by comparing two names made of every wire
+  ID in the net, once per wire. Each name is now a number, given once per net.
+
+Which routes are kept does not change: on four large edits of the 10,000-part benchmarks and one on an 8,000-junction chain,
+the routes matched main's code exactly. Deciding which routes to keep, alone, in Node:
+
+| Edit | Before, ms | After, ms |
+|---|---:|---:|
+| A part added to a sheet holding a chain of 8,000 junctions | 6,454 | 107 |
+| Half of `chain-10k` shifted down a cell | 704 | 70 |
+| Half of `fanout-10k` moved far away | 251 | 118 |
+| An LED of `fanout-10k` deleted, with IDs as long as the editor's | 239 | 217 |
+
+The last gains little: building each net's name from 5,000 long IDs, not comparing it, is most of what is left. A test
+checks that routes and shapes too long to file by tile are still checked.
+
 ## Earlier measurements
 
 - The reference CPU runs at the 10,000 cycles per second setting in the browser, about 9,950 measured (ADR 0019).

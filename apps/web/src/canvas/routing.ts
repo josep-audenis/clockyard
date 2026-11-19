@@ -28,6 +28,12 @@ function nets(circuit: Circuit): Map<string, string> {
   const find = (k: string): string => {
     let root = k;
     while (parent.has(root) && parent.get(root) !== root) root = parent.get(root) as string;
+    // Everything on the way now points at the root: a chain of junctions tapped one after another made this quadratic.
+    for (let at = k; at !== root; ) {
+      const next = parent.get(at) as string;
+      parent.set(at, root);
+      at = next;
+    }
     parent.set(k, root);
     return root;
   };
@@ -543,6 +549,13 @@ function unaffected(
       obstacles.push({ x: Math.min(p.x, q.x), y: Math.min(p.y, q.y), width: Math.abs(q.x - p.x), height: Math.abs(q.y - p.y) });
     }
   }
+  // Names as numbers, so comparing two wires' nets does not compare every wire ID of a large net.
+  const numbers = new Map<string, number>();
+  const number = (name: string) => {
+    let n = numbers.get(name);
+    if (n === undefined) numbers.set(name, (n = numbers.size));
+    return n;
+  };
   /** Each wire's net, named by the sorted IDs of all its wires: equal names mean the net kept the same wires. */
   const members = (circuit: Circuit) => {
     const netOf = nets(circuit);
@@ -552,10 +565,36 @@ function unaffected(
       if (list) list.push(wire);
       else byNet.set(net, [wire]);
     }
-    const names = new Map([...byNet].map(([net, list]) => [net, list.sort().join()]));
+    const names = new Map([...byNet].map(([net, list]) => [net, number(list.sort().join())]));
     return new Map([...netOf].map(([wire, net]) => [wire, names.get(net)]));
   };
   const [netBefore, netNow] = [members(prev), members(next)];
+  // Boxes by tile, so each route is checked against the boxes near it, not all of them (dropping a large selection moves
+  // thousands); a box or segment across more than `LONG` tiles is checked plainly.
+  type Rect = (typeof obstacles)[number];
+  const near = new Tiles<Rect>(TILE);
+  const wide: Rect[] = [];
+  const across = (a: number, b: number) => Math.floor(b / TILE) - Math.floor(a / TILE);
+  for (const box of obstacles) {
+    if (across(box.x, box.x + box.width) > LONG || across(box.y, box.y + box.height) > LONG) wide.push(box);
+    else near.add(box, box.x, box.y, box.x + box.width, box.y + box.height);
+  }
+  const blocked = (points: Point[]) => {
+    for (let i = 1; i < points.length; i++) {
+      const segment = [points[i - 1] as Point, points[i] as Point];
+      const [p, q] = segment as [Point, Point];
+      const [x0, x1, y0, y1] = [Math.min(p.x, q.x), Math.max(p.x, q.x), Math.min(p.y, q.y), Math.max(p.y, q.y)];
+      const hits = (box: Rect) => crosses(segment, box);
+      if (across(x0, x1) > LONG || across(y0, y1) > LONG) {
+        if (obstacles.some(hits)) return true;
+        continue;
+      }
+      let hit = wide.some(hits);
+      if (!hit) near.each(x0, y0, x1, y1, (box) => (hit ||= hits(box)));
+      if (hit) return true;
+    }
+    return false;
+  };
   const kept = new Map<string, Point[]>();
   for (const wire of next.wires) {
     const [old, points] = [wires.get(wire.id), before.get(wire.id)];
@@ -563,7 +602,7 @@ function unaffected(
     if (JSON.stringify([old.from, old.to, old.bends]) !== JSON.stringify([wire.from, wire.to, wire.bends])) continue;
     if (!stays(endOwner(wire.from)) || !stays(endOwner(wire.to))) continue;
     if (netBefore.get(wire.id) !== netNow.get(wire.id)) continue;
-    if (obstacles.some((box) => crosses(points, box))) continue;
+    if (obstacles.length > 0 && blocked(points)) continue;
     kept.set(wire.id, points);
   }
   return kept;
