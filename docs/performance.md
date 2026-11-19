@@ -84,8 +84,8 @@ dash.
 
 - **Open**: Import of the file until the engine has answered the load and sent its first settled state
   (`clockyard:engine-ready`), and two frames have been drawn since. *Routing* and *drawing* are the main thread's share
-  of it; routing happens inside drawing, so drawing includes it, except an open's routing since section 10, which runs in
-  the frame before the open's drawing and so is no longer in it.
+  of it; routing happens inside drawing, so drawing includes it, except, since section 10, an open's routing whenever the
+  engine's answer is not yet in: that runs in the frame before the open's drawing, so it is not in it.
 - **Toggle**: a click on a switch until the readout says it is on, which follows the engine's settle. The readout
   is updated before the canvas is drawn again, so the canvas's redraw is not in it.
 - **Drag**: a part moved two cells in ten pointer steps: the median redraw, and the median sync (projecting the document
@@ -564,12 +564,12 @@ sheet opens only routes, which needs no state, and returns; the answer is handle
 sheet once, with its values. If the answer has not come by then (an engine slower than routing, as `cpu-50k` may be), the
 sheet is drawn as before. Only opening a sheet does this: a connectivity edit still draws once unknown and once with the
 answer. A browser test opens the reference CPU and fails if it is drawn between the load and its first state; with
-main's code it failed 10 of 10 runs, and on a small sheet the answer often beats the first frame, so that one would not
+main's code it failed in every run (5 of 5 here, 10 of 10 in review), and on a small sheet the answer often beats the first frame, so that one would not
 do. Since an open's routing is now outside its drawing, the benchmark's open drawing time is lower by it, and no longer
 compares with earlier runs or the baseline.
 
 Each open against main's build, production builds alternating, nine rounds, **on mains power**. Main opened faster in this
-run than in section 9's (by up to 0.5 s), so read the changes rather than comparing the two tables:
+run than in section 9's (by about 0.5 s), so read the changes rather than comparing the two tables:
 
 | Benchmark | Open before, s | Open after, s | Open, change, ms | Main thread, change, ms |
 |---|---:|---:|---:|---:|
