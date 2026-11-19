@@ -248,8 +248,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       // A sheet just opened: this frame only routes, which needs no state, so the engine's first answer (long ready by
       // then on large sheets) is let in before the sheet is drawn, once. Drawn before it, every wire was drawn twice.
       const { opens, circuit } = useEditor.getState();
-      if (dirty && opens !== routedOpen && useSim.getState().stale) {
-        routedOpen = opens;
+      const opened = dirty && opens !== routedOpen;
+      // Noted on any redraw, so a sheet drawn at once (its answer already in) does not route ahead at its first edit.
+      if (dirty) routedOpen = opens;
+      if (opened && useSim.getState().stale) {
         currentRoutes(circuit);
         paint(true);
         return;

@@ -1056,7 +1056,8 @@ test("an opened sheet is drawn once the engine's first state is in, not before i
   await page.goto("/?bench");
   await expect(status(page)).toContainText(/No circuit|Settled/);
   await page.evaluate(() => performance.clearMeasures());
-  await page.locator('[data-testid="import-file"]').setInputFiles(example("4-bit-adder"));
+  // Large enough that drawing it before the answer is the norm: on a small sheet the answer often beats the first frame.
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
   await expect(status(page)).toContainText("Settled");
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const { sent, ready, draws } = await page.evaluate(() => {

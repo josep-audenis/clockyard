@@ -84,7 +84,8 @@ dash.
 
 - **Open**: Import of the file until the engine has answered the load and sent its first settled state
   (`clockyard:engine-ready`), and two frames have been drawn since. *Routing* and *drawing* are the main thread's share
-  of it; routing happens inside drawing, so drawing includes it.
+  of it; routing happens inside drawing, so drawing includes it, except an open's routing since section 10, which runs in
+  the frame before the open's drawing and so is no longer in it.
 - **Toggle**: a click on a switch until the readout says it is on, which follows the engine's settle. The readout
   is updated before the canvas is drawn again, so the canvas's redraw is not in it.
 - **Drag**: a part moved two cells in ten pointer steps: the median redraw, and the median sync (projecting the document
@@ -167,7 +168,7 @@ Read so:
 
 | Target | Measured | Met |
 |---|---|---|
-| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s; with fewer cells searched (section 8, on battery, where the same builds are slower) `fanout` 10.8 → 3.4–3.5 s, `adder` 4.2 → 3.3–3.4 s, `counters` 3.7–3.9 → 3.1–3.2 s; on mains with section 9's changes and other work on the machine, `chain` 0.8 s, `adder` 1.8 s (was 2.3 s), `counters` 2.3 s (was 2.5 s), `fanout` 2.5 s (no clear change); routing before the first state (section 10), in a run where main itself opened faster, `adder` 1.74 → 1.46 s, `counters` 1.74 → 1.37 s, `fanout` 1.98 → 1.78 s | for `chain`, `cpu` and `adder`; for all four flat sheets in section 10's run, though runs vary by up to 0.5 s |
+| 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s; with fewer cells searched (section 8, on battery, where the same builds are slower) `fanout` 10.8 → 3.4–3.5 s, `adder` 4.2 → 3.3–3.4 s, `counters` 3.7–3.9 → 3.1–3.2 s; on mains with section 9's changes and other work on the machine, `chain` 0.8 s, `adder` 1.8 s (was 2.3 s), `counters` 2.3 s (was 2.5 s), `fanout` 2.5 s (no clear change); routing before the first state (section 10), in a run where main itself opened faster, `adder` 1.74 → 1.46 s, `counters` 1.74 → 1.37 s, `fanout` 1.98 → 1.78 s, `chain` 0.66 → 0.52 s | for `chain`, `cpu` and `adder`; for all four flat sheets in section 10's run, before this change as well as after it, though runs vary by about 0.5 s |
 | A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms | no |
 | Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder`; with shared part shapes (section 7) 30–60 for `chain`, `counters` and `fanout`, 20 for `adder` | partly |
 | 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k`; after step 3's routing index, `chain-50k` 6.3 s, `counters-50k` 22 s; with shared part shapes `chain-50k` 2.4 s; deleting every part of `chain-50k` takes about 1.2 s, over the 1 s asked (other edits not measured) | opening, for `chain` and `cpu` only, after it |
@@ -562,7 +563,10 @@ The answer waited about a second behind the first draw, which had begun before i
 sheet opens only routes, which needs no state, and returns; the answer is handled before the next frame, which draws the
 sheet once, with its values. If the answer has not come by then (an engine slower than routing, as `cpu-50k` may be), the
 sheet is drawn as before. Only opening a sheet does this: a connectivity edit still draws once unknown and once with the
-answer. A browser test fails if an open draws between the load and its first state.
+answer. A browser test opens the reference CPU and fails if it is drawn between the load and its first state; with
+main's code it failed 10 of 10 runs, and on a small sheet the answer often beats the first frame, so that one would not
+do. Since an open's routing is now outside its drawing, the benchmark's open drawing time is lower by it, and no longer
+compares with earlier runs or the baseline.
 
 Each open against main's build, production builds alternating, nine rounds, **on mains power**. Main opened faster in this
 run than in section 9's (by up to 0.5 s), so read the changes rather than comparing the two tables:
