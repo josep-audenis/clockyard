@@ -1052,6 +1052,28 @@ test("run until an LED lights: an instruction step on the reference CPU, then ru
   await expect(readout(page, "LED Halted")).toHaveText("LED Halted: off");
 });
 
+test("an opened sheet is drawn once the engine's first state is in, not before it (ADR 0030)", async ({ page }) => {
+  await page.goto("/?bench");
+  await expect(status(page)).toContainText(/No circuit|Settled/);
+  await page.evaluate(() => performance.clearMeasures());
+  // Large enough that drawing it before the answer is the norm: on a small sheet the answer often beats the first frame.
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
+  await expect(status(page)).toContainText("Settled");
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const { sent, ready, draws } = await page.evaluate(() => {
+    const load = performance.getEntriesByName("clockyard:engine-load").at(-1);
+    const state = performance.getEntriesByName("clockyard:engine-ready").at(-1);
+    return {
+      sent: load?.startTime ?? NaN,
+      ready: (state?.startTime ?? NaN) + (state?.duration ?? NaN),
+      draws: performance.getEntriesByName("clockyard:draw").map((e) => e.startTime),
+    };
+  });
+  // Drawn before the state, every wire would be drawn again when it came.
+  expect(draws.filter((t) => t >= sent && t < ready)).toEqual([]);
+  expect(draws.some((t) => t >= ready)).toBe(true);
+});
+
 test("every readout row reaches the browser's accessibility tree", async ({ page }) => {
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("4-bit-adder"));

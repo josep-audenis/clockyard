@@ -274,6 +274,14 @@ What exists today:
    about 300 ms more on battery, but it removed the rows from Chromium's
    accessibility tree, so the list keeps its full layout.
 
+   *As built (step 3, tenth):* an open drew the sheet before the engine's
+   first answer, which was ready within 0.3 s but waited about a second
+   behind that draw, and then drew it again with the state. Now the first
+   frame after a sheet opens only routes, the answer is handled, and the
+   next frame draws once; if the answer is not in by then, the sheet is
+   drawn as before. On mains power, 10,000-part opens are 120–360 ms
+   faster. Edits still draw twice.
+
 ## Alternatives considered
 
 - **Criterion for the native benchmarks.** It gives better statistics, but

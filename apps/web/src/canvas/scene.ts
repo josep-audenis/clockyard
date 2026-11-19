@@ -239,10 +239,23 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   let frame = 0;
   /** Whether the next frame draws the scene again; a frame that only moves the view (a pan) does not (ADR 0030). */
   let dirty = false;
+  /** The editor's `opens` when a sheet was last routed ahead of its drawing. */
+  let routedOpen = -1;
   const paint = (whole: boolean) => {
     dirty ||= whole;
     frame ||= requestAnimationFrame(() => {
       frame = 0;
+      // A sheet just opened: this frame only routes, which needs no state, so the engine's first answer (long ready by
+      // then on large sheets) is let in before the sheet is drawn, once. Drawn before it, every wire was drawn twice.
+      const { opens, circuit } = useEditor.getState();
+      const opened = dirty && opens !== routedOpen;
+      // Noted on any redraw, so a sheet drawn at once (its answer already in) does not route ahead at its first edit.
+      if (dirty) routedOpen = opens;
+      if (opened && useSim.getState().stale) {
+        currentRoutes(circuit);
+        paint(true);
+        return;
+      }
       const redraw = dirty;
       dirty = false;
       timed(redraw ? "draw" : "view", () => {
