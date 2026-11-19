@@ -1087,6 +1087,8 @@ test("a connectivity edit is drawn once its state is in, not before it (ADR 0030
   const at = await grid(page);
   await click(page, at(24.5, 16)); // the program ROM at (22,14)
   await page.evaluate(() => performance.clearMeasures());
+  // Assumes the answer comes within routing and the scene's 150 ms wait, as it does on any ordinary machine; a much slower
+  // one would draw first and fail here without anything being broken.
   await page.keyboard.press("Delete");
   await page.waitForFunction(() => performance.getEntriesByName("clockyard:engine-ready").length > 0);
   await drawnOnceWithState(page);

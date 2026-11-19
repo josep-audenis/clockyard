@@ -296,13 +296,15 @@ What exists today:
    every moved part (now by tile), and comparing nets by names made of
    all their wire IDs (now numbers). The routes are the same.
 
-   *As built (step 3, thirteenth):* every load now waits as an open's
-   did: the first frame routes, and the next frames wait up to 150 ms for
-   the engine's answer before drawing without it, so a connectivity edit
-   is usually drawn once, with values, not dimmed first. On battery,
+   *As built (step 3, thirteenth):* every load, an open included, now
+   routes in the first frame, as an open did, and the next frames wait up
+   to 150 ms for the engine's answer before drawing without it, so a
+   connectivity edit is usually drawn once, with values, not dimmed
+   first. On battery,
    deleting one part is 0.17–0.76 s faster on three of the four
    10,000-part benchmarks; where the answer comes later than the wait
-   (`adder-10k`), the first change shows the wait's 150 ms later.
+   (`adder-10k`), the first change shows the wait's 150 ms later (by the
+   code; not measured), and so does an open whose engine is that slow.
    A pan made during the wait waits with it.
 
 ## Alternatives considered

@@ -561,7 +561,8 @@ showed the engine was not what the second draw waited for. Times from sending th
 The answer waited about a second behind the first draw, which had begun before it arrived. Now the first frame after a
 sheet opens only routes, which needs no state, and returns; the answer is handled before the next frame, which draws the
 sheet once, with its values. If the answer has not come by then (an engine slower than routing, as `cpu-50k` may be), the
-sheet is drawn as before. Section 13 does the same for connectivity edits. A browser test opens the reference CPU and fails if it is drawn between the load and its first state; with
+sheet is drawn as before. Since section 13, every load, an open included, also waits up to 150 ms after routing before
+drawing without the answer. A browser test opens the reference CPU and fails if it is drawn between the load and its first state; with
 main's code it failed in every run (5 of 5 here, 10 of 10 in review), and on a small sheet the answer often beats the first frame, so that one would not
 do. Since an open's routing is now outside its drawing, the benchmark's open drawing time is lower by it, and no longer
 compares with earlier runs or the baseline.
@@ -646,11 +647,19 @@ Deleting one part, from the key press until the edit's state is drawn, main's bu
 | fanout-10k | 2.69 | −430 | −539 | 2 → 1 |
 | chain-10k | 0.63 | −170 | −143 | 2 → 1 |
 
-On `adder-10k` the answer came after the wait, so it was still drawn first without it, and that first drawing came by
-the wait's 150 ms later than before (routing, which it used to include, now runs just ahead of it). The two waits did about as well; the shorter one delays least when the answer is late.
-Opening was not changed (`adder-10k` −90 ms, `counters-10k` −13 ms, within noise). A browser test deletes a part of the
-reference CPU and fails if the sheet is drawn between that load and its first state; with main's code it failed 8 of 8
-runs.
+On `adder-10k` the answer came after the wait, so it was still drawn first without it; by the code, that first drawing
+comes the wait's 150 ms later than before (routing, which it used to include, now runs just ahead of it), which was not
+measured. The two waits did about as well; the shorter one delays least when the answer is late.
+
+Opens wait too now. On `adder-10k` and `counters-10k`, whose answers come within the wait, opening did not change
+(−90 ms and −13 ms, within noise); an open whose engine answers later than routing and the wait, as `cpu-50k` may, is
+first drawn 150 ms later than before. Every load also costs one frame of routing before any drawing, about 16 ms on a
+small sheet, where it used to show a dimmed frame first. The page's first drawing waits for the engine's first state the
+same way, up to 150 ms (measured 45–116 ms); on an empty sheet nothing is drawn either way.
+
+A browser test deletes a part of the reference CPU and fails if the sheet is drawn between that load and its first state;
+with main's code it failed 8 of 8 runs. It assumes the answer comes within routing and the wait: under a 4- to 8-fold
+slower processor, review saw it fail.
 
 ## Earlier measurements
 
