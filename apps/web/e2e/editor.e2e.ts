@@ -1584,6 +1584,15 @@ test("where the browser keeps no storage, the editor still works, says so, and a
   await page.getByRole("region", { name: "EXAMPLES" }).getByRole("button", { name: "AND gate" }).click();
   await expect.poll(() => asked).toBe("Replace the current circuit? Changes since your last export will be lost.");
   await expect(page.getByRole("list", { name: "Inputs and outputs" })).toContainText("Switch 1");
+  // The wordmark's link to the about page asks too, and staying keeps the circuit.
+  page.once("dialog", (dialog) => {
+    asked = dialog.message();
+    void dialog.dismiss();
+  });
+  await page.getByRole("link", { name: "Clockyard" }).click();
+  await expect.poll(() => asked).toBe("Leave the editor? Unsaved changes will be lost.");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("list", { name: "Inputs and outputs" })).toContainText("Switch 1");
 });
 
 test("a component saved to the library is added to another project, and a passed challenge stays marked (ADR 0029)", async ({ page }) => {

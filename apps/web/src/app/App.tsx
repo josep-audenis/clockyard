@@ -284,15 +284,17 @@ export function App() {
       <header className="toolbar">
         <div className="toolbar-start">
           <h1 className="wordmark">
-            {/* The mark inline on tokens so it follows the theme; fixed-ink copies live in docs/assets. */}
-            <svg viewBox="0 0 64 64" width="24" height="24" aria-hidden="true">
-              <rect width="64" height="64" rx="6" fill="var(--bench)" stroke="var(--line)" strokeWidth="2" />
-              <path d="M44 48H16" fill="none" stroke="var(--signal-low)" strokeWidth="5" strokeLinecap="round" />
-              <path d="M16 48V16H47" fill="none" stroke="var(--signal-high)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-              <circle cx="48" cy="16" r="5.5" fill="var(--signal-high)" />
-              <circle cx="48" cy="48" r="4.5" fill="var(--bench)" stroke="var(--signal-low)" strokeWidth="3" />
-            </svg>
-            <span className="wordmark-name">Clockyard</span>
+            <a href="about/" title="About Clockyard" onClick={(e) => mayLeave() || e.preventDefault()}>
+              {/* The mark inline on tokens so it follows the theme; fixed-ink copies live in docs/assets. */}
+              <svg viewBox="0 0 64 64" width="24" height="24" aria-hidden="true">
+                <rect width="64" height="64" rx="6" fill="var(--bench)" stroke="var(--line)" strokeWidth="2" />
+                <path d="M44 48H16" fill="none" stroke="var(--signal-low)" strokeWidth="5" strokeLinecap="round" />
+                <path d="M16 48V16H47" fill="none" stroke="var(--signal-high)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="48" cy="16" r="5.5" fill="var(--signal-high)" />
+                <circle cx="48" cy="48" r="4.5" fill="var(--bench)" stroke="var(--signal-low)" strokeWidth="3" />
+              </svg>
+              <span className="wordmark-name">Clockyard</span>
+            </a>
           </h1>
           <span className="toolbar-sep" aria-hidden="true" />
           <ProjectTitle />
@@ -364,10 +366,19 @@ function ToolbarEnd() {
 
 /** Asks before an opened file or link replaces a circuit that has parts, unless it is saved in this browser (ADR 0029). */
 function mayReplace(): boolean {
-  if (replacingIsSafe()) return true;
+  return replacingIsSafe() || mayDiscard("Replace the current circuit? Changes since your last export will be lost.");
+}
+
+/** Asks before the wordmark leaves the editor, unless the circuit is saved in this browser and its last save worked. */
+function mayLeave(): boolean {
+  return (replacingIsSafe() && !useProjects.getState().error) || mayDiscard("Leave the editor? Unsaved changes will be lost.");
+}
+
+/** True when the circuit has nothing to lose, or the person agrees to lose it. */
+function mayDiscard(question: string): boolean {
   const state = useEditor.getState();
-  const replacing = mainCircuit(state).components.length > 0 || state.definitions.length > 0 || normalizeNotes(state.metadata.notes ?? "") !== "";
-  return !replacing || window.confirm("Replace the current circuit? Changes since your last export will be lost.");
+  const losing = mainCircuit(state).components.length > 0 || state.definitions.length > 0 || normalizeNotes(state.metadata.notes ?? "") !== "";
+  return !losing || window.confirm(question);
 }
 
 /** The open project's name (ADR 0029), edited in place; Enter or leaving the field keeps it, Escape does not. */
