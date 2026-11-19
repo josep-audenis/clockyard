@@ -154,6 +154,30 @@ What exists today:
    speed froze the page, so its run speed could not be recorded. The
    engine and the sync are not the cause. The targets stay as they are;
    step 3 works toward them.
+
+   *As built (step 3 closed):* the 10,000- and 50,000-part targets are
+   now stress tests, not goals, and the interactive targets apply at
+   1,000 parts. Real circuits are far smaller than 10,000 parts: a
+   reference CPU is about 300 nets. Where measured
+   at 1,000 parts, those targets are met: opens in 0.13–0.45 s, panning
+   at 60 frames per second on all five benchmarks, drag steps in 4–9 ms
+   on flat circuits (under 1 ms for `cpu`), and toggles in 34–65 ms to
+   the readout on the three with a switch. Deleting a part was not
+   measured at 1,000 parts, and no toggle there was timed until drawn.
+   This also stands in for ADR 0028's target for this increment (the
+   largest benchmark opens, runs and can be edited at the recorded
+   speeds): at 50,000 parts only opening is measured now.
+
+   The reference CPU's run-speed target is unchanged and nearly met:
+   9,614 cycles per second for four copies in the latest run (a rate that
+   reads a few per cent low), and about 9,950 when last measured alone,
+   in Phase 4 (ADR 0019).
+
+   Still unmet at 10,000 parts: a toggle, or deleting a part, within
+   100 ms, and panning `adder-10k`. Edits at 50,000 parts have not been
+   measured since step 3's first optimizations. `pnpm bench:check` stays
+   as the guard against regressions, and `docs/performance.md` notes what
+   a later step would start from.
 5. **Optimize only what the numbers show.**
    - Each optimization is its own step, with its before and after in
      `docs/performance.md` and the benchmark that motivated it.
@@ -313,11 +337,15 @@ What exists today:
    inputs are sent and unanswered, the canvas now waits up to the same
    150 ms, from the first unanswered send, so a toggle is drawn once
    (not while a load is pending, whose wait covers it, nor on a sheet
-   with validation errors, which the worker does not answer); a `clockyard:engine-input` measure
-   spans from the inputs being sent to their state being shown. On mains, toggles on `adder-10k`,
+   with validation errors, which the worker does not answer); a
+   `clockyard:engine-input` measure spans from the inputs being sent to
+   their state being shown. On mains, toggles on `adder-10k`,
    `fanout-10k` and `chain-10k` are drawn 151, 128 and 40 ms sooner
    (medians of seven). The drawing with the answer, 140–370 ms, is still
    over the 100 ms target.
+
+   Step 3 closes here, with the targets changed as item 4's as-built
+   note (step 3 closed) says.
 
 ## Alternatives considered
 
