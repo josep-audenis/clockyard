@@ -700,15 +700,16 @@ canvas before closing it, in throwaway builds timed against main's on battery (s
 runs per build and single readings for draw calls and frame rates, found two causes:
 
 - **No part is batched.** Pixi batches a shape only under 400 vertex values, and every part body is larger, so each frame
-  makes one draw call per part: about 10,000 on a 10,000-part sheet. A profile of panning `adder-10k` was mostly WebGL
-  calls. Batching the shared part shapes (`batchMode = "batch"`) brought panning `adder`, `chain` and `fanout` to 60
+  makes one draw call per part: about 10,000 on a 10,000-part sheet. A profile of panning `adder-10k` showed mostly
+  WebGL calls. Batching the shared part shapes (`batchMode = "batch"`) brought panning `adder`, `chain` and `fanout` to 60
   frames a second; in 64 render groups, it made 321 draw calls on `adder-10k`, and redraws that change nothing rendered
   in 2–12 ms. A change to any part then re-packs its whole group, though: toggle renders fell on `adder-10k` (19–67 ms,
   from 98–225), stayed about the same on `chain-10k` (170–231, from 130–256), and doubled on `fanout-10k`, whose toggle
   changes 5,000 LEDs across every group (672–731, from 219–376).
 - **A value change rebuilds shapes.** Pixi bakes colour and width into a shape's vertices, so a toggle that changes every
   wire rebuilds every wire chunk: on main's build, 29–120 ms building them, and most of a 130–490 ms render in which
-  Pixi tessellates, packs and uploads them (a redraw that changes no wire rendered in 17–37 ms on these two sheets). Wires and parts in their own render groups stop unrelated changes re-packing them, but do not avoid this.
+  Pixi tessellates, packs and uploads them (a redraw that changes no wire rendered in 17–43 ms on these two
+  sheets). Wires and parts in their own render groups stop unrelated changes re-packing them, but do not avoid this.
   Keeping the shapes fixed and taking colour and width from the engine's values in a shader would make a toggle upload a
   small table instead. That changes how the canvas draws, so it would need its own ADR.
 

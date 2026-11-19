@@ -157,8 +157,8 @@ What exists today:
 
    *As built (step 3 closed):* the 10,000- and 50,000-part targets are
    now stress tests, not goals, and the interactive targets apply at
-   1,000 parts. Real circuits are far smaller than 10,000 parts: the
-   reference CPU, the project's largest, is about 300 nets. Where measured
+   1,000 parts. Real circuits are far smaller than 10,000 parts: a
+   reference CPU is about 300 nets. Where measured
    at 1,000 parts, those targets are met: opens in 0.13–0.45 s, panning
    at 60 frames per second on all five benchmarks, drag steps in 4–9 ms
    on flat circuits (under 1 ms for `cpu`), and toggles in 34–65 ms to
