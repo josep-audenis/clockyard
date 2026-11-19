@@ -576,6 +576,10 @@ targets, as in Phase 5.
          nets through long chains of junctions, kept routes against many
          moved parts, and comparing large nets. Keeping routes on a sheet with an
          8,000-junction chain takes 0.1 s (was 6.5 s).
+     13. ✅ A load (an edit or an open) waits up to 150 ms after routing for
+         the engine's answer, so an edit is usually drawn once, with values,
+         instead of once dimmed and again. On battery, deleting one part is 0.17–0.76 s
+         faster on three of the four 10,000-part benchmarks.
 3. ⬜ Editing a running circuit: an edit keeps flip-flops, memories, time
    and the waveform record; a file opens fitted to its circuit.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
