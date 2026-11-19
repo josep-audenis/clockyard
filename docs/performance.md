@@ -169,7 +169,7 @@ Read so:
 | Target | Measured | Met |
 |---|---|---|
 | 10,000 parts open in under 2 s | 9–24 s for flat circuits; 0.29 s for `cpu`; after step 3's routing index and bitmap labels, `chain` 1.3 s, `adder` 2.8–3.2 s, `counters` 2.7–3.3 s, `fanout` 6–13 s (measured with the routing index only); with shared part shapes (section 7) `chain` 0.6–0.7 s, `counters` 2.1–2.2 s, `adder` 2.3–2.4 s, `fanout` 5.7–6.2 s; with fewer cells searched (section 8, on battery, where the same builds are slower) `fanout` 10.8 → 3.4–3.5 s, `adder` 4.2 → 3.3–3.4 s, `counters` 3.7–3.9 → 3.1–3.2 s; on mains with section 9's changes and other work on the machine, `chain` 0.8 s, `adder` 1.8 s (was 2.3 s), `counters` 2.3 s (was 2.5 s), `fanout` 2.5 s (no clear change); routing before the first state (section 10), in a run where main itself opened faster, `adder` 1.74 → 1.46 s, `counters` 1.74 → 1.37 s, `fanout` 1.98 → 1.78 s, `chain` 0.66 → 0.52 s | for `chain`, `cpu` and `adder`; for all four flat sheets in section 10's run, before this change as well as after it, though runs vary by about 0.5 s |
-| A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms; deleting one part, until its state is drawn, 1.3–2.3 s, then 0.38–1.55 s with section 11 | no |
+| A toggle or an edit shows within 100 ms at 10,000 parts | toggle 0.37–0.6 s; a drag step 50–190 ms; deleting one part, until its state is drawn, 1.3–2.3 s, then 0.38–1.55 s with section 11; section 13 takes 0.17–0.76 s more off three of the four (on battery) | no |
 | Panning at 30 fps or more at 10,000 parts | 30 fps for `chain`; 20 for `fanout`, 8.6 for `counters`, 6.7 for `adder`; with shared part shapes (section 7) 30–60 for `chain`, `counters` and `fanout`, 20 for `adder` | partly |
 | 50,000 parts open in under 10 s, edits under 1 s | 4.8–7.5 minutes for flat circuits; 1.3 s for `cpu-50k`; after step 3's routing index, `chain-50k` 6.3 s, `counters-50k` 22 s; with shared part shapes `chain-50k` 2.4 s; deleting every part of `chain-50k` takes about 1.2 s, over the 1 s asked (other edits not measured) | opening, for `chain` and `cpu` only, after it |
 | Run speed on `counters-10k` recorded | 2,017 cycles per second | yes |
@@ -177,9 +177,8 @@ Read so:
 
 Step 3 of ADR 0030 has optimized panning, the wires an edit or a state redraws, what the page does with each engine
 state, routing a whole sheet, labels, part shapes, the searches themselves, the page's long part lists and the second
-draw of an open (below). What these numbers point to next: the rest of an open, now mostly routing and drawing (section
-9), the double draw a connectivity edit still makes (section 10), and drawing wires, which a toggle that changes every
-wire also pays.
+draw of an open or an edit (below). What these numbers point to next: the rest of an open, now mostly routing and drawing
+(section 9), and drawing wires, which a toggle that changes every wire also pays.
 
 `pnpm bench:check` compares the last run with `benchmarks/browser-baseline.json` and fails on any measurement more than
 twice as bad (and worse by more than 5), or one the run lost; `node scripts/bench-check.mjs --update` makes the last run
@@ -562,8 +561,7 @@ showed the engine was not what the second draw waited for. Times from sending th
 The answer waited about a second behind the first draw, which had begun before it arrived. Now the first frame after a
 sheet opens only routes, which needs no state, and returns; the answer is handled before the next frame, which draws the
 sheet once, with its values. If the answer has not come by then (an engine slower than routing, as `cpu-50k` may be), the
-sheet is drawn as before. Only opening a sheet does this: a connectivity edit still draws once unknown and once with the
-answer. A browser test opens the reference CPU and fails if it is drawn between the load and its first state; with
+sheet is drawn as before. Section 13 does the same for connectivity edits. A browser test opens the reference CPU and fails if it is drawn between the load and its first state; with
 main's code it failed in every run (5 of 5 here, 10 of 10 in review), and on a small sheet the answer often beats the first frame, so that one would not
 do. Since an open's routing is now outside its drawing, the benchmark's open drawing time is lower by it, and no longer
 compares with earlier runs or the baseline.
@@ -599,8 +597,8 @@ one alternating, five rounds, on mains power:
 | chain-10k | 1.32 | 0.38 | −943 | 957 | 59 |
 
 `fanout` still routes for about 0.9 s: the gate deleted was on the net that fans out to every gate, so that net no
-longer holds the same wires, and each of its nearly 5,000 wires is routed again, as `unaffected` asks. An edit also still draws
-twice, once before the engine's answer and once after it; the second draw took 110–340 ms here. A test now checks that a
+longer holds the same wires, and each of its nearly 5,000 wires is routed again, as `unaffected` asks. An edit also still drew
+twice, once before the engine's answer and once after it; the second draw took 110–340 ms here (section 13). A test now checks that a
 junction's wires keep their routes while it stays and are routed again once it moves, which no test covered.
 
 ### 12. Three more checks that grew with the square of the sheet
@@ -630,6 +628,29 @@ the routes matched main's code exactly. Deciding which routes to keep, alone, in
 
 The last gains little: building each net's name from 5,000 long IDs, not comparing it, is most of what is left. A test
 checks that routes and shapes too long to file by tile are still checked.
+
+### 13. Waiting for an edit's answer
+
+A connectivity edit, like an open before section 10, drew the sheet with every wire unknown and then again with the
+engine's answer, which came within about 0.3 s on these sheets: two full draws, and the whole sheet dimmed in between.
+Now any load does what an open did: the first frame only routes, and the frames after it wait up to 150 ms for the
+answer before drawing without it. A pan in that time waits with them.
+
+Deleting one part, from the key press until the edit's state is drawn, main's build against this change and against a
+300 ms wait, alternating, five rounds, **on battery**, so slower than section 11's table:
+
+| Benchmark | Main, s | Change with 150 ms, ms | Change with 300 ms, ms | Full draws, main → 150 ms |
+|---|---:|---:|---:|---|
+| adder-10k | 2.40 | +27 | −69 | 3 → 3 |
+| counters-10k | 1.60 | −759 | −710 | 2 → 1 |
+| fanout-10k | 2.69 | −430 | −539 | 2 → 1 |
+| chain-10k | 0.63 | −170 | −143 | 2 → 1 |
+
+On `adder-10k` the answer came after the wait, so it was still drawn first without it, and that first drawing came by
+the wait's 150 ms later than before (routing, which it used to include, now runs just ahead of it). The two waits did about as well; the shorter one delays least when the answer is late.
+Opening was not changed (`adder-10k` −90 ms, `counters-10k` −13 ms, within noise). A browser test deletes a part of the
+reference CPU and fails if the sheet is drawn between that load and its first state; with main's code it failed 8 of 8
+runs.
 
 ## Earlier measurements
 

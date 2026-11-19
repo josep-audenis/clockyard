@@ -17,6 +17,22 @@ async function grid(page: Page): Promise<(x: number, y: number) => At> {
 }
 
 const click = (page: Page, at: At) => page.mouse.click(at.x, at.y);
+/** Under `?bench`: the canvas was not drawn between sending the last load and its first state, and was drawn after it. */
+async function drawnOnceWithState(page: Page) {
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const { sent, ready, draws } = await page.evaluate(() => {
+    const load = performance.getEntriesByName("clockyard:engine-load").at(-1);
+    const state = performance.getEntriesByName("clockyard:engine-ready").at(-1);
+    return {
+      sent: load?.startTime ?? NaN,
+      ready: (state?.startTime ?? NaN) + (state?.duration ?? NaN),
+      draws: performance.getEntriesByName("clockyard:draw").map((e) => e.startTime),
+    };
+  });
+  // Drawn before the state, every wire would be drawn again when it came.
+  expect(draws.filter((t) => t >= sent && t < ready)).toEqual([]);
+  expect(draws.some((t) => t >= ready)).toBe(true);
+}
 
 async function drag(page: Page, from: At, to: At) {
   await page.mouse.move(from.x, from.y);
@@ -1061,19 +1077,19 @@ test("an opened sheet is drawn once the engine's first state is in, not before i
   // Large enough that drawing it before the answer is the norm: on a small sheet the answer often beats the first frame.
   await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
   await expect(status(page)).toContainText("Settled");
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  const { sent, ready, draws } = await page.evaluate(() => {
-    const load = performance.getEntriesByName("clockyard:engine-load").at(-1);
-    const state = performance.getEntriesByName("clockyard:engine-ready").at(-1);
-    return {
-      sent: load?.startTime ?? NaN,
-      ready: (state?.startTime ?? NaN) + (state?.duration ?? NaN),
-      draws: performance.getEntriesByName("clockyard:draw").map((e) => e.startTime),
-    };
-  });
-  // Drawn before the state, every wire would be drawn again when it came.
-  expect(draws.filter((t) => t >= sent && t < ready)).toEqual([]);
-  expect(draws.some((t) => t >= ready)).toBe(true);
+  await drawnOnceWithState(page);
+});
+
+test("a connectivity edit is drawn once its state is in, not before it (ADR 0030)", async ({ page }) => {
+  await page.goto("/?bench");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+  await click(page, at(24.5, 16)); // the program ROM at (22,14)
+  await page.evaluate(() => performance.clearMeasures());
+  await page.keyboard.press("Delete");
+  await page.waitForFunction(() => performance.getEntriesByName("clockyard:engine-ready").length > 0);
+  await drawnOnceWithState(page);
 });
 
 test("every readout row reaches the browser's accessibility tree", async ({ page }) => {

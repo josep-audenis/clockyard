@@ -49,6 +49,11 @@ CanvasTextMetrics.graphemeSegmenter = withAsciiShortcut(CanvasTextMetrics.graphe
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
+/**
+ * How long, after routing, a redraw waits for the engine's answer to a load before drawing without it (ADR 0030). On
+ * 10,000-part sheets the engine answers within about 0.3 s of an edit, often sooner than routing ends.
+ */
+const ANSWER_WAIT_MS = 150;
 /** Pointer travel (px) before a press on a part counts as a drag, not a click. */
 const DRAG_THRESHOLD = 3;
 
@@ -239,22 +244,27 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   let frame = 0;
   /** Whether the next frame draws the scene again; a frame that only moves the view (a pan) does not (ADR 0030). */
   let dirty = false;
-  /** The editor's `opens` when a sheet was last routed ahead of its drawing. */
-  let routedOpen = -1;
+  /** When routing ahead of a load's answer finished, while the scene waits for that answer; -1 when none is pending. */
+  let waitingSince = -1;
   const paint = (whole: boolean) => {
     dirty ||= whole;
     frame ||= requestAnimationFrame(() => {
       frame = 0;
-      // A sheet just opened: this frame only routes, which needs no state, so the engine's first answer (long ready by
-      // then on large sheets) is let in before the sheet is drawn, once. Drawn before it, every wire was drawn twice.
-      const { opens, circuit } = useEditor.getState();
-      const opened = dirty && opens !== routedOpen;
-      // Noted on any redraw, so a sheet drawn at once (its answer already in) does not route ahead at its first edit.
-      if (dirty) routedOpen = opens;
-      if (opened && useSim.getState().stale) {
-        currentRoutes(circuit);
-        paint(true);
-        return;
+      // A load awaits its answer (a sheet opened, a connection changed): the first frame only routes, which needs no
+      // state, and later frames wait up to `ANSWER_WAIT_MS` for the answer, so the sheet is drawn once, with values.
+      // Drawn before it, every wire was drawn twice, the first time dimmed. The view waits too (a pan, for that long).
+      if (!useSim.getState().stale) waitingSince = -1;
+      else if (dirty) {
+        if (waitingSince < 0) {
+          currentRoutes(useEditor.getState().circuit);
+          waitingSince = performance.now();
+          paint(true);
+          return;
+        }
+        if (performance.now() - waitingSince < ANSWER_WAIT_MS) {
+          paint(true);
+          return;
+        }
       }
       const redraw = dirty;
       dirty = false;
