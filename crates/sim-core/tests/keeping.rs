@@ -423,6 +423,7 @@ fn records_are_kept_and_follow_their_wires_when_nets_split_or_join() {
     let mut sim2 = load("8-bit-counter");
     sim2.set_input("count", 1).unwrap();
     // Watching by net forgets the wires, so a kept load would carry no record.
+    sim2.watch_wires(&["w-q"]);
     sim2.watch(&[sim2.wire_nets()["w-q"]]).unwrap();
     assert!(keep(&counter_with_led(), &sim2).waves().is_empty());
     sim2.watch_wires(&["w-count", "w-q"]);
