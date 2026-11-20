@@ -72,6 +72,9 @@ The ticks between two frames are only ever seen inside the engine.
      ticks is the same whether the worker ticked them in one call or many,
      at any speed or frame rate. A native test asserts exactly that.
 3. **The worker and the wasm adapter.**
+   - *As built (ADR 0033):* `sim-wasm`'s `watch` takes wire IDs and
+     `recorded_nets()` lists the nets in `wave` order; the worker no longer
+     resolves nets. An edit keeps the record; an open or a Reset clears it.
    - `sim-wasm` exposes `watch(nets)` and `waves()`. `waves()` returns one
      `Float64Array` per trace, with time and value interleaved
      (`[t0, v0, t1, v1, …]`). Times are exact up to 2^53 ticks and values
@@ -198,7 +201,8 @@ The ticks between two frames are only ever seen inside the engine.
   engine records it, and the editor only draws it.
 - Every edit reloads the circuit, and a load clears the record, so editing
   during a run starts the waveform again at time 0. That follows ADR 0017,
-  where a load sets time to 0.
+  where a load sets time to 0. (Since ADR 0033 an edit keeps time and the
+  record; only an open or a Reset starts them again.)
 - At high speeds, 4,096 ticks pass in well under a second. The panel is
   for looking at a paused or slow simulation, or the last moments before a
   pause. Scrolling back further would need a larger window.

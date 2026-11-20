@@ -113,6 +113,9 @@ What the engine has today:
    - Load also starts at time 0 with every flip-flop at 0. A connectivity
      edit therefore resets sequential state. Keeping state across edits,
      matched by part ID, is left for later.
+   - *As built (ADR 0033):* an edit's load now keeps time, flip-flops,
+     memories and switches, matched by part ID; only opening something,
+     and Reset, start at 0. A load is never a clock edge.
 6. **The worker runs the clock; the engine never reads wall time.**
    - Protocol commands: `run { cyclesPerSecond }`, `pause`, `step` (one
      `step_cycle`) and `reset`. These replace the reserved `stepClock`.
