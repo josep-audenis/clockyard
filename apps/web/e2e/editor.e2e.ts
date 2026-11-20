@@ -947,8 +947,9 @@ test("two labels named go join a far switch and LED; renaming one leaves both un
   await expect(status(page)).toContainText("Settled");
 
   // A typo cuts the net, and both halves say so.
-  // Its tag, left of the dot, since the wire leaves right. The readout above can show the state a frame before the
-  // canvas redraws the tag on that side, so the click is retried until it selects the label.
+  // Its tag, left of the dot, since the wire leaves right. The canvas hit-tests tags against the boxes of the last frame
+  // drawn, and the readout above can show the state a frame before that redraw, so the click is retried until it selects
+  // the label.
   await expect(async () => {
     await click(page, at(15, 12));
     await expect(name).toHaveValue("go", { timeout: 500 });
