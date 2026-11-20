@@ -274,7 +274,8 @@ record, the others start from their current values. `watch_wires(wires)` does
 the same for the nets of chosen wires, each net once, in the order of its first
 wire, and remembers the wires: `load_keeping` watches them again and carries
 each net's record from the first watched wire on it that was recorded before
-(ADR 0033). After every settle (a switch
+(ADR 0033). `watch(nets)` forgets them, so after it a kept load carries no
+record. After every settle (a switch
 change, each tick, a reset), a watched net whose value differs from its last
 record gets `(time, value)`; a later settle at the same tick replaces that
 tick's value, so a net has one value per tick and deltas inside a settle are

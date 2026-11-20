@@ -6,7 +6,7 @@ mod common;
 use common::{description, example, load, value};
 use serde_json::{Value, json};
 use sim_core::description::{ComponentDesc, Connection, Endpoint, PortRef};
-use sim_core::{CircuitDescription, Simulator};
+use sim_core::{CircuitDescription, Code, Simulator};
 
 fn port(spec: &str) -> Endpoint {
     let (component, port) = spec.split_once('.').expect("component.port");
@@ -321,16 +321,49 @@ fn parts_moved_into_a_new_instance_start_at_zero() {
 }
 
 #[test]
-fn an_edit_with_errors_leaves_the_previous_circuit_to_carry_from() {
-    let before = counted();
-    let mut broken = counter_with_led();
-    // Two drivers on the LED's input.
-    broken
-        .connections
-        .push(wire("w-bad", "count.out", "extra.in"));
-    assert!(Simulator::load_keeping(&broken, &before).is_err());
-    let fixed = keep(&counter_with_led(), &before);
-    assert_eq!((fixed.time(), value(&fixed, "r", "q")), (10, 5));
+fn a_part_of_another_kind_under_the_same_id_starts_at_zero() {
+    // A RAM and a screen both hold cells, a keyboard and a switch both hold a value: the kind must match too.
+    let ram_and_keyboard = |m: &str, k: &str| {
+        from_json(json!({
+            "components": [
+                { "id": "d", "kind": "switch", "width": 8 }, { "id": "we", "kind": "switch" },
+                { "id": "c", "kind": "switch" }, { "id": "k", "kind": k },
+                { "id": "m", "kind": m, "width": 8, "addressWidth": 7 }
+            ],
+            "connections": [
+                { "id": "w2", "from": { "component": "d", "port": "out" }, "to": { "component": "m", "port": "din" } },
+                { "id": "w3", "from": { "component": "we", "port": "out" }, "to": { "component": "m", "port": "we" } },
+                { "id": "w4", "from": { "component": "c", "port": "out" }, "to": { "component": "m", "port": "clk" } }
+            ]
+        }))
+    };
+    let mut sim = Simulator::load(&ram_and_keyboard("ram", "keyboard"))
+        .unwrap()
+        .0;
+    sim.set_inputs(&[("d", 42), ("we", 1), ("k", 1)]).unwrap();
+    sim.set_input("c", 1).unwrap();
+    assert_eq!(sim.memory("m").unwrap()[0], 42);
+    let swapped = keep(&ram_and_keyboard("screen", "switch"), &sim);
+    assert_eq!(swapped.memory("m").unwrap()[0], 0);
+    assert_eq!(value(&swapped, "k", "out"), 0);
+    // The same kinds again carry both.
+    let same = keep(&ram_and_keyboard("ram", "keyboard"), &sim);
+    assert_eq!(same.memory("m").unwrap()[0], 42);
+    assert_eq!(value(&same, "k", "out"), 1);
+}
+
+#[test]
+fn a_load_that_does_not_settle_keeps_the_carried_state_and_is_reported() {
+    // The edit adds a NOT gate fed by its own output: it never settles.
+    let mut before = Simulator::load(&clocked(false)).unwrap().0;
+    before.set_input("s", 1).unwrap();
+    assert_eq!(value(&before, "f", "q"), 1);
+    let mut looped = clocked(false);
+    looped.components.push(part("o", "not"));
+    looped.connections.push(wire("w-o", "o.out", "o.in"));
+    let (sim, warnings) = Simulator::load_keeping(&looped, &before).unwrap();
+    assert!(warnings.iter().any(|d| d.code == Code::Unstable));
+    assert_eq!(value(&sim, "f", "q"), 1);
 }
 
 #[test]
@@ -389,6 +422,9 @@ fn records_are_kept_and_follow_their_wires_when_nets_split_or_join() {
     // `w-count`'s history, the first watched wire on it.
     let mut sim2 = load("8-bit-counter");
     sim2.set_input("count", 1).unwrap();
+    // Watching by net forgets the wires, so a kept load would carry no record.
+    sim2.watch(&[sim2.wire_nets()["w-q"]]).unwrap();
+    assert!(keep(&counter_with_led(), &sim2).waves().is_empty());
     sim2.watch_wires(&["w-count", "w-q"]);
     sim2.tick(6);
     let count_history = sim2.waves()[0].clone();

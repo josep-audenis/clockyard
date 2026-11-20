@@ -611,7 +611,8 @@ targets, as in Phase 5.
       record of a net still watched. Checked natively, the reference CPU
       included; not used by the editor yet.
    2. ⬜ `sim-wasm` and the worker: `keep` on `load`, the last compiled
-      circuit kept through errors, watching by wire.
+      circuit kept through errors (tested in `sim-wasm`), watching by wire
+      only.
    3. ⬜ Editor: `keep` from the opens counter, the record and epoch kept.
    4. ⬜ Opening fits a large circuit; the readout lists the clock and
       registers.

@@ -653,10 +653,13 @@ impl Simulator {
                 // A switch whose width changed keeps the bits that still fit, as the editor does (ADR 0014).
                 (Op::Switch, Op::Switch) => prim.state = old.state & prim.mask,
                 (Op::Dff { .. }, Op::Dff { .. }) if old.mask == prim.mask => prim.state = old.state,
-                (Op::Ram { cells, .. }, Op::Ram { cells: was, .. })
-                    if old.mask == prim.mask && cells.len() == was.len() =>
-                {
-                    cells.clone_from(was)
+                (
+                    Op::Ram { cells, .. },
+                    Op::Ram {
+                        cells: old_cells, ..
+                    },
+                ) if old.mask == prim.mask && cells.len() == old_cells.len() => {
+                    cells.clone_from(old_cells)
                 }
                 _ => {}
             }
@@ -836,7 +839,8 @@ impl Simulator {
                 }
                 *clk_was = clk;
             }
-            // A RAM writes `din` at `addr` when `we` was set, all three as the settle started (ADR 0018).
+            // A RAM writes `din` at `addr` when `we` was set, all three as the settle started (ADR 0018). At a load
+            // `we` reads 0 anyway (nothing feeding a RAM is pre-settled); `sampling` keeps that true if presettle changes.
             Op::Ram { cells, clk_was } => {
                 let clk = self.nets[prim.inputs[3] as usize] == 1;
                 if sampling
@@ -972,7 +976,8 @@ impl Simulator {
 
     /// Records `nets`, in this order: a net already watched keeps its record,
     /// the others start from their current values (ADRs 0026, 0033). Refuses
-    /// a net that does not exist.
+    /// a net that does not exist. Forgets the wires `watch_wires` was given,
+    /// so a later `load_keeping` carries no record.
     pub fn watch(&mut self, nets: &[u32]) -> Result<(), String> {
         if let Some(net) = nets.iter().find(|&&n| n as usize >= self.nets.len()) {
             return Err(format!("there is no net {net}"));
