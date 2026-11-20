@@ -605,6 +605,18 @@ targets, as in Phase 5.
 3. ⬜ Editing a running circuit (ADR 0033, accepted): an edit keeps
    flip-flops, memories, time and the waveform record; a file opens fitted
    to its circuit.
+   1. ✅ Engine: `Simulator::load_keeping` carries time, switches,
+      keyboards, flip-flops, RAMs and screens matched by elaborated ID, and
+      the watched wires' records; a load never clocks; `watch` keeps the
+      record of a net still watched. Checked natively, the reference CPU
+      included; not used by the editor yet.
+   2. ⬜ `sim-wasm` and the worker: `keep` on `load`, the last compiled
+      circuit kept through errors (tested in `sim-wasm`), watching by wire
+      only.
+   3. ⬜ Editor: `keep` from the opens counter, the record and epoch kept.
+   4. ⬜ Opening fits a large circuit; the readout lists the clock and
+      registers.
+   5. ⬜ The target's browser tests and the remaining docs.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
 5. ⬜ Four-state signals: `X`, `Z`, a multiple-driver rule, a tri-state
    buffer.

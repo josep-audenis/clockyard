@@ -61,6 +61,10 @@ The ticks between two frames are only ever seen inside the engine.
      force when that window starts. Older changes are dropped. A net's
      record is then at most 4,097 entries, whatever the run length.
    - A load or a reset clears the record, since time goes back to 0.
+   - *As built (ADR 0033, engine):* `watch` now keeps the record of a net
+     that stays watched, so watching one more wire no longer clears the
+     others. `watch_wires` watches by wire ID, and `load_keeping` carries
+     the records across an edit; the worker does not use either yet.
    - `Simulator::waves()` returns each watched net's changes in time order.
    - Recording happens per tick inside `tick`, so the record after `n`
      ticks is the same whether the worker ticked them in one call or many,

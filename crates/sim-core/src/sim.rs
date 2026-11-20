@@ -46,6 +46,10 @@ pub struct Simulator {
     snapshot: Vec<u32>,
     /// The watched nets and their recorded changes (ADR 0026).
     traces: Vec<Trace>,
+    /// The watched wires, as `watch_wires` was given them; a load that keeps state watches them again (ADR 0033).
+    watched: Vec<String>,
+    /// Whether a rising clock makes flip-flops and RAMs sample; never during a load's settle (ADR 0033).
+    sampling: bool,
 }
 
 /// A watched net's changes as `(time, value)`, oldest first: at most one per
@@ -185,7 +189,23 @@ impl Simulator {
     ) -> Result<(Simulator, Vec<Diagnostic>), Vec<Diagnostic>> {
         // Custom components are flattened first (ADR 0012); diagnostics name top-level IDs.
         let flat = elaborate(description)?;
-        match Self::compile(&flat) {
+        match Self::compile(&flat, None) {
+            Ok((sim, warnings)) => Ok((sim, lift(warnings))),
+            Err(errors) => Err(lift(errors)),
+        }
+    }
+
+    /// Loads `description` as [`Simulator::load`] does, carrying state from
+    /// `previous`, the circuit simulated before an edit (ADR 0033): time, and
+    /// each switch, keyboard, flip-flop, RAM and screen whose elaborated ID
+    /// names a part of the same kind and size in both, and the record of
+    /// every watched wire still in the circuit. Everything else starts at 0.
+    pub fn load_keeping(
+        description: &CircuitDescription,
+        previous: &Simulator,
+    ) -> Result<(Simulator, Vec<Diagnostic>), Vec<Diagnostic>> {
+        let flat = elaborate(description)?;
+        match Self::compile(&flat, Some(previous)) {
             Ok((sim, warnings)) => Ok((sim, lift(warnings))),
             Err(errors) => Err(lift(errors)),
         }
@@ -193,6 +213,7 @@ impl Simulator {
 
     fn compile(
         description: &CircuitDescription,
+        previous: Option<&Simulator>,
     ) -> Result<(Simulator, Vec<Diagnostic>), Vec<Diagnostic>> {
         let mut errors = Vec::new();
 
@@ -589,10 +610,81 @@ impl Simulator {
             stateful,
             snapshot: Vec::new(),
             traces: Vec::new(),
+            watched: Vec::new(),
+            sampling: false,
         };
+        if let Some(previous) = previous {
+            sim.carry(previous);
+        }
+        // A load is never a clock edge: each flip-flop and RAM takes its clock's settled value as the one it last saw.
         sim.presettle();
         warnings.extend(sim.settle((0..count).collect()));
+        sim.sampling = true;
         Ok((sim, warnings))
+    }
+
+    /// Takes time, the state of every part matched in `previous`, and the
+    /// watched wires' records, before the first settle (ADR 0033).
+    fn carry(&mut self, previous: &Simulator) {
+        self.time = previous.time;
+        let level = (self.time % 2) as u32;
+        // A part's first primitive; a part that holds state compiles to exactly one.
+        let mut first = vec![usize::MAX; previous.ids.len()];
+        for (p, prim) in previous.prims.iter().enumerate().rev() {
+            first[prim.part as usize] = p;
+        }
+        for p in 0..self.prims.len() {
+            let c = self.prims[p].part as usize;
+            if matches!(self.prims[p].op, Op::Clock) {
+                self.prims[p].state = level;
+                continue;
+            }
+            let Ok(was) = previous.ids.binary_search(&self.ids[c]) else {
+                continue;
+            };
+            let Some(old) = previous.prims.get(first[was]) else {
+                continue;
+            };
+            if previous.kinds[was] != self.kinds[c] {
+                continue;
+            }
+            let prim = &mut self.prims[p];
+            match (&mut prim.op, &old.op) {
+                // A switch whose width changed keeps the bits that still fit, as the editor does (ADR 0014).
+                (Op::Switch, Op::Switch) => prim.state = old.state & prim.mask,
+                (Op::Dff { .. }, Op::Dff { .. }) if old.mask == prim.mask => prim.state = old.state,
+                (
+                    Op::Ram { cells, .. },
+                    Op::Ram {
+                        cells: old_cells, ..
+                    },
+                ) if old.mask == prim.mask && cells.len() == old_cells.len() => {
+                    cells.clone_from(old_cells)
+                }
+                _ => {}
+            }
+        }
+        // Each net takes the record of the first watched wire on it that was recorded before: the halves of a split
+        // net share its history, and joined wires show the first one's.
+        self.watched.clone_from(&previous.watched);
+        let recorded = |wire: &String| {
+            let net = previous.wire_nets.get(wire)?;
+            previous.traces.iter().find(|t| t.net == *net)
+        };
+        self.traces = self
+            .watched_nets()
+            .into_iter()
+            .map(|net| Trace {
+                net,
+                changes: self
+                    .watched
+                    .iter()
+                    .filter(|w| self.wire_nets.get(*w) == Some(&net))
+                    .find_map(recorded)
+                    .map(|t| t.changes.clone())
+                    .unwrap_or_default(),
+            })
+            .collect();
     }
 
     /// Before the first settle, gives every primitive that cannot reach a
@@ -736,20 +828,23 @@ impl Simulator {
     /// A flip-flop that sees `clk` at 1 after a 0 takes `d` from the net values
     /// the settle started from, never from this edge's new data (ADR 0017).
     fn clock_edge(&mut self, p: usize) {
+        let sampling = self.sampling;
         let prim = &mut self.prims[p];
         let before = |slot: usize| self.snapshot[prim.inputs[slot] as usize];
         match &mut prim.op {
             Op::Dff { clk_was } => {
                 let clk = self.nets[prim.inputs[1] as usize] == 1;
-                if clk && !*clk_was {
+                if sampling && clk && !*clk_was {
                     prim.state = before(0) & prim.mask;
                 }
                 *clk_was = clk;
             }
-            // A RAM writes `din` at `addr` when `we` was set, all three as the settle started (ADR 0018).
+            // A RAM writes `din` at `addr` when `we` was set, all three as the settle started (ADR 0018). At a load
+            // `we` reads 0 anyway (nothing feeding a RAM is pre-settled); `sampling` keeps that true if presettle changes.
             Op::Ram { cells, clk_was } => {
                 let clk = self.nets[prim.inputs[3] as usize] == 1;
-                if clk
+                if sampling
+                    && clk
                     && !*clk_was
                     && before(2) == 1
                     && let Some(cell) = cells.get_mut(before(0) as usize)
@@ -879,21 +974,54 @@ impl Simulator {
         self.settle(all).map(lift_one)
     }
 
-    /// Records `nets`, in this order, from their current values on; any
-    /// earlier record is dropped (ADR 0026). Refuses a net that does not exist.
+    /// Records `nets`, in this order: a net already watched keeps its record,
+    /// the others start from their current values (ADRs 0026, 0033). Refuses
+    /// a net that does not exist. Forgets the wires `watch_wires` was given,
+    /// so a later `load_keeping` carries no record.
     pub fn watch(&mut self, nets: &[u32]) -> Result<(), String> {
         if let Some(net) = nets.iter().find(|&&n| n as usize >= self.nets.len()) {
             return Err(format!("there is no net {net}"));
         }
+        self.watched.clear();
+        self.retrace(nets);
+        Ok(())
+    }
+
+    /// Records the nets of `wires`, each net once, in the order of its first
+    /// wire, as [`Simulator::watch`] does. A wire not in this circuit records
+    /// nothing, but stays watched for the loads that keep state (ADR 0033).
+    pub fn watch_wires(&mut self, wires: &[&str]) {
+        self.watched = wires.iter().map(|w| w.to_string()).collect();
+        let nets = self.watched_nets();
+        self.retrace(&nets);
+    }
+
+    /// The nets of the watched wires in this circuit, each once, in the order of its first wire.
+    fn watched_nets(&self) -> Vec<u32> {
+        let mut nets = Vec::new();
+        for net in self.watched.iter().filter_map(|w| self.wire_nets.get(w)) {
+            if !nets.contains(net) {
+                nets.push(*net);
+            }
+        }
+        nets
+    }
+
+    /// Watches `nets`, keeping the record of each one already watched.
+    fn retrace(&mut self, nets: &[u32]) {
+        let mut old = std::mem::take(&mut self.traces);
         self.traces = nets
             .iter()
             .map(|&net| Trace {
                 net,
-                changes: VecDeque::new(),
+                changes: old
+                    .iter_mut()
+                    .find(|t| t.net == net)
+                    .map(|t| std::mem::take(&mut t.changes))
+                    .unwrap_or_default(),
             })
             .collect();
         self.record();
-        Ok(())
     }
 
     /// Each watched net's changes as `(time, value)`, oldest first, in the
