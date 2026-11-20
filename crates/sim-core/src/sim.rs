@@ -996,6 +996,11 @@ impl Simulator {
         self.retrace(&nets);
     }
 
+    /// The nets recorded, in the order `waves` lists them.
+    pub fn recorded_nets(&self) -> Vec<u32> {
+        self.traces.iter().map(|t| t.net).collect()
+    }
+
     /// The nets of the watched wires in this circuit, each once, in the order of its first wire.
     fn watched_nets(&self) -> Vec<u32> {
         let mut nets = Vec::new();

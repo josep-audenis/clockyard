@@ -30,7 +30,7 @@ const andDemo: CircuitDescription = {
 
 test("engine settles switches → AND → LED through the boundary", () => {
   const engine = new Engine();
-  const loaded = JSON.parse(engine.load(JSON.stringify(andDemo))) as Loaded;
+  const loaded = JSON.parse(engine.load(JSON.stringify(andDemo), false)) as Loaded;
   expect(loaded.diagnostics).toEqual([]);
   const led = loaded.portNets.l?.in ?? -1;
   const outputs = [
@@ -57,7 +57,7 @@ test("an unstable initial settle is reported apart from validation, so a later s
     ],
     connections: [wire("w1", "s.out", "o.a"), wire("w2", "o.out", "o.b")],
   };
-  const loaded = JSON.parse(engine.load(JSON.stringify(loop))) as Loaded & { runtime: Diagnostic[] };
+  const loaded = JSON.parse(engine.load(JSON.stringify(loop), false)) as Loaded & { runtime: Diagnostic[] };
   expect(loaded.diagnostics).toEqual([]);
   expect(loaded.runtime.map((d) => d.code)).toEqual(["unstable"]);
   expect(JSON.parse(engine.set_input("s", 1))).toEqual([]);
@@ -66,7 +66,7 @@ test("an unstable initial settle is reported apart from validation, so a later s
 test("validation errors come back as diagnostics, not exceptions", () => {
   const engine = new Engine();
   const bad = { components: [{ id: "x", kind: "flux" }], connections: [] };
-  const loaded = JSON.parse(engine.load(JSON.stringify(bad))) as Loaded;
+  const loaded = JSON.parse(engine.load(JSON.stringify(bad), false)) as Loaded;
   expect(loaded.netCount).toBe(0);
   expect(loaded.diagnostics.map((d: Diagnostic) => [d.severity, d.code, d.ids])).toEqual([["error", "unknownKind", ["x"]]]);
   expect(() => engine.set_input("x", 1)).toThrow("no circuit loaded");
@@ -82,7 +82,7 @@ test("bus values cross as a Uint32Array; switch values are checked, never wrappe
     ],
     connections: [wire("w1", "s.out", "n.in")],
   };
-  const loaded = JSON.parse(engine.load(JSON.stringify(bus))) as Loaded;
+  const loaded = JSON.parse(engine.load(JSON.stringify(bus), false)) as Loaded;
   expect(loaded.diagnostics).toEqual([]);
   const notOut = () => engine.nets()[loaded.portNets.n?.out ?? -1];
   engine.set_input("s", 0);
@@ -109,7 +109,7 @@ test("every wire reports its net's width, an undriven bus included", () => {
       { id: "w2", from: { junction: "k" }, to: { junction: "m" } },
     ],
   };
-  const loaded = JSON.parse(engine.load(JSON.stringify(circuit))) as Loaded;
+  const loaded = JSON.parse(engine.load(JSON.stringify(circuit), false)) as Loaded;
   expect(loaded.wireNets.w1).toBe(0);
   expect(loaded.wireWidths).toEqual({ w1: 8, w2: 1 });
   expect(loaded.netDrivers).toEqual([null, "g"]);
@@ -128,8 +128,8 @@ test("the catalog marks sized kinds and gives split and merge their field-port r
 
 test("a description that does not parse is an error and leaves no circuit loaded, not the one before", () => {
   const engine = new Engine();
-  engine.load(JSON.stringify({ components: [{ id: "s", kind: "switch" }], connections: [] }));
-  expect(() => engine.load("{ not json")).toThrow();
+  engine.load(JSON.stringify({ components: [{ id: "s", kind: "switch" }], connections: [] }), false);
+  expect(() => engine.load("{ not json", true)).toThrow();
   expect(engine.nets()).toHaveLength(0);
   expect(() => engine.set_input("s", 1)).toThrow("no circuit loaded");
 });
@@ -147,7 +147,7 @@ test("ticks, cycles and reset cross the boundary; switches set together settle o
       { id: "w2", from: { component: "k", port: "out" }, to: { component: "f", port: "clk" } },
     ],
   };
-  const loaded = JSON.parse(engine.load(JSON.stringify(circuit))) as Loaded;
+  const loaded = JSON.parse(engine.load(JSON.stringify(circuit), false)) as Loaded;
   const q = () => engine.nets()[loaded.portNets.f?.q ?? -1];
   expect(JSON.parse(engine.set_inputs(JSON.stringify({ d: 1 })))).toEqual([]);
   expect(JSON.parse(engine.step_cycle())).toEqual([]);
@@ -176,7 +176,7 @@ test("a memory's words cross the boundary; anything else has none (ADR 0018)", (
     ],
     connections: [],
   };
-  engine.load(JSON.stringify(circuit));
+  engine.load(JSON.stringify(circuit), false);
   expect(engine.memory("r", 256)).toEqual(new Uint32Array([1, 2, 0, 0]));
   expect(engine.memory("r", 2)).toEqual(new Uint32Array([1, 2])); // only the words asked for cross
   expect(engine.memory("g", 256)).toBeUndefined();
@@ -213,7 +213,7 @@ test("run until an LED lights stops at that tick, through the boundary (ADR 0019
       { id: "w4", from: { component: "f", port: "q" }, to: { component: "l", port: "in" } },
     ],
   };
-  engine.load(JSON.stringify(circuit));
+  engine.load(JSON.stringify(circuit), false);
   expect(JSON.parse(engine.tick_until(100, "l"))).toEqual({ ticks: 1, rose: true, diagnostics: [] });
   // Lit now: it must go dark (third tick) and light again (fifth).
   expect(JSON.parse(engine.tick_until(100, "l"))).toEqual({ ticks: 4, rose: true, diagnostics: [] });
@@ -263,17 +263,27 @@ test("a challenge is checked through the boundary: passed, the first failing ste
   expect(() => check("{}", JSON.stringify(challenge))).toThrow("invalid circuit description");
 });
 
-test("a watched net's record crosses as interleaved times and values; an unknown net is refused (ADR 0026)", () => {
+test("watched wires' records cross as interleaved times and values, by net; an unknown wire records nothing (ADR 0026)", () => {
   const engine = new Engine();
-  const loaded = JSON.parse(engine.load(JSON.stringify(andDemo))) as Loaded;
-  const out = loaded.wireNets.w3 ?? -1;
-  const a = loaded.wireNets.w1 ?? -1;
-  engine.watch(Uint32Array.from([out, a]));
+  const loaded = JSON.parse(engine.load(JSON.stringify(andDemo), false)) as Loaded;
+  engine.watch(["w3", "w1", "missing"]);
+  expect(Array.from(engine.recorded_nets())).toEqual([loaded.wireNets.w3, loaded.wireNets.w1]);
   engine.set_inputs(JSON.stringify({ a: 1, b: 1 }));
   engine.tick(3);
   engine.set_inputs(JSON.stringify({ b: 0 }));
   expect(Array.from(engine.wave(0) ?? [])).toEqual([0, 1, 3, 0]);
   expect(Array.from(engine.wave(1) ?? [])).toEqual([0, 1]);
   expect(engine.wave(2)).toBeUndefined();
-  expect(() => engine.watch([loaded.netCount])).toThrow(`there is no net ${loaded.netCount}`);
+});
+
+test("an edit's load keeps time and state across the boundary; an open's does not (ADR 0033)", () => {
+  const engine = new Engine();
+  engine.load(JSON.stringify(andDemo), false);
+  engine.set_inputs(JSON.stringify({ a: 1, b: 1 }));
+  engine.tick(3);
+  engine.load(JSON.stringify(andDemo), true);
+  expect(engine.time()).toBe(3);
+  expect(Array.from(engine.nets())).toContain(1);
+  engine.load(JSON.stringify(andDemo), false);
+  expect(engine.time()).toBe(0);
 });

@@ -147,6 +147,8 @@ fn whole(value: f64) -> Result<u32, JsError> {
 #[derive(Default)]
 pub struct Engine {
     sim: Option<Simulator>,
+    /// The last circuit that compiled, while an edit has errors: the edit's fix carries its state (ADR 0033).
+    kept: Option<Simulator>,
 }
 
 #[wasm_bindgen]
@@ -160,13 +162,28 @@ impl Engine {
     /// `{ netCount, wireNets, wireWidths, portNets, netDrivers, diagnostics, runtime }` as JSON;
     /// on validation errors the maps are empty and no circuit is loaded. A
     /// description that does not parse is an error, and also leaves none loaded.
-    pub fn load(&mut self, description: &str) -> Result<String, JsError> {
-        self.sim = None;
+    ///
+    /// With `keep` (an edit, ADR 0033), state is carried from the circuit loaded before, or from the last one that
+    /// compiled if that edit had errors; on validation errors this one keeps it for the next. Without `keep` (an open),
+    /// nothing is carried or kept. A description that does not parse drops any kept circuit too.
+    pub fn load(&mut self, description: &str, keep: bool) -> Result<String, JsError> {
+        let previous = self
+            .sim
+            .take()
+            .or_else(|| self.kept.take())
+            .filter(|_| keep);
         let description: CircuitDescription = serde_json::from_str(description)?;
         let empty = (BTreeMap::new(), PortNets::new());
-        let (sim, diagnostics) = match Simulator::load(&description) {
+        let loaded = match &previous {
+            Some(previous) => Simulator::load_keeping(&description, previous),
+            None => Simulator::load(&description),
+        };
+        let (sim, diagnostics) = match loaded {
             Ok((sim, warnings)) => (Some(sim), warnings),
-            Err(errors) => (None, errors),
+            Err(errors) => {
+                self.kept = previous;
+                (None, errors)
+            }
         };
         self.sim = sim;
         let (runtime, diagnostics): (Vec<_>, Vec<_>) = diagnostics
@@ -251,11 +268,14 @@ impl Engine {
         ))?)
     }
 
-    /// Flip-flops, the clock and time back to 0; switch values are kept.
+    /// Flip-flops, the clock and time back to 0; switch values are kept. While an edit has errors, drops the
+    /// circuit kept for its fix, so the fix starts clean (ADR 0033).
     pub fn reset(&mut self) -> Result<String, JsError> {
-        Ok(serde_json::to_string(&Vec::from_iter(
-            self.loaded()?.reset(),
-        ))?)
+        let Some(sim) = self.sim.as_mut() else {
+            self.kept = None;
+            return Ok("[]".to_string());
+        };
+        Ok(serde_json::to_string(&Vec::from_iter(sim.reset()))?)
     }
 
     /// The first `count` words of ROM or RAM `component` (elaborated ID, `instance/ram` inside an
@@ -265,9 +285,19 @@ impl Engine {
         Some(words[..words.len().min(count as usize)].to_vec())
     }
 
-    /// Records nets `nets` from now on, dropping any earlier record (ADR 0026).
-    pub fn watch(&mut self, nets: Vec<u32>) -> Result<(), JsError> {
-        self.loaded()?.watch(&nets).map_err(|e| JsError::new(&e))
+    /// Records the nets of `wires`, each once; a net already recorded keeps its record, and a load with `keep`
+    /// carries them (ADRs 0026, 0033). Wires not in the circuit record nothing.
+    pub fn watch(&mut self, wires: Vec<String>) -> Result<(), JsError> {
+        let wires: Vec<&str> = wires.iter().map(String::as_str).collect();
+        self.loaded()?.watch_wires(&wires);
+        Ok(())
+    }
+
+    /// The nets recorded, in the order `wave` indexes them; empty when nothing is loaded.
+    pub fn recorded_nets(&self) -> Vec<u32> {
+        self.sim
+            .as_ref()
+            .map_or_else(Vec::new, Simulator::recorded_nets)
     }
 
     /// The `index`th watched net's changes as `[t0, v0, t1, v1, …]`, oldest first; times are exact
@@ -281,9 +311,13 @@ impl Engine {
         )
     }
 
-    /// Virtual time in ticks (exact as a JS number up to 2^53), 0 when nothing is loaded.
+    /// Virtual time in ticks (exact as a JS number up to 2^53): while an edit has errors, the kept circuit's;
+    /// 0 when nothing is loaded or kept.
     pub fn time(&self) -> f64 {
-        self.sim.as_ref().map_or(0.0, |sim| sim.time() as f64)
+        self.sim
+            .as_ref()
+            .or(self.kept.as_ref())
+            .map_or(0.0, |sim| sim.time() as f64)
     }
 
     fn loaded(&mut self) -> Result<&mut Simulator, JsError> {
@@ -298,5 +332,111 @@ impl Engine {
         self.sim
             .as_ref()
             .map_or_else(Vec::new, |sim| sim.nets().to_vec())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A flip-flop `t` that toggles on every rising edge of clock `k`, with an LED on `t` when `led`; with `broken`,
+    /// a second driver on that LED's input.
+    fn toggle(led: bool, broken: bool) -> String {
+        let mut components = vec![
+            serde_json::json!({ "id": "k", "kind": "clock" }),
+            serde_json::json!({ "id": "n", "kind": "not" }),
+            serde_json::json!({ "id": "t", "kind": "dff" }),
+        ];
+        let port = |c: &str, p: &str| serde_json::json!({ "component": c, "port": p });
+        let mut connections = vec![
+            serde_json::json!({ "id": "w1", "from": port("t", "q"), "to": port("n", "in") }),
+            serde_json::json!({ "id": "w2", "from": port("n", "out"), "to": port("t", "d") }),
+            serde_json::json!({ "id": "w3", "from": port("k", "out"), "to": port("t", "clk") }),
+        ];
+        if led {
+            components.push(serde_json::json!({ "id": "l", "kind": "led" }));
+            connections.push(
+                serde_json::json!({ "id": "w4", "from": port("t", "q"), "to": port("l", "in") }),
+            );
+        }
+        if broken {
+            connections.push(
+                serde_json::json!({ "id": "w5", "from": port("n", "out"), "to": port("l", "in") }),
+            );
+        }
+        serde_json::json!({ "components": components, "connections": connections }).to_string()
+    }
+
+    fn q(engine: &Engine) -> u32 {
+        let sim = engine.sim.as_ref().expect("loaded");
+        sim.nets()[sim.port_nets()["t"]["q"] as usize]
+    }
+
+    #[test]
+    fn an_edit_with_errors_keeps_the_last_circuit_and_its_fix_carries_it() {
+        let mut engine = Engine::new();
+        engine.load(&toggle(false, false), false).unwrap();
+        engine.tick(1).unwrap();
+        assert_eq!((engine.time(), q(&engine)), (1.0, 1));
+
+        // The edit has errors: nothing is loaded or shown, time stands still.
+        engine.load(&toggle(true, true), true).unwrap();
+        assert!(engine.sim.is_none());
+        assert!(engine.nets().is_empty());
+        assert_eq!(engine.time(), 1.0);
+        // A second edit with errors still keeps it.
+        engine.load(&toggle(true, true), true).unwrap();
+        assert_eq!(engine.time(), 1.0);
+
+        // The fix carries the state from before the errors: the flip-flop's 1, not a fresh 0.
+        engine.load(&toggle(true, false), true).unwrap();
+        assert_eq!((engine.time(), q(&engine)), (1.0, 1));
+        engine.tick(2).unwrap();
+        assert_eq!(q(&engine), 0);
+    }
+
+    #[test]
+    fn an_open_or_a_reset_during_errors_starts_clean() {
+        let mut engine = Engine::new();
+        engine.load(&toggle(false, false), false).unwrap();
+        engine.tick(5).unwrap();
+        engine.load(&toggle(true, true), true).unwrap();
+        // Reset while the edit has errors drops what was kept.
+        assert_eq!(engine.reset().unwrap(), "[]");
+        assert_eq!(engine.time(), 0.0);
+        engine.load(&toggle(true, false), true).unwrap();
+        assert_eq!(engine.time(), 0.0);
+
+        // An open carries nothing, from a loaded circuit or a kept one.
+        engine.tick(5).unwrap();
+        engine.load(&toggle(true, false), false).unwrap();
+        assert_eq!(engine.time(), 0.0);
+        engine.tick(5).unwrap();
+        engine.load(&toggle(true, true), true).unwrap();
+        engine.load(&toggle(true, false), false).unwrap();
+        assert_eq!(engine.time(), 0.0);
+    }
+
+    #[test]
+    fn watched_wires_are_recorded_by_net_and_carried_by_an_edit() {
+        let mut engine = Engine::new();
+        engine.load(&toggle(false, false), false).unwrap();
+        engine
+            .watch(vec![
+                "w1".to_string(),
+                "w3".to_string(),
+                "missing".to_string(),
+            ])
+            .unwrap();
+        let nets = engine.recorded_nets();
+        assert_eq!(nets.len(), 2);
+        engine.tick(4).unwrap();
+        let before = engine.wave(0).unwrap();
+        engine.load(&toggle(true, false), true).unwrap();
+        // The worker watches again after every load; the records stay.
+        engine
+            .watch(vec!["w1".to_string(), "w3".to_string()])
+            .unwrap();
+        assert_eq!(engine.wave(0).unwrap(), before);
     }
 }

@@ -36,12 +36,11 @@ let ports: Record<string, unknown> = {};
 /** The wires to record (ADR 0026), and the loaded circuit's nets of them, each once, as the engine records them. */
 let watching: string[] = [];
 let watchedNets: number[] = [];
-let wireNets: Record<string, number> = {};
 
-/** Starts the engine's record of the watched wires' nets, as they are in the circuit loaded now. */
+/** Records the watched wires' nets, as they are in the circuit loaded now; a net still watched keeps its record. */
 const watch = () => {
-  watchedNets = [...new Set(watching.flatMap((wire) => wireNets[wire] ?? []))];
-  if (engine && hasCircuit) engine.watch(Uint32Array.from(watchedNets));
+  if (engine && hasCircuit) engine.watch(watching);
+  watchedNets = hasCircuit && engine ? Array.from(engine.recorded_nets()) : [];
 };
 
 /** The last settle's runtime diagnostics, sent again by run and pause so they do not clear an unstable report. */
@@ -125,16 +124,15 @@ onmessage = async (event: MessageEvent<Command>) => {
     switch (command.type) {
       case "load": {
         // The initial settle's result goes with the state, so the next settle (e.g. restored switch positions) replaces it.
-        // A run keeps running, from time 0 (ADR 0017).
+        // A run keeps running: from time 0 after an open, from the kept time after an edit (ADRs 0017, 0033).
         hasCircuit = false;
-        wireNets = {};
-        const { runtime, ...loaded } = JSON.parse(engine.load(JSON.stringify(command.circuit)));
+        watchedNets = [];
+        const { runtime, ...loaded } = JSON.parse(engine.load(JSON.stringify(command.circuit), command.keep ?? false));
         hasCircuit = loaded.netCount > 0;
         reply({ type: "loaded", ...loaded });
         answered = true;
         ports = loaded.portNets;
-        // Recorded from the load's own time 0, before any slice can tick.
-        wireNets = loaded.wireNets;
+        // Recorded from the load's own time, before any slice can tick.
         watch();
         state(runtime);
         // The editor sends the switch values next: no slice may tick between the two (ADR 0017 item 4).
@@ -170,7 +168,8 @@ onmessage = async (event: MessageEvent<Command>) => {
         break;
       case "reset":
         pause();
-        state(hasCircuit ? JSON.parse(engine.reset()) : []);
+        // With no circuit (an edit's errors), the engine drops the one it kept, so the fix starts clean (ADR 0033).
+        state(JSON.parse(engine.reset()));
         break;
       case "watch":
         watching = command.wires;
