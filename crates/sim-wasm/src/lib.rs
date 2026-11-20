@@ -164,8 +164,8 @@ impl Engine {
     /// description that does not parse is an error, and also leaves none loaded.
     ///
     /// With `keep` (an edit, ADR 0033), state is carried from the circuit loaded before, or from the last one that
-    /// compiled if that edit had errors; on errors this one keeps it for the next. Without `keep` (an open), nothing
-    /// is carried or kept.
+    /// compiled if that edit had errors; on validation errors this one keeps it for the next. Without `keep` (an open),
+    /// nothing is carried or kept. A description that does not parse drops any kept circuit too.
     pub fn load(&mut self, description: &str, keep: bool) -> Result<String, JsError> {
         let previous = self
             .sim
@@ -376,22 +376,23 @@ mod tests {
     fn an_edit_with_errors_keeps_the_last_circuit_and_its_fix_carries_it() {
         let mut engine = Engine::new();
         engine.load(&toggle(false, false), false).unwrap();
-        engine.tick(3).unwrap();
-        assert_eq!((engine.time(), q(&engine)), (3.0, 0));
+        engine.tick(1).unwrap();
+        assert_eq!((engine.time(), q(&engine)), (1.0, 1));
 
-        // The edit has errors: nothing is loaded, time stands still.
+        // The edit has errors: nothing is loaded or shown, time stands still.
         engine.load(&toggle(true, true), true).unwrap();
         assert!(engine.sim.is_none());
-        assert_eq!(engine.time(), 3.0);
+        assert!(engine.nets().is_empty());
+        assert_eq!(engine.time(), 1.0);
         // A second edit with errors still keeps it.
         engine.load(&toggle(true, true), true).unwrap();
-        assert_eq!(engine.time(), 3.0);
+        assert_eq!(engine.time(), 1.0);
 
-        // The fix carries the state from before the errors.
+        // The fix carries the state from before the errors: the flip-flop's 1, not a fresh 0.
         engine.load(&toggle(true, false), true).unwrap();
-        assert_eq!((engine.time(), q(&engine)), (3.0, 0));
+        assert_eq!((engine.time(), q(&engine)), (1.0, 1));
         engine.tick(2).unwrap();
-        assert_eq!(q(&engine), 1);
+        assert_eq!(q(&engine), 0);
     }
 
     #[test]

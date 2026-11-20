@@ -126,6 +126,7 @@ onmessage = async (event: MessageEvent<Command>) => {
         // The initial settle's result goes with the state, so the next settle (e.g. restored switch positions) replaces it.
         // A run keeps running: from time 0 after an open, from the kept time after an edit (ADRs 0017, 0033).
         hasCircuit = false;
+        watchedNets = [];
         const { runtime, ...loaded } = JSON.parse(engine.load(JSON.stringify(command.circuit), command.keep ?? false));
         hasCircuit = loaded.netCount > 0;
         reply({ type: "loaded", ...loaded });
