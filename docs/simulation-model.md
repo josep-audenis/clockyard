@@ -263,9 +263,11 @@ an edit (ADR 0033): time (the clock takes the level it gives), and each switch,
 keyboard, flip-flop, RAM and screen whose elaborated ID names a part of the same
 kind and size in both. A switch whose width changed keeps the bits that still
 fit; anything else new or changed starts at 0, and nets still settle from 0, so
-a latch built from gates is not kept. The editor still sends every edit as a
-plain load, so today a connectivity edit starts at time 0. A run under way keeps
-running. Stepping a single delta is planned.
+a latch built from gates is not kept. The editor sends a connectivity edit
+(undo and redo too) as such a load, so the circuit keeps running from where it
+was; opening a file, example, project, link or sheet is a plain load from time
+0, and Reset is the way back to 0. A run under way keeps running. Stepping a
+single delta is planned.
 
 ### Waveforms
 

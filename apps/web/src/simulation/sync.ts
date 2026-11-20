@@ -173,8 +173,10 @@ export function connectEngine(): () => void {
     holding = false;
     applyState();
   };
-  // The load the shown state belongs to: a state of another load starts a new epoch, whatever its time.
+  // The load the shown state belongs to, and the latest open's load: a state past an open starts a new epoch, whatever
+  // its time; an edit's load keeps time, so it does not (ADR 0033).
   let shownLoads = -1;
+  let openLoads = -1;
   /**
    * Applies the latest state only. States come about every 16 ms while running; when the page takes longer than that
    * to show one (a large circuit), the ones waiting behind it are skipped, not applied one by one, so the page keeps
@@ -203,7 +205,7 @@ export function connectEngine(): () => void {
       stale: false,
       status: "ready",
       error: null,
-      epoch: state.rewound || time < before || state.loads !== shownLoads ? epoch + 1 : epoch,
+      epoch: state.rewound || time < before || openLoads > shownLoads ? epoch + 1 : epoch,
     }));
     shownLoads = state.loads;
     readWatched();
@@ -248,7 +250,8 @@ export function connectEngine(): () => void {
           since("engine-load", sent);
           answered = sent;
         }
-        useSim.setState({ loaded: message, status: "ready", error: null });
+        // The record's nets are numbered as in the circuit before; it is read again once this load's state is shown.
+        useSim.setState({ loaded: message, status: "ready", error: null, waves: null });
         break;
       }
       case "assembled":
@@ -290,24 +293,31 @@ export function connectEngine(): () => void {
   });
 
   let description = "";
+  // The editor's opens counter at the last sync: a change means a file, example, project, link or sheet was opened.
+  let opened = -1;
   let sent: EditorState["inputs"] = {};
   const sync = (state: EditorState) => timed("sync", () => syncNow(state));
   const syncNow = (state: EditorState) => {
-    const { circuit, inputs } = state;
+    const { circuit, inputs, opens } = state;
+    const open = opens !== opened;
+    opened = opens;
     // Moving a part changes only geometry, so the engine keeps its state. The open sheet (main or a
     // definition) is what is simulated, with every definition as it is now.
     const projected = project(circuit, liveDefinitions(state));
     const next = JSON.stringify(projected);
-    if (next !== description) {
+    // An edit's load keeps time, flip-flops, memories and the record; an open's starts at 0, so it is sent even when
+    // the description did not change (ADR 0033).
+    if (next !== description || open) {
       description = next;
       pending++;
       loads++;
-      // The record describes the circuit before this one, its nets numbered differently.
-      useSim.setState({ stale: true, waves: null });
+      if (open) openLoads = loads;
+      // An open's record describes another circuit; an edit's stays shown until its load is answered.
+      useSim.setState(open ? { stale: true, waves: null } : { stale: true });
       loadsSent.push(performance.now());
       // The load's answer covers inputs still unanswered.
       inputsSent = -1;
-      client.send({ type: "load", circuit: projected });
+      client.send({ type: "load", circuit: projected, keep: !open });
       sent = {};
     }
     // One command, so switches restored after a load change together and a flip-flop clocked by one of
