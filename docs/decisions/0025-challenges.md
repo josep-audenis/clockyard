@@ -1,6 +1,7 @@
 # 0025. Challenges checked by behavioural tests
 
-- Status: Accepted
+- Status: Accepted; item 1 (starters) amended by ADR 0034 for challenges
+  with a bench
 - Date: 2026-11-15
 - Depends on: ADR 0020 (Phase 5 plan, increment 5); ADR 0012 (custom
   components) and ADR 0013 (instance ports by pin); ADR 0017 (flip-flops);

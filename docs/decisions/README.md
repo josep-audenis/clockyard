@@ -30,16 +30,16 @@ replacement.
 | [0022](0022-memory-mapped-io.md) | Memory-mapped I/O on the reference CPU | Accepted |
 | [0023](0023-game-demo.md) | The game demo: Catch on the reference CPU | Accepted |
 | [0024](0024-url-sharing.md) | Sharing a circuit through a URL fragment | Accepted |
-| [0025](0025-challenges.md) | Challenges checked by behavioural tests | Accepted |
+| [0025](0025-challenges.md) | Challenges checked by behavioural tests | Accepted; amended by 0034 |
 | [0026](0026-waveforms.md) | Waveforms: watched wires recorded by the engine | Accepted |
 | [0027](0027-library-and-teaching.md) | Library and teaching: examples in the editor, notes, and components from other files | Accepted |
-| [0028](0028-phase-6-plan.md) | Phase 6: what comes after the Phase 5 plan | Accepted |
+| [0028](0028-phase-6-plan.md) | Phase 6: what comes after the Phase 5 plan | Accepted; amended by 0034 |
 | [0029](0029-local-persistence.md) | Local persistence: projects, autosave and a component library in the browser | Accepted |
 | [0030](0030-benchmarks.md) | Benchmarks: generated circuits, measured in the engine and in the browser | Accepted |
 | [0031](0031-about-page.md) | An about page built from the running app | Accepted |
 | [0032](0032-editor-chrome.md) | Editor chrome: one primary action, a palette of symbols | Accepted |
 | [0033](0033-editing-a-running-circuit.md) | Editing a running circuit: state kept across edits, matched by part ID | Accepted |
-| [0034](0034-cpu-challenges.md) | Challenges 10 to 12: a CPU, a program and a screen, checked on a computer bench | Proposed |
+| [0034](0034-cpu-challenges.md) | Challenges 10 to 12: a CPU, a program and a screen, checked on a computer bench | Accepted |
 
 ## Template
 

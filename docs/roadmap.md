@@ -626,7 +626,7 @@ targets, as in Phase 5.
    5. ✅ The target's browser tests: the 8-bit counter counts on after
       its wire is deleted and put back, and a paused reference CPU keeps
       its registers and cycle when an LED is added.
-4. ⬜ Challenges 10–12 (ADR 0034, proposed): a CPU, a program for it,
+4. ⬜ Challenges 10–12 (ADR 0034, accepted): a CPU, a program for it,
    and a screen interface, each checked by running programs on a bench with
    its own ROM, RAM and devices.
 5. ⬜ Four-state signals: `X`, `Z`, a multiple-driver rule, a tri-state
@@ -671,7 +671,7 @@ interactive targets apply at 1,000 parts and the larger sheets are kept
 as stress tests. Increment 3, editing a running circuit (ADR 0033), is
 built: an edit keeps time, flip-flops, memories, switches and the waveform
 record, a large file opens framed, and the readout lists registers.
-Increment 4, challenges 10 to 12, is next; ADR 0034 (proposed) designs
+Increment 4, challenges 10 to 12, is next; ADR 0034 (accepted) designs
 it.
 Rough edges still open:
 
