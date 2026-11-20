@@ -191,6 +191,17 @@ What the engine has to work with:
    nothing is lost. The epoch starts again only when a state past an
    open's load is shown, or when time goes back.
 8. **Opening fits the circuit.**
+   *As built:* the store counts documents loaded (`documents`, which
+   sheets do not change), and the canvas frames each one as it opens,
+   before its first frame, from its parts, junctions and routes. Routing
+   then happens there instead of in the first frame, which reuses the
+   cached routes; the engine already has the load, so the two still
+   overlap. The start view counts as fitting only if nothing is left of
+   it, so the reference CPU, with wires left of column 0, is always framed:
+   at 30% in the tests' 1280 by 800 window. There the canvas's port
+   pick radius, set in screen pixels, reaches past its small keyboard, so
+   the two tests that click it use a 3200 by 2400 window, where it opens
+   at 100%. The grid helper waits two frames, then reads `data-view`.
    - A file, example, project or link opens framed to fit when it does not
      fit the default view at 100%. One that fits keeps the default view,
      so a small circuit opens where it always has.

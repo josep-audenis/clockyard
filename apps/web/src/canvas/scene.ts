@@ -294,6 +294,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     const { armed, armedLabel } = useEditor.getState();
     world.position.set(view.x, view.y);
     world.scale.set(view.zoom);
+    // Where grid point (0, 0) is on the canvas and the zoom, for the browser tests' grid (ADR 0033).
+    host.dataset.view = `${view.x} ${view.y} ${view.zoom}`;
     // Grid dots are the host's CSS background; every fourth dot when zoomed far out.
     const step = cell() * view.zoom * (view.zoom < 0.5 ? 4 : 1);
     host.style.backgroundSize = `${step}px ${step}px`;
@@ -1191,8 +1193,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     zoomAt(e.clientX - rect.left, e.clientY - rect.top, view.zoom * Math.exp(-e.deltaY * 0.0015));
   };
 
-  /** Frames the whole sheet in the canvas, at most at 2x (labels soften beyond); an empty sheet goes back to the start view. */
-  const fit = () => {
+  /** The sheet's extent in cells, with a margin of two round the parts (and room for labels below them); null when empty. */
+  const extent = () => {
     const circuit = useEditor.getState().circuit;
     const points = [
       ...circuit.components.flatMap((part) => {
@@ -1202,22 +1204,44 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       ...circuit.junctions.map((j) => j.position),
       ...[...currentRoutes(circuit).values()].flat(),
     ];
-    if (points.length === 0) {
-      // Zoom too, so zoomAt has nothing left to scale the offset by.
-      Object.assign(view, { x: 48, y: 48, zoom: 1 });
-      return zoomAt(0, 0, 1);
-    }
-    // A margin of two cells round the parts (and room for labels below them).
+    if (points.length === 0) return null;
     const xs = points.map((p) => p.x);
     const ys = points.map((p) => p.y);
     const [left, top] = [Math.min(...xs) - 2, Math.min(...ys) - 2];
-    const [w, h] = [Math.max(...xs) + 2 - left, Math.max(...ys) + 3 - top];
-    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(2, host.clientWidth / (w * cell()), host.clientHeight / (h * cell()))));
+    return { left, top, w: Math.max(...xs) + 2 - left, h: Math.max(...ys) + 3 - top };
+  };
+  /** The start view: grid point (0, 0) near the top left, at 100%. */
+  const home = () => {
+    Object.assign(view, { x: 48, y: 48, zoom: 1 });
+    useCanvasHints.setState({ zoom: 1 });
+  };
+  /** Frames `e` in the canvas, zoomed at most to `most`. */
+  const frameExtent = (e: NonNullable<ReturnType<typeof extent>>, most: number) => {
+    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(most, host.clientWidth / (e.w * cell()), host.clientHeight / (e.h * cell()))));
     view.zoom = zoom;
-    view.x = (host.clientWidth - w * cell() * zoom) / 2 - left * cell() * zoom;
-    view.y = (host.clientHeight - h * cell() * zoom) / 2 - top * cell() * zoom;
+    view.x = (host.clientWidth - e.w * cell() * zoom) / 2 - e.left * cell() * zoom;
+    view.y = (host.clientHeight - e.h * cell() * zoom) / 2 - e.top * cell() * zoom;
     useCanvasHints.setState({ zoom });
+  };
+  /** Frames the whole sheet in the canvas, at most at 2x (labels soften beyond); an empty sheet goes back to the start view. */
+  const fit = () => {
+    const e = extent();
+    if (e) frameExtent(e, 2);
+    else home();
     schedule();
+  };
+  /**
+   * An opened document is shown at the start view if it fits there, framed at most at 100% if not: never zoomed in. Done
+   * as it opens, so the view is set before anything of it is drawn; the engine already has its load, and the first frame
+   * reuses these routes.
+   */
+  const frameOpened = () => {
+    const e = extent();
+    const fits = !e || (48 + e.left * cell() >= 0 && 48 + (e.left + e.w) * cell() <= host.clientWidth && 48 + (e.top + e.h) * cell() <= host.clientHeight);
+    if (fits) home();
+    else frameExtent(e, 1);
+    host.dataset.view = `${view.x} ${view.y} ${view.zoom}`;
+    scheduleView();
   };
   const zoomBy = (factor: number) => zoomAt(host.clientWidth / 2, host.clientHeight / 2, view.zoom * factor);
 
@@ -1378,7 +1402,15 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     // Without the font, labels keep the fallback face.
     .catch(() => {});
 
-  const unsubscribe = [useEditor.subscribe(schedule), useSim.subscribe(schedule)];
+  const unsubscribe = [
+    useEditor.subscribe(schedule),
+    useEditor.subscribe((s, before) => {
+      if (s.documents !== before.documents) frameOpened();
+    }),
+    useSim.subscribe(schedule),
+  ];
+  // The document there at start-up opened too.
+  frameOpened();
   schedule();
 
   const bind = () => Object.assign(viewControls, { fit, zoomBy });
