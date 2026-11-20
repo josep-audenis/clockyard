@@ -82,12 +82,17 @@ fn a_reset_or_a_load_clears_the_record() {
 }
 
 #[test]
-fn watching_starts_a_new_record_and_refuses_a_net_that_does_not_exist() {
+fn watching_keeps_the_record_of_a_net_still_watched_and_refuses_one_that_does_not_exist() {
     let mut sim = counter();
     sim.tick(5);
-    let clk = sim.wire_nets()["w-clk"];
+    let before = sim.waves();
+    let [clk, q] = ["w-clk", "w-q"].map(|w| sim.wire_nets()[w]);
+    // The clock stays watched, so its record stays (ADR 0033); the others' are dropped.
     sim.watch(&[clk]).unwrap();
-    assert_eq!(sim.waves(), [vec![(5, 1)]]);
+    assert_eq!(sim.waves(), [before[0].clone()]);
+    // Watched again, the value starts a new record from its current value.
+    sim.watch(&[clk, q]).unwrap();
+    assert_eq!(sim.waves(), [before[0].clone(), vec![(5, 3)]]);
 
     let missing = sim.nets().len() as u32;
     assert_eq!(

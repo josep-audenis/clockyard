@@ -150,6 +150,10 @@ designs.
 
 On load and on reset, all nets start at `0`, every component is marked dirty,
 and the circuit settles. A lone NOT gate therefore outputs `1` immediately.
+A load's settle is never a clock edge (ADR 0033): flip-flops and RAMs do not
+sample or write during it, and each takes its clock input's settled value as the
+one it last saw. From all-zero nets this changes nothing, since an edge there
+could only sample zeros; it matters for state carried across an edit (below).
 
 Before that settle, every component that cannot reach a feedback loop is
 evaluated once in topological order; otherwise a chain of *n* gates
@@ -253,20 +257,32 @@ and asynchronous reset (asynchronous reset acts like a combinational input).
 | Reset | Flip-flops, RAM, the clock and time to 0, switch values and ROM kept; nets to 0, then pre-settle and settle as a load does |
 | Speed | Target cycles per wall-clock second (1 to 10,000). Pacing decides only how many ticks run, so the state after *n* ticks is the same at any speed |
 
-A load (any connectivity edit) also starts at time 0 with every flip-flop at
-0. A run under way keeps running. Stepping a single delta is planned.
+A load starts at time 0 with every flip-flop at 0. `load_keeping(description,
+previous)` instead carries state from `previous`, the circuit simulated before
+an edit (ADR 0033): time (the clock takes the level it gives), and each switch,
+keyboard, flip-flop, RAM and screen whose elaborated ID names a part of the same
+kind and size in both. A switch whose width changed keeps the bits that still
+fit; anything else new or changed starts at 0, and nets still settle from 0, so
+a latch built from gates is not kept. The editor still sends every edit as a
+plain load, so today a connectivity edit starts at time 0. A run under way keeps
+running. Stepping a single delta is planned.
 
 ### Waveforms
 
-`watch(nets)` records chosen nets (ADR 0026). After every settle (a switch
+`watch(nets)` records chosen nets (ADR 0026); a net already watched keeps its
+record, the others start from their current values. `watch_wires(wires)` does
+the same for the nets of chosen wires, each net once, in the order of its first
+wire, and remembers the wires: `load_keeping` watches them again and carries
+each net's record from the first watched wire on it that was recorded before
+(ADR 0033). After every settle (a switch
 change, each tick, a reset), a watched net whose value differs from its last
 record gets `(time, value)`; a later settle at the same tick replaces that
 tick's value, so a net has one value per tick and deltas inside a settle are
 never recorded. Recording happens inside `tick`, so the record after *n* ticks
 does not depend on how the ticks were split into calls. The record keeps the
 last 4,096 ticks (`WAVE_WINDOW`) and the value in force when that window
-starts. A reset clears it, as does a load, which starts with nothing watched.
-`waves()` and `wave(i)` read it.
+starts. A reset clears it, as does a plain load, which starts with nothing
+watched. `waves()` and `wave(i)` read it.
 
 ## Determinism
 

@@ -162,6 +162,13 @@ What the engine has to work with:
      into a new instance, starting at 0;
    - an edit with errors, then its fix;
    - records kept, split and joined.
+
+   *As built (engine):* `Simulator::load_keeping` and `watch_wires` are in
+   `sim-core`, with these tests in `crates/sim-core/tests/keeping.rs`.
+   Every load, a plain one too, settles without sampling. `watch(nets)`
+   keeps the record of a net still watched, which the browser sees at
+   once: watching another wire no longer clears the others. `sim-wasm`,
+   the worker and the editor still use `load` and `watch(nets)`.
 8. **Opening fits the circuit.**
    - A file, example, project or link opens framed to fit when it does not
      fit the default view at 100%. One that fits keeps the default view,
