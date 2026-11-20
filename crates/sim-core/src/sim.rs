@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use crate::catalog::{Kind, Port, mask};
 use crate::description::{CircuitDescription, Code, Diagnostic, Endpoint, Shape};
-use crate::elaborate::{elaborate, lift, top};
+use crate::elaborate::{CUSTOM, elaborate, lift, top};
 
 /// Net 0 is never driven: unconnected inputs read it as 0.
 const GROUND: u32 = 0;
@@ -187,12 +187,7 @@ impl Simulator {
     pub fn load(
         description: &CircuitDescription,
     ) -> Result<(Simulator, Vec<Diagnostic>), Vec<Diagnostic>> {
-        // Custom components are flattened first (ADR 0012); diagnostics name top-level IDs.
-        let flat = elaborate(description)?;
-        match Self::compile(&flat, None) {
-            Ok((sim, warnings)) => Ok((sim, lift(warnings))),
-            Err(errors) => Err(lift(errors)),
-        }
+        Self::load_from(description, None)
     }
 
     /// Loads `description` as [`Simulator::load`] does, carrying state from
@@ -204,10 +199,56 @@ impl Simulator {
         description: &CircuitDescription,
         previous: &Simulator,
     ) -> Result<(Simulator, Vec<Diagnostic>), Vec<Diagnostic>> {
+        Self::load_from(description, Some(previous))
+    }
+
+    fn load_from(
+        description: &CircuitDescription,
+        previous: Option<&Simulator>,
+    ) -> Result<(Simulator, Vec<Diagnostic>), Vec<Diagnostic>> {
+        // Custom components are flattened first (ADR 0012); diagnostics name top-level IDs.
         let flat = elaborate(description)?;
-        match Self::compile(&flat, Some(previous)) {
-            Ok((sim, warnings)) => Ok((sim, lift(warnings))),
+        match Self::compile(&flat, previous) {
+            Ok((mut sim, warnings)) => {
+                sim.report_pins(description, &flat);
+                Ok((sim, lift(warnings)))
+            }
             Err(errors) => Err(lift(errors)),
+        }
+    }
+
+    /// Lists each top-level instance's output pins as its ports (ADR 0033), so they can be read like a part's. Inputs
+    /// are left out, so a net an instance drives is named by its output even when wired back to its own input.
+    /// Elaboration makes pin `p` of instance `i` a junction `i/<p's part>`, whose net is that of any wire on it.
+    fn report_pins(&mut self, description: &CircuitDescription, flat: &CircuitDescription) {
+        let mut junction_nets = BTreeMap::new();
+        for wire in &flat.connections {
+            let Some(&net) = self.wire_nets.get(&wire.id) else {
+                continue;
+            };
+            for end in [&wire.from, &wire.to] {
+                if let Endpoint::Junction { junction } = end {
+                    junction_nets.entry(junction.as_str()).or_insert(net);
+                }
+            }
+        }
+        for instance in description.components.iter().filter(|c| c.kind == CUSTOM) {
+            let Some(definition) = description
+                .definitions
+                .iter()
+                .find(|d| Some(d.id.as_str()) == instance.definition.as_deref())
+            else {
+                continue;
+            };
+            let pins = definition
+                .outputs
+                .iter()
+                .filter_map(|pin| {
+                    let junction = format!("{}/{}", instance.id, pin.component);
+                    Some((pin.name.clone(), *junction_nets.get(junction.as_str())?))
+                })
+                .collect();
+            self.port_nets.insert(instance.id.clone(), pins);
         }
     }
 
@@ -794,6 +835,8 @@ impl Simulator {
         &self.wire_widths
     }
 
+    /// Part ID → port name → net, for every part, and for every top-level instance by its output pins' names (a pin no
+    /// wire reaches is left out).
     pub fn port_nets(&self) -> &PortNets {
         &self.port_nets
     }

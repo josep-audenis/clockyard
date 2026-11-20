@@ -53,7 +53,8 @@ Constraints from earlier records:
      instance.
    - The editor cannot work this out itself. `portNets` is keyed by
      flattened part IDs, so an instance's ports are not in it, and finding
-     the driver is connectivity, which the engine owns.
+     the driver is connectivity, which the engine owns. (Since ADR 0033 a
+     top-level instance's output pins are in it too, by pin name.)
    - Driver inside the selection: an output pin, an LED.
    - Driver outside: an input pin, a switch.
    - An existing switch in the selection that drives an outside reader

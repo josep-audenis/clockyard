@@ -483,3 +483,59 @@ fn net_drivers_name_the_top_level_part_and_an_instance_for_a_gate_inside_it() {
     assert_eq!(driver("f-ws"), Some("f"));
     assert_eq!(driver("f-wo"), Some("f"));
 }
+
+#[test]
+fn an_instance_reports_its_output_pins_as_ports() {
+    // One full adder with A and Cout wired outside; the other pins are wired only inside.
+    let sim = Simulator::load(&description(json!({
+        "components": [
+            { "id": "x", "kind": "custom", "definition": "fa" },
+            { "id": "a", "kind": "switch" }, { "id": "co", "kind": "led" }
+        ],
+        "connections": wires(&[("w-a", "a.out", "x.A"), ("w-co", "x.Cout", "co.in")]),
+        "definitions": [full_adder()]
+    })))
+    .expect("valid")
+    .0;
+    let pins = &sim.port_nets()["x"];
+    // Its outputs, each on the net its wires carry; inputs are not reported.
+    assert_eq!(
+        pins.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["Cout", "S"]
+    );
+    assert_eq!(pins["Cout"], sim.port_nets()["co"]["in"]);
+}
+
+#[test]
+fn an_output_pin_no_wire_reaches_and_nested_instances_are_not_reported_and_a_kept_load_reports_too()
+{
+    // `half` passes A to Y; its pin Z is wired neither inside nor out. `outer` holds a `half` of its own.
+    let half = json!({
+        "id": "half",
+        "components": [{ "id": "a", "kind": "switch" }, { "id": "y", "kind": "led" }, { "id": "z", "kind": "led" }],
+        "connections": wires(&[("i1", "a.out", "y.in")]),
+        "inputs": [{ "name": "A", "component": "a" }],
+        "outputs": [{ "name": "Y", "component": "y" }, { "name": "Z", "component": "z" }]
+    });
+    let outer = json!({
+        "id": "outer",
+        "components": [{ "id": "p", "kind": "switch" }, { "id": "inner", "kind": "custom", "definition": "half" }, { "id": "q", "kind": "led" }],
+        "connections": wires(&[("o1", "p.out", "inner.A"), ("o2", "inner.Y", "q.in")]),
+        "inputs": [{ "name": "P", "component": "p" }],
+        "outputs": [{ "name": "Q", "component": "q" }]
+    });
+    let circuit = description(json!({
+        "components": [
+            { "id": "x", "kind": "custom", "definition": "half" },
+            { "id": "o", "kind": "custom", "definition": "outer" }
+        ],
+        "connections": [],
+        "definitions": [half, outer]
+    }));
+    let sim = Simulator::load(&circuit).expect("valid").0;
+    assert_eq!(sim.port_nets()["x"].keys().collect::<Vec<_>>(), ["Y"]);
+    assert_eq!(sim.port_nets()["o"].keys().collect::<Vec<_>>(), ["Q"]);
+    assert!(!sim.port_nets().contains_key("o/inner"));
+    let kept = Simulator::load_keeping(&circuit, &sim).expect("valid").0;
+    assert_eq!(kept.port_nets()["x"], sim.port_nets()["x"]);
+}

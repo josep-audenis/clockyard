@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
@@ -24,6 +24,7 @@ import {
   maxValue,
   normalizeNotes,
   parseValue,
+  pinsOf,
   project,
   showValue,
   type Circuit,
@@ -993,7 +994,8 @@ function traceName(circuit: Circuit, loaded: Loaded, net: number, wire: string):
   if (label?.name) return label.name;
   const part = circuit.components.find((c) => c.id === loaded.netDrivers[net]);
   if (!part) return wire;
-  const port = Object.entries(loaded.portNets[part.id] ?? {}).find(([, n]) => n === net)?.[0];
+  // A component's pins are keyed by their parts' IDs, which may be random: it is named by itself, as before ADR 0033.
+  const port = part.kind === "custom" ? undefined : Object.entries(loaded.portNets[part.id] ?? {}).find(([, n]) => n === net)?.[0];
   const name = partName(circuit.components, part);
   return port && port !== "out" ? `${name} ${port}` : name;
 }
@@ -2410,9 +2412,34 @@ function partNames(components: CircuitComponent[]): Map<string, string> {
   return names;
 }
 
-/** The canvas is pixels only; this lists switch, keyboard, LED and seven-segment states for screen readers (and browser tests). */
+/** IDs of the definitions that hold state at any depth: a flip-flop, RAM or screen, or an instance of one that does. */
+function statefulDefinitions(definitions: ReturnType<typeof liveDefinitions>): Set<string> {
+  const byId = new Map(definitions.map((d) => [d.id, d]));
+  const holds = new Map<string, boolean>();
+  const holdsState = (id: string): boolean => {
+    const known = holds.get(id);
+    if (known !== undefined) return known;
+    // Assumed not while it is being looked into: a definition cannot contain itself (the engine refuses it).
+    holds.set(id, false);
+    const parts = byId.get(id)?.circuit.components ?? [];
+    const result = parts.some((c) => c.kind === "dff" || c.kind === "ram" || c.kind === "screen" || (c.kind === "custom" && holdsState(c.definition ?? "")));
+    holds.set(id, result);
+    return result;
+  };
+  return new Set(definitions.filter((d) => holdsState(d.id)).map((d) => d.id));
+}
+
+/**
+ * The canvas is pixels only; this lists the open sheet's states for screen readers (and browser tests): the clock,
+ * switches and keyboards, LEDs and seven-segment displays, flip-flops, and each component holding state by its outputs
+ * (ADR 0033). Memories and screens are not listed: their contents are more than a row should read out.
+ */
 function Readout() {
-  const components = useEditor((s) => s.circuit.components);
+  const circuit = useEditor((s) => s.circuit);
+  const components = circuit.components;
+  // Selected as stored and combined here: on a definition's own sheet, `liveDefinitions` makes a new object each call.
+  const stored = useEditor((s) => s.definitions);
+  const sheet = useEditor((s) => s.sheet);
   const opens = useEditor((s) => s.opens);
   // Named once per edit, not per state.
   const names = partNames(components);
@@ -2424,19 +2451,55 @@ function Readout() {
     const bits = net === undefined ? undefined : nets?.[net];
     return stale || bits === undefined ? "unknown" : showValue(bits, widthOf(part));
   };
-  // Inputs first, then outputs (ADR 0021: a keyboard is read as a switch, a seven-segment display as an LED).
+  // Inputs first, then outputs (ADR 0021: a keyboard is read as a switch, a seven-segment display as an LED), then what
+  // holds state.
+  const clock = components.find((c) => c.kind === "clock");
+  const level = (part: CircuitComponent) => {
+    const net = loaded?.portNets[part.id]?.out;
+    const bit = net === undefined ? undefined : nets?.[net];
+    return stale || bit === undefined ? "unknown" : bit ? "high" : "low";
+  };
   const switches = components.filter((c) => c.kind === "switch" || c.kind === "keyboard");
   const leds = components.filter((c) => c.kind === "led" || c.kind === "seg7");
+  const flipFlops = components.filter((c) => c.kind === "dff");
+  // Each output pin of each stateful component, in pin order, named by its LED's label ("output n" if none) and read by
+  // its ID. Worked out once per edit: the readout renders again on every state.
+  const registers = useMemo(() => {
+    const definitions = liveDefinitions({ definitions: stored, sheet, circuit });
+    const stateful = statefulDefinitions(definitions);
+    return circuit.components
+      .filter((c) => c.kind === "custom" && stateful.has(c.definition ?? ""))
+      .flatMap((part) => {
+        const inside = definitions.find((d) => d.id === part.definition)?.circuit;
+        if (!inside) return [];
+        return pinsOf(inside).outputs.flatMap(({ component }, i) => {
+          const pin = inside.components.find((c) => c.id === component);
+          return pin ? [{ part, pin, name: pin.props.label ?? `output ${i + 1}` }] : [];
+        });
+      });
+  }, [stored, sheet, circuit]);
+  const pinValue = (part: CircuitComponent, pin: CircuitComponent) => {
+    const net = loaded?.portNets[part.id]?.[pin.id];
+    const bits = net === undefined ? undefined : nets?.[net];
+    return stale || bits === undefined ? "unknown" : showValue(bits, widthOf(pin));
+  };
   return (
     // The role is said outright: Safari stops calling a list without markers one.
     <ul className="visually-hidden readout" role="list" aria-label="Inputs and outputs">
       {/* Keyed so a new sheet's rows go in as one: placed one by one, each looks through all the rows after it. */}
       <Fragment key={opens}>
+        {clock && <li key={clock.id}>{`Clock: ${level(clock)}`}</li>}
         {switches.map((c) => (
           <li key={c.id}>{`${names.get(c.id)}: ${value(c, "out")}`}</li>
         ))}
         {leds.map((c) => (
           <li key={c.id}>{`${names.get(c.id)}: ${value(c, c.kind === "seg7" ? "seg" : "in")}`}</li>
+        ))}
+        {flipFlops.map((c) => (
+          <li key={c.id}>{`${names.get(c.id)}: ${value(c, "q")}`}</li>
+        ))}
+        {registers.map(({ part, pin, name }) => (
+          <li key={`${part.id}/${pin.id}`}>{`${names.get(part.id)} ${name}: ${pinValue(part, pin)}`}</li>
         ))}
       </Fragment>
     </ul>

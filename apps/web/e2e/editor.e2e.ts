@@ -989,6 +989,27 @@ test("two labels named go join a far switch and LED; renaming one leaves both un
   await expect(message).toHaveAttribute("title", /label `stop` joins nothing/);
 });
 
+test("the readout lists the clock, flip-flops and each component holding state by its outputs (ADR 0033)", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("8-bit-counter"));
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+  await click(page, at(1, 7)); // Count on
+  await expectStates(page, { "Switch Count": 1 });
+  await expect(readout(page, "Clock")).toHaveText("Clock: low");
+  await page.getByRole("button", { name: "Step", exact: true }).click();
+  await expect(readout(page, "Register Value")).toHaveText("Register Value: 1 (0x01)");
+  await expect(readout(page, "Clock")).toHaveText("Clock: low");
+
+  // The reference CPU's registers are all components holding a flip-flop: each is read by its output pin.
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
+  await expect(status(page)).toContainText("Settled");
+  await expect(readout(page, "Register 8 PC q")).toHaveText("Register 8 PC q: 0 (0x00)");
+  await expect(readout(page, "Register 1 H q")).toHaveText("Register 1 H q: off");
+  // Parts without state inside (the ALU, the multiplexers) are not listed.
+  await expect(page.getByRole("list", { name: "Inputs and outputs" }).getByText(/^8-bit adder|^Mux/)).toHaveCount(0);
+});
+
 test("the 8-bit counter steps, resets, and after a run holds exactly the cycles it ran (ADR 0017)", async ({ page }) => {
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("8-bit-counter"));
