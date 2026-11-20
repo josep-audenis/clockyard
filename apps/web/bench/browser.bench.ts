@@ -189,7 +189,7 @@ for (const name of files) {
       const grab = at(...places.drag);
       await page.mouse.move(grab.x, grab.y);
       await page.mouse.down();
-      await page.mouse.move(grab.x, grab.y + 2 * CELL, { steps: 10 });
+      await page.mouse.move(grab.x, grab.y + 2 * CELL * (view[2] ?? 1), { steps: 10 });
       await page.mouse.up();
       await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       row.dragDrawMs = median(await measures(page, "draw"));

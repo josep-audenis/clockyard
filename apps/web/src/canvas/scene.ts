@@ -1418,25 +1418,27 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     // Without the font, labels keep the fallback face.
     .catch(() => {});
 
+  // Run inside the store's update (and at start-up): a failure here must not fail the open, nor stop the listeners after
+  // this one, so it goes back to the start view and is reported afterwards.
+  const frameOpenedSafely = () => {
+    try {
+      frameOpened();
+    } catch (error) {
+      home();
+      queueMicrotask(() => {
+        throw error;
+      });
+    }
+  };
   const unsubscribe = [
     useEditor.subscribe(schedule),
     useEditor.subscribe((s, before) => {
-      if (s.documents !== before.documents) {
-        // Inside the store's update: a failure here must not fail the open, nor stop the listeners after this one.
-        try {
-          frameOpened();
-        } catch (error) {
-          home();
-          queueMicrotask(() => {
-            throw error;
-          });
-        }
-      }
+      if (s.documents !== before.documents) frameOpenedSafely();
     }),
     useSim.subscribe(schedule),
   ];
   // The document there at start-up opened too.
-  frameOpened();
+  frameOpenedSafely();
   schedule();
 
   const bind = () => Object.assign(viewControls, { fit, zoomBy });
