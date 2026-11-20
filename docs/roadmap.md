@@ -617,10 +617,11 @@ targets, as in Phase 5.
    3. ✅ Editor: an edit's load keeps state, so a connectivity edit no
       longer restarts the circuit; an open always loads afresh, and the
       waveform record and cursor survive an edit.
-   4. ⬜ Opening fits a large circuit (✅: a file, example, project or
-      link that does not fit the start view opens framed, at most at
-      100%; one that fits opens at the start view); the readout lists the
-      clock and registers (not yet).
+   4. ✅ A file, example, project or link that does not fit the start
+      view opens framed, at most at 100%; one that fits opens at the start
+      view. The readout lists the clock, flip-flops, and each component
+      holding state by its output pins, so the reference CPU's registers
+      are read out.
    5. ⬜ The target's browser tests and the remaining docs.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
 5. ⬜ Four-state signals: `X`, `Z`, a multiple-driver rule, a tri-state
@@ -671,8 +672,7 @@ Rough edges still open:
 - Routing does not yet avoid label tags (ADR 0015).
 - A component made by Make component can cover parts below it (ADR 0016).
 - Make component is offered only for two or more selected items.
-- The readout for screen readers lists switches, keyboards, LEDs and
-  seven-segment displays only, not registers, the clock or screens.
+- The readout for screen readers does not list memories or screens.
 - The program editor is offered for 16-bit ROMs only, the reference CPU's
   word size; other machines would need their own assembler (ADR 0019).
 - What Catch showed the reference CPU lacks, for a later richer-CPU ADR

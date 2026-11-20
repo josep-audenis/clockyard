@@ -483,3 +483,26 @@ fn net_drivers_name_the_top_level_part_and_an_instance_for_a_gate_inside_it() {
     assert_eq!(driver("f-ws"), Some("f"));
     assert_eq!(driver("f-wo"), Some("f"));
 }
+
+#[test]
+fn an_instance_reports_its_pins_as_ports() {
+    // One full adder with A and Cout wired outside; B, Cin and S reach no wire outside, though S's is wired inside.
+    let sim = Simulator::load(&description(json!({
+        "components": [
+            { "id": "x", "kind": "custom", "definition": "fa" },
+            { "id": "a", "kind": "switch" }, { "id": "co", "kind": "led" }
+        ],
+        "connections": wires(&[("w-a", "a.out", "x.A"), ("w-co", "x.Cout", "co.in")]),
+        "definitions": [full_adder()]
+    })))
+    .expect("valid")
+    .0;
+    let pins = &sim.port_nets()["x"];
+    // Inside, every pin is wired, so all five are reported, each on the net its wires carry.
+    assert_eq!(
+        pins.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["A", "B", "Cin", "Cout", "S"]
+    );
+    assert_eq!(pins["A"], sim.port_nets()["a"]["out"]);
+    assert_eq!(pins["Cout"], sim.port_nets()["co"]["in"]);
+}

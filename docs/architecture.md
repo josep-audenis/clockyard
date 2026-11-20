@@ -260,7 +260,7 @@ type Result =
   | { type: "ready" }
   | { type: "loaded"; netCount: number; wireNets: Record<string, number>;
       wireWidths: Record<string, number>; // per wire: undriven nets all share net 0
-      portNets: Record<string, Record<string, number>>;
+      portNets: Record<string, Record<string, number>>; // part → port → net; an instance's pins by name (ADR 0033)
       netDrivers: (string | null)[];      // net → top-level part driving it, null for net 0
       diagnostics: Diagnostic[] }
   | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[]; // nets each cut to its width

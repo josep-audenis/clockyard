@@ -2410,9 +2410,35 @@ function partNames(components: CircuitComponent[]): Map<string, string> {
   return names;
 }
 
-/** The canvas is pixels only; this lists switch, keyboard, LED and seven-segment states for screen readers (and browser tests). */
+/** IDs of the definitions that hold state at any depth: a flip-flop, RAM or screen, or an instance of one that does. */
+function statefulDefinitions(definitions: ReturnType<typeof liveDefinitions>): Set<string> {
+  const byId = new Map(definitions.map((d) => [d.id, d]));
+  const holds = new Map<string, boolean>();
+  const holdsState = (id: string): boolean => {
+    const known = holds.get(id);
+    if (known !== undefined) return known;
+    // Assumed not while it is being looked into: a definition cannot contain itself (the engine refuses it).
+    holds.set(id, false);
+    const parts = byId.get(id)?.circuit.components ?? [];
+    const result = parts.some((c) => c.kind === "dff" || c.kind === "ram" || c.kind === "screen" || (c.kind === "custom" && holdsState(c.definition ?? "")));
+    holds.set(id, result);
+    return result;
+  };
+  return new Set(definitions.filter((d) => holdsState(d.id)).map((d) => d.id));
+}
+
+/**
+ * The canvas is pixels only; this lists the open sheet's states for screen readers (and browser tests): the clock,
+ * switches and keyboards, LEDs and seven-segment displays, flip-flops, and each component holding state by its outputs
+ * (ADR 0033). Memories and screens are not listed: their contents are more than a row should read out.
+ */
 function Readout() {
-  const components = useEditor((s) => s.circuit.components);
+  const circuit = useEditor((s) => s.circuit);
+  const components = circuit.components;
+  // Selected as stored and combined here: on a definition's own sheet, `liveDefinitions` makes a new object each call.
+  const stored = useEditor((s) => s.definitions);
+  const sheet = useEditor((s) => s.sheet);
+  const definitions = liveDefinitions({ definitions: stored, sheet, circuit });
   const opens = useEditor((s) => s.opens);
   // Named once per edit, not per state.
   const names = partNames(components);
@@ -2424,19 +2450,48 @@ function Readout() {
     const bits = net === undefined ? undefined : nets?.[net];
     return stale || bits === undefined ? "unknown" : showValue(bits, widthOf(part));
   };
-  // Inputs first, then outputs (ADR 0021: a keyboard is read as a switch, a seven-segment display as an LED).
+  // Inputs first, then outputs (ADR 0021: a keyboard is read as a switch, a seven-segment display as an LED), then what
+  // holds state.
+  const clock = components.find((c) => c.kind === "clock");
+  const level = (part: CircuitComponent) => {
+    const net = loaded?.portNets[part.id]?.out;
+    const bit = net === undefined ? undefined : nets?.[net];
+    return stale || bit === undefined ? "unknown" : bit ? "high" : "low";
+  };
   const switches = components.filter((c) => c.kind === "switch" || c.kind === "keyboard");
   const leds = components.filter((c) => c.kind === "led" || c.kind === "seg7");
+  const flipFlops = components.filter((c) => c.kind === "dff");
+  const stateful = statefulDefinitions(definitions);
+  // Each output pin of each stateful component, named by its LED's label (its ID if none) and read by its ID.
+  const registers = components
+    .filter((c) => c.kind === "custom" && stateful.has(c.definition ?? ""))
+    .flatMap((c) =>
+      (definitions.find((d) => d.id === c.definition)?.circuit.components ?? [])
+        .filter((pin) => pin.kind === "led")
+        .map((pin) => ({ part: c, pin })),
+    );
+  const pinValue = (part: CircuitComponent, pin: CircuitComponent) => {
+    const net = loaded?.portNets[part.id]?.[pin.id];
+    const bits = net === undefined ? undefined : nets?.[net];
+    return stale || bits === undefined ? "unknown" : showValue(bits, widthOf(pin));
+  };
   return (
     // The role is said outright: Safari stops calling a list without markers one.
     <ul className="visually-hidden readout" role="list" aria-label="Inputs and outputs">
       {/* Keyed so a new sheet's rows go in as one: placed one by one, each looks through all the rows after it. */}
       <Fragment key={opens}>
+        {clock && <li key={clock.id}>{`Clock: ${level(clock)}`}</li>}
         {switches.map((c) => (
           <li key={c.id}>{`${names.get(c.id)}: ${value(c, "out")}`}</li>
         ))}
         {leds.map((c) => (
           <li key={c.id}>{`${names.get(c.id)}: ${value(c, c.kind === "seg7" ? "seg" : "in")}`}</li>
+        ))}
+        {flipFlops.map((c) => (
+          <li key={c.id}>{`${names.get(c.id)}: ${value(c, "q")}`}</li>
+        ))}
+        {registers.map(({ part, pin }) => (
+          <li key={`${part.id}/${pin.id}`}>{`${names.get(part.id)} ${pin.props.label ?? pin.id}: ${pinValue(part, pin)}`}</li>
         ))}
       </Fragment>
     </ul>
