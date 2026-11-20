@@ -217,7 +217,8 @@ impl Simulator {
         }
     }
 
-    /// Lists each top-level instance's pins as its ports (ADR 0033), so its outputs can be read like a part's.
+    /// Lists each top-level instance's output pins as its ports (ADR 0033), so they can be read like a part's. Inputs
+    /// are left out, so a net an instance drives is named by its output even when wired back to its own input.
     /// Elaboration makes pin `p` of instance `i` a junction `i/<p's part>`, whose net is that of any wire on it.
     fn report_pins(&mut self, description: &CircuitDescription, flat: &CircuitDescription) {
         let mut junction_nets = BTreeMap::new();
@@ -240,9 +241,8 @@ impl Simulator {
                 continue;
             };
             let pins = definition
-                .inputs
+                .outputs
                 .iter()
-                .chain(&definition.outputs)
                 .filter_map(|pin| {
                     let junction = format!("{}/{}", instance.id, pin.component);
                     Some((pin.name.clone(), *junction_nets.get(junction.as_str())?))
@@ -835,8 +835,8 @@ impl Simulator {
         &self.wire_widths
     }
 
-    /// Part ID → port name → net, for every part, and for every top-level instance by its pin names (a pin no wire
-    /// reaches is left out).
+    /// Part ID → port name → net, for every part, and for every top-level instance by its output pins' names (a pin no
+    /// wire reaches is left out).
     pub fn port_nets(&self) -> &PortNets {
         &self.port_nets
     }

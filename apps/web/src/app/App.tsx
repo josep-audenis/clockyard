@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
@@ -24,6 +24,7 @@ import {
   maxValue,
   normalizeNotes,
   parseValue,
+  pinsOf,
   project,
   showValue,
   type Circuit,
@@ -993,7 +994,8 @@ function traceName(circuit: Circuit, loaded: Loaded, net: number, wire: string):
   if (label?.name) return label.name;
   const part = circuit.components.find((c) => c.id === loaded.netDrivers[net]);
   if (!part) return wire;
-  const port = Object.entries(loaded.portNets[part.id] ?? {}).find(([, n]) => n === net)?.[0];
+  // A component's pins are keyed by their parts' IDs, which may be random: it is named by itself, as before ADR 0033.
+  const port = part.kind === "custom" ? undefined : Object.entries(loaded.portNets[part.id] ?? {}).find(([, n]) => n === net)?.[0];
   const name = partName(circuit.components, part);
   return port && port !== "out" ? `${name} ${port}` : name;
 }
@@ -2438,7 +2440,6 @@ function Readout() {
   // Selected as stored and combined here: on a definition's own sheet, `liveDefinitions` makes a new object each call.
   const stored = useEditor((s) => s.definitions);
   const sheet = useEditor((s) => s.sheet);
-  const definitions = liveDefinitions({ definitions: stored, sheet, circuit });
   const opens = useEditor((s) => s.opens);
   // Named once per edit, not per state.
   const names = partNames(components);
@@ -2461,15 +2462,22 @@ function Readout() {
   const switches = components.filter((c) => c.kind === "switch" || c.kind === "keyboard");
   const leds = components.filter((c) => c.kind === "led" || c.kind === "seg7");
   const flipFlops = components.filter((c) => c.kind === "dff");
-  const stateful = statefulDefinitions(definitions);
-  // Each output pin of each stateful component, named by its LED's label (its ID if none) and read by its ID.
-  const registers = components
-    .filter((c) => c.kind === "custom" && stateful.has(c.definition ?? ""))
-    .flatMap((c) =>
-      (definitions.find((d) => d.id === c.definition)?.circuit.components ?? [])
-        .filter((pin) => pin.kind === "led")
-        .map((pin) => ({ part: c, pin })),
-    );
+  // Each output pin of each stateful component, in pin order, named by its LED's label ("output n" if none) and read by
+  // its ID. Worked out once per edit: the readout renders again on every state.
+  const registers = useMemo(() => {
+    const definitions = liveDefinitions({ definitions: stored, sheet, circuit });
+    const stateful = statefulDefinitions(definitions);
+    return circuit.components
+      .filter((c) => c.kind === "custom" && stateful.has(c.definition ?? ""))
+      .flatMap((part) => {
+        const inside = definitions.find((d) => d.id === part.definition)?.circuit;
+        if (!inside) return [];
+        return pinsOf(inside).outputs.flatMap(({ component }, i) => {
+          const pin = inside.components.find((c) => c.id === component);
+          return pin ? [{ part, pin, name: pin.props.label ?? `output ${i + 1}` }] : [];
+        });
+      });
+  }, [stored, sheet, circuit]);
   const pinValue = (part: CircuitComponent, pin: CircuitComponent) => {
     const net = loaded?.portNets[part.id]?.[pin.id];
     const bits = net === undefined ? undefined : nets?.[net];
@@ -2490,8 +2498,8 @@ function Readout() {
         {flipFlops.map((c) => (
           <li key={c.id}>{`${names.get(c.id)}: ${value(c, "q")}`}</li>
         ))}
-        {registers.map(({ part, pin }) => (
-          <li key={`${part.id}/${pin.id}`}>{`${names.get(part.id)} ${pin.props.label ?? pin.id}: ${pinValue(part, pin)}`}</li>
+        {registers.map(({ part, pin, name }) => (
+          <li key={`${part.id}/${pin.id}`}>{`${names.get(part.id)} ${name}: ${pinValue(part, pin)}`}</li>
         ))}
       </Fragment>
     </ul>

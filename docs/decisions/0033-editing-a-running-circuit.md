@@ -232,12 +232,15 @@ What the engine has to work with:
    edge is narrowed to them, not dropped.
 
    *As built:* `Simulator::load` and `load_keeping` add each top-level
-   instance's pins (inputs and outputs) to `portNets`, by pin name, from
-   the net of a wire on the junction the pin became; a pin no wire
-   reaches, inside or out, is left out. The readout's rows follow the
+   instance's output pins to `portNets`, by pin name, from the net of a
+   wire on the junction the pin became; a pin no wire reaches, inside or
+   out, is left out, and so are inputs. Waveform traces driven by a
+   component keep their name, the component's alone: a pin's name is its
+   part's ID, which may be random. The readout's rows follow the
    other parts' names: "Clock: low", "Register Value: 1 (0x01)" for the
    counter's 8-bit flip-flop, and "Register 8 PC q: 0 (0x00)" for the
-   CPU's program counter (the part's name, then its pin LED's label). A
+   CPU's program counter (the part's name, then its pin LED's label, or
+   "output n" without one). A
    definition holds state if it contains a flip-flop, RAM or screen, or an
    instance of one that does.
 10. **Target, as Playwright tests.**
