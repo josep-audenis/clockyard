@@ -74,7 +74,8 @@ Four questions decide the design:
        no single ROM can stand in for the 17-bit add or an 8-bit
        multiplexer, as ADR 0025 item 5 feared for the adders.
      - A ROM keyed on a cycle counter, replaying the expected run, is
-       defeated by runs that read `KEY` and take different paths (item 4).
+       made impractical by runs that read `KEY` and take different paths
+       (item 4).
      - The challenge text carries the instruction table, since the app
        does not ship `docs/reference-cpu.md`.
    - **Challenge 11 is software.** The user writes a program for the
@@ -133,7 +134,8 @@ Four questions decide the design:
    The bench's screen takes its address from `sptr`, its data from
    `dout` and its write enable from `swe`. Reads of `0xFE` and `0xFD` see
    `sptr` and the screen's byte. Allowed parts: gates, `dff`, split and
-   merge; the reference CPU's 8-bit register is provided.
+   merge. The reference CPU's 8-bit register is provided as `reg8`, a copy
+   without the `bench-` prefix (item 3).
 
 3. **Benches are circuit files.** A bench of a ROM, a RAM, a key, address
    decoding and devices is a circuit, so it is written as one, one per
@@ -150,11 +152,18 @@ Four questions decide the design:
 
    How a bench is used:
    - **IDs.** The bench's own definitions (the provided CPU and its parts)
-     carry IDs starting `bench-`. The user's definitions therefore never
-     clash with them.
-   - **Definitions.** The check gives the bench the user's definition
-     under test and the definitions it uses, and keeps the bench's own for
-     the rest. So a provided CPU cannot be edited to pass challenge 11.
+     carry IDs starting `bench-`.
+   - **Definitions.**
+     - The check takes the user's definition under test, and the
+       definitions it uses, from the user's document.
+     - A definition whose ID starts `bench-` always comes from the bench
+       file, even when the definition under test uses it.
+     - The starters copy the bench sheet, `bench-` definitions included,
+       into the user's document. Editing one there changes nothing the
+       check runs, so a provided CPU cannot be edited to pass challenge 11
+       or 12.
+     - Parts a challenge provides for the user to build with, such as
+       `display`'s register, are copies with their own IDs.
    - **Reaching the engine.**
      - A challenge file names its bench.
      - The editor projects the bench file, as it projects any document, and
@@ -205,21 +214,27 @@ Four questions decide the design:
 5. **Reports.** `Report` keeps its three kinds, and the new failures fit
    them:
    - `Failed` gains `run` (the run's name) and memory mismatches, as
-     `{ name: "ram[16]", expected, actual }`. A run that does not halt in
-     its budget is `Failed`, with the mismatch `halt` expected 1, read 0.
-   - `Refused` covers a bench part the challenge names that is missing,
-     such as a screen redrawn with a new ID, with that reason, as a
-     missing pin is now.
+     `{ name: "ram[16]", expected, got }`, the fields `Mismatch` already
+     has. A run that does not halt in its budget is `Failed`, with the
+     mismatch `halt` expected 1, got 0.
+   - `Refused` covers a bench part the challenge names that is missing.
+     That is a fault in a bench file, which the user cannot edit; the
+     native tests catch it.
    - The panel says it in words: "Run *Jumps*, step 2: RAM byte 16 should
      be 42 but is 0".
 
 6. **Programs are data.** A run's words are written out in the challenge
    file, next to their assembly source. The editor never computes them.
+   - The script holds the words written out by hand, next to their source,
+     as `scripts/reference-cpu.mjs` holds Catch's (`CATCH_WORDS`). Node
+     scripts cannot assemble, since `sim-wasm` is built after they run in
+     `verify`.
    - `crates/sim-core/tests/challenges.rs` assembles each source with
      `asm::assemble` and fails if the words differ, as `cpu.rs` does for
      Catch.
-   - The script writes the words from the same source, with the same
-     model it uses for every expected value.
+   - The expected values come from a model of the reference CPU in the
+     script, as ADR 0025's come from its models of the register and
+     counter.
 
 7. **Solutions, starters and tests**, as ADR 0025 item 4:
    - **The solutions:**
@@ -258,9 +273,10 @@ Four questions decide the design:
       memory expectations and their reports, with native tests.
    3. Challenge 10, with its runs, solution, starter and tests.
    4. Challenges 11 and 12.
-   5. The editor's reports, the Playwright target, and the docs. On
-      acceptance, ADRs 0028 and 0025 are marked amended in their status
-      lines and in `docs/decisions/README.md`.
+   5. The editor's reports, the Playwright target, and the docs.
+
+   When this ADR is accepted, ADRs 0028 and 0025 are marked amended by it
+   in their status lines and in `docs/decisions/README.md`.
 
 ## Alternatives considered
 
@@ -298,9 +314,13 @@ Four questions decide the design:
 
 - `check` gains a second kind of bench, and challenge files gain runs.
   Challenges 1 to 9 are unaffected.
-- The reference CPU exists twice: flat in the examples, and cut as `cpu`
-  for the challenges. The model test keeps them in step. A second
-  reference CPU (increment 6) would add a third.
+- The reference CPU exists as two circuits: flat in the examples, and cut
+  as `cpu` for the challenges. The model test keeps them in step. It is
+  also modelled twice: in Rust, in `cpu.rs`, and in JavaScript, in the
+  challenge script's model for expected values, which goes further than
+  ADR 0025's models of a register and a counter. The reference solution
+  passing every run is what holds that model to the circuit. A second
+  reference CPU (increment 6) would add another of each.
 - A challenge file can hold programs. The assembler must keep assembling
   them to the same words, which the native test enforces.
 - Challenge 10 is long. A CPU from registers, multiplexers and an adder
