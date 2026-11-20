@@ -613,7 +613,7 @@ targets, as in Phase 5.
    2. ✅ `sim-wasm` and the worker: `keep` on `load` carries state, the
       last compiled circuit is kept through an edit's errors and dropped by
       Reset or an open (tested in `sim-wasm`), and the worker watches by
-      wire. The editor does not send `keep` yet.
+      wire.
    3. ✅ Editor: an edit's load keeps state, so a connectivity edit no
       longer restarts the circuit; an open always loads afresh, and the
       waveform record and cursor survive an edit.

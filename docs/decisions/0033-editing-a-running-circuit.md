@@ -183,8 +183,9 @@ What the engine has to work with:
 
    *As built (editor):* `sync.ts` sends `keep` unless the store's `opens`
    counter changed since the previous sync, and an open always sends a
-   load, even with an unchanged description. An edit's record stays shown
-   while its load is unanswered (its nets still match the circuit shown),
+   load, even with an unchanged description. An edit's record stays in
+   the store while its load is unanswered (the panel draws no lanes while
+   stale, but keeps its axis and cursor),
    is dropped when the answer comes, since nets may be numbered anew, and
    is read again with that load's first state; the engine kept it, so
    nothing is lost. The epoch starts again only when a state past an

@@ -39,9 +39,12 @@ export type SimState = {
   until: string | null;
   /** Each memory's words last asked for with `readMemory`, by component ID, as the engine reported them (ADRs 0018, 0021). */
   memory: Record<string, Uint32Array>;
-  /** The watched wires' record, as last read (ADR 0026); null while nothing is watched, or since a load was sent. */
+  /**
+   * The watched wires' record, as last read (ADR 0026); null while nothing is watched, since an open's load was sent, or
+   * since any load was answered, until it is read again (ADR 0033).
+   */
   waves: Waves | null;
-  /** Counts the times reported time went back (a load or a reset), so a waveform cursor is not carried into a new record. */
+  /** Counts opens' loads and the times reported time went back (a reset), so a waveform cursor is not carried into a new record. */
   epoch: number;
 };
 
@@ -237,7 +240,7 @@ export function connectEngine(): () => void {
           status: "error",
           error: message.message,
           ...(message.running !== undefined && { running: message.running }),
-          ...(message.load && { loaded: null, nets: null, runtime: [], stale: pending > 0 }),
+          ...(message.load && { loaded: null, nets: null, runtime: [], stale: pending > 0, waves: null }),
         });
         break;
       // A reply means the engine works again, so an earlier command error no longer applies.
@@ -312,7 +315,8 @@ export function connectEngine(): () => void {
       pending++;
       loads++;
       if (open) openLoads = loads;
-      // An open's record describes another circuit; an edit's stays shown until its load is answered.
+      // An open's record describes another circuit; an edit's stays in the store until its load is answered (the panel
+      // shows no lanes while stale, but keeps its axis and cursor).
       useSim.setState(open ? { stale: true, waves: null } : { stale: true });
       loadsSent.push(performance.now());
       // The load's answer covers inputs still unanswered.
@@ -351,6 +355,12 @@ export function connectEngine(): () => void {
     holding = false;
     send = null;
     inputsSent = -1;
+    // A read waiting for the next frame would ask this worker; the next one is read after its own first state.
+    if (reading) {
+      if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(reading);
+      else clearTimeout(reading);
+      reading = 0;
+    }
     // A new worker watches nothing until told.
     watchedWires = [];
     // Nothing will answer what is still awaited.

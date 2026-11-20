@@ -206,7 +206,6 @@ test("waveforms: watch follows the load it belongs to, an open's load or an edit
   // An edit that removes the watched wire: nothing is watched any more, so the record goes at once.
   useEditor.setState({ circuit: { ...circuit, components: circuit.components.slice(0, 1), wires: [] } });
   expect(useSim.getState().waves).toBeNull();
-  // The wire is gone with it, so nothing is watched any more.
   expect(worker.sent.at(-1)).toEqual({ type: "watch", wires: [] });
   worker.reply({ type: "loaded", portNets: {}, wireNets: {} } as unknown as Result);
   worker.reply(waves(5));
@@ -257,9 +256,7 @@ test("inputs sent are awaited until a state of the current circuit, and only whe
   expect(awaited()).toBe(false);
 });
 
-test("an edit's load keeps state, an open's starts again even when nothing changed, and only an open starts an epoch (ADR 0033)", async () => {
-  // A read of the record an earlier test left pending on a real timer would make this test's read wait for it.
-  await new Promise((resolve) => setTimeout(resolve, 20));
+test("an edit's load keeps state, an open's starts again even when nothing changed, and only an open starts an epoch (ADR 0033)", () => {
   vi.useFakeTimers();
   const before = useEditor.getState();
   const stop = connectEngine();
@@ -293,11 +290,15 @@ test("an edit's load keeps state, an open's starts again even when nothing chang
   // Time went on, so the waveform panel keeps its cursor.
   expect(useSim.getState().epoch).toBe(epoch);
 
-  // An open with the same circuit still loads, without keep, and starts a new epoch whatever the time.
+  // An open with the same circuit still loads, without keep, drops the record at once, and starts a new epoch whatever
+  // the time.
+  worker.reply(waves);
+  expect(useSim.getState().waves).not.toBeNull();
   const sent = loads().length;
   useEditor.setState({ opens: useEditor.getState().opens + 1 });
   expect(loads().length).toBe(sent + 1);
   expect(loads().at(-1)).toBe(false);
+  expect(useSim.getState().waves).toBeNull();
   worker.reply({ type: "loaded", portNets: {}, wireNets: {} } as unknown as Result);
   worker.reply(state(14));
   vi.runAllTimers();
