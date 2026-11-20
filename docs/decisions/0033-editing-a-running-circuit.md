@@ -192,16 +192,20 @@ What the engine has to work with:
    open's load is shown, or when time goes back.
 8. **Opening fits the circuit.**
    *As built:* the store counts documents loaded (`documents`, which
-   sheets do not change), and the canvas frames each one as it opens,
-   before its first frame, from its parts, junctions and routes. Routing
-   then happens there instead of in the first frame, which reuses the
-   cached routes; the engine already has the load, so the two still
-   overlap. The start view counts as fitting only if nothing is left of
-   it, so the reference CPU, with wires left of column 0, is always framed:
-   at 30% in the tests' 1280 by 800 window. There the canvas's port
-   pick radius, set in screen pixels, reaches past its small keyboard, so
-   the two tests that click it use a 3200 by 2400 window, where it opens
-   at 100%. The grid helper waits two frames, then reads `data-view`.
+   sheets do not change; New counts, so it also goes back to the start
+   view), and the canvas frames each one as it opens, before its first
+   frame, from its parts, junctions and routes, in one pass. A document
+   fits when all it covers, margins aside, is inside the window at the
+   start view, on all four sides; a window of no size frames nothing.
+   Routing then happens there instead of in the first frame, which
+   reuses the cached routes; the engine already has the load, so the two
+   still overlap. A failure while framing goes back to the start view and
+   is reported, so it cannot fail the open. The reference CPU, with wires
+   left of column 0, is always framed: at 30% in the tests' 1280 by 800
+   window. There the port pick radius, set in screen pixels, reached
+   about two cells, past its small keyboard to its ports, so it is now
+   capped at 3/4 of a cell (unchanged from about 83% zoom up). The browser
+   tests' grid helper and the browser benchmark read `data-view`.
    - A file, example, project or link opens framed to fit when it does not
      fit the default view at 100%. One that fits keeps the default view,
      so a small circuit opens where it always has.

@@ -131,7 +131,12 @@ for (const name of files) {
     });
     const box = await page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
     if (!box) throw new Error("canvas not visible");
-    const at = (x: number, y: number) => ({ x: box.x + ORIGIN + x * CELL, y: box.y + ORIGIN + y * CELL });
+    // The view: a circuit larger than the window opens framed (ADR 0033), so it is read again once the circuit is open.
+    let view = [ORIGIN, ORIGIN, 1];
+    const at = (x: number, y: number) => ({
+      x: box.x + (view[0] ?? ORIGIN) + x * CELL * (view[2] ?? 1),
+      y: box.y + (view[1] ?? ORIGIN) + y * CELL * (view[2] ?? 1),
+    });
 
     // Open: from choosing the file until the engine has answered the load and settled it (`clockyard:engine-ready`,
     // recorded when the first state after the load arrives), and two frames have been drawn since.
@@ -148,6 +153,7 @@ for (const name of files) {
     row.openMs = Date.now() - opening;
     row.openRouteMs = sum(await measures(page, "route"));
     row.openDrawMs = sum(await measures(page, "draw"));
+    view = ((await page.getByRole("main", { name: "Circuit canvas" }).getAttribute("data-view")) ?? "").split(" ").map(Number);
     keep();
     if (await page.getByRole("status").getByText("Invalid").count()) {
       row.notes.push((await page.locator(".status-message").textContent()) ?? "invalid");

@@ -17,8 +17,7 @@ async function grid(page: Page): Promise<(x: number, y: number) => At> {
   const host = page.getByRole("main", { name: "Circuit canvas" });
   // Pixi starts asynchronously; its <canvas> goes in with its pointer handlers, so a click before it hits bare <main>.
   await host.locator("canvas").waitFor();
-  // The frame that draws what just settled is the one that frames it.
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  // The canvas sets its view as a document opens, so it is current once the document shows anywhere.
   const box = await host.boundingBox();
   if (!box) throw new Error("canvas not visible");
   const [x0, y0, zoom] = ((await host.getAttribute("data-view")) ?? `${ORIGIN} ${ORIGIN} 1`).split(" ").map(Number);
@@ -384,9 +383,16 @@ test("an opened file that does not fit the view is framed at most at 100%; one t
   const view = async () => ((await host.getAttribute("data-view")) ?? "").split(" ").map(Number);
   await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
   await expect(status(page)).toContainText("Settled");
-  const [, , zoom] = await view();
-  expect(zoom).toBeGreaterThan(0.1);
+  const [x0, y0, zoom] = await view();
+  expect(zoom).toBeGreaterThanOrEqual(0.25);
   expect(zoom).toBeLessThan(1);
+  // Framed: its ROM at (22, 14), say, is inside the canvas, as the start view's 1280 by 800 window could not show it all.
+  const box = await host.boundingBox();
+  const rom = { x: (x0 ?? 0) + 22 * 16 * (zoom ?? 1), y: (y0 ?? 0) + 14 * 16 * (zoom ?? 1) };
+  expect(rom.x).toBeGreaterThan(0);
+  expect(rom.y).toBeGreaterThan(0);
+  expect(rom.x).toBeLessThan(box?.width ?? 0);
+  expect(rom.y).toBeLessThan(box?.height ?? 0);
   // Small enough for the start view: back to it, whatever the view was.
   await page.locator('[data-testid="import-file"]').setInputFiles(example("and-gate"));
   await expect(status(page)).toContainText("Settled");
@@ -1072,8 +1078,6 @@ test("run until an LED lights: an instruction step on the reference CPU, then ru
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
   await expect(counter(page)).toHaveText("Cycle 0, clock low");
-  // It opens framed (ADR 0033): the grid is read once that frame is drawn.
-  await expect(status(page)).toContainText("Settled");
   const at = await grid(page);
   const button = (name: string) => page.getByRole("button", { name, exact: true });
   const until = page.getByLabel("Run until");
@@ -1160,8 +1164,6 @@ test("the program editor assembles into the ROM, lists errors by line, and the C
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
   await expect(counter(page)).toHaveText("Cycle 0, clock low");
-  // It opens framed (ADR 0033): the grid is read once that frame is drawn.
-  await expect(status(page)).toContainText("Settled");
   const at = await grid(page);
   const inspector = page.getByRole("complementary", { name: "Inspector" });
   const button = (name: string) => page.getByRole("button", { name, exact: true });
@@ -1220,8 +1222,6 @@ test("Phase 4 demo: a program loops through RAM on the CPU built from parts and 
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
   await expect(counter(page)).toHaveText("Cycle 0, clock low");
-  // It opens framed (ADR 0033): the grid is read once that frame is drawn.
-  await expect(status(page)).toContainText("Settled");
   const at = await grid(page);
   const inspector = page.getByRole("complementary", { name: "Inspector" });
   const button = (name: string) => page.getByRole("button", { name, exact: true });
@@ -1296,13 +1296,9 @@ test("devices demo: a held key shows its code on two digits and is drawn on the 
 });
 
 test("memory-mapped I/O demo: the shipped CPU program shows the key held on the digits and draws it on the screen (ADR 0022)", async ({ page }) => {
-  // Room for the whole CPU at 100% (ADR 0033): framed smaller, a click on the small keyboard picks one of its ports.
-  await page.setViewportSize({ width: 3200, height: 2400 });
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
   await expect(counter(page)).toHaveText("Cycle 0, clock low");
-  // It opens framed (ADR 0033): the grid is read once that frame is drawn.
-  await expect(status(page)).toContainText("Settled");
   const at = await grid(page);
   const button = (name: string) => page.getByRole("button", { name, exact: true });
   await page.getByLabel("Speed").selectOption("1000");
@@ -1336,13 +1332,9 @@ test("game demo: in Catch the first block is caught, a miss halts the run, and a
   // headless browser. The checks are outcomes, not the moment a key lands, so only the budget is long.
   test.setTimeout(300_000);
   const game = { timeout: 120_000 };
-  // Room for the whole CPU at 100% (ADR 0033): framed smaller, a click on the small keyboard picks one of its ports.
-  await page.setViewportSize({ width: 3200, height: 2400 });
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("catch"));
   await expect(counter(page)).toHaveText("Cycle 0, clock low");
-  // It opens framed (ADR 0033): the grid is read once that frame is drawn.
-  await expect(status(page)).toContainText("Settled");
   const at = await grid(page);
   const button = (name: string) => page.getByRole("button", { name, exact: true });
   const halted = readout(page, "LED Halted");
