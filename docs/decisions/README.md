@@ -39,6 +39,7 @@ replacement.
 | [0031](0031-about-page.md) | An about page built from the running app | Accepted |
 | [0032](0032-editor-chrome.md) | Editor chrome: one primary action, a palette of symbols | Accepted |
 | [0033](0033-editing-a-running-circuit.md) | Editing a running circuit: state kept across edits, matched by part ID | Accepted |
+| [0034](0034-cpu-challenges.md) | Challenges 10 to 12: a CPU, a program and a screen, checked on a computer bench | Proposed |
 
 ## Template
 
