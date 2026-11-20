@@ -113,6 +113,10 @@ What the engine has today:
    - Load also starts at time 0 with every flip-flop at 0. A connectivity
      edit therefore resets sequential state. Keeping state across edits,
      matched by part ID, is left for later.
+   - *As built (ADR 0033):* an edit's load now keeps time, flip-flops,
+     memories and switches, matched by part ID. Opening something starts
+     everything at 0; Reset puts time, flip-flops and memories back to 0
+     and keeps switches, as before. A load is never a clock edge.
 6. **The worker runs the clock; the engine never reads wall time.**
    - Protocol commands: `run { cyclesPerSecond }`, `pause`, `step` (one
      `step_cycle`) and `reset`. These replace the reserved `stepClock`.
@@ -203,7 +207,7 @@ What the engine has today:
   0, and that running for a while then pausing gives the same state as the
   same number of Steps.
 - Every connectivity edit resets registers. This is simple and predictable,
-  but someone building a CPU will feel it.
+  but someone building a CPU will feel it. (ADR 0033 keeps them since.)
 - One snapshot copy per settle costs memory traffic proportional to the
   number of nets. That is fine at Phase 3 sizes; measure before replacing
   it with an undo log.

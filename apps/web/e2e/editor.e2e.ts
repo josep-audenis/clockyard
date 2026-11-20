@@ -395,7 +395,8 @@ test("an opened file that does not fit the view is framed at most at 100%; one t
   expect(rom.y).toBeLessThan(box?.height ?? 0);
   // Small enough for the start view: back to it, whatever the view was.
   await page.locator('[data-testid="import-file"]').setInputFiles(example("and-gate"));
-  await expect(status(page)).toContainText("Settled");
+  // Its name, not "Settled", which the CPU's state may still show while the file is read.
+  await expect(page.getByLabel("Project name")).toHaveValue("AND gate");
   expect(await view()).toEqual([48, 48, 1]);
 });
 
@@ -1008,6 +1009,66 @@ test("the readout lists the clock, flip-flops and each component holding state b
   await expect(readout(page, "Register 1 H q")).toHaveText("Register 1 H q: off");
   // Parts without state inside (the ALU, the multiplexers) are not listed.
   await expect(page.getByRole("list", { name: "Inputs and outputs" }).getByText(/^8-bit adder|^Mux/)).toHaveCount(0);
+});
+
+test("an edit keeps the running state: the counter counts on after its wire is removed and put back (ADR 0033)", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("8-bit-counter"));
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+  const value = readout(page, "Register Value");
+  const step = page.getByRole("button", { name: "Step", exact: true });
+  await click(page, at(1, 7)); // Count on
+  await expectStates(page, { "Switch Count": 1 });
+  for (let i = 0; i < 3; i++) await step.click();
+  await expect(value).toHaveText("Register Value: 3 (0x03)");
+  await expect(counter(page)).toHaveText("Cycle 3, clock low");
+
+  // Two connectivity edits: the register's wire to its LED deleted, then put back by Undo.
+  await click(page, at(28, 1));
+  await page.keyboard.press("Delete");
+  await expect(readout(page, "LED Q")).toHaveText("LED Q: 0 (0x00)");
+  await expect(value).toHaveText("Register Value: 3 (0x03)");
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(readout(page, "LED Q")).toHaveText("LED Q: 3 (0x03)");
+  // Neither time nor the count went back, and the next step adds one.
+  await expect(counter(page)).toHaveText("Cycle 3, clock low");
+  await step.click();
+  await expect(value).toHaveText("Register Value: 4 (0x04)");
+  await expect(counter(page)).toHaveText("Cycle 4, clock low");
+  // Reset is still the way back to 0.
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await expect(value).toHaveText("Register Value: 0 (0x00)");
+});
+
+test("an LED added to a paused CPU leaves its registers and cycle where they were (ADR 0033)", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  await page.getByLabel("Speed").selectOption("1000");
+  await button("Run").click();
+  const cycle = async () => Number(/\d+/.exec((await counter(page).textContent()) ?? "")?.[0]);
+  await expect.poll(cycle).toBeGreaterThan(50);
+  await button("Pause").click();
+  await expect(status(page)).not.toContainText("Running");
+  const rows = page.getByRole("list", { name: "Inputs and outputs" }).locator("li");
+  const registers = async () => (await rows.allTextContents()).filter((row) => row.startsWith("Register") || row.startsWith("Clock"));
+  const before = await registers();
+  const shown = await counter(page).textContent();
+  // The program has run: the instruction register's high byte, an opcode, is never 0 once it has fetched (PC is, one
+  // cycle in four, while the program waits for a key).
+  expect(before.some((row) => /^Register 8 IR high q: (?!0 )/.test(row))).toBe(true);
+
+  // A connectivity edit: an LED placed on empty sheet below the CPU.
+  await page.keyboard.press("l");
+  await expect(status(page)).toContainText("Placing");
+  await click(page, at(10, 95));
+  await expect(rows.filter({ hasText: /^LED \d+: off$/ })).toHaveCount(1);
+  await expect(status(page)).toContainText("Settled");
+  expect(await registers()).toEqual(before);
+  await expect(counter(page)).toHaveText(shown ?? "");
 });
 
 test("the 8-bit counter steps, resets, and after a run holds exactly the cycles it ran (ADR 0017)", async ({ page }) => {

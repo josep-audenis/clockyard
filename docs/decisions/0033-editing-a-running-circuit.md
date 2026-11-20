@@ -251,6 +251,20 @@ What the engine has to work with:
     - The reference CPU runs its program part way and is paused. An LED is
       added to an output, and the program's RAM and its registers in the
       readout are unchanged.
+
+    *As built:* in `apps/web/e2e/editor.e2e.ts`. The counter test deletes
+    the wire from the register to its LED and puts it back with Undo (two
+    connectivity edits; the editor has no way to drag a wire's end to
+    another port); the count and cycle stay at 3, the next step makes 4,
+    and Reset still clears it. The CPU test runs at 1,000 Hz past cycle 50,
+    pauses, places an LED on empty sheet below it, and checks the clock and
+    every register row of the readout, and the cycle counter, are as they
+    were. Its RAM is not compared: the program never
+    writes its data RAM (its stores go to the devices at 0xFC to 0xFE), so
+    the RAM would read all zeros either way. The native test of the
+    reference CPU (`crates/sim-core/tests/keeping.rs`) compares every
+    memory and port across an edit. The inspector's RAM hint now says an
+    edit keeps the RAM.
 11. **Docs.**
     - `docs/simulation-model.md` replaces "a load also starts at time 0"
       and "a load clears the record" with these rules.

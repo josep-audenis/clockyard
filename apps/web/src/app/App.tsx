@@ -2266,7 +2266,7 @@ function RamDump({ part }: { part: CircuitComponent }) {
         {words === null ? "…" : words.length === 0 ? "Not simulated: the circuit has errors." : wordLines(words, width)}
       </pre>
       <p className="field-hint">
-        {total > DUMP_WORDS ? `The first ${DUMP_WORDS} of ${total} words. ` : ""}Written while the circuit runs; cleared by Reset and by any change to the wiring.
+        {total > DUMP_WORDS ? `The first ${DUMP_WORDS} of ${total} words. ` : ""}Written while the circuit runs; kept when you edit it; cleared by Reset and when something is opened.
       </p>
     </div>
   );
