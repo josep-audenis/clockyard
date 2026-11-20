@@ -453,7 +453,8 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       solution, fail every starter, and fail wrong circuits that once passed. Solutions and starters name their
       challenge (format 10). Playwright: the one-bit register's starter fails
       at its first loading edge, and its solution, imported, passes.
-   4. ⬜ Challenges 10–12 (CPU, program, output device): later, own ADR.
+   4. ⬜ Challenges 10–12 (CPU, program, output device): moved to Phase 6
+      increment 4 (ADR 0028), designed in ADR 0034.
 6. ✅ Waveforms (ADR 0026, accepted): watched wires recorded per tick by
    the engine, in a window of 4,096 ticks, and drawn in a panel below the
    canvas.
