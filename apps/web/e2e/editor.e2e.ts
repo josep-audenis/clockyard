@@ -1057,7 +1057,9 @@ test("an LED added to a paused CPU leaves its registers and cycle where they wer
   const registers = async () => (await rows.allTextContents()).filter((row) => row.startsWith("Register") || row.startsWith("Clock"));
   const before = await registers();
   const shown = await counter(page).textContent();
-  expect(before.some((row) => /^Register 8 PC q: (?!0 )/.test(row))).toBe(true); // the program has run
+  // The program has run: the instruction register's high byte, an opcode, is never 0 once it has fetched (PC is, one
+  // cycle in four, while the program waits for a key).
+  expect(before.some((row) => /^Register 8 IR high q: (?!0 )/.test(row))).toBe(true);
 
   // A connectivity edit: an LED placed on empty sheet below the CPU.
   await page.keyboard.press("l");

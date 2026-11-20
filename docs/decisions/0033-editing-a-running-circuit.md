@@ -259,9 +259,12 @@ What the engine has to work with:
     and Reset still clears it. The CPU test runs at 1,000 Hz past cycle 50,
     pauses, places an LED on empty sheet below it, and checks the clock and
     every register row of the readout, and the cycle counter, are as they
-    were. Its RAM is not compared: the native test of the reference CPU
-    (`crates/sim-core/tests/keeping.rs`) compares every memory and port
-    across an edit, and the browser has no list of RAM words to read.
+    were. Its RAM is not compared: with no key held the program never
+    writes its data RAM (its stores go to the devices at 0xFC to 0xFE), so
+    the RAM would read all zeros either way. The native test of the
+    reference CPU (`crates/sim-core/tests/keeping.rs`) compares every
+    memory and port across an edit. The inspector's RAM hint now says an
+    edit keeps the RAM.
 11. **Docs.**
     - `docs/simulation-model.md` replaces "a load also starts at time 0"
       and "a load clears the record" with these rules.

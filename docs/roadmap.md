@@ -686,8 +686,8 @@ Rough edges still open:
   blocks fall slowly, and a held key moves the paddle several lanes in a
   moment once they fall fast. Moving only on a new press would fix it, at
   the cost of tapping once per lane.
-- The reference CPU's sheet is dense, with long wires; its data RAM sits
-  past the right edge at the default view.
+- The reference CPU's sheet is dense, with long wires; it opens framed at
+  about 30% in a laptop's window, too small to read its labels.
 
 Fixed since: deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
 amended); a click on a label's tag selects it; below 900px the inspector
