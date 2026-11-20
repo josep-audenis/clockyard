@@ -617,8 +617,10 @@ targets, as in Phase 5.
    3. ✅ Editor: an edit's load keeps state, so a connectivity edit no
       longer restarts the circuit; an open always loads afresh, and the
       waveform record and cursor survive an edit.
-   4. ⬜ Opening fits a large circuit; the readout lists the clock and
-      registers.
+   4. ⬜ Opening fits a large circuit (✅: a file, example, project or
+      link that does not fit the start view opens framed, at most at
+      100%; one that fits opens at the start view); the readout lists the
+      clock and registers (not yet).
    5. ⬜ The target's browser tests and the remaining docs.
 4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
 5. ⬜ Four-state signals: `X`, `Z`, a multiple-driver rule, a tri-state
@@ -671,8 +673,6 @@ Rough edges still open:
 - Make component is offered only for two or more selected items.
 - The readout for screen readers lists switches, keyboards, LEDs and
   seven-segment displays only, not registers, the clock or screens.
-- An imported file or opened sheet keeps the current view; Fit (F) frames
-  it. Fitting on open would move the grid the Playwright tests click by.
 - The program editor is offered for 16-bit ROMs only, the reference CPU's
   word size; other machines would need their own assembler (ADR 0019).
 - What Catch showed the reference CPU lacks, for a later richer-CPU ADR

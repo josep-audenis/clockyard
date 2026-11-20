@@ -9,14 +9,19 @@ const CELL = 16;
 
 type At = { x: number; y: number };
 
-/** Screen position of a grid point at the default view, once the canvas is up to hear clicks there. */
+/**
+ * Screen position of a grid point at the view the canvas reports, once it is up to hear clicks there. A document that
+ * does not fit the default view opens framed (ADR 0033), so call this after opening one, once it has settled.
+ */
 async function grid(page: Page): Promise<(x: number, y: number) => At> {
   const host = page.getByRole("main", { name: "Circuit canvas" });
   // Pixi starts asynchronously; its <canvas> goes in with its pointer handlers, so a click before it hits bare <main>.
   await host.locator("canvas").waitFor();
+  // The canvas sets its view as a document opens, so it is current once the document shows anywhere.
   const box = await host.boundingBox();
   if (!box) throw new Error("canvas not visible");
-  return (x, y) => ({ x: box.x + ORIGIN + x * CELL, y: box.y + ORIGIN + y * CELL });
+  const [x0, y0, zoom] = ((await host.getAttribute("data-view")) ?? `${ORIGIN} ${ORIGIN} 1`).split(" ").map(Number);
+  return (x, y) => ({ x: box.x + (x0 ?? ORIGIN) + x * CELL * (zoom ?? 1), y: box.y + (y0 ?? ORIGIN) + y * CELL * (zoom ?? 1) });
 }
 
 const click = (page: Page, at: At) => page.mouse.click(at.x, at.y);
@@ -370,6 +375,28 @@ test("identical LEDs each show their own signal as switches change (ADR 0030)", 
   await click(page, at(1, 1));
   await expectStates(page, { "LED 1": 0, "LED 2": 1 });
   await expect.poll(same).toBe(false);
+});
+
+test("an opened file that does not fit the view is framed at most at 100%; one that fits opens at the start view (ADR 0033)", async ({ page }) => {
+  await page.goto("/");
+  const host = page.getByRole("main", { name: "Circuit canvas" });
+  const view = async () => ((await host.getAttribute("data-view")) ?? "").split(" ").map(Number);
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
+  await expect(status(page)).toContainText("Settled");
+  const [x0, y0, zoom] = await view();
+  expect(zoom).toBeGreaterThanOrEqual(0.25);
+  expect(zoom).toBeLessThan(1);
+  // Framed: its ROM at (22, 14), say, is inside the canvas, as the start view's 1280 by 800 window could not show it all.
+  const box = await host.boundingBox();
+  const rom = { x: (x0 ?? 0) + 22 * 16 * (zoom ?? 1), y: (y0 ?? 0) + 14 * 16 * (zoom ?? 1) };
+  expect(rom.x).toBeGreaterThan(0);
+  expect(rom.y).toBeGreaterThan(0);
+  expect(rom.x).toBeLessThan(box?.width ?? 0);
+  expect(rom.y).toBeLessThan(box?.height ?? 0);
+  // Small enough for the start view: back to it, whatever the view was.
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("and-gate"));
+  await expect(status(page)).toContainText("Settled");
+  expect(await view()).toEqual([48, 48, 1]);
 });
 
 test("a middle-button pan moves the view only: a part is clicked where it now shows (ADR 0030)", async ({ page }) => {

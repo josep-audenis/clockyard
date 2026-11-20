@@ -180,6 +180,8 @@ export type EditorState = {
   load: (document: CircuitDocument) => void;
   /** Counts the times another sheet or document took the canvas's place: what lists of its parts are rebuilt on. */
   opens: number;
+  /** Counts documents loaded (a file, example, project or link): the canvas frames each one it opens (ADR 0033). */
+  documents: number;
   /** Earlier circuits, most recent last; `undo` restores them. */
   past: Circuit[];
   /** Circuits undone, next first; any new edit clears them. */
@@ -470,6 +472,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   main: null,
   histories: {},
   opens: 0,
+  documents: 0,
   past: [],
   future: [],
   clipboard: null,
@@ -932,6 +935,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
       main: null,
       histories: {},
       opens: s.opens + 1,
+      documents: s.documents + 1,
       past: [],
       future: [],
       clipboard: null,

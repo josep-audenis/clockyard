@@ -294,6 +294,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     const { armed, armedLabel } = useEditor.getState();
     world.position.set(view.x, view.y);
     world.scale.set(view.zoom);
+    // Where grid point (0, 0) is on the canvas and the zoom, for the browser tests' grid (ADR 0033).
+    host.dataset.view = `${view.x} ${view.y} ${view.zoom}`;
     // Grid dots are the host's CSS background; every fourth dot when zoomed far out.
     const step = cell() * view.zoom * (view.zoom < 0.5 ? 4 : 1);
     host.style.backgroundSize = `${step}px ${step}px`;
@@ -949,8 +951,9 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     const scale = view.zoom * cell();
     return { x: (e.clientX - rect.left - view.x) / scale, y: (e.clientY - rect.top - view.y) / scale };
   };
-  // Pick radius is set in screen pixels so ports stay clickable when zoomed out.
-  const pick = () => (theme.size["port-size"] / 2 + theme.size["hit-slop"]) / (view.zoom * cell());
+  // Pick radius is set in screen pixels so ports stay clickable when zoomed out, up to 3/4 of a cell: zoomed far out (a
+  // large file opens framed, ADR 0033), more would reach from a small part's body to the ports round it.
+  const pick = () => Math.min(0.75, (theme.size["port-size"] / 2 + theme.size["hit-slop"]) / (view.zoom * cell()));
 
   /** Routes for drawing and picking: during a drag, wires it does not touch keep their routes (ADR 0011). */
   function currentRoutes(circuit: Circuit) {
@@ -1191,33 +1194,70 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     zoomAt(e.clientX - rect.left, e.clientY - rect.top, view.zoom * Math.exp(-e.deltaY * 0.0015));
   };
 
+  /** What the sheet covers, in cells: its parts, junctions and routes; null when it is empty. */
+  const bounds = () => {
+    const circuit = useEditor.getState().circuit;
+    // One pass, no arrays of points: a 50,000-part sheet has too many to spread into Math.min.
+    const b = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    const add = (x: number, y: number) => {
+      b.minX = Math.min(b.minX, x);
+      b.minY = Math.min(b.minY, y);
+      b.maxX = Math.max(b.maxX, x);
+      b.maxY = Math.max(b.maxY, y);
+    };
+    for (const part of circuit.components) {
+      const { width, height } = layoutOf(part);
+      add(part.position.x, part.position.y);
+      add(part.position.x + width, part.position.y + height);
+    }
+    for (const j of circuit.junctions) add(j.position.x, j.position.y);
+    for (const route of currentRoutes(circuit).values()) for (const p of route) add(p.x, p.y);
+    return b.minX === Infinity ? null : b;
+  };
+  /** The sheet's extent in cells, with a margin of two round the parts (and room for labels below them); null when empty. */
+  const extent = (b = bounds()) => {
+    if (!b) return null;
+    const [left, top] = [b.minX - 2, b.minY - 2];
+    return { left, top, w: b.maxX + 2 - left, h: b.maxY + 3 - top };
+  };
+  /** The start view: grid point (0, 0) near the top left, at 100%. */
+  const home = () => {
+    Object.assign(view, { x: 48, y: 48, zoom: 1 });
+    useCanvasHints.setState({ zoom: 1 });
+  };
+  /** Frames `e` in the canvas, zoomed at most to `most`. */
+  const frameExtent = (e: NonNullable<ReturnType<typeof extent>>, most: number) => {
+    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(most, host.clientWidth / (e.w * cell()), host.clientHeight / (e.h * cell()))));
+    view.zoom = zoom;
+    view.x = (host.clientWidth - e.w * cell() * zoom) / 2 - e.left * cell() * zoom;
+    view.y = (host.clientHeight - e.h * cell() * zoom) / 2 - e.top * cell() * zoom;
+    useCanvasHints.setState({ zoom });
+  };
   /** Frames the whole sheet in the canvas, at most at 2x (labels soften beyond); an empty sheet goes back to the start view. */
   const fit = () => {
-    const circuit = useEditor.getState().circuit;
-    const points = [
-      ...circuit.components.flatMap((part) => {
-        const { width, height } = layoutOf(part);
-        return [part.position, { x: part.position.x + width, y: part.position.y + height }];
-      }),
-      ...circuit.junctions.map((j) => j.position),
-      ...[...currentRoutes(circuit).values()].flat(),
-    ];
-    if (points.length === 0) {
-      // Zoom too, so zoomAt has nothing left to scale the offset by.
-      Object.assign(view, { x: 48, y: 48, zoom: 1 });
-      return zoomAt(0, 0, 1);
-    }
-    // A margin of two cells round the parts (and room for labels below them).
-    const xs = points.map((p) => p.x);
-    const ys = points.map((p) => p.y);
-    const [left, top] = [Math.min(...xs) - 2, Math.min(...ys) - 2];
-    const [w, h] = [Math.max(...xs) + 2 - left, Math.max(...ys) + 3 - top];
-    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(2, host.clientWidth / (w * cell()), host.clientHeight / (h * cell()))));
-    view.zoom = zoom;
-    view.x = (host.clientWidth - w * cell() * zoom) / 2 - left * cell() * zoom;
-    view.y = (host.clientHeight - h * cell() * zoom) / 2 - top * cell() * zoom;
-    useCanvasHints.setState({ zoom });
+    const e = extent();
+    if (e) frameExtent(e, 2);
+    else home();
     schedule();
+  };
+  /**
+   * An opened document is shown at the start view if it fits there, framed at most at 100% if not: never zoomed in. Done
+   * as it opens, so the view is set before anything of it is drawn; the engine already has its load, and the first frame
+   * reuses these routes.
+   */
+  const frameOpened = () => {
+    // A drag of the old document has nothing to drag in this one.
+    gesture = null;
+    const b = bounds();
+    const [x, y, w, h] = [48, 48, host.clientWidth, host.clientHeight];
+    // What it covers, margins aside, is inside the window at the start view; a window of no size frames nothing.
+    const fits = !b || w === 0 || h === 0 || (x + b.minX * cell() >= 0 && y + b.minY * cell() >= 0 && x + b.maxX * cell() <= w && y + b.maxY * cell() <= h);
+    const e = extent(b);
+    if (fits || !e) home();
+    else frameExtent(e, 1);
+    // Set now, not at the next frame: that frame may wait for the engine's answer (ADR 0030).
+    host.dataset.view = `${view.x} ${view.y} ${view.zoom}`;
+    scheduleView();
   };
   const zoomBy = (factor: number) => zoomAt(host.clientWidth / 2, host.clientHeight / 2, view.zoom * factor);
 
@@ -1378,7 +1418,27 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     // Without the font, labels keep the fallback face.
     .catch(() => {});
 
-  const unsubscribe = [useEditor.subscribe(schedule), useSim.subscribe(schedule)];
+  // Run inside the store's update (and at start-up): a failure here must not fail the open, nor stop the listeners after
+  // this one, so it goes back to the start view and is reported afterwards.
+  const frameOpenedSafely = () => {
+    try {
+      frameOpened();
+    } catch (error) {
+      home();
+      queueMicrotask(() => {
+        throw error;
+      });
+    }
+  };
+  const unsubscribe = [
+    useEditor.subscribe(schedule),
+    useEditor.subscribe((s, before) => {
+      if (s.documents !== before.documents) frameOpenedSafely();
+    }),
+    useSim.subscribe(schedule),
+  ];
+  // The document there at start-up opened too.
+  frameOpenedSafely();
   schedule();
 
   const bind = () => Object.assign(viewControls, { fit, zoomBy });
