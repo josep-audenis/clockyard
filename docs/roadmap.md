@@ -453,7 +453,8 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       solution, fail every starter, and fail wrong circuits that once passed. Solutions and starters name their
       challenge (format 10). Playwright: the one-bit register's starter fails
       at its first loading edge, and its solution, imported, passes.
-   4. ⬜ Challenges 10–12 (CPU, program, output device): later, own ADR.
+   4. ⬜ Challenges 10–12 (CPU, program, output device): moved to Phase 6
+      increment 4 (ADR 0028), designed in ADR 0034.
 6. ✅ Waveforms (ADR 0026, accepted): watched wires recorded per tick by
    the engine, in a window of 4,096 ticks, and drawn in a panel below the
    canvas.
@@ -625,7 +626,9 @@ targets, as in Phase 5.
    5. ✅ The target's browser tests: the 8-bit counter counts on after
       its wire is deleted and put back, and a paused reference CPU keeps
       its registers and cycle when an LED is added.
-4. ⬜ Challenges 10–12: a CPU bench with its own ROM, RAM and device.
+4. ⬜ Challenges 10–12 (ADR 0034, accepted): a CPU, a program for it,
+   and a screen interface, each checked by running programs on a bench with
+   its own ROM, RAM and devices.
 5. ⬜ Four-state signals: `X`, `Z`, a multiple-driver rule, a tri-state
    buffer.
 6. ⬜ A second reference CPU: bit operations and call/return, specification
@@ -668,7 +671,8 @@ interactive targets apply at 1,000 parts and the larger sheets are kept
 as stress tests. Increment 3, editing a running circuit (ADR 0033), is
 built: an edit keeps time, flip-flops, memories, switches and the waveform
 record, a large file opens framed, and the readout lists registers.
-Increment 4, challenges 10 to 12, is next, with its own ADR.
+Increment 4, challenges 10 to 12, is next; ADR 0034 (accepted) designs
+it.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
