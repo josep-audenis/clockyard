@@ -174,7 +174,7 @@ test("states that arrive faster than the page shows them are applied once, as th
   vi.useRealTimers();
 });
 
-test("waveforms: watch follows the load it belongs to, a sent load drops the record, and so does the last unwatch (ADR 0026)", () => {
+test("waveforms: watch follows the load it belongs to, an open's load or an edit's answer drops the record, and so does the last unwatch (ADR 0026)", () => {
   vi.useFakeTimers();
   const before = useEditor.getState();
   const stop = connectEngine();
@@ -203,10 +203,9 @@ test("waveforms: watch follows the load it belongs to, a sent load drops the rec
   worker.reply(waves(4));
   expect(useSim.getState().waves?.time).toBe(4);
 
-  // An edit sends a load: the old record goes at once.
+  // An edit that removes the watched wire: nothing is watched any more, so the record goes at once.
   useEditor.setState({ circuit: { ...circuit, components: circuit.components.slice(0, 1), wires: [] } });
   expect(useSim.getState().waves).toBeNull();
-  // The wire is gone with it, so nothing is watched any more.
   expect(worker.sent.at(-1)).toEqual({ type: "watch", wires: [] });
   worker.reply({ type: "loaded", portNets: {}, wireNets: {} } as unknown as Result);
   worker.reply(waves(5));
@@ -255,4 +254,57 @@ test("inputs sent are awaited until a state of the current circuit, and only whe
   expect(awaited()).toBe(true);
   stop();
   expect(awaited()).toBe(false);
+});
+
+test("an edit's load keeps state, an open's starts again even when nothing changed, and only an open starts an epoch (ADR 0033)", () => {
+  vi.useFakeTimers();
+  const before = useEditor.getState();
+  const stop = connectEngine();
+  const loads = () => worker.sent.filter((c) => c.type === "load").map((c) => (c as { keep: boolean }).keep);
+  expect(loads().at(-1)).toBe(false);
+  worker.reply({ type: "loaded", portNets: {}, wireNets: { w: 1 } } as unknown as Result);
+  const state = (time: number) => ({ type: "state", nets: new Uint32Array(2), diagnostics: [], time, running: false }) as unknown as Result;
+  worker.reply(state(10));
+  vi.runAllTimers();
+  const epoch = useSim.getState().epoch;
+  const waves = { type: "waves", time: 10, nets: [1], traces: [new Float64Array([0, 1])] } as Result;
+  useEditor.setState({ watches: ["w"], circuit: { ...before.circuit, wires: [{ id: "w", from: { junction: "a" }, to: { junction: "b" } }] } });
+  worker.reply({ type: "loaded", portNets: {}, wireNets: { w: 1 } } as unknown as Result);
+  worker.reply(state(10));
+  vi.runAllTimers();
+  worker.reply(waves);
+  expect(useSim.getState().waves).not.toBeNull();
+
+  // An edit: kept, and the record stays shown until the load is answered, then is read again.
+  const count = worker.sent.length;
+  const circuit = useEditor.getState().circuit;
+  const extra = { id: "x", kind: "switch" as const, position: { x: 0, y: 0 }, rotation: 0 as const, props: {} };
+  useEditor.setState({ circuit: { ...circuit, components: [...circuit.components, extra] } });
+  expect(loads().at(-1)).toBe(true);
+  expect(useSim.getState().waves).not.toBeNull();
+  worker.reply({ type: "loaded", portNets: {}, wireNets: { w: 1 } } as unknown as Result);
+  expect(useSim.getState().waves).toBeNull();
+  worker.reply(state(12));
+  vi.runAllTimers();
+  expect(worker.sent.slice(count).some((c) => c.type === "readWaves")).toBe(true);
+  // Time went on, so the waveform panel keeps its cursor.
+  expect(useSim.getState().epoch).toBe(epoch);
+
+  // An open with the same circuit still loads, without keep, drops the record at once, and starts a new epoch whatever
+  // the time.
+  worker.reply(waves);
+  expect(useSim.getState().waves).not.toBeNull();
+  const sent = loads().length;
+  useEditor.setState({ opens: useEditor.getState().opens + 1 });
+  expect(loads().length).toBe(sent + 1);
+  expect(loads().at(-1)).toBe(false);
+  expect(useSim.getState().waves).toBeNull();
+  worker.reply({ type: "loaded", portNets: {}, wireNets: {} } as unknown as Result);
+  worker.reply(state(14));
+  vi.runAllTimers();
+  expect(useSim.getState().epoch).toBe(epoch + 1);
+
+  stop();
+  useEditor.setState(before, true);
+  vi.useRealTimers();
 });

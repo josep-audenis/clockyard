@@ -179,8 +179,17 @@ What the engine has to work with:
    `keep` load. `time()` reports the kept circuit's time meanwhile, and
    `reset()` with nothing loaded drops it (the worker now always calls
    it). `watch(wires)` watches by wire, and `recorded_nets()` lists the
-   recorded nets for the `waves` reply. The protocol's `load` has `keep`,
-   which the editor does not send yet, so every load is still an open.
+   recorded nets for the `waves` reply. The protocol's `load` has `keep`.
+
+   *As built (editor):* `sync.ts` sends `keep` unless the store's `opens`
+   counter changed since the previous sync, and an open always sends a
+   load, even with an unchanged description. An edit's record stays in
+   the store while its load is unanswered (the panel draws no lanes while
+   stale, but keeps its axis and cursor),
+   is dropped when the answer comes, since nets may be numbered anew, and
+   is read again with that load's first state; the engine kept it, so
+   nothing is lost. The epoch starts again only when a state past an
+   open's load is shown, or when time goes back.
 8. **Opening fits the circuit.**
    - A file, example, project or link opens framed to fit when it does not
      fit the default view at 100%. One that fits keeps the default view,

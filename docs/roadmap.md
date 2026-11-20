@@ -613,8 +613,10 @@ targets, as in Phase 5.
    2. ✅ `sim-wasm` and the worker: `keep` on `load` carries state, the
       last compiled circuit is kept through an edit's errors and dropped by
       Reset or an open (tested in `sim-wasm`), and the worker watches by
-      wire. The editor does not send `keep` yet.
-   3. ⬜ Editor: `keep` from the opens counter, the record and epoch kept.
+      wire.
+   3. ✅ Editor: an edit's load keeps state, so a connectivity edit no
+      longer restarts the circuit; an open always loads afresh, and the
+      waveform record and cursor survive an edit.
    4. ⬜ Opening fits a large circuit; the readout lists the clock and
       registers.
    5. ⬜ The target's browser tests and the remaining docs.
@@ -667,7 +669,6 @@ Rough edges still open:
 - Routing does not yet avoid label tags (ADR 0015).
 - A component made by Make component can cover parts below it (ADR 0016).
 - Make component is offered only for two or more selected items.
-- Every connectivity edit resets registers and time (ADR 0017).
 - The readout for screen readers lists switches, keyboards, LEDs and
   seven-segment displays only, not registers, the clock or screens.
 - An imported file or opened sheet keeps the current view; Fit (F) frames
