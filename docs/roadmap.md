@@ -610,9 +610,10 @@ targets, as in Phase 5.
       the watched wires' records; a load never clocks; `watch` keeps the
       record of a net still watched. Checked natively, the reference CPU
       included; not used by the editor yet.
-   2. ⬜ `sim-wasm` and the worker: `keep` on `load`, the last compiled
-      circuit kept through errors (tested in `sim-wasm`), watching by wire
-      only.
+   2. ✅ `sim-wasm` and the worker: `keep` on `load` carries state, the
+      last compiled circuit is kept through an edit's errors and dropped by
+      Reset or an open (tested in `sim-wasm`), and the worker watches by
+      wire. The editor does not send `keep` yet.
    3. ⬜ Editor: `keep` from the opens counter, the record and epoch kept.
    4. ⬜ Opening fits a large circuit; the readout lists the clock and
       registers.

@@ -171,8 +171,16 @@ What the engine has to work with:
    forgets the watched wires, so the worker must watch by wire for records
    to be carried. A wire an edit removed stays in the engine's list until
    the next `watch_wires`; it records nothing meanwhile, and the editor
-   sends only wires still on the sheet. `sim-wasm`, the worker and the
-   editor still use `load` and `watch(nets)`.
+   sends only wires still on the sheet.
+
+   *As built (`sim-wasm` and the worker):* `Engine::load(description,
+   keep)` carries from the circuit loaded before, or from the last one
+   that compiled while an edit has errors, which it keeps for the next
+   `keep` load. `time()` reports the kept circuit's time meanwhile, and
+   `reset()` with nothing loaded drops it (the worker now always calls
+   it). `watch(wires)` watches by wire, and `recorded_nets()` lists the
+   recorded nets for the `waves` reply. The protocol's `load` has `keep`,
+   which the editor does not send yet, so every load is still an open.
 8. **Opening fits the circuit.**
    - A file, example, project or link opens framed to fit when it does not
      fit the default view at 100%. One that fits keeps the default view,

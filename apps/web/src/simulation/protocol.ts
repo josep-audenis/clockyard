@@ -37,7 +37,11 @@ export type Diagnostic = {
 };
 
 export type Command =
-  | { type: "load"; circuit: CircuitDescription }
+  /**
+   * `keep`: an edit's load, which carries time and state from the circuit simulated before it, or from the last one
+   * that compiled (ADR 0033); without it (an open) everything starts at 0.
+   */
+  | { type: "load"; circuit: CircuitDescription; keep?: boolean }
   /** Switch and keyboard values by ID, each a whole number from 0 to 2^width − 1, set in one settle (ADR 0017). */
   | { type: "setInputs"; values: Record<string, number> }
   /**

@@ -64,7 +64,9 @@ The ticks between two frames are only ever seen inside the engine.
    - *As built (ADR 0033, engine):* `watch` now keeps the record of a net
      that stays watched, so watching one more wire no longer clears the
      others. `watch_wires` watches by wire ID, and `load_keeping` carries
-     the records across an edit; the worker does not use either yet.
+     the records across an edit. Since step 2 of ADR 0033, `sim-wasm`'s
+     `watch` takes wire IDs and the worker no longer resolves nets itself;
+     `recorded_nets()` gives the nets in the order `wave` indexes them.
    - `Simulator::waves()` returns each watched net's changes in time order.
    - Recording happens per tick inside `tick`, so the record after `n`
      ticks is the same whether the worker ticked them in one call or many,
