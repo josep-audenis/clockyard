@@ -632,8 +632,10 @@ targets, as in Phase 5.
    1. ✅ The benches as circuit files, and the reference CPU cut along its
       memory boundary and its screen interface on them, generated from
       pieces shared with the example and held to the same model.
-   2. ⬜ The engine: a bench argument to `check`, runs, cycles, memory
-      expectations.
+   2. ✅ The engine: `check_on` checks a definition in a bench's slot,
+      with runs of program words, cycles until an LED, and memory
+      expectations; the bench's own definitions always win. Through
+      `sim-wasm` and the worker; not used by the editor yet.
    3. ⬜ Challenge 10.
    4. ⬜ Challenges 11 and 12.
    5. ⬜ The editor's reports and the browser target.

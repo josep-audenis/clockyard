@@ -101,14 +101,23 @@ pub fn disassemble(word: f64) -> Result<String, JsError> {
 
 /// Checks a challenge (ADR 0025) against a circuit description, both JSON, on
 /// a bench of its own: the report as JSON, `{ result: "passed" | "failed" |
-/// "refused", … }`. A description or challenge that does not parse is an error.
+/// "refused", … }`. With `bench`, a circuit description too, the definition is
+/// checked in that bench's slot (ADR 0034). A description, challenge or bench
+/// that does not parse is an error.
 #[wasm_bindgen]
-pub fn check(description: &str, challenge: &str) -> Result<String, JsError> {
-    let description: CircuitDescription = serde_json::from_str(description)
-        .map_err(|e| JsError::new(&format!("invalid circuit description: {e}")))?;
+pub fn check(description: &str, challenge: &str, bench: Option<String>) -> Result<String, JsError> {
+    let parse = |text: &str, what: &str| -> Result<CircuitDescription, JsError> {
+        serde_json::from_str(text).map_err(|e| JsError::new(&format!("invalid {what}: {e}")))
+    };
+    let description = parse(description, "circuit description")?;
     let challenge: sim_core::check::Challenge = serde_json::from_str(challenge)
         .map_err(|e| JsError::new(&format!("invalid challenge: {e}")))?;
-    let report = sim_core::check::check(&description, &challenge);
+    let report = match bench {
+        Some(bench) => {
+            sim_core::check::check_on(&description, &challenge, &parse(&bench, "bench")?)
+        }
+        None => sim_core::check::check(&description, &challenge),
+    };
     Ok(serde_json::to_string(&report).expect("plain data serializes"))
 }
 

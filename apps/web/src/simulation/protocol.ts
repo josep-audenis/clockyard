@@ -60,8 +60,11 @@ export type Command =
   | { type: "assemble"; request: number; source: string }
   /** ROM words as assembly, one line each, answered with `disassembled` carrying the same `request`. */
   | { type: "disassemble"; request: number; words: number[] }
-  /** Runs a challenge's steps on a bench of its own (ADR 0025), answered with `checked` carrying the same `request`. */
-  | { type: "check"; request: number; circuit: CircuitDescription; challenge: Challenge }
+  /**
+   * Runs a challenge's steps on a bench of its own (ADR 0025), answered with `checked` carrying the same `request`.
+   * With `bench`, a circuit with a slot for the definition, its runs are run there instead (ADR 0034).
+   */
+  | { type: "check"; request: number; circuit: CircuitDescription; challenge: Challenge; bench?: CircuitDescription }
   /**
    * Records these wires' nets from now on, and again from the start of every later load (ADR 0026). Wires
    * of one net record once; a wire the loaded circuit lacks records nothing.
@@ -80,7 +83,22 @@ export type Challenge = {
   outputs: { name: string; width: number }[];
   /** The primitive kinds allowed, flattened; absent allows any. */
   parts?: string[];
-  steps: { set: Record<string, number>; expect: Record<string, number> }[];
+  steps: ChallengeStep[];
+  /** For a challenge checked on a bench (ADR 0034): the bench's name, and its runs, each on a fresh bench. */
+  bench?: string;
+  runs?: { name: string; words?: number[]; steps: ChallengeStep[] }[];
+};
+
+/**
+ * Inputs set together, then outputs compared. On a bench also: `cycles` clock cycles, ended early once the LED
+ * `until` names is lit, and `memory` bytes compared, by the bench part's ID and address.
+ */
+export type ChallengeStep = {
+  set?: Record<string, number>;
+  expect?: Record<string, number>;
+  cycles?: number;
+  until?: string;
+  memory?: Record<string, Record<string, number>>;
 };
 
 /** What a check found: every step passed, the first that failed (0-based), or why the bench could not run. */
@@ -88,6 +106,8 @@ export type Report =
   | { result: "passed"; steps: number }
   | {
       result: "failed";
+      /** On a bench: the run that failed. */
+      run?: string;
       step: number;
       inputs: { name: string; value: number }[];
       mismatches: { name: string; expected: number; got: number }[];

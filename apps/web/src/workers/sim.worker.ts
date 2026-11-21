@@ -193,7 +193,7 @@ onmessage = async (event: MessageEvent<Command>) => {
         break;
       // A bench of its own (ADR 0025): the loaded circuit and any run are untouched.
       case "check":
-        reply({ type: "checked", request: command.request, report: JSON.parse(check(JSON.stringify(command.circuit), JSON.stringify(command.challenge))) });
+        reply({ type: "checked", request: command.request, report: JSON.parse(check(JSON.stringify(command.circuit), JSON.stringify(command.challenge), command.bench && JSON.stringify(command.bench))) });
         break;
     }
   } catch (error) {
