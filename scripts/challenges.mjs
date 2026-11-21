@@ -1,6 +1,7 @@
 // Writes the challenges of ADR 0025 into challenges/: for each, the challenge
 // (NN-name.json), a reference solution (solutions/NN-name.clockyard.json) and
-// the starter the editor opens (starters/NN-name.clockyard.json).
+// the starter the editor opens (starters/NN-name.clockyard.json). And the benches
+// of ADR 0034 (benches/), with the reference parts on them, from scripts/computer.mjs.
 //
 //   node scripts/challenges.mjs           writes the files
 //   node scripts/challenges.mjs --check   fails if a file is not what it would write

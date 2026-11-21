@@ -9,7 +9,7 @@ import { blocks, chip, control, field, IO, io, iodec, ones, part, wires } from "
 
 /** Definitions the bench owns carry this prefix (ADR 0034 item 3): a check always takes them from the bench file. */
 export const BENCH = "bench-";
-/** `definition` and the definitions its chips name, renamed with `prefix`. */
+/** `definition` renamed with `prefix`, and so the definitions its chips name: prefix those too, or they are missing. */
 const prefixed = (prefix, definition) => ({
   ...definition,
   id: prefix + definition.id,
@@ -247,7 +247,7 @@ function displayDefinition(registerId) {
     part("high", "and", 26, 6),
     part("n0", "not", 14, 16),
     part("n1", "not", 14, 20),
-    part("isfe", "and", 26, 16),
+    part("isfe", "and", 26, 18),
     part("isfd", "and", 26, 12),
     part("top", "and", 32, 8),
     part("sptren", "and", 38, 16),

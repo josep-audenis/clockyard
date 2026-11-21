@@ -132,7 +132,7 @@ impl Model {
     }
 }
 
-/// The example circuit with `program` in its ROM, loaded without warnings.
+/// A circuit with a `rom` on its main sheet (an example, or a bench), `program` in it, loaded without warnings.
 fn cpu(text: &str, program: &[u16]) -> Simulator {
     let mut document: Value = serde_json::from_str(text).expect("valid project file");
     let rom = document["circuit"]["components"]
@@ -671,6 +671,12 @@ fn the_cut_cpu_and_the_display_on_their_benches_run_as_specified() {
         for source in programs {
             check_bench(file, sptr, &assemble(source), 64, |_| 0);
         }
+        // Reserved opcodes and bits run as NOP, LDI and OUT; and the PC wraps from 255 to 0.
+        check_bench(file, sptr, &[0xD123, 0x1F05, 0xB0FF, 0xC000], 10, |_| 0);
+        let mut wrap = vec![0x1009];
+        wrap.resize(255, 0);
+        wrap.push(0xB000);
+        check_bench(file, sptr, &wrap, 258, |_| 0);
         // Random words, reserved opcodes and bits included, with a key that changes every few cycles.
         let mut seed: u64 = 0x2545_F491_4F6C_DD1D;
         let mut next = move || {
