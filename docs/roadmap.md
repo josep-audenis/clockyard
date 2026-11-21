@@ -648,8 +648,8 @@ targets, as in Phase 5.
       but is 2."), and Playwright fails each starter through the Check
       button and passes the solutions of 10 and 12, and for 11 a program
       written in the ROM's editor.
-5. ⬜ Four-state signals: `X`, `Z`, a multiple-driver rule, a tri-state
-   buffer.
+5. ⬜ Four-state signals (ADR 0035, accepted): `X`, `Z`, a multiple-driver
+   rule, a tri-state buffer.
 6. ⬜ A second reference CPU: bit operations and call/return, specification
    first.
 
@@ -692,7 +692,7 @@ built: an edit keeps time, flip-flops, memories, switches and the waveform
 record, a large file opens framed, and the readout lists registers.
 Increment 4, challenges 10 to 12 (ADR 0034), is built: a CPU, a program
 and a screen interface, each checked by programs run on a bench.
-Increment 5, four-state signals, is next and needs its own ADR.
+Increment 5, four-state signals, is next; ADR 0035 (accepted) designs it.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
