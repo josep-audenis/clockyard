@@ -261,7 +261,7 @@ What there is to build on:
    *As built (step 3):*
    - **Generated from the first CPU's sheet.** `scripts/reference-cpu.mjs`
      exports its parts and wires, and `scripts/reference-cpu-2.mjs` adds
-     36 parts and replaces 8 wires. A check in the script fails if an
+     37 parts, removes one and replaces 8 wires. A check in the script fails if an
      added part sits on another.
    - **Control.** One ROM, addressed by the whole high byte of the
      instruction (256 words of 20 bits), in place of the first CPU's 16
@@ -282,8 +282,9 @@ What there is to build on:
      it disagrees with `crates/asm`.
    - **Tests.** Every test of the model now runs its program on the
      circuit too and compares them after every cycle. Added: the first
-     CPU's instruction and flag programs; 200 random programs, a third of
-     them mostly the new instructions; and the example's own program. The
+     CPU's instruction and flag programs; 200 random programs from a
+     generator of its own, wider than `cpu.rs`'s, a third of them mostly
+     the new instructions; and the example's own program. The
      first CPU's program of reserved words is a jump on this CPU, so its
      test here places a `HLT` where the jump lands.
    - **Speed** (`docs/performance.md`): both CPUs hold the 10,000 setting

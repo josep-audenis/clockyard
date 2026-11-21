@@ -748,7 +748,7 @@ measured here: no benchmark has an unstable loop. It was about a third slower wh
 
 ## Reference CPU 2 (ADR 0036)
 
-Reference CPU 2 is the first CPU's sheet with 36 parts added (117 in all) and 436 nets against 296. Both were given
+Reference CPU 2 is the first CPU's sheet with 37 parts added and one removed (117 in all) and 436 nets against 296. Both were given
 the first CPU's example program, the endless loop that reads the key, so they do the same work.
 
 **In the browser,** at the 10,000 setting, each example was imported and run in turn in one session, the second CPU's

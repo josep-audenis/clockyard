@@ -6,7 +6,6 @@
 //   node scripts/reference-cpu-2.mjs           writes the file
 //   node scripts/reference-cpu-2.mjs --check   fails if the file is not what it would write
 
-import { fileURLToPath } from "node:url";
 import { blocks, chip, CONTROL, control, ones, part, register, wires } from "./cpu-pieces.mjs";
 import { components as first, emit, junctions, pairs as firstPairs } from "./reference-cpu.mjs";
 
@@ -301,14 +300,15 @@ const addedPairs = [
 const components = [...kept, ...added];
 
 // No part may sit on another. Sizes in grid cells, from apps/web/src/canvas/layout.ts; a chip is
-// taken as 6 wide, which is more than any of these needs. The screen, far from every new part, is
+// taken as 6 by 6, more than any of these needs (each is 4 wide and 6 tall). Captions and net labels
+// are not checked. The screen, far from every new part, is
 // left out.
 const size = (c) => {
   const fields = c.props.fields?.length;
   const wide = (c.props.width ?? 1) > 1;
   switch (c.kind) {
     case "custom":
-      return [6, { mux8: 6, reg8: 6, reg4: 6, reg1: 6, adder8: 6 }[c.definition] ?? 6];
+      return [6, 6];
     case "split":
     case "merge":
       return [3, fields + 1];
@@ -349,10 +349,10 @@ const document = {
     createdAt: "2026-11-21T12:00:00.000Z",
     modifiedAt: "2026-11-21T12:00:00.000Z",
     notes:
-      "Reference CPU 2 (docs/reference-cpu-2.md): the reference CPU with eleven more instructions. It can work on single bits (AND, OR, XOR), shift a byte one bit left or right, loop with JNZ, and call a routine and return from it, on a small stack of its own.\n\nSet the speed to 1 kHz or more and press Run. The program in the ROM draws a diagonal line on the screen one pixel at a time, calling the same routine for each of its 32 pixels, and halts with their count on the hex digits.\n\nSelect the ROM to read the program in assembly. Its routine, plot, works out which screen byte a pixel is in and which bit, and writes the byte back with that bit set. The added parts are at the bottom of the sheet: the logic and shift unit beside the adder, and the stack with its pointer, SP.",
+      "Reference CPU 2 (docs/reference-cpu-2.md): the reference CPU with eleven more instructions. It can work on single bits (AND, OR, XOR), shift a byte one bit left or right, loop with JNZ, and call a routine and return from it, on a small stack of its own.\n\nSet the speed to 1 kHz or more and press Run. The program in the ROM draws a diagonal line on the screen one pixel at a time, calling the same routine for each of its 32 pixels, and halts with their count on the hex digits.\n\nSelect the ROM to read the program in assembly. Its routine, plot, works out which screen byte a pixel is in and which bit, and writes the byte back with that bit set. Most of the added parts are below the read bus: the logic and shift unit, and the stack with its pointer, SP.",
   },
   circuit: { components, junctions, wires: wires([...keptPairs, ...addedPairs]) },
   definitions: [...blocks, register("reg4", "Register 4", 4)],
 };
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) emit("reference-cpu-2.mjs", [["reference-cpu-2", document]]);
+if (import.meta.main) emit("reference-cpu-2.mjs", [["reference-cpu-2", document]]);

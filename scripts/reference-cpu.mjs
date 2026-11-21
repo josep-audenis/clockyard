@@ -11,7 +11,6 @@
 // examples/8-bit-adder.clockyard.json, so a change there is picked up here.
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { blocks, chip, control, field, HEX_DIGITS, IO, io, iodec, ones, part, root, wires } from "./cpu-pieces.mjs";
 
 // --- The main sheet -----------------------------------------------------------
@@ -368,7 +367,7 @@ export function emit(script, files) {
 }
 
 // Importing this file (as scripts/reference-cpu-2.mjs does) writes nothing.
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   emit("reference-cpu.mjs", [
     ["reference-cpu", document],
     ["catch", game],
