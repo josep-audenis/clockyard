@@ -292,8 +292,9 @@ type Result =
   runtime result (an unstable loop) arrives with the first `state`, so the
   settles that follow, such as restored switch positions, replace it: the
   `unstable` error with the `unsettled` warning, for as long as the loop's
-  `X` remains (ADR 0035). The status bar reads Unstable for either, and the
-  canvas highlights the parts either names.
+  `X` remains (ADR 0035). The status bar reads Unstable for either (Running, while
+  a run goes on past the warning), and the canvas highlights the parts
+  either names.
 - `netDrivers` is for *Make component* (ADR 0016): whether a crossing net's
   driver is inside the selection.
 - A `setInputs` value is a JS number. `sim-wasm` refuses a non-integer, a

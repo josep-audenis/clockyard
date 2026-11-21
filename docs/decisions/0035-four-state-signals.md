@@ -338,7 +338,7 @@ What the engine has to work with:
     - **A second loop** adds its parts to those the warning watches; it
       does not replace them.
     - **In the editor** the status bar reads Unstable for the warning as
-      for the error, with its own sentence, and the canvas highlights the
+      for the error (Running, while a run goes on past the warning), with its own sentence, and the canvas highlights the
       parts either names. Without this, the switch positions restored
       after a load would turn a loop's error into "Settled, 1 warning".
     - **Clearing changes nothing yet.** Without `Z`, marking already ends
@@ -346,11 +346,14 @@ What the engine has to work with:
       which must test it. Everything evaluated while marking is evaluated again, not
       only what changed. If clearing ever outlasted its guard, marking
       would finish the settle, which is certain to end.
-    - **Rules with no effect of their own today,** kept as the ADR states
-      them: a known 1 after an unknown clock (the evaluation that saw the
-      clock unknown has already compared the data), and a certain edge
-      while marking (the clock is then part of the loop, and the possible
-      edge that follows does the same).
+    - **Two rules that looked redundant are not,** and each has a test
+      from review: a known 1 after an unknown clock matters when the data
+      moves in the delta the clock becomes known, and a certain edge
+      while marking matters when a clock first rises on the last delta
+      before the limit.
+    - **Marking by bit and clearing cover for each other today:** marking
+      a whole net would be put right by clearing, and clearing changes
+      nothing while marking is by bit. Step 3 must test each alone.
     - **A RAM at a certain edge** with `we` or the address unknown uses
       the snapshot only, since the time of the write is known.
     - **A seeded test** runs 400 random circuits through both paths,

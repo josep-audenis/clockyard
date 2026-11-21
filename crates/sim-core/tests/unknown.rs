@@ -450,9 +450,10 @@ fn a_clock_keeps_ticking_past_the_warning_that_an_x_remains() {
     let run = sim.tick_until(10, led);
     assert_eq!((run.ticks, run.rose), (1, true));
     assert_eq!(run.diagnostic.map(|d| d.code), Some(Code::Unsettled));
-    // Had the LED not risen, the run would have gone its whole length.
-    let run = sim.tick_until(1, led);
-    assert_eq!((run.ticks, run.rose), (1, false));
+    // Where the LED does not rise, the run goes its whole length past the warning: it falls at tick 7.
+    let run = sim.tick_until(3, led);
+    assert_eq!((run.ticks, run.rose), (3, false));
+    assert_eq!(run.diagnostic.map(|d| d.code), Some(Code::Unsettled));
 }
 
 #[test]
@@ -526,4 +527,80 @@ fn a_loop_on_one_bit_of_a_bus_leaves_the_other_bits_known() {
     assert_eq!(bits(&sim, "n", "out"), (0b11, 0b01));
     set(&mut sim, "s", 1);
     assert_eq!(bits(&sim, "n", "out"), (0b01, 0b01));
+}
+
+#[test]
+fn a_clock_known_again_as_the_data_moves_is_a_possible_edge() {
+    // clk = OR(x, c): the loop while c is 0, a known 1 once c is 1. d follows its switch through one gate, so
+    // it moves in the very delta the clock becomes known.
+    let mut sim = load(
+        vec![
+            part("c", "switch"),
+            part("clk", "or"),
+            part("ds", "switch"),
+            part("d", "or"),
+            part("f", "dff"),
+        ],
+        &[
+            ("x.out", "clk.a"),
+            ("c.out", "clk.b"),
+            ("ds.out", "d.a"),
+            ("ds.out", "d.b"),
+            ("d.out", "f.d"),
+            ("clk.out", "f.clk"),
+        ],
+    );
+    unknown(&mut sim);
+    assert_eq!(bits(&sim, "clk", "out"), X);
+    assert_eq!(bits(&sim, "f", "q"), (0, 0), "d equals what is stored");
+    let report = sim.set_inputs(&[("c", 1), ("ds", 1)]).unwrap();
+    assert!(report.is_none_or(|d| !d.is_error()));
+    assert_eq!(bits(&sim, "clk", "out"), (1, 0));
+    // A known 1 after unknown: it may have risen just now, with d on the move.
+    assert_eq!(bits(&sim, "f", "q"), X);
+}
+
+#[test]
+fn a_clock_that_first_rises_at_the_delta_limit_leaves_x_where_the_data_differs() {
+    // Two rings, of 5 and of 12 gates, each giving a one-delta pulse when its tap rises; clk is both pulses at
+    // once, which first happens on the last delta before the limit (32 primitives + 64).
+    // The alignment depends on that limit: if its formula changes, this test's rings must change with it.
+    let mut parts = vec![
+        part("s", "switch"),
+        part("dd", "switch"),
+        part("f", "dff"),
+        part("clk", "and"),
+    ];
+    let mut list: Vec<(String, String)> = Vec::new();
+    for (name, len, tap) in [("a", 5, 0), ("b", 12, 1)] {
+        parts.push(part(&format!("{name}00"), "nand"));
+        list.push(("s.out".into(), format!("{name}00.a")));
+        list.push((format!("{name}{:02}.out", len - 1), format!("{name}00.b")));
+        for k in 1..len {
+            parts.push(part(&format!("{name}{k:02}"), "or"));
+            list.push((format!("{name}{:02}.out", k - 1), format!("{name}{k:02}.a")));
+            list.push((format!("{name}{:02}.out", k - 1), format!("{name}{k:02}.b")));
+        }
+        parts.push(part(&format!("{name}n"), "not"));
+        parts.push(part(&format!("{name}p"), "and"));
+        list.push((format!("{name}{tap:02}.out"), format!("{name}n.in")));
+        list.push((format!("{name}{tap:02}.out"), format!("{name}p.a")));
+        list.push((format!("{name}n.out"), format!("{name}p.b")));
+    }
+    list.extend([
+        ("ap.out".to_string(), "clk.a".to_string()),
+        ("bp.out".to_string(), "clk.b".to_string()),
+        ("clk.out".to_string(), "f.clk".to_string()),
+        ("dd.out".to_string(), "f.d".to_string()),
+    ]);
+    let list: Vec<(&str, &str)> = list.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect();
+    let description: CircuitDescription =
+        serde_json::from_value(json!({ "components": parts, "connections": wires(&list) }))
+            .unwrap();
+    let mut sim = start(&description);
+    set(&mut sim, "dd", 1);
+    let report = sim.set_input("s", 1).unwrap().expect("the rings");
+    assert_eq!(report.code, Code::Unstable);
+    // The one certain edge fell while marking: 0 against d = 1 is X, not a known 1.
+    assert_eq!(bits(&sim, "f", "q"), X);
 }

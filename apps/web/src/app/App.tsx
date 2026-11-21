@@ -2740,7 +2740,8 @@ function StatusBar() {
   const errors = diagnostics.filter((d) => d.severity === "error");
   // A loop is reported once as an error; while its X remains, every later settle carries a warning instead (ADR 0035).
   const unsettled = diagnostics.find((d) => d.code === "unsettled");
-  const unstable = errors.some((d) => d.code === "unstable") || unsettled !== undefined;
+  // A run goes on past the warning, and reads Running while it does.
+  const unstable = errors.some((d) => d.code === "unstable") || (unsettled !== undefined && !running);
   // Why the last run ended by itself (ADR 0021): its LED, while the sheet still has it, or the loop that did not settle,
   // which keeps the unstable diagnostic and its part names after "Stopped: ".
   const lit = stopped?.reason === "lit" ? components.find((c) => c.id === stopped.led) : undefined;
