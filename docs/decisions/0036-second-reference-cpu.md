@@ -1,4 +1,4 @@
-# 0036. A second reference CPU: bit operations, shifts, and call and return
+# 0036. A second reference CPU: bit operations, shifts, a jump, and call and return
 
 - Status: Proposed
 - Date: 2026-11-21
@@ -98,8 +98,10 @@ What there is to build on:
      `JNZ`, bits 11–8 are ignored, as for every instruction of the first
      CPU.
    - `JNZ` is there because every loop on the first CPU ends in `JZ out`
-     and `JMP loop`: one word and two cycles a round, which the pixel
-     routine pays several times a pixel. It costs one control bit.
+     and `JMP loop`: one word and two cycles a round, which the game's
+     wait loop and its drawing loops would each pay. It costs one control
+     bit. `Z` is 0 after reset, though `A` is 0, so a `JNZ` that comes
+     first is taken.
    - Nothing else is added: no compare, no rotate, no index register, no
      indirect addressing. Catch 2 (item 7) is written without them; the
      screen is already reached through `SPTR`.
@@ -134,7 +136,8 @@ What there is to build on:
    - **Disassembly.** A word of the eleven is shown as its instruction,
      whichever CPU the ROM feeds. It is shown alone when the assembler
      would write that word; otherwise with the raw word in a comment, as
-     now: `SHL ; 0xF612`, and `NOP ; 0xFA00` for `0xE` and `0xFA`–`0xFF`.
+     now: `SHL ; 0xF612`, and `NOP` with the raw word for `0xE` and
+     `0xFA`–`0xFF`.
      Disassembled text still assembles to a program that behaves the same,
      on either CPU.
 
@@ -190,7 +193,9 @@ What there is to build on:
      1,000 cycles before any waiting, about what a step of Catch takes at
      its start. The rules in the specification give the starting pace and
      how far a catch speeds it up, from the cycles the written program
-     takes.
+     takes. The paper sketch puts a row near 900 cycles, so the game
+     starts slower than Catch, for a catch to have something to take
+     off.
    - **Play** stays Catch's: a block caught scores on `HEX` and the next
      falls faster; a miss halts; Reset plays again. The program fits the
      256-word ROM. A sketch of it on paper came to about 155 words, with
@@ -211,7 +216,9 @@ What there is to build on:
      - words the assembler would not write: `0xF6nn`, `0xF7nn` and
        `0xF9nn` with an operand, `0xE` and `0xFA`–`0xFF`;
      - the first CPU's test programs, the random ones too, against the
-       second model. Their `0xD` and `0xF` words now do something.
+       second model. Their `0xD` and `0xF` words now do something, so a
+       program whose asserted result relied on those doing nothing is
+       replaced for this CPU.
    - Catch 2 on both, with keys scripted cycle by cycle.
    - Playwright: the example runs a program that uses a call and a bit
      operation (step 3); Catch 2 scores with the paddle moved by one
