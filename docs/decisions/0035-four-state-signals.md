@@ -123,7 +123,9 @@ What the engine has to work with:
      Each part takes the clock's settled value as the one it last saw.
      If that value is unknown, the part takes one possible edge at the
      end of the settle, against the settled data: the clock may be
-     toggling, and nothing would evaluate the part again.
+     toggling, and nothing would evaluate the part again. What follows
+     from that edge settles as an ordinary settle does, so a part whose
+     clock is still unknown is evaluated again when its data changes.
    - So after Reset all state is known, unless a clock settles unknown.
      An edit that keeps state (ADR 0033) keeps unknown bits with it.
 
@@ -292,7 +294,8 @@ What the engine has to work with:
        native tests and the benchmark comparison. No part produces `Z`
        yet, so only an unstable loop shows anything new. Its tests include
        data that changes under an unknown clock, a clock that settles
-       unknown at load and at Reset, and the same for a RAM's `we`. The
+       unknown at load and at Reset (a register with feedback among
+       them), and the same for a RAM's `we`. The
        editor keeps
        drawing value words until step 4, so such a loop's `X` looks like
        a 1 there, which is no worse than the made-up values of today.
