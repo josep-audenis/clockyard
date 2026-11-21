@@ -272,6 +272,49 @@ test("the one-bit register: the starter fails at the first edge that loads; the 
   await expect(checked(page)).toHaveText("Passed, 25 of 25 steps.");
 });
 
+test("the program challenge: a program written in the ROM's editor is checked on the CPU's gates (ADR 0034)", async ({ page }) => {
+  await page.goto("/");
+  await openTab(page, "Learn");
+  await challenges(page).getByRole("button", { name: "11. Program" }).click();
+  await expect(challenge(page)).toContainText("Write a program for the CPU");
+  // An empty ROM is all NOPs: the CPU never halts.
+  await challenge(page).getByRole("button", { name: "Check" }).click();
+  await expect(checked(page)).toHaveText("Run Sum to 1, step 2 of 3 failed. With key = 1: halt should be 1 but is 0; out should be 1 but is 0.");
+
+  // On the Program sheet: its ROM selected, a program written and assembled into it.
+  await expect(page.getByRole("navigation", { name: "Sheet" })).toContainText("Program");
+  const at = await grid(page);
+  await click(page, at(10, 2)); // the ROM at (8,0)
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  const source = inspector.getByLabel("Assembly", { exact: true });
+  // It shows the key, not the sum: right for 1 only.
+  await source.fill("LDA 0xFF\nOUT\nHLT");
+  await page.getByRole("button", { name: "Assemble", exact: true }).click();
+  await expect(inspector.getByRole("status")).toHaveText("Assembled 3 words.");
+  await challenge(page).getByRole("button", { name: "Check" }).click();
+  await expect(checked(page)).toHaveText("Run Sum to 2, step 2 of 3 failed. With key = 2: out should be 3 but is 2.");
+  // The sum, counting the key down.
+  await source.fill("LDA 0xFF\nSTA 0\nloop: LDA 1\nADD 0\nSTA 1\nLDA 0\nSBI 1\nSTA 0\nJZ done\nJMP loop\ndone: LDA 1\nOUT\nHLT");
+  await page.getByRole("button", { name: "Assemble", exact: true }).click();
+  await expect(inspector.getByRole("status")).toHaveText("Assembled 13 words.");
+  await challenge(page).getByRole("button", { name: "Check" }).click();
+  await expect(checked(page)).toHaveText("Passed, 15 of 15 steps.");
+});
+
+test("the display challenge: its starter draws nothing, and the reference screen interface passes (ADR 0034)", async ({ page }) => {
+  await page.goto("/");
+  await openTab(page, "Learn");
+  await challenges(page).getByRole("button", { name: "12. Display" }).click();
+  await expect(challenge(page)).toContainText("Connect the screen to the CPU");
+  await challenge(page).getByRole("button", { name: "Check" }).click();
+  await expect(checked(page)).toHaveText("Run One byte, step 2 of 3 failed. screen byte 3 should be 129 but is 0.");
+
+  await page.locator('[data-testid="import-file"]').setInputFiles(solution("12-display"));
+  await expect(page.getByLabel("Project name")).toHaveValue("Display: solution");
+  await challenge(page).getByRole("button", { name: "Check" }).click();
+  await expect(checked(page)).toHaveText("Passed, 9 of 9 steps.");
+});
+
 test("the CPU challenge: its starter never halts, and the reference CPU passes every run on the bench (ADR 0034)", async ({ page }) => {
   await page.goto("/");
   await openTab(page, "Learn");

@@ -71,13 +71,16 @@ export function execute(words, key = 0, limit = 400) {
  * well inside them. A first step looks at `fetch` after one instruction, and a last one clocks on
  * past the halt: nothing may change, and `fetch` stays 0.
  */
-export function run(name, words, key, { source, program = words } = {}) {
+export function run(name, words, key, { source, program = words, bytes = true, cycles } = {}) {
   const end = execute(program, key ?? 0);
   if (!end.halted) throw new Error(`${name} does not halt in the model`);
-  const memory = {
-    ...(Object.keys(end.ram).length > 0 && { ram: end.ram }),
-    ...(Object.keys(end.screen).length > 0 && { screen: end.screen }),
-  };
+  // `bytes: false` for a program the user writes: where it keeps its numbers is its own business.
+  const memory = bytes
+    ? {
+        ...(Object.keys(end.ram).length > 0 && { ram: end.ram }),
+        ...(Object.keys(end.screen).length > 0 && { screen: end.screen }),
+      }
+    : {};
   return {
     name,
     ...(source !== undefined && { source }),
@@ -86,7 +89,7 @@ export function run(name, words, key, { source, program = words } = {}) {
       // One instruction in: the next fetch is about to begin, so `fetch` is 1. No program starts with HLT.
       { ...(key !== undefined && { set: { key } }), cycles: 2, expect: { fetch: 1, halt: 0 } },
       {
-        cycles: end.cycles + 20,
+        cycles: cycles ?? end.cycles + 20,
         until: "halt",
         expect: { out: end.out },
         ...(Object.keys(memory).length > 0 && { memory }),
@@ -151,3 +154,33 @@ const PROGRAMS = [
 export const cpuRuns = PROGRAMS.flatMap(({ name, source, words, keys }) =>
   keys ? keys.map((key) => run(`${name}, key ${key}`, words, key, { source })) : [run(name, words, undefined, { source })],
 );
+
+// Challenge 11: the program is the user's, so a run has no words. The sum of 1 to the key, by this
+// reference program; any program that shows the same sums passes, wherever it keeps its numbers,
+// in up to 900 cycles (this one takes 366 for 22).
+export const SUM = {
+  source: "LDA 0xFF\nSTA 0\nLDA 1\nADD 0\nSTA 1\nLDA 0\nSBI 1\nSTA 0\nJZ 10\nJMP 2\nLDA 1\nOUT\nHLT",
+  words: [0x20ff, 0x3000, 0x2001, 0x4000, 0x3001, 0x2000, 0x7001, 0x3000, 0x900a, 0x8002, 0x2001, 0xb000, 0xc000],
+};
+export const programRuns = [1, 2, 5, 10, 22].map((key) => run(`Sum to ${key}`, undefined, key, { program: SUM.words, bytes: false, cycles: 900 }));
+
+// Challenge 12: programs that draw, on the provided CPU; the screen's bytes show what `display` did.
+const DRAWINGS = [
+  { name: "One byte", source: "LDI 3\nSTA 0xFE\nLDI 0x81\nSTA 0xFD\nHLT", words: [0x1003, 0x30fe, 0x1081, 0x30fd, 0xc000] },
+  {
+    // The pointer moves between two stores, and reads back.
+    name: "Two bytes",
+    source: "LDI 200\nSTA 0xFE\nLDI 0xFF\nSTA 0xFD\nLDI 7\nSTA 0xFE\nLDI 0x0F\nSTA 0xFD\nLDA 0xFE\nOUT\nHLT",
+    words: [0x10c8, 0x30fe, 0x10ff, 0x30fd, 0x1007, 0x30fe, 0x100f, 0x30fd, 0x20fe, 0xb000, 0xc000],
+  },
+  {
+    // Stores to addresses that look like 0xFE and 0xFD in some bits move no pointer and draw nothing.
+    // Then two additions read 0xFD and 0xFE: they are not stores, though A changes while the address
+    // stays, so a display that ignores `we` would draw the sum or move the pointer.
+    name: "Other addresses",
+    source:
+      "LDI 5\nSTA 0xFE\nLDI 0x11\nSTA 0x7E\nSTA 0xFC\nSTA 0xFF\nSTA 0xEE\nSTA 0xFA\nLDI 0x22\nSTA 0xFD\nLDI 0x33\nSTA 0x7D\nSTA 0xF5\nSTA 0xDD\nSTA 0xFC\nLDI 1\nADD 0xFD\nADD 0xFE\nOUT\nHLT",
+    words: [0x1005, 0x30fe, 0x1011, 0x307e, 0x30fc, 0x30ff, 0x30ee, 0x30fa, 0x1022, 0x30fd, 0x1033, 0x307d, 0x30f5, 0x30dd, 0x30fc, 0x1001, 0x40fd, 0x40fe, 0xb000, 0xc000],
+  },
+];
+export const displayRuns = DRAWINGS.map(({ name, source, words }) => run(name, words, undefined, { source }));

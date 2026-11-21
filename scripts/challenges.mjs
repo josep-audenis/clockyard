@@ -11,8 +11,8 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { computers } from "./computer.mjs";
-import { cpuRuns } from "./cpu-runs.mjs";
+import { computers, program } from "./computer.mjs";
+import { cpuRuns, displayRuns, programRuns, SUM } from "./cpu-runs.mjs";
 
 const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 
@@ -520,10 +520,6 @@ const computer = (name, sheet, definitions, challenge) => ({
 for (const [slot, c] of Object.entries(computers)) {
   files.push([`challenges/benches/${slot}.clockyard.json`, computer(`Bench: ${slot}`, c.sheet, [c.empty, ...c.owned])]);
 }
-files.push([
-  "challenges/solutions/12-display.clockyard.json",
-  computer("Display: solution", computers.display.sheet, [computers.display.reference, ...computers.display.given, ...computers.display.owned]),
-]);
 
 // Challenges checked on a bench (ADR 0034): the part to build sits in the bench's slot, and the starter
 // is the bench itself, so the main sheet is a computer to run the part in.
@@ -560,9 +556,37 @@ const benchChallenges = [
     parts: [...GATES, "dff", "split", "merge", "rom"],
     runs: cpuRuns,
   },
+  {
+    file: "11-program",
+    slot: "program",
+    title: "Program",
+    // The reference: the sum, by a loop that counts the key down.
+    reference: program(SUM.words, SUM.source),
+    text:
+      "Write a program for the CPU. It reads a number from 1 to 22 at address 0xFF, adds up 1 + 2 + ... up to it, shows the sum with OUT, and halts: 5 gives 15. " +
+      "Open Program, select its ROM, write the program in assembly, and press Assemble. " +
+      `The instructions: ${INSTRUCTIONS}. n is a number, such as 16 or 0xFF. RAM[n] is a byte of memory you can use, for n from 0 to 0xEF. ` +
+      "Z is set when A becomes 0, and C by an addition that carries or a subtraction that borrows nothing. " +
+      "The main sheet is the computer: set Key, then step the Clock switch or wire a clock in to watch your program run.",
+    parts: ["rom"],
+    runs: programRuns,
+  },
+  {
+    file: "12-display",
+    slot: "display",
+    title: "Display",
+    text:
+      "Connect the screen to the CPU. The CPU puts an address on addr and a byte on dout, with we at 1 through the clock cycle of a store. " +
+      "sptr is the screen pointer, 8 bits: a store to address 0xFE sets it to dout at the rising clk, and nothing else changes it. " +
+      "swe is 1 while a store to address 0xFD is under way, and 0 at any other time: the screen then takes dout at the byte sptr points to. " +
+      "A register is provided. The main sheet is the computer, with the screen on it.",
+    parts: [...GATES, "dff", "split", "merge"],
+    runs: displayRuns,
+  },
 ];
 for (const c of benchChallenges) {
-  const { reference, empty, given, owned, sheet } = computers[c.slot];
+  const { empty, given, owned, sheet } = computers[c.slot];
+  const reference = c.reference ?? computers[c.slot].reference;
   const pins = (kind) => reference.circuit.components.filter((p) => p.kind === kind).map((p) => ({ name: p.id, width: p.props.width ?? 1 }));
   files.push(
     [

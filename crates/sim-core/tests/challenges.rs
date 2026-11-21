@@ -69,7 +69,7 @@ fn refusal(report: Report) -> String {
 }
 
 #[test]
-fn there_are_ten_challenges_so_far() {
+fn there_are_twelve_challenges() {
     assert_eq!(
         all(),
         [
@@ -82,7 +82,9 @@ fn there_are_ten_challenges_so_far() {
             "07-register8",
             "08-counter8",
             "09-alu",
-            "10-cpu"
+            "10-cpu",
+            "11-program",
+            "12-display"
         ]
     );
 }
@@ -832,4 +834,123 @@ fn a_cpu_with_one_wrong_wire_fails_the_challenge() {
     );
     let report = report(&running, &c);
     assert!(matches!(report, Report::Failed { .. }), "{report:?}");
+}
+
+#[test]
+fn the_program_challenge_takes_any_program_that_shows_the_sums_and_its_solution_is_as_assembled() {
+    let c = challenge("11-program");
+    // The solution's ROM holds its source as assembled.
+    let text = read("solutions/11-program.clockyard.json");
+    let document: serde_json::Value = serde_json::from_str(&text).expect("a document");
+    let rom = document["definitions"]
+        .as_array()
+        .expect("definitions")
+        .iter()
+        .find(|d| d["id"] == "program")
+        .and_then(|d| {
+            d["circuit"]["components"]
+                .as_array()?
+                .iter()
+                .find(|c| c["kind"] == "rom")
+        })
+        .expect("the program's ROM");
+    let data: Vec<u64> = rom["props"]["data"]
+        .as_array()
+        .expect("words")
+        .iter()
+        .map(|w| w.as_u64().expect("a word"))
+        .collect();
+    let assembled = words_of(rom["props"]["source"].as_str().expect("its source"));
+    assert_eq!(
+        data,
+        assembled.iter().map(|&w| u64::from(w)).collect::<Vec<_>>()
+    );
+
+    // Another program for the same sums, adding upwards and keeping its numbers elsewhere, passes too.
+    let other = "LDA 0xFF\nSTA 0x20\nloop: LDA 0x21\nADI 1\nSTA 0x21\nADD 0x22\nSTA 0x22\nLDA 0x20\nSUB 0x21\nJZ done\nJMP loop\ndone: LDA 0x22\nOUT\nHLT";
+    let with = |source: &str| {
+        let mut document = solution("11-program");
+        let program = document
+            .definitions
+            .iter_mut()
+            .find(|d| d.id == "program")
+            .unwrap();
+        let rom = program
+            .components
+            .iter_mut()
+            .find(|c| c.kind == "rom")
+            .unwrap();
+        rom.data = Some(words_of(source).iter().map(|&w| f64::from(w)).collect());
+        document
+    };
+    assert_eq!(
+        report(&with(other), &c),
+        Report::Passed { steps: steps(&c) }
+    );
+    // One that shows the key itself fails, at the first key whose sum differs.
+    match report(&with("LDA 0xFF\nOUT\nHLT"), &c) {
+        Report::Failed { run, .. } => assert_eq!(run.as_deref(), Some("Sum to 2")),
+        other => panic!("expected a failed run, got {other:?}"),
+    }
+    // A component with more than a ROM in it is refused.
+    let mut gates = solution("11-program");
+    let program = gates
+        .definitions
+        .iter_mut()
+        .find(|d| d.id == "program")
+        .unwrap();
+    program
+        .components
+        .push(sim_core::description::ComponentDesc {
+            id: "extra".into(),
+            kind: "not".into(),
+            ..Default::default()
+        });
+    assert_eq!(
+        refusal(report(&gates, &c)),
+        "This challenge allows only these parts: rom. The component uses: not."
+    );
+}
+
+#[test]
+fn a_display_with_one_wrong_wire_fails_the_challenge() {
+    let c = challenge("12-display");
+    let port = |component: &str, port: &str| {
+        Endpoint::Port(PortRef {
+            component: component.into(),
+            port: port.into(),
+        })
+    };
+    // Inside the reference display: `top` is "a store to an address whose top six bits are 1".
+    let mutants = [
+        // The store strobe ignored: a load from 0xFD draws, and so does every cycle at that address.
+        (("top", "b"), ("high", "out")),
+        // The top bits ignored: 0x7E moves the pointer and 0x7D draws.
+        (("top", "a"), ("we", "out")),
+        // The two addresses swapped.
+        (("sptren", "b"), ("isfd", "out")),
+        // The pointer taken from the address instead of the byte stored.
+        (("r", "d"), ("addr", "out")),
+        // Bit 0 ignored when drawing: 0xFC draws too.
+        (("isfd", "b"), ("n1", "out")),
+    ];
+    for ((to, to_port), (from, from_port)) in mutants {
+        let mut wrong = solution("12-display");
+        let display = wrong
+            .definitions
+            .iter_mut()
+            .find(|d| d.id == "display")
+            .unwrap();
+        let wire = display
+            .connections
+            .iter_mut()
+            .find(|w| w.to == port(to, to_port))
+            .unwrap_or_else(|| panic!("a wire into {to}.{to_port}"));
+        wire.from = port(from, from_port);
+        let report = report(&wrong, &c);
+        assert!(
+            matches!(report, Report::Failed { .. }),
+            "{to}.{to_port} from {from}.{from_port}: {report:?}"
+        );
+    }
 }

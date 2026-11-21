@@ -359,6 +359,32 @@ Four questions decide the design:
    - The bench's parts are spread out when written, after it was first
      seen in the editor.
 
+   *As built (step 4):* challenges 11 and 12, each with its solution and
+   starter, a copy of its bench.
+   - **11, the program.** Five runs with no words: the keys 1, 2, 5, 10
+     and 22, and the sum expected in `out`. No memory is compared, since
+     where a program keeps its numbers is its own business, and each run
+     has 900 cycles (the reference loop takes 366 for 22). Only a `rom`
+     is allowed in `program`. The solution's words are held to its source
+     by a native test, and another program for the same sums passes.
+   - **12, the display.** Three runs: one byte; two bytes with the pointer
+     moved and read back; and stores to addresses that share bits with
+     `0xFE` and `0xFD`, then additions that read those two addresses. The
+     additions matter: `addr` stays through the next cycle while A
+     changes, so a display that ignores `we` draws the sum. A load there
+     hid it, the byte written being the byte just read. Five miswired
+     displays fail.
+   - **Playwright.** Challenge 11's starter fails (the CPU never halts on
+     an empty ROM); a program that shows the key is written in the ROM's
+     editor, assembled, and fails at the second key; the sum passes, 15 of
+     15 steps. Challenge 12's starter fails at the first byte and its
+     solution passes.
+   - **A definition added under a `bench-` ID.** *Add components* numbers
+     an ID already taken (`bench-reg8-2`), and the check leaves every
+     `bench-` definition of the user's out. A part built from one is then
+     refused for an unknown definition. Building from the provided `reg8`
+     avoids it.
+
 ## Alternatives considered
 
 - **Benches built in code.** That is how challenges 1 to 9 are built, and

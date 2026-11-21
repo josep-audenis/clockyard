@@ -18,9 +18,9 @@ these files by hand: `node scripts/challenges.mjs` writes them, and
   ROM, or the `display` that drives the screen. The slot's definition is
   empty (its pins only; an empty ROM for `program`). Definitions the bench
   owns have IDs starting `bench-`.
-- `solutions/10-cpu` and `12-display` are those benches with the reference
-  part in the slot: the reference CPU cut along its memory boundary, and
-  its screen interface. A bench challenge's starter is its bench with the
+- `solutions/10-cpu`, `11-program` and `12-display` are those benches with
+  the reference part in the slot: the reference CPU cut along its memory
+  boundary, a program that sums 1 to the key, and the screen interface. A bench challenge's starter is its bench with the
   slot empty and the parts it provides.
 - A bench challenge (`"bench": "cpu"`) has `runs` in place of steps: each a
   program (`words`, beside the `source` they were assembled from by hand)
@@ -46,6 +46,8 @@ holds the cut CPU and the display, on their benches, to the same model of
 | `08-counter8` | `en`, `clr`, `clk` → `Q[8]` | gates, dff, split, merge |
 | `09-alu` | `A[8]`, `B[8]`, `sub` → `Y[8]`, `C`, `Z` | gates, split, merge (8-bit adder provided) |
 | `10-cpu` | `clk`, `instr[16]`, `din[8]` → `pc[8]`, `addr[8]`, `dout[8]`, `we`, `out[8]`, `halt`, `fetch` | gates, dff, split, merge, rom (registers, multiplexer and 8-bit adder provided) |
+| `11-program` | `addr[8]` → `word[16]`: a program in its ROM | rom (the CPU provided on the bench) |
+| `12-display` | `clk`, `addr[8]`, `dout[8]`, `we` → `sptr[8]`, `swe` | gates, dff, split, merge (8-bit register provided; the CPU on the bench) |
 
 A clocked challenge changes its data inputs with `clk` low, and nothing
 else in the step that raises `clk`, so every edge samples settled inputs.

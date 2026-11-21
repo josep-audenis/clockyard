@@ -639,7 +639,9 @@ targets, as in Phase 5.
    3. ✅ Challenge 10, the CPU: ten runs of eight programs on the bench,
       its starter a computer with an empty CPU, and the reference CPU its
       solution, passing through the Check button.
-   4. ⬜ Challenges 11 and 12.
+   4. ✅ Challenges 11 and 12: a program for the provided CPU, written
+      in its ROM's editor and checked by the sums it shows for five keys;
+      and the screen interface, checked by what three programs draw.
    5. ⬜ The editor's reports and the browser target.
 5. ⬜ Four-state signals: `X`, `Z`, a multiple-driver rule, a tri-state
    buffer.

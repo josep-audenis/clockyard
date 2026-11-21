@@ -1,0 +1,52 @@
+{
+  "title": "Display",
+  "text": "Connect the screen to the CPU. The CPU puts an address on addr and a byte on dout, with we at 1 through the clock cycle of a store. sptr is the screen pointer, 8 bits: a store to address 0xFE sets it to dout at the rising clk, and nothing else changes it. swe is 1 while a store to address 0xFD is under way, and 0 at any other time: the screen then takes dout at the byte sptr points to. A register is provided. The main sheet is the computer, with the screen on it.",
+  "definition": "display",
+  "bench": "display",
+  "inputs": [
+    {
+      "name": "clk",
+      "width": 1
+    },
+    {
+      "name": "addr",
+      "width": 8
+    },
+    {
+      "name": "dout",
+      "width": 8
+    },
+    {
+      "name": "we",
+      "width": 1
+    }
+  ],
+  "outputs": [
+    {
+      "name": "sptr",
+      "width": 8
+    },
+    {
+      "name": "swe",
+      "width": 1
+    }
+  ],
+  "parts": [
+    "not",
+    "and",
+    "nand",
+    "or",
+    "nor",
+    "xor",
+    "xnor",
+    "dff",
+    "split",
+    "merge"
+  ],
+  "steps": [],
+  "runs": [
+    {"name":"One byte","source":"LDI 3\nSTA 0xFE\nLDI 0x81\nSTA 0xFD\nHLT","words":[4099,12542,4225,12541,49152],"steps":[{"cycles":2,"expect":{"fetch":1,"halt":0}},{"cycles":30,"until":"halt","expect":{"out":0},"memory":{"screen":{"3":129}}},{"cycles":4,"expect":{"out":0,"halt":1,"fetch":0},"memory":{"screen":{"3":129}}}]},
+    {"name":"Two bytes","source":"LDI 200\nSTA 0xFE\nLDI 0xFF\nSTA 0xFD\nLDI 7\nSTA 0xFE\nLDI 0x0F\nSTA 0xFD\nLDA 0xFE\nOUT\nHLT","words":[4296,12542,4351,12541,4103,12542,4111,12541,8446,45056,49152],"steps":[{"cycles":2,"expect":{"fetch":1,"halt":0}},{"cycles":42,"until":"halt","expect":{"out":7},"memory":{"screen":{"7":15,"200":255}}},{"cycles":4,"expect":{"out":7,"halt":1,"fetch":0},"memory":{"screen":{"7":15,"200":255}}}]},
+    {"name":"Other addresses","source":"LDI 5\nSTA 0xFE\nLDI 0x11\nSTA 0x7E\nSTA 0xFC\nSTA 0xFF\nSTA 0xEE\nSTA 0xFA\nLDI 0x22\nSTA 0xFD\nLDI 0x33\nSTA 0x7D\nSTA 0xF5\nSTA 0xDD\nSTA 0xFC\nLDI 1\nADD 0xFD\nADD 0xFE\nOUT\nHLT","words":[4101,12542,4113,12414,12540,12543,12526,12538,4130,12541,4147,12413,12533,12509,12540,4097,16637,16638,45056,49152],"steps":[{"cycles":2,"expect":{"fetch":1,"halt":0}},{"cycles":60,"until":"halt","expect":{"out":40},"memory":{"ram":{"125":51,"126":17,"221":51,"238":17},"screen":{"5":34}}},{"cycles":4,"expect":{"out":40,"halt":1,"fetch":0},"memory":{"ram":{"125":51,"126":17,"221":51,"238":17},"screen":{"5":34}}}]}
+  ]
+}

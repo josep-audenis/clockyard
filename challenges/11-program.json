@@ -1,0 +1,29 @@
+{
+  "title": "Program",
+  "text": "Write a program for the CPU. It reads a number from 1 to 22 at address 0xFF, adds up 1 + 2 + ... up to it, shows the sum with OUT, and halts: 5 gives 15. Open Program, select its ROM, write the program in assembly, and press Assemble. The instructions: 0 NOP: nothing; 1 LDI n: A = n; 2 LDA n: A = RAM[n]; 3 STA n: RAM[n] = A; 4 ADD n: A = A + RAM[n]; 5 SUB n: A = A - RAM[n]; 6 ADI n: A = A + n; 7 SBI n: A = A - n; 8 JMP n: PC = n; 9 JZ n: PC = n if Z; A JC n: PC = n if C; B OUT: out = A; C HLT: halt. n is a number, such as 16 or 0xFF. RAM[n] is a byte of memory you can use, for n from 0 to 0xEF. Z is set when A becomes 0, and C by an addition that carries or a subtraction that borrows nothing. The main sheet is the computer: set Key, then step the Clock switch or wire a clock in to watch your program run.",
+  "definition": "program",
+  "bench": "program",
+  "inputs": [
+    {
+      "name": "addr",
+      "width": 8
+    }
+  ],
+  "outputs": [
+    {
+      "name": "word",
+      "width": 16
+    }
+  ],
+  "parts": [
+    "rom"
+  ],
+  "steps": [],
+  "runs": [
+    {"name":"Sum to 1","steps":[{"set":{"key":1},"cycles":2,"expect":{"fetch":1,"halt":0}},{"cycles":900,"until":"halt","expect":{"out":1}},{"cycles":4,"expect":{"out":1,"halt":1,"fetch":0}}]},
+    {"name":"Sum to 2","steps":[{"set":{"key":2},"cycles":2,"expect":{"fetch":1,"halt":0}},{"cycles":900,"until":"halt","expect":{"out":3}},{"cycles":4,"expect":{"out":3,"halt":1,"fetch":0}}]},
+    {"name":"Sum to 5","steps":[{"set":{"key":5},"cycles":2,"expect":{"fetch":1,"halt":0}},{"cycles":900,"until":"halt","expect":{"out":15}},{"cycles":4,"expect":{"out":15,"halt":1,"fetch":0}}]},
+    {"name":"Sum to 10","steps":[{"set":{"key":10},"cycles":2,"expect":{"fetch":1,"halt":0}},{"cycles":900,"until":"halt","expect":{"out":55}},{"cycles":4,"expect":{"out":55,"halt":1,"fetch":0}}]},
+    {"name":"Sum to 22","steps":[{"set":{"key":22},"cycles":2,"expect":{"fetch":1,"halt":0}},{"cycles":900,"until":"halt","expect":{"out":253}},{"cycles":4,"expect":{"out":253,"halt":1,"fetch":0}}]}
+  ]
+}
