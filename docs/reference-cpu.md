@@ -6,8 +6,8 @@ run the same programs on the netlist and on a model written from this page,
 and the results must match after every clock cycle. Change this page first
 to change the instruction set.
 
-A second CPU, [Reference CPU 2](reference-cpu-2.md) (ADR 0036, its
-circuit not yet built), is this one with eleven more instructions under
+A second CPU, [Reference CPU 2](reference-cpu-2.md) (ADR 0036), is this
+one with eleven more instructions under
 the opcodes `0xD` and `0xF`, which do nothing here. This CPU stays as it
 is; that page says what differs.
 

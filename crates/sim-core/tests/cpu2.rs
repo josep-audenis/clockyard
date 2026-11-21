@@ -1,11 +1,20 @@
-//! Reference CPU 2 (ADR 0036) as its specification has it: `docs/reference-cpu-2.md`,
+//! Reference CPU 2 (ADR 0036) against its specification: `docs/reference-cpu-2.md`,
 //! read with `docs/reference-cpu.md`, which it adds to.
 //!
 //! `Model` below is written from those two pages, apart from the first CPU's model in
-//! `cpu.rs`: no code is shared. Its part for the first CPU's thirteen instructions
-//! mirrors that model's, since the pages agree there; step 3 holds both halves to a
-//! circuit. It is the independent reference the circuit will be held to. Until the circuit exists (ADR 0036, step 3), the tests here hold the model
-//! itself to results worked out by hand from the pages.
+//! `cpu.rs`: no code is shared, though its part for the first CPU's thirteen
+//! instructions mirrors that model's, since the pages agree there. It is the
+//! independent reference. Every test runs its program
+//! on the model and on `examples/reference-cpu-2.clockyard.json` together, one clock
+//! cycle at a time, and after every cycle compares what the sheet shows (its register
+//! LEDs, the phase, the stack and its pointer, the RAM and the devices) with the
+//! model's state. The results the tests assert were worked out by hand from the pages.
+
+mod common;
+
+use common::{description, example, value};
+use serde_json::{Value, json};
+use sim_core::Simulator;
 
 /// The machine state the two pages define.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -161,13 +170,134 @@ impl Model {
             _ => {}
         }
     }
+}
 
-    /// Runs until halted, at most `limit` cycles; the cycles it took.
-    pub fn run(&mut self, limit: usize) -> usize {
+/// The example with `program` in its ROM, loaded without warnings.
+fn cpu(program: &[u16]) -> Simulator {
+    let mut document: Value =
+        serde_json::from_str(&example("reference-cpu-2")).expect("valid project file");
+    let rom = document["circuit"]["components"]
+        .as_array_mut()
+        .expect("components")
+        .iter_mut()
+        .find(|c| c["id"] == "rom")
+        .expect("the program ROM");
+    rom["props"]["data"] = json!(program);
+    let (sim, warnings) =
+        Simulator::load(&description(&document.to_string())).expect("valid circuit");
+    assert_eq!(warnings, vec![], "the CPU loads without warnings");
+    sim
+}
+
+/// Seven-segment patterns of the hex digits (segment a on bit 0), as the first page shows them.
+const HEX_DIGITS: [u32; 16] = [
+    0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71,
+];
+
+/// What the sheet shows: its LEDs, the phase register's flip-flop, the stack and its pointer, the
+/// data RAM, the I/O registers and the screen. The Fetch LED must agree with T and H, and the two
+/// digits with HEX. No bit anywhere may be unknown: the sheet has no tri-state buffer.
+fn read(sim: &Simulator) -> State {
+    assert!(sim.unknown().iter().all(|&u| u == 0), "every net is known");
+    let led = |id: &str| {
+        assert!(sim.port_nets().contains_key(id), "the sheet has {id}");
+        value(sim, id, "in")
+    };
+    let t = value(sim, "t/r", "q") == 1;
+    let h = led("haltled") == 1;
+    assert_eq!(led("fetchled") == 1, !t && !h, "Fetch = ¬T ∧ ¬H");
+    let hex = value(sim, "hex/r", "q");
+    let digits = (value(sim, "hexhigh", "seg"), value(sim, "hexlow", "seg"));
+    let shown = (
+        HEX_DIGITS[(hex >> 4) as usize],
+        HEX_DIGITS[(hex & 0xF) as usize],
+    );
+    assert_eq!(digits, shown, "the digits show HEX {hex:02X}");
+    let bytes = |id: &str| -> Vec<u8> {
+        let words = sim
+            .memory(id)
+            .unwrap_or_else(|| panic!("the sheet has {id}"));
+        words.iter().map(|&w| w as u8).collect()
+    };
+    State {
+        pc: led("pcled") as u8,
+        ir: led("irled") as u16,
+        a: led("aled") as u8,
+        out: led("outled") as u8,
+        z: led("zled") == 1,
+        c: led("cled") == 1,
+        t,
+        h,
+        sp: led("spled") as u8,
+        stack: bytes("stack").try_into().expect("16 stack bytes"),
+        ram: bytes("ram"),
+        sptr: value(sim, "sptr/r", "q") as u8,
+        hex: hex as u8,
+        screen: bytes("screen"),
+    }
+}
+
+/// The model and the circuit, run together: after reset and after every cycle they must agree.
+struct Run {
+    model: Model,
+    sim: Simulator,
+    cycles: usize,
+}
+
+impl std::ops::Deref for Run {
+    type Target = Model;
+    fn deref(&self) -> &Model {
+        &self.model
+    }
+}
+
+impl std::ops::DerefMut for Run {
+    fn deref_mut(&mut self) -> &mut Model {
+        &mut self.model
+    }
+}
+
+impl Run {
+    fn new(program: &[u16]) -> Run {
+        let run = Run {
+            model: Model::new(program),
+            sim: cpu(program),
+            cycles: 0,
+        };
+        assert_eq!(read(&run.sim), run.model.state, "after reset");
+        run
+    }
+
+    /// One clock cycle on both, with the model's key held on the keyboard.
+    fn cycle(&mut self) {
+        self.cycles += 1;
+        self.sim
+            .set_input("key", u32::from(self.model.key))
+            .expect("the keyboard");
+        assert_eq!(self.sim.step_cycle(), None, "settles");
+        self.model.cycle();
+        assert_eq!(
+            read(&self.sim),
+            self.model.state,
+            "after cycle {}",
+            self.cycles
+        );
+    }
+
+    /// Runs until halted, at most `limit` cycles; the cycles it took. Three more follow a halt, where
+    /// nothing may change.
+    fn run(&mut self, limit: usize) -> usize {
         let mut cycles = 0;
-        while !self.state.h && cycles < limit {
+        while !self.model.state.h && cycles < limit {
             self.cycle();
             cycles += 1;
+        }
+        if self.model.state.h {
+            let halted = self.model.state.clone();
+            for _ in 0..3 {
+                self.cycle();
+                assert_eq!(self.model.state, halted, "halted: nothing changes");
+            }
         }
         cycles
     }
@@ -183,11 +313,11 @@ fn halted(source: &str) -> State {
 }
 
 fn halted_with(source: &str, key: u8) -> State {
-    let mut model = Model::new(&assemble(source));
-    model.key = key;
-    model.run(10_000);
-    assert!(model.state.h, "{source} halts");
-    model.state
+    let mut run = Run::new(&assemble(source));
+    run.key = key;
+    run.run(10_000);
+    assert!(run.state.h, "{source} halts");
+    run.state.clone()
 }
 
 #[test]
@@ -226,7 +356,7 @@ fn the_first_cpus_programs_run_as_on_the_first_cpu() {
     let state = halted(countdown);
     assert_eq!((state.out, state.a, state.z), (0, 0, true));
     // Two cycles an instruction: 4 instructions, 8 cycles.
-    let mut model = Model::new(&assemble("LDI 5\nADI 3\nOUT\nHLT"));
+    let mut model = Run::new(&assemble("LDI 5\nADI 3\nOUT\nHLT"));
     assert_eq!(model.run(100), 8);
 }
 
@@ -302,7 +432,7 @@ fn jnz_jumps_while_z_is_0_and_z_is_0_after_reset() {
     let state = halted("LDI 3\nloop: STA 0\nADD 1\nSTA 1\nLDA 0\nSBI 1\nJNZ loop\nLDA 1\nOUT\nHLT");
     assert_eq!(state.out, 3 + 2 + 1);
     // Bits 11-8 of its word are ignored, as for every instruction of the first CPU.
-    let mut model = Model::new(&[0xD703, 0x1009, 0xC000, 0xC000]);
+    let mut model = Run::new(&[0xD703, 0x1009, 0xC000, 0xC000]);
     model.run(100);
     assert_eq!((model.state.a, model.state.pc), (0, 4));
 }
@@ -336,7 +466,7 @@ fn routines_nest_sixteen_deep_and_the_seventeenth_writes_over_the_oldest() {
 
     // Seventeen: the innermost call stores at STACK[0], over the return to the top. Coming back out,
     // f0's RET goes there instead: to the address after the innermost CALL, in f15, for ever.
-    let mut model = Model::new(&assemble(&nest(17)));
+    let mut model = Run::new(&assemble(&nest(17)));
     model.run(5_000);
     assert!(!model.state.h, "it never gets back to the top");
     assert_eq!(model.state.out, 0);
@@ -345,16 +475,16 @@ fn routines_nest_sixteen_deep_and_the_seventeenth_writes_over_the_oldest() {
 #[test]
 fn a_ret_with_nothing_stored_goes_where_the_stack_says_and_sp_wraps() {
     // After reset STACK[15] is 0: the RET jumps to 0 and SP is 15. Here that loops.
-    let mut model = Model::new(&assemble("ADI 1\nRET"));
+    let mut model = Run::new(&assemble("ADI 1\nRET"));
     for _ in 0..4 {
         model.cycle();
     }
     assert_eq!((model.state.pc, model.state.sp, model.state.a), (0, 15, 1));
     // Bits 7-0 of SHL, SHR and RET are ignored: 0xF9nn is RET, 0xF6nn SHL, 0xF7nn SHR.
-    let mut model = Model::new(&[0x1005, 0xF6AB, 0xF7CD, 0xF6FF, 0xC000]);
+    let mut model = Run::new(&[0x1005, 0xF6AB, 0xF7CD, 0xF6FF, 0xC000]);
     model.run(100);
     assert_eq!(model.state.a, 10);
-    let mut model = Model::new(&[0xF803, 0xB000, 0xC000, 0x1007, 0xF9EE]);
+    let mut model = Run::new(&[0xF803, 0xB000, 0xC000, 0x1007, 0xF9EE]);
     model.run(100);
     assert_eq!((model.state.out, model.state.h), (7, true));
 }
@@ -365,7 +495,7 @@ fn a_call_at_the_last_address_stores_0_and_a_call_to_itself_stores_the_address_a
     rom[0] = 0x80FF; // JMP 255
     rom[255] = 0xF810; // CALL 16
     rom[16] = 0xC000;
-    let mut model = Model::new(&rom);
+    let mut model = Run::new(&rom);
     model.run(100);
     assert_eq!(
         (model.state.stack[0], model.state.sp, model.state.pc),
@@ -373,7 +503,7 @@ fn a_call_at_the_last_address_stores_0_and_a_call_to_itself_stores_the_address_a
     );
 
     // here: CALL here, at address 2: every stack byte ends as 3.
-    let mut model = Model::new(&assemble("NOP\nNOP\nhere: CALL here"));
+    let mut model = Run::new(&assemble("NOP\nNOP\nhere: CALL here"));
     model.run(200);
     assert_eq!(model.state.stack, [3; 16]);
     assert!(!model.state.h);
@@ -384,7 +514,7 @@ fn a_halted_cpu_keeps_its_stack_and_reserved_words_do_nothing() {
     let state = halted("CALL f\nHLT\nf: CALL g\nHLT\ng: HLT");
     assert_eq!((state.sp, state.stack[0], state.stack[1]), (2, 1, 3));
     // 0xE and 0xFA to 0xFF, whatever their other bits: A, the flags, SP and the PC's march untouched.
-    let mut model = Model::new(&[
+    let mut model = Run::new(&[
         0x1005, 0xE0FF, 0xEA12, 0xFA00, 0xFB34, 0xFFFF, 0xB000, 0xC000,
     ]);
     assert_eq!(model.run(100), 16);
@@ -395,16 +525,120 @@ fn a_halted_cpu_keeps_its_stack_and_reserved_words_do_nothing() {
     );
 }
 
-/// The state after `words` run until halted, at most `limit` cycles.
-fn after(words: &[u16], limit: usize) -> State {
-    let mut model = Model::new(words);
-    for _ in 0..limit {
-        if model.state.h {
-            break;
-        }
-        model.cycle();
+#[test]
+fn the_first_cpus_instruction_and_flag_cases_run_the_same_here() {
+    // The programs of cpu.rs's own test of the first CPU: none holds a word of opcode 0xD or 0xF.
+    for source in [
+        "LDI 0\nLDI 7\nSTA 3\nLDI 0\nLDA 3\nSTA 255\nLDA 4\nOUT\nHLT",
+        "LDI 200\nADI 55\nADI 1\nLDI 3\nADI 4\nSTA 0\nADD 0\nLDI 250\nSTA 1\nADD 1\nOUT\nHLT",
+        "LDI 5\nSBI 5\nSBI 1\nLDI 9\nSTA 2\nLDI 4\nSUB 2\nLDI 20\nSUB 2\nOUT\nHLT",
+        "LDI 1\nJZ 9\nSBI 1\nJZ 5\nHLT\nJC 7\nHLT\nJMP 8\nHLT\nNOP\nOUT\nHLT",
+        "LDI 250\nloop: ADI 1\nJC end\nJMP loop\nend: OUT\nHLT",
+        "LDI 3\nNOP\nHLT\nLDI 9\nOUT",
+    ] {
+        halted(source);
     }
-    model.state
+    // That test's program of reserved words is another program here: 0xD123 is JNZ 0x23, taken, since Z
+    // is 0 after reset. With a HLT where it lands, and the first CPU's other two words run on the way.
+    let mut rom = vec![0xD123, 0xC000];
+    rom.resize(0x23, 0);
+    rom.extend([0x1F05, 0xB0FF, 0xC000]);
+    let mut run = Run::new(&rom);
+    run.run(100);
+    assert_eq!((run.state.a, run.state.out, run.state.h), (5, 5, true));
+    // The PC wraps from 255 to 0.
+    let mut wrap = vec![0x1009];
+    wrap.resize(255, 0);
+    wrap.push(0xB000);
+    let mut run = Run::new(&wrap);
+    for _ in 0..2 * 258 {
+        run.cycle();
+    }
+    assert_eq!((run.state.pc, run.state.out), (2, 9));
+}
+
+#[test]
+fn random_programs_run_as_specified() {
+    // xorshift64: a fixed seed, so every run checks the same programs.
+    let mut seed: u64 = 0x2545_F491_4F6C_DD1D;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed
+    };
+    let mut calls = 0;
+    for i in 0..200u64 {
+        // 256 raw words, reserved words and ignored bits included. Operands: any value in even programs;
+        // 0x00-0x0F when i % 4 == 1, so stores, loads, jumps and calls meet near the start; 0xF0-0xFF when
+        // i % 4 == 3, so the devices are met often. One program in three is made mostly of the eleven new
+        // instructions, which random opcodes alone would meet one word in eight.
+        let window = if i % 2 == 0 { 0xFFFF } else { 0xF00F };
+        let io = if i % 4 == 3 { 0x00F0 } else { 0 };
+        let program: Vec<u16> = (0..256)
+            .map(|_| {
+                let word = (next() as u16 & window) | io;
+                match (i % 3, next() % 4) {
+                    (0, 0) => 0xD000 | word & 0x0FFF,
+                    (0, 1 | 2) => 0xF000 | word & 0x0FFF,
+                    _ => word,
+                }
+            })
+            .collect();
+        calls += program.iter().filter(|&&w| w & 0xFF00 == 0xF800).count();
+        let mut run = Run::new(&program);
+        for cycle in 1..=128usize {
+            // A key code that changes every few cycles, from a hash of the cycle and the program.
+            run.key = ((cycle as u64 / 3 + i).wrapping_mul(0x9E37_79B9) >> 8) as u8;
+            run.cycle();
+        }
+    }
+    assert!(
+        calls > 300,
+        "the programs hold {calls} CALLs: too few to test the stack"
+    );
+}
+
+#[test]
+fn the_shipped_program_is_its_source_as_assembled_and_draws_a_diagonal_one_pixel_at_a_time() {
+    let document: Value = serde_json::from_str(&example("reference-cpu-2")).expect("valid");
+    let rom = document["circuit"]["components"]
+        .as_array()
+        .expect("components")
+        .iter()
+        .find(|c| c["id"] == "rom")
+        .expect("the program ROM");
+    let words: Vec<u16> = rom["props"]["data"]
+        .as_array()
+        .expect("words")
+        .iter()
+        .map(|w| w.as_u64().expect("a word") as u16)
+        .collect();
+    // scripts/reference-cpu-2.mjs has an assembler of its own for this: the real one must agree.
+    assert_eq!(
+        words,
+        assemble(rom["props"]["source"].as_str().expect("its source"))
+    );
+
+    let mut run = Run::new(&words);
+    let cycles = run.run(20_000);
+    assert!(run.state.h, "it halts");
+    // Pixel n of the diagonal is column n, row n: screen byte 8n + n/8, bit 7 - n mod 8.
+    let mut screen = vec![0u8; 256];
+    for n in 0..32 {
+        screen[8 * n + n / 8] |= 0x80 >> (n % 8);
+    }
+    assert_eq!(run.state.screen, screen);
+    assert_eq!((run.state.out, run.state.hex, run.state.sp), (32, 32, 0));
+    // The notes ask for 1 kHz or more: at that speed the line takes this long to draw.
+    assert!((3_000..5_000).contains(&cycles), "{cycles} cycles");
+}
+
+/// The state after `words` run until halted, at most `limit` cycles, on the model and the circuit.
+fn after(words: &[u16], limit: usize) -> State {
+    let mut run = Run::new(words);
+    run.run(limit);
+    run.state.clone()
 }
 
 #[test]
@@ -468,7 +702,7 @@ fn the_stack_is_apart_from_the_data_ram() {
 
 #[test]
 fn every_reserved_word_does_what_nop_does() {
-    // A program that touches A, the flags, RAM, OUT, the stack and the screen, with a reserved word
+    // A program that touches A, the flags, RAM, OUT and the stack, with a reserved word
     // after each instruction. It must end as the same program with 0x0000 there, the IR apart.
     // Each word is followed by the reserved one, so the program's own words sit at even addresses: the
     // routine f is at 10, and the CALL at 4 returns to 5, a reserved word, then the OUT at 6.

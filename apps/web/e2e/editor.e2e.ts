@@ -1310,6 +1310,28 @@ test("a word written to a RAM by hand shows in its inspector, and Reset clears i
   await expect(contents).toContainText(/^0x00 0x00/);
 });
 
+test("Reference CPU 2 draws its line one pixel at a time, calling one routine 32 times (ADR 0036)", async ({ page }) => {
+  await page.goto("/");
+  await openTab(page, "Learn");
+  await page.getByRole("region", { name: "EXAMPLES" }).getByRole("button", { name: "Reference CPU 2" }).click();
+  await expect(page.getByRole("textbox", { name: "Notes" })).toHaveValue(/^Reference CPU 2 \(docs\/reference-cpu-2\.md\)/);
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  // The stack pointer is on the sheet, with its LED.
+  await expect(readout(page, "LED SP")).toHaveText("LED SP: 0 (0x0)");
+  await page.getByLabel("Speed").selectOption("10000");
+  await page.getByLabel("Run until").selectOption({ label: "Until LED Halted lights" });
+  await page.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(readout(page, "LED Halted")).toHaveText("LED Halted: on", { timeout: 30_000 });
+  // 32 pixels, the count on OUT, every call returned.
+  await expect(readout(page, "LED Output")).toHaveText("LED Output: 32 (0x20)");
+  await expect(readout(page, "LED SP")).toHaveText("LED SP: 0 (0x0)");
+  // Rows 0 and 1 of the screen: pixel 0 at byte 0, bit 7; pixel 1 at byte 8, bit 6.
+  const at = await grid(page);
+  await click(page, at(35, 5)); // the screen at (25,0), as on the first CPU's sheet
+  const contents = page.getByRole("region", { name: "Screen contents" });
+  await expect(contents).toContainText("0x80 0x00 0x00 0x00 0x00 0x00 0x00 0x00\n0x40 0x00");
+});
+
 test("run until an LED lights: an instruction step on the reference CPU, then run to halt (ADR 0019)", async ({ page }) => {
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
@@ -1425,7 +1447,7 @@ test("the program editor assembles into the ROM, lists errors by line, and the C
   // says how many there are.
   await source.fill("LDI 5\nCALL f\nHLT\nf: SHL\nRET");
   await button("Assemble").click();
-  await expect(inspector.getByRole("status")).toHaveText("Assembled 5 words; 3 are instructions only Reference CPU 2 runs (designed, not built yet).");
+  await expect(inspector.getByRole("status")).toHaveText("Assembled 5 words; 3 are instructions only Reference CPU 2 runs.");
   await expect(listing).toContainText("01  CALL 3");
   await button("Undo").click();
   await expect(listing).toContainText("01  ADI 2");

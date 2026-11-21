@@ -258,6 +258,40 @@ What there is to build on:
      none of the first CPU's tests is changed here, since they run the
      first CPU. Step 3 chooses which of them the second model takes.
 
+   *As built (step 3):*
+   - **Generated from the first CPU's sheet.** `scripts/reference-cpu.mjs`
+     exports its parts and wires, and `scripts/reference-cpu-2.mjs` adds
+     37 parts, removes one and replaces 8 wires. A check in the script fails if an
+     added part sits on another.
+   - **Control.** One ROM, addressed by the whole high byte of the
+     instruction (256 words of 20 bits), in place of the first CPU's 16
+     words of 12. For every opcode but `0xF` its word follows the opcode
+     alone, so bits 11–8 are ignored as before; under `0xF` they choose.
+     That replaces item 6's second ROM, and needs no detector for `0xF`.
+   - **The unit** is AND, OR and XOR of A with the ALU's B input, which
+     already chooses RAM or the operand, and the two shifts as splitter
+     and merger wiring; four multiplexers choose, and a fifth puts the
+     unit's result into A and Z in place of the adder's side.
+   - **The stack** is a `ram` of 4 address bits, a 4-bit register (a new
+     definition, `reg4`), and the 8-bit adder adding 1 or 15 to `SP`. Its
+     address is `SP` for a `CALL` and the adder's output for a `RET`; the
+     PC takes the stack's output through a second multiplexer.
+   - **The example's program** draws a diagonal of 32 pixels, each through
+     one routine called with `CALL`, and halts with the count on `HEX`.
+     The script has a small assembler of its own; a native test fails if
+     it disagrees with `crates/asm`.
+   - **Tests.** Every test of the model now runs its program on the
+     circuit too and compares them after every cycle. Added: the first
+     CPU's instruction and flag programs; 200 random programs from a
+     generator of its own, wider than `cpu.rs`'s, a third of them mostly
+     the new instructions; and the example's own program. The
+     first CPU's program of reserved words is a jump on this CPU, so its
+     test here places a `HLT` where the jump lands.
+   - **Speed** (`docs/performance.md`): both CPUs hold the 10,000 setting
+     in the browser; natively the second runs at 83% of the first.
+   - **Playwright** opens the example from the list, runs it to its halt,
+     and reads the count and the line's pixels.
+
 ## Alternatives considered
 
 - **Change the first CPU.** One CPU is simpler to explain. But challenge

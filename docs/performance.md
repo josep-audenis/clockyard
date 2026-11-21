@@ -746,6 +746,19 @@ back, each measured the same way:
 A circuit with an unknown bit takes the two-word path for every evaluation until the bit is gone. That path is not
 measured here: no benchmark has an unstable loop. It was about a third slower when everything took it.
 
+## Reference CPU 2 (ADR 0036)
+
+Reference CPU 2 is the first CPU's sheet with 37 parts added and one removed (117 in all) and 436 nets against 296. Both were given
+the first CPU's example program, the endless loop that reads the key, so they do the same work.
+
+**In the browser,** at the 10,000 setting, each example was imported and run in turn in one session, the second CPU's
+four times and the first's four, reading the cycle counter 5 s apart. Both held the setting: 9,988 to 10,001 cycles
+per second for the first, 9,994 to 10,017 for the second. ADR 0036 item 6 asked for at least 95% of the first CPU's median; it is 100%.
+
+**Natively,** `examples/bench` run on the two files in turn, six times each: medians of about 709,000 ticks per
+second for the first CPU and 587,000 for the second, 83%. That is what the added parts cost, and about what their
+share of the nets would say. Both are far above what the 10,000 setting asks (20,000 ticks per second).
+
 ## Earlier measurements
 
 - The reference CPU runs at the 10,000 cycles per second setting in the browser, about 9,950 measured (ADR 0019).
