@@ -669,6 +669,11 @@ targets, as in Phase 5.
       digits where two enabled sources differ, then `Z` again.
 6. ⬜ A second reference CPU (ADR 0036, accepted): bit operations and
    call/return, specification first.
+   1. ✅ The specification, `docs/reference-cpu-2.md`: eleven instructions
+      and a return stack added to the first CPU's, marked as designed.
+   2. ⬜ The assembler and the model.
+   3. ⬜ The circuit and its example.
+   4. ⬜ Catch 2, with single pixels and shared drawing code.
 
 ## Outside the phases
 
