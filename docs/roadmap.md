@@ -728,7 +728,9 @@ share, and loops that settle to `X`. Increment 6, a second reference CPU
 (ADR 0036), is built: Reference CPU 2, the first with bit operations,
 shifts, `JNZ`, and `CALL` and `RET` on a stack of its own, and Catch 2
 drawn in single pixels by one shared routine. That completes the plan of
-ADR 0028. What comes after Phase 6 needs a plan of its own.
+ADR 0028. Phase 7 is proposed in ADR 0037: an open project first (CI, up-to-date
+contributor docs, a license report), then readable computers, the
+playground's gaps, rough edges and challenges 13 to 16.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
