@@ -265,7 +265,7 @@ impl Engine {
         let result = serde_json::json!({
             "ticks": run.ticks,
             "rose": run.rose,
-            "diagnostics": Vec::from_iter(run.unstable),
+            "diagnostics": Vec::from_iter(run.diagnostic),
         });
         Ok(result.to_string())
     }

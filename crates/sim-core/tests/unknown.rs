@@ -23,15 +23,22 @@ fn wires(list: &[(&str, &str)]) -> Value {
 }
 
 /// Loads parts and wires, with the `X` source `x` and its switch `en` added.
-fn load(mut parts: Vec<Value>, list: &[(&str, &str)]) -> Simulator {
+fn load(parts: Vec<Value>, list: &[(&str, &str)]) -> Simulator {
+    start(&describe(parts, list))
+}
+
+/// Parts and wires as a description, with the `X` source `x` and its switch `en` added.
+fn describe(mut parts: Vec<Value>, list: &[(&str, &str)]) -> CircuitDescription {
     parts.push(json!({ "id": "en", "kind": "switch" }));
     parts.push(json!({ "id": "x", "kind": "nand" }));
     let mut all = vec![("en.out", "x.a"), ("x.out", "x.b")];
     all.extend_from_slice(list);
-    let description: CircuitDescription =
-        serde_json::from_value(json!({ "components": parts, "connections": wires(&all) }))
-            .expect("description");
-    let (sim, warnings) = Simulator::load(&description).expect("valid");
+    serde_json::from_value(json!({ "components": parts, "connections": wires(&all) }))
+        .expect("description")
+}
+
+fn start(description: &CircuitDescription) -> Simulator {
+    let (sim, warnings) = Simulator::load(description).expect("valid");
     assert!(
         warnings.iter().all(|d| !d.is_error()),
         "loads settled: {warnings:?}"
@@ -151,7 +158,11 @@ fn an_unknown_bit_stays_one_bit_through_buses_merges_and_splits() {
 
 /// A flip-flop `f` on `d`, clocked by `clk = AND(x, c)`: a known 0 while `c` is 0, `x` while it is 1.
 fn clocked() -> Simulator {
-    load(
+    start(&clocked_circuit())
+}
+
+fn clocked_circuit() -> CircuitDescription {
+    describe(
         vec![
             part("c", "switch"),
             part("clk", "and"),
@@ -248,7 +259,11 @@ fn a_clock_that_settles_unknown_at_a_load_or_a_reset_counts_once_and_what_follow
 
 /// A 4-word RAM `m` with a switch on each input, clocked by `clk = AND(x, c)`.
 fn ram() -> Simulator {
-    load(
+    start(&ram_circuit())
+}
+
+fn ram_circuit() -> CircuitDescription {
+    describe(
         vec![
             part("c", "switch"),
             part("clk", "and"),
@@ -286,11 +301,16 @@ fn a_ram_write_that_cannot_be_known_marks_the_cell_it_may_have_reached() {
     assert_eq!(sim.memory("m"), Some(&[0, 0xF0, 0, 0][..]));
     assert_eq!(sim.memory_unknown("m"), Some(&[0, 0xF0, 0, 0][..]));
     assert_eq!(bits(&sim, "m", "out"), (0xF0, 0xF0));
-    // The address moved while we is still 1: that cell too. Then we at 0: no more.
+    // The data moved under that clock: the cell is 0, 0xF0 or 0x0F.
+    set(&mut sim, "d", 0x0F);
+    assert_eq!(sim.memory_unknown("m"), Some(&[0, 0xFF, 0, 0][..]));
+    assert_eq!(bits(&sim, "m", "out"), (0xFF, 0xFF));
+    // The address moved while we is still 1: the cell it moved to as well, at once. Then we at 0: no more.
     set(&mut sim, "a", 2);
+    assert_eq!(sim.memory_unknown("m"), Some(&[0, 0xFF, 0x0F, 0][..]));
     set(&mut sim, "we", 0);
     set(&mut sim, "a", 3);
-    assert_eq!(sim.memory_unknown("m"), Some(&[0, 0xF0, 0xF0, 0][..]));
+    assert_eq!(sim.memory_unknown("m"), Some(&[0, 0xFF, 0x0F, 0][..]));
     // Reset clears the cells, and with we at 0 the unknown clock writes nothing.
     assert_eq!(sim.reset().map(|d| d.code), Some(Code::Unstable));
     assert_eq!(sim.memory("m"), Some(&[0, 0, 0, 0][..]));
@@ -379,10 +399,131 @@ fn run_until_does_not_take_a_net_leaving_x_for_a_rise() {
     let led = sim.port_nets()["l"]["in"];
     let first = sim.tick_until(10, led);
     assert_eq!((first.ticks, first.rose), (1, false));
-    assert_eq!(first.unstable.map(|d| d.code), Some(Code::Unstable));
+    assert_eq!(first.diagnostic.map(|d| d.code), Some(Code::Unstable));
     assert_eq!(bits(&sim, "g", "out"), X);
     // Tick 2 takes it from X to a known 1, which is not a rise; tick 3 does not settle again.
     let second = sim.tick_until(10, led);
     assert_eq!((second.ticks, second.rose), (2, false));
-    assert_eq!(second.unstable.map(|d| d.code), Some(Code::Unstable));
+    assert_eq!(second.diagnostic.map(|d| d.code), Some(Code::Unstable));
+}
+
+#[test]
+fn data_that_differed_when_the_settle_started_counts_under_a_clock_that_becomes_unknown() {
+    let mut sim = clocked();
+    set(&mut sim, "d", 1);
+    set(&mut sim, "c", 1);
+    set(&mut sim, "c", 0);
+    // d back to 0 with the clock low: no edge, the flip-flop keeps its 1.
+    set(&mut sim, "d", 0);
+    assert_eq!(bits(&sim, "f", "q"), (1, 0));
+    unknown(&mut sim);
+    // The clock goes unknown as d returns to 1. It may have risen while d was still 0.
+    let report = sim.set_inputs(&[("c", 1), ("d", 1)]).unwrap();
+    assert!(report.is_none_or(|d| !d.is_error()));
+    assert_eq!(bits(&sim, "f", "q"), X);
+}
+
+#[test]
+fn a_clock_keeps_ticking_past_the_warning_that_an_x_remains() {
+    // A flip-flop that toggles on clock k, beside the loop.
+    let mut sim = load(
+        vec![
+            part("k", "clock"),
+            part("f", "dff"),
+            part("n", "not"),
+            part("l", "led"),
+        ],
+        &[
+            ("k.out", "f.clk"),
+            ("f.q", "n.in"),
+            ("n.out", "f.d"),
+            ("f.q", "l.in"),
+        ],
+    );
+    unknown(&mut sim);
+    let warning = sim.tick(4).expect("the X remains");
+    assert_eq!((warning.code, warning.is_error()), (Code::Unsettled, false));
+    assert_eq!(sim.time(), 4, "every tick ran");
+    assert_eq!(bits(&sim, "f", "q"), (0, 0), "two rising edges");
+    // Run until: it goes on to the tick where the LED rises, and carries the warning.
+    let led = sim.port_nets()["l"]["in"];
+    let run = sim.tick_until(10, led);
+    assert_eq!((run.ticks, run.rose), (1, true));
+    assert_eq!(run.diagnostic.map(|d| d.code), Some(Code::Unsettled));
+    // Had the LED not risen, the run would have gone its whole length.
+    let run = sim.tick_until(1, led);
+    assert_eq!((run.ticks, run.rose), (1, false));
+}
+
+#[test]
+fn unknown_bits_held_only_in_state_are_read_later_and_kept_across_an_edit() {
+    // A RAM cell left X, with every net known again: the loop at rest, the address elsewhere.
+    let mut sim = ram();
+    sim.set_inputs(&[("a", 1), ("d", 0xF0), ("we", 1)]).unwrap();
+    unknown(&mut sim);
+    set(&mut sim, "c", 1);
+    // we off first: moving the address with it could have written there too.
+    set(&mut sim, "we", 0);
+    set(&mut sim, "a", 3);
+    set(&mut sim, "c", 0);
+    assert_eq!(sim.set_input("en", 0), Ok(None));
+    assert!(sim.unknown().iter().all(|&u| u == 0), "no net is unknown");
+    assert_eq!(sim.set_input("d", 1), Ok(None));
+    // An edit that keeps state keeps the cell's unknown bits, and reading the cell shows them.
+    let (mut kept, _) = Simulator::load_keeping(&ram_circuit(), &sim).expect("valid");
+    for sim in [&mut sim, &mut kept] {
+        assert_eq!(sim.memory_unknown("m"), Some(&[0, 0xF0, 0, 0][..]));
+        assert_eq!(sim.set_input("a", 1), Ok(None));
+        assert_eq!(bits(sim, "m", "out"), (0xF0, 0xF0));
+    }
+
+    // A flip-flop that stored X keeps it across an edit too.
+    let mut sim = clocked();
+    unknown(&mut sim);
+    set(&mut sim, "c2", 1);
+    let (kept, _) = Simulator::load_keeping(&clocked_circuit(), &sim).expect("valid");
+    assert_eq!(bits(&kept, "g", "q"), X);
+}
+
+#[test]
+fn a_certain_edge_with_an_unknown_write_strobe_leaves_the_cell_between_old_and_new() {
+    let mut sim = load(
+        vec![
+            part("c", "switch"),
+            wide("a", "switch", 2),
+            wide("d", "switch", 8),
+            json!({ "id": "m", "kind": "ram", "width": 8, "addressWidth": 2 }),
+        ],
+        &[
+            ("c.out", "m.clk"),
+            ("a.out", "m.addr"),
+            ("d.out", "m.din"),
+            ("x.out", "m.we"),
+        ],
+    );
+    sim.set_inputs(&[("a", 2), ("d", 5)]).unwrap();
+    unknown(&mut sim);
+    set(&mut sim, "c", 1);
+    assert_eq!(sim.memory("m"), Some(&[0, 0, 5, 0][..]));
+    assert_eq!(sim.memory_unknown("m"), Some(&[0, 0, 5, 0][..]));
+}
+
+#[test]
+fn a_loop_on_one_bit_of_a_bus_leaves_the_other_bits_known() {
+    // A 2-bit NOT whose bit 0 feeds itself; bit 1 inverts a switch.
+    let description: CircuitDescription = serde_json::from_value(json!({
+        "components": [
+            part("s", "switch"),
+            json!({ "id": "m", "kind": "merge", "fields": [1, 1] }),
+            wide("n", "not", 2),
+            json!({ "id": "sp", "kind": "split", "fields": [1, 1] }),
+        ],
+        "connections": wires(&[("sp.f0", "m.f0"), ("s.out", "m.f1"), ("m.out", "n.in"), ("n.out", "sp.in")]),
+    }))
+    .unwrap();
+    let (mut sim, warnings) = Simulator::load(&description).expect("valid");
+    assert_eq!(warnings[0].code, Code::Unstable);
+    assert_eq!(bits(&sim, "n", "out"), (0b11, 0b01));
+    set(&mut sim, "s", 1);
+    assert_eq!(bits(&sim, "n", "out"), (0b01, 0b01));
 }

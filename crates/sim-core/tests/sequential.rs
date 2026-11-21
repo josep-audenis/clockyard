@@ -309,7 +309,7 @@ fn tick_until_stops_at_a_tick_that_does_not_settle() {
     let run = sim.tick_until(10, led);
     // The LED rises on the very tick that does not settle: both are reported.
     assert_eq!(
-        (run.ticks, run.rose, run.unstable.map(|d| d.code)),
+        (run.ticks, run.rose, run.diagnostic.map(|d| d.code)),
         (1, true, Some(Code::Unstable))
     );
     // Without a clock nothing rises, however long the run, and it costs no tick-by-tick loop.

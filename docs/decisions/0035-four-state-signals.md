@@ -335,6 +335,26 @@ What the engine has to work with:
     - **A warning from `tick`.** `tick` returns the last tick's warning
       when no tick failed, and `tick_until` carries it in the field that
       held only the error.
+    - **A second loop** adds its parts to those the warning watches; it
+      does not replace them.
+    - **In the editor** the status bar reads Unstable for the warning as
+      for the error, with its own sentence, and the canvas highlights the
+      parts either names. Without this, the switch positions restored
+      after a load would turn a loop's error into "Settled, 1 warning".
+    - **Clearing changes nothing yet.** Without `Z`, marking already ends
+      at a state that clearing leaves alone. It is kept for step 3,
+      which must test it. Everything evaluated while marking is evaluated again, not
+      only what changed. If clearing ever outlasted its guard, marking
+      would finish the settle, which is certain to end.
+    - **Rules with no effect of their own today,** kept as the ADR states
+      them: a known 1 after an unknown clock (the evaluation that saw the
+      clock unknown has already compared the data), and a certain edge
+      while marking (the clock is then part of the loop, and the possible
+      edge that follows does the same).
+    - **A RAM at a certain edge** with `we` or the address unknown uses
+      the snapshot only, since the time of the write is known.
+    - **A seeded test** runs 400 random circuits through both paths,
+      command by command, and compares results and state.
     - **Not testable yet:** a challenge mismatch with unknown bits. A
       check refuses at the settle that finds the loop, so no compared
       output is ever `X`. The field, the report text ("out should be 3 but

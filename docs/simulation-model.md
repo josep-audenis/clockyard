@@ -21,8 +21,8 @@ and not yet built: see Four-state signals.
 
 A net carries `width` bits (1–32, ADR 0014), each `0` low or `1` high,
 stored as one `u32` cut to that width. A second word, `unknown`, marks the
-bits that are not known (ADR 0035): see Four-state signals. In a circuit
-that settles, no bit is unknown.
+bits that are not known (ADR 0035): see Four-state signals. No bit is
+unknown until a loop fails to settle.
 Widths are declared on parts (`width` on switches, LEDs and gates, `fields`
 on splits and merges) and never inferred. They are checked when a circuit
 loads: a bad `width` or `fields` is `invalidWidth`, and ports of different
@@ -86,7 +86,7 @@ junction (or, inside a definition, the top-level instance).
 
 Dense, index-based, built once per load:
 
-- `nets: Vec<u32>` — current value per net.
+- `nets: Vec<u32>` — current value per net, and `unknown: Vec<u32>` beside it.
 - `components: Vec<Component>` — kind, input net indices, output net indices.
 - `fanout: Vec<Vec<u32>>` (or CSR arrays) — components reading each net.
 
@@ -107,7 +107,7 @@ Change-driven, with **synchronous deltas**:
 ```
 dirty := components affected by the change
 while dirty not empty:
-    if delta_count > limit: report Unstable, stop
+    if delta_count > limit: report Unstable, settle the loop to X (see below), stop
     writes := []
     for c in dirty (ascending index):
         writes += evaluate(c) reading current net values
@@ -359,11 +359,13 @@ RAM cell can hold `X` bits. Data comes from the snapshot, which carries the
 - **A RAM reads** all `X` if any address bit is unknown, else the cell.
 - **A RAM writes** at a certain edge with `we` a known `1` and a known
   address: the cell takes `din`, unknown bits as `X`. If `we` is a known
-  `0`, or there is no edge, nothing is written. Otherwise it looks at
-  `we`, the address and `din` in the snapshot and now: nothing happens if
-  `we` is a known `0` in both; for each address that is known, that cell
-  becomes `X` as a flip-flop's value does; if either address is unknown,
-  every cell does. A screen is a RAM, so the same holds for its pixels.
+  `0`, or there is no edge, nothing is written. At a certain edge with
+  `we` or the address unknown, the snapshot's cell (every cell, if the
+  address is unknown) keeps only the bits that equal `din`. At a possible
+  edge it looks at `we`, the address and `din` in the snapshot and now:
+  nothing happens if `we` is a known `0` in both; for each address that is
+  known, that cell becomes `X` as a flip-flop's value does; if either
+  address is unknown, every cell does. A screen is a RAM, so the same holds for its pixels.
 - **A load's settle and a Reset's settle are never an edge,** certain or
   possible. Both settle from all-zero nets, where every buffer is disabled
   for a moment. Each part takes the clock's settled value as the one it
@@ -428,18 +430,22 @@ When a settle reaches its delta limit, it goes on in two stages:
    stage ends within 32 deltas per net. A certain edge that falls in this
    stage therefore leaves `X` where the new data differs, until the next
    certain edge.
-2. **Clearing.** Every primitive marked is evaluated again in the normal
-   way and the settle runs on. From here values only become more known,
-   so this ends too. Logic that does not depend on the loop keeps its
-   values.
+2. **Clearing.** Every primitive evaluated while marking is evaluated
+   again in the normal way and the settle runs on. From here nets only
+   become more known; a flip-flop or RAM can still lose bits to a possible
+   edge, each bit once. So this ends too. Logic that does not depend on
+   the loop keeps its values. With no tri-state buffer yet, marking
+   already ends where clearing would, so this stage changes nothing
+   today.
 
 Every delta still reads one snapshot and applies its writes after. The
 settle reports the `unstable` error, naming the parts whose outputs were
 changing at the limit; that stops a tick, pauses a run and refuses a
 challenge check. The parts named are those changing at the limit: the
 loop, and whatever was still following it. Afterwards the circuit is
-settled, with `X` where the loop was, and nothing is kept to resume. While
-any of the named parts still has an `X` output bit, each later settle reports a warning,
+settled, with `X` where the loop was, and nothing is kept to resume. The
+engine remembers the parts named, adding those of any later loop. While
+any of them still has an `X` output bit, each later settle reports a warning,
 `unsettled`, naming those that do; it stops nothing. The list is dropped
 when none has an `X` bit left, and at Reset or a load.
 
@@ -480,7 +486,7 @@ Two distinct categories:
 | Category | When | Examples |
 |----------|------|----------|
 | Validation (compile time) | Loading a circuit | Unknown kind, missing port, output-to-output connection, width mismatch, invalid width or fields, multiple drivers, missing or recursive definition, circuit too large; warnings: unconnected input, unmatched label |
-| Runtime | During simulation | Unstable/oscillating loop, delta limit exceeded |
+| Runtime | During simulation | Unstable/oscillating loop, delta limit exceeded (`unstable`, an error); a warning while that loop's `X` remains (`unsettled`) |
 
 Document-level problems (corrupt JSON, unsupported file version) are caught by
 `storage/` before the engine sees anything.

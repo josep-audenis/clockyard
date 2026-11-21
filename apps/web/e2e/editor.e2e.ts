@@ -373,6 +373,13 @@ test("invalid and unstable circuits are reported and recover", async ({ page }) 
   await drag(page, at(2, 1), at(6, 3));
   await drag(page, at(10, 4), at(6, 5));
   await expect(status(page)).toContainText("Unstable");
+  // The loop is left unknown (ADR 0035). A switch that has nothing to do with it settles the rest, and the loop is
+  // still reported, now as what remains of it.
+  await click(page, at(1, 6));
+  await expect(status(page)).toContainText("Unstable");
+  await expect(status(page)).toContainText("A loop did not settle: its outputs are unknown.");
+  await click(page, at(1, 6));
+  await expect(status(page)).toContainText("Unstable");
   await click(page, at(1, 1));
   await expect(status(page)).toContainText("Settled");
 

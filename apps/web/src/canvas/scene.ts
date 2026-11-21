@@ -312,7 +312,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     placeView();
 
     const culprits = new Set(
-      [...(loaded?.diagnostics ?? []), ...runtime].filter((d) => d.severity === "error").flatMap((d) => d.ids),
+      // Errors, and the parts a loop left at X: its error gives way to a warning at the next settle (ADR 0035).
+      [...(loaded?.diagnostics ?? []), ...runtime].filter((d) => d.severity === "error" || d.code === "unsettled").flatMap((d) => d.ids),
     );
     const selected = new Set(selection);
     // A value is shown only once the engine has reported on the current document.

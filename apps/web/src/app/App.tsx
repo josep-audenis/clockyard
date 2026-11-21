@@ -2521,6 +2521,7 @@ const PLAIN: Record<string, string> = {
   multipleDrivers: "An input has more than one driver.",
   unconnectedInput: "An input is unconnected and reads 0.",
   unstable: "The circuit did not settle: a loop keeps oscillating.",
+  unsettled: "A loop did not settle: its outputs are unknown.",
   widthMismatch: "Ports of different widths are wired together.",
   unmatchedLabel: "A label has no partner on this sheet.",
   invalidContents: "A ROM's words do not fit its width or its address space.",
@@ -2737,7 +2738,9 @@ function StatusBar() {
 
   const diagnostics = [...(loaded?.diagnostics ?? []), ...runtime];
   const errors = diagnostics.filter((d) => d.severity === "error");
-  const unstable = errors.some((d) => d.code === "unstable");
+  // A loop is reported once as an error; while its X remains, every later settle carries a warning instead (ADR 0035).
+  const unsettled = diagnostics.find((d) => d.code === "unsettled");
+  const unstable = errors.some((d) => d.code === "unstable") || unsettled !== undefined;
   // Why the last run ended by itself (ADR 0021): its LED, while the sheet still has it, or the loop that did not settle,
   // which keeps the unstable diagnostic and its part names after "Stopped: ".
   const lit = stopped?.reason === "lit" ? components.find((c) => c.id === stopped.led) : undefined;
@@ -2761,7 +2764,7 @@ function StatusBar() {
                   : diagnostics.length > 0
                     ? [`Settled, ${diagnostics.length} ${diagnostics.length === 1 ? "warning" : "warnings"}`, "caution"]
                     : ["Settled", "ok"];
-  const first = errors[0] ?? diagnostics[0];
+  const first = errors[0] ?? unsettled ?? diagnostics[0];
   // Name the labelled parts involved; unlabelled ones are highlighted on the canvas.
   const named = first
     ? components.filter((c) => c.props.label && first.ids.includes(c.id)).map((c) => partName(components, c))
@@ -2790,7 +2793,7 @@ function StatusBar() {
         : placing ||
           why ||
           (first &&
-        `${first.code === "unstable" ? stoppedUnstable : ""}${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${problems.length > 1 ? ` (+${problems.length - 1} more)` : ""}`) ||
+        `${first.code === "unstable" || first.code === "unsettled" ? stoppedUnstable : ""}${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${problems.length > 1 ? ` (+${problems.length - 1} more)` : ""}`) ||
           (clocked && !running && time > 0 && !empty ? "Clock paused." : null);
 
   // Said once, for what shows only on the canvas: time moved by Step or Reset, another sheet opened.

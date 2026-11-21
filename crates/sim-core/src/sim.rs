@@ -151,6 +151,20 @@ fn smear(cells: &mut [u32], unknown: &mut Vec<u32>, address: V, data: V) {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Set by a test to make every simulator on its thread take the two-word path, to compare with the two-state one.
+    static FORCE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether a test asked for the two-word path everywhere. Never outside tests.
+fn forced() -> bool {
+    #[cfg(test)]
+    return FORCE.with(std::cell::Cell::get);
+    #[cfg(not(test))]
+    false
+}
+
 /// A compiled circuit and its current signal values.
 ///
 /// Parts are indexed in ascending document ID order, so the same description
@@ -271,7 +285,7 @@ pub struct Until {
     /// The tick that did not settle, if it stopped at one (`rose` can be true
     /// as well, if the net rose on that same tick); else the last tick's
     /// warning that a loop's `X` remains, which stops nothing.
-    pub unstable: Option<Diagnostic>,
+    pub diagnostic: Option<Diagnostic>,
 }
 
 /// A runtime diagnostic with its IDs lifted to top-level IDs.
@@ -813,7 +827,7 @@ impl Simulator {
             stateful,
             snapshot: Vec::new(),
             snapshot_unknown: vec![0; net_count as usize],
-            murky: false,
+            murky: forced(),
             traces: Vec::new(),
             watched: Vec::new(),
             sampling: false,
@@ -1228,6 +1242,7 @@ impl Simulator {
         let before = |net: u32| self.snapshot[net as usize];
         match &mut prim.op {
             Op::Dff { clk_was } => {
+                // Defensive: with every net known, a part has already seen its clock known.
                 if *clk_was == Level::Unknown {
                     return false;
                 }
@@ -1328,11 +1343,11 @@ impl Simulator {
         let start = self.time;
         if self.clocks.is_empty() {
             // Nothing changes without a clock, so nothing can rise.
-            let unstable = self.tick(count);
+            let diagnostic = self.tick(count);
             return Until {
                 ticks: self.time - start,
                 rose: false,
-                unstable,
+                diagnostic,
             };
         }
         let level = |sim: &Simulator| {
@@ -1343,16 +1358,16 @@ impl Simulator {
             }
         };
         let mut was = level(self);
-        let mut unstable = None;
+        let mut diagnostic = None;
         for _ in 0..count {
-            unstable = self.tick(1);
+            diagnostic = self.tick(1);
             let now = level(self);
             let rose = was == V::default() && now.v & !now.u != 0;
-            if rose || unstable.as_ref().is_some_and(Diagnostic::is_error) {
+            if rose || diagnostic.as_ref().is_some_and(Diagnostic::is_error) {
                 return Until {
                     ticks: self.time - start,
                     rose,
-                    unstable,
+                    diagnostic,
                 };
             }
             was = now;
@@ -1360,7 +1375,7 @@ impl Simulator {
         Until {
             ticks: self.time - start,
             rose: false,
-            unstable,
+            diagnostic,
         }
     }
 
@@ -1513,7 +1528,8 @@ impl Simulator {
         if self.murky {
             self.snapshot_unknown.clone_from(&self.unknown);
             // Known again once no net, flip-flop or cell holds an unknown bit: the copy just made is then all zeros.
-            self.murky = self.unknown.iter().any(|&u| u != 0)
+            self.murky = forced()
+                || self.unknown.iter().any(|&u| u != 0)
                 || self.prims.iter().any(|p| match &p.op {
                     Op::Ram { memory, .. } => memory.unknown.iter().any(|&u| u != 0),
                     _ => p.unknown != 0,
@@ -1528,25 +1544,36 @@ impl Simulator {
         if dirty.is_empty() {
             return self.standing();
         }
-        self.looping = changed.iter().map(|&net| net as u32 - 1).collect();
+        let looping: Vec<u32> = changed.iter().map(|&net| net as u32 - 1).collect();
         // Name each part once, however many of its primitives were still changing.
-        let culprits = self.parts_of(&self.looping);
+        let culprits = self.parts_of(&looping);
+        // An earlier loop may still hold its X: the warning goes on watching it too.
+        self.looping.extend(looping);
+        self.looping.sort_unstable();
+        self.looping.dedup();
         self.murky = true;
-        // Marking: what would change becomes `X` where it would change. Bits only become unknown, each once, so
-        // this ends.
+        // Marking: what would change becomes `X` where it would change. Bits only become unknown, on nets and in
+        // state, each once, so this ends.
         let mut marked = Vec::new();
-        while self.delta(&mut dirty, &mut changed, true) {
-            marked.extend(changed.iter().map(|&net| net as u32 - 1));
+        loop {
+            // Everything evaluated here is evaluated again below, changed or not: an X it held from before may
+            // have turned out known.
+            marked.extend_from_slice(&dirty);
+            if !self.delta(&mut dirty, &mut changed, true) {
+                break;
+            }
         }
         // Clearing: marking can leave an `X` on a primitive whose inputs turned out known. Evaluated again in the
-        // normal way, values only become more known, so this ends too; the bound is a guard, never reached.
+        // normal way, nets only become more known; a flip-flop or RAM can still lose bits to a possible edge, each
+        // bit once. So this ends too. Should it ever outlast the guard, marking finishes the settle, which is
+        // certain to end.
         dirty = marked;
         for _ in 0..limit + 33 * self.nets.len() {
             if !self.delta(&mut dirty, &mut changed, false) {
                 break;
             }
         }
-        debug_assert!(dirty.is_empty(), "clearing did not end");
+        while self.delta(&mut dirty, &mut changed, true) {}
         let message = format!(
             "circuit did not settle within {limit} deltas: oscillating loop, now unknown (X)"
         );
@@ -1651,12 +1678,14 @@ impl Simulator {
 mod tests {
     use super::*;
 
+    use crate::description::{ComponentDesc, Connection, JunctionDesc, PortRef, Severity};
+
     #[test]
+    #[cfg(target_pointer_width = "64")]
     fn a_primitive_is_no_larger_than_before_unknown_bits() {
         // Ticks per second follow this size (docs/performance.md, ADR 0035).
         assert_eq!(std::mem::size_of::<Prim>(), 72);
     }
-    use crate::description::{ComponentDesc, Connection, JunctionDesc, PortRef, Severity};
 
     /// "component.port", or a bare junction ID.
     fn end(spec: &str) -> Endpoint {
@@ -1863,6 +1892,8 @@ mod tests {
         assert_eq!(value(&sim, "o", "b"), 1);
         assert_eq!(sim.unknown().iter().sum::<u32>(), 0);
         assert_eq!(unstable(sim.set_input("t", 0)), None);
+        // The next settle found nothing unknown, so the engine is back on its two-state path.
+        assert!(!sim.murky);
     }
 
     #[test]
@@ -2140,6 +2171,230 @@ mod tests {
         assert_eq!(
             codes(Simulator::load(&clash)),
             vec![Code::DuplicateId, Code::DuplicateId]
+        );
+    }
+
+    #[test]
+    fn a_second_loop_does_not_make_the_engine_forget_the_first() {
+        let mut sim = load(&circuit(
+            &[
+                ("e1", "switch"),
+                ("x1", "nand"),
+                ("e2", "switch"),
+                ("x2", "nand"),
+            ],
+            &[
+                ("e1.out", "x1.a"),
+                ("x1.out", "x1.b"),
+                ("e2.out", "x2.a"),
+                ("x2.out", "x2.b"),
+            ],
+        ));
+        let report = |r: Result<Option<Diagnostic>, String>| r.unwrap().map(|d| (d.code, d.ids));
+        let named = |code, id: &str| Some((code, vec![id.to_string()]));
+        assert_eq!(report(sim.set_input("e1", 1)), named(Code::Unstable, "x1"));
+        assert_eq!(report(sim.set_input("e2", 1)), named(Code::Unstable, "x2"));
+        // The second loop broken, the first is still X, and still warned about.
+        assert_eq!(report(sim.set_input("e2", 0)), named(Code::Unsettled, "x1"));
+        assert_eq!(sim.tick(1).map(|d| d.ids), Some(vec!["x1".to_string()]));
+        assert_eq!(report(sim.set_input("e1", 0)), None);
+    }
+
+    /// A small generator, the same on every machine.
+    struct Rng(u64);
+
+    impl Rng {
+        fn below(&mut self, n: u32) -> u32 {
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (self.0 >> 33) as u32 % n
+        }
+    }
+
+    /// A random circuit of every kind of primitive, wired at random, feedback included; its switches and LEDs.
+    fn random(rng: &mut Rng) -> (CircuitDescription, Vec<String>, Vec<String>) {
+        use serde_json::json;
+        let (mut parts, mut wires) = (Vec::new(), Vec::new());
+        // Outputs of one bit and of two, and inputs with their widths.
+        let (mut one, mut two, mut inputs) = (Vec::new(), Vec::new(), Vec::new());
+        let (mut switches, mut leds) = (Vec::new(), Vec::new());
+        for i in 0..3 + rng.below(12) {
+            let id = format!("p{i:02}");
+            let port = |name: &str| format!("{id}.{name}");
+            let kind = match rng.below(100) {
+                0..=11 => "switch",
+                12..=16 => "clock",
+                17..=24 => "not",
+                25..=32 => "and",
+                33..=40 => "nand",
+                41..=46 => "or",
+                47..=54 => "nor",
+                55..=60 => "xor",
+                61..=64 => "xnor",
+                65..=78 => "dff",
+                79..=85 => "ram",
+                86..=89 => "rom",
+                90..=94 => "merge",
+                _ => "split",
+            };
+            let mut part = json!({ "id": id, "kind": kind });
+            match kind {
+                "switch" | "clock" => one.push(port("out")),
+                "not" => {
+                    inputs.push((port("in"), 1));
+                    one.push(port("out"));
+                }
+                "dff" => {
+                    inputs.extend([(port("d"), 1), (port("clk"), 1)]);
+                    one.push(port("q"));
+                }
+                "ram" | "rom" => {
+                    inputs.push((port("addr"), 2));
+                    if kind == "ram" {
+                        inputs.extend([(port("din"), 1), (port("we"), 1), (port("clk"), 1)]);
+                    } else {
+                        part["data"] =
+                            json!([rng.below(2), rng.below(2), rng.below(2), rng.below(2)]);
+                    }
+                    part["width"] = json!(1);
+                    part["addressWidth"] = json!(2);
+                    one.push(port("out"));
+                }
+                "merge" => {
+                    inputs.extend([(port("f0"), 1), (port("f1"), 1)]);
+                    part["fields"] = json!([1, 1]);
+                    two.push(port("out"));
+                }
+                "split" => {
+                    inputs.push((port("in"), 2));
+                    part["fields"] = json!([1, 1]);
+                    one.extend([port("f0"), port("f1")]);
+                }
+                _ => {
+                    inputs.extend([(port("a"), 1), (port("b"), 1)]);
+                    one.push(port("out"));
+                }
+            }
+            if kind == "switch" {
+                switches.push(id.clone());
+            }
+            parts.push(part);
+        }
+        for i in 0..2 {
+            let id = format!("z{i}");
+            inputs.push((format!("{id}.in"), 1));
+            parts.push(json!({ "id": id, "kind": "led" }));
+            leds.push(id);
+        }
+        let end = |spec: &str| {
+            let (component, port) = spec.split_once('.').unwrap();
+            json!({ "component": component, "port": port })
+        };
+        for (i, (port, width)) in inputs.iter().enumerate() {
+            let pool = if *width == 1 { &one } else { &two };
+            // Some inputs stay unconnected.
+            if pool.is_empty() || rng.below(12) == 0 {
+                continue;
+            }
+            let from = &pool[rng.below(pool.len() as u32) as usize];
+            wires.push(json!({ "id": format!("w{i}"), "from": end(from), "to": end(port) }));
+        }
+        let description = json!({ "components": parts, "connections": wires });
+        (serde_json::from_value(description).unwrap(), switches, leds)
+    }
+
+    /// Everything a simulator holds that a later command could show.
+    fn dump(sim: &Simulator) -> String {
+        let mut text = format!("{:?} {:?} t{} ", sim.nets, sim.unknown, sim.time);
+        for prim in &sim.prims {
+            match &prim.op {
+                Op::Dff { clk_was } => {
+                    text += &format!("D{clk_was:?},{},{} ", prim.state, prim.unknown)
+                }
+                Op::Ram { memory, clk_was } => {
+                    let unknown: Vec<u32> = (0..memory.cells.len())
+                        .map(|at| memory.unknown.get(at).copied().unwrap_or(0))
+                        .collect();
+                    text += &format!("R{clk_was:?},{:?},{unknown:?} ", memory.cells)
+                }
+                _ => {}
+            }
+        }
+        text + &format!("{:?}", sim.waves())
+    }
+
+    #[test]
+    fn the_two_state_path_and_the_two_word_path_agree_on_random_circuits() {
+        // The engine runs two-state code while nothing is unknown (ADR 0035 item 11). Here every command runs on
+        // two simulators, one of them forced onto the two-word path throughout: results and state must match, and
+        // each net must be what its primitive evaluates to.
+        let mut loops = 0;
+        for seed in 0..400 {
+            let mut rng = Rng(seed * 7919 + 13);
+            let (description, switches, leds) = random(&mut rng);
+            FORCE.with(|force| force.set(false));
+            let Ok((mut fast, _)) = Simulator::load(&description) else {
+                continue;
+            };
+            FORCE.with(|force| force.set(true));
+            let mut slow = Simulator::load(&description).expect("it loaded once").0;
+            for step in 0..40 {
+                let (op, count) = (rng.below(20), 1 + u64::from(rng.below(5)));
+                let pick = |rng: &mut Rng| {
+                    (
+                        rng.below(switches.len().max(1) as u32) as usize,
+                        rng.below(2),
+                    )
+                };
+                let (first, second) = (pick(&mut rng), pick(&mut rng));
+                let led = fast.port_nets()[&leds[rng.below(2) as usize]]["in"];
+                let run = |sim: &mut Simulator, force: bool| -> String {
+                    FORCE.with(|f| f.set(force));
+                    match op {
+                        0..=8 if !switches.is_empty() => {
+                            let mut values = vec![(switches[first.0].as_str(), first.1)];
+                            if op > 5 && second.0 != first.0 {
+                                values.push((switches[second.0].as_str(), second.1));
+                            }
+                            format!("set {:?}", sim.set_inputs(&values))
+                        }
+                        9..=14 => format!("tick {:?}", sim.tick(count)),
+                        15 => format!("reset {:?}", sim.reset()),
+                        16 | 17 => {
+                            let (next, warnings) =
+                                Simulator::load_keeping(&description, sim).unwrap();
+                            *sim = next;
+                            format!("keep {warnings:?}")
+                        }
+                        18 => format!("until {:?}", sim.tick_until(count, led)),
+                        _ => format!("step {:?}", sim.step_cycle()),
+                    }
+                };
+                let (a, b) = (run(&mut fast, false), run(&mut slow, true));
+                loops += usize::from(a.contains("Unstable"));
+                assert_eq!(a, b, "seed {seed}, step {step}: results");
+                assert_eq!(dump(&fast), dump(&slow), "seed {seed}, step {step}: state");
+                if !fast.murky {
+                    assert!(
+                        fast.unknown.iter().all(|&u| u == 0),
+                        "seed {seed}, step {step}"
+                    );
+                }
+                for p in 0..slow.prims.len() {
+                    assert_eq!(
+                        slow.eval(p),
+                        slow.get(p + 1),
+                        "seed {seed}, step {step}: primitive {p}"
+                    );
+                }
+            }
+        }
+        FORCE.with(|force| force.set(false));
+        assert!(
+            loops > 100,
+            "the circuits hit the delta limit {loops} times: too few to test it"
         );
     }
 }
