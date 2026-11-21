@@ -812,8 +812,9 @@ fn a_cpu_with_one_wrong_wire_fails_the_challenge() {
         // Z reloaded by every instruction; loads that do not set Z.
         (("z", "en"), ("exec", "out")),
         (("z", "en"), ("cen", "out")),
-        // The fetch pin stuck at 1.
+        // The fetch pin stuck at 1, or at 0.
         (("fetch", "in"), ("one", "out")),
+        (("fetch", "in"), ("zero", "out")),
     ];
     for (to, from) in mutants {
         let report = report(&rewired(to, from), &c);

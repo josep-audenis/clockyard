@@ -68,7 +68,8 @@ export function execute(words, key = 0, limit = 400) {
  * One run of a challenge: `words` (omitted when the user's own program is run) with `key` held
  * (undefined for a program that never reads it), until the CPU halts, then OUT and every byte the
  * program stored. The cycles allowed are the model's own and some more, so a correct circuit halts
- * well inside them. A second step clocks on past the halt: nothing may change, and `fetch` stays 0.
+ * well inside them. A first step looks at `fetch` after one instruction, and a last one clocks on
+ * past the halt: nothing may change, and `fetch` stays 0.
  */
 export function run(name, words, key, { source, program = words } = {}) {
   const end = execute(program, key ?? 0);
@@ -82,8 +83,9 @@ export function run(name, words, key, { source, program = words } = {}) {
     ...(source !== undefined && { source }),
     ...(words && { words }),
     steps: [
+      // One instruction in: the next fetch is about to begin, so `fetch` is 1. No program starts with HLT.
+      { ...(key !== undefined && { set: { key } }), cycles: 2, expect: { fetch: 1, halt: 0 } },
       {
-        ...(key !== undefined && { set: { key } }),
         cycles: end.cycles + 20,
         until: "halt",
         expect: { out: end.out },
@@ -133,9 +135,9 @@ const PROGRAMS = [
     words: [0x10c8, 0x6064, 0x3010, 0x1000, 0x3011, 0xb000, 0x0000, 0xa009, 0xc000, 0x900b, 0xc000, 0x2010, 0x4010, 0xa017, 0x5010, 0x5010, 0x9012, 0xc000, 0xa014, 0xc000, 0x1006, 0xb000, 0x1009, 0xc000, 0x1008, 0xb000],
   },
   {
-    // Opcodes D, E and F do nothing, whatever their other bits.
+    // Opcodes D, E and F do nothing, whatever their other bits: not to A before the OUT, and not to OUT after it.
     name: "Reserved opcodes",
-    words: [0x1005, 0xd000, 0xe0ff, 0xf012, 0xb000, 0xc000],
+    words: [0x1005, 0xd000, 0xe0ff, 0xf012, 0xb000, 0x1009, 0xd000, 0xe000, 0xf000, 0xc000],
   },
   {
     // A reserved address stores nothing and reads 0; NOP does nothing; the screen is reached through SPTR.

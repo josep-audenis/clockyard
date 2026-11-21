@@ -331,17 +331,19 @@ Four questions decide the design:
      opcodes D to F, which have no assembly; and the reserved addresses,
      `NOP` and the screen. Only the two programs that read the key run
      with more than one, not each program as item 4 said.
-   - **Steps.** Each run has two: the key set (if the program reads it)
-     and cycles until `halt`, the model's own count and 20 more, then
-     `out` and every byte stored; then four more cycles, after which
-     `out`, `halt`, `fetch` at 0 and the bytes must be as they were.
+   - **Steps.** Each run has three: the key set (if the program reads it)
+     and two cycles, after which `fetch` is 1; cycles until `halt`, the
+     model's own count and 20 more, then `out` and every byte stored;
+     then four more cycles, after which `out`, `halt`, `fetch` at 0 and
+     the bytes must be as they were.
    - **The model** is `scripts/cpu-runs.mjs`, instruction by instruction.
      The words are written by hand there, and `challenges.rs` holds them
      to `asm::assemble` of their source and the reference CPU to every
-     run. Nine CPUs with one thing miswired each fail: review found five
+     run. Ten CPUs with one thing miswired each fail: review found six
      of them passing the first eight runs (OUT loading on every
      instruction, a halt that stops nothing, C reloaded by loads, `fetch`
-     stuck), which the flags run and the step past the halt now catch.
+     stuck at 1 or at 0), which the flags run and the steps before and
+     past the halt now catch.
    - **The starter** is the bench with the CPU's pins only and the
      building blocks, so its main sheet is a computer to run the CPU in.
      ADR 0025's "only the pins" holds for the definition; the main sheet
@@ -350,10 +352,10 @@ Four questions decide the design:
      which a native test holds, so a missing pin is named as a pin.
    - **The editor** reads the bench a challenge names
      (`storage/challenges.ts`, `benchOf`), projects it and passes it to the
-     check. A failure reads "Run Store and load, step 1 of 2 failed.
+     check. A failure reads "Run Store and load, step 2 of 3 failed.
      RAM byte 16 should be 7 but is 0." A Playwright test opens the
      challenge, fails its starter, and passes the reference CPU through
-     the Check button: 20 of 20 steps.
+     the Check button: 30 of 30 steps.
    - The bench's parts are spread out when written, after it was first
      seen in the editor.
 
