@@ -650,6 +650,12 @@ targets, as in Phase 5.
       written in the ROM's editor.
 5. ⬜ Four-state signals (ADR 0035, accepted): `X`, `Z`, a multiple-driver
    rule, a tri-state buffer.
+   1. ✅ The rules, written in `docs/simulation-model.md` before any code.
+   2. ⬜ The engine's values: an `unknown` word per net, parts and state
+      with unknown bits, loops that settle to `X`.
+   3. ⬜ The tri-state buffer and nets with several drivers, in the engine.
+   4. ⬜ The editor: `X` and `Z` drawn and written, the part, format 12.
+   5. ⬜ The *Shared bus* example and the browser target.
 6. ⬜ A second reference CPU: bit operations and call/return, specification
    first.
 

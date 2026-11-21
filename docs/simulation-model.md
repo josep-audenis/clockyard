@@ -1,8 +1,8 @@
 # Simulation model
 
 Status: **built** for combinational logic (Phase 1, ADR 0006) and sequential
-logic (Phase 3, ADR 0017). Four-state values and multi-driver nets are still
-a design target.
+logic (Phase 3, ADR 0017). Four-state values and nets with several drivers
+are **designed** (ADR 0035) and not yet built: see Four-state signals.
 
 ## Terms
 
@@ -26,14 +26,8 @@ loads: a bad `width` or `fields` is `invalidWidth`, and ports of different
 widths on one net are `widthMismatch`, never a silent truncation. The engine,
 protocol, file format (v5) and editor all carry them (ADR 0014).
 
-Designed to extend to:
-
-- **Four-state** (later): `0`, `1`, `X` (unknown/conflict), `Z` (high
-  impedance), stored as value + unknown masks. Introduced together with
-  tri-state outputs and multi-driver nets.
-
-Code that reads values goes through the `logic` module's value type so the
-representation can change without touching every evaluator.
+`X` (unknown) and `Z` (high impedance) are designed and not yet built: see
+Four-state signals.
 
 ## Custom components
 
@@ -170,14 +164,14 @@ take the same step, or resetting long chains turns quadratic again.
 ### Unconnected inputs
 
 An unconnected input of any width reads `0` and produces one warning per part
-port (a split's `in` warns once, not once per field).
-With four-state logic it reads `Z`/`X` instead.
+port (a split's `in` warns once, not once per field). This stays so with
+four-state signals (ADR 0035).
 
 ### Multiple drivers
 
-Phase 1–2: two outputs on one net is a validation error. Multi-driver nets
-arrive with tri-state support, with an explicit resolution table (e.g. `0`+`Z`
-→ `0`, `0`+`1` → `X`). Resolution never depends on evaluation order.
+Two outputs on one net is a validation error. Tri-state outputs will be
+allowed to share a net, resolved by a table that never depends on evaluation
+order: see Four-state signals.
 
 ## Sequential logic
 
@@ -286,6 +280,164 @@ does not depend on how the ticks were split into calls. The record keeps the
 last 4,096 ticks (`WAVE_WINDOW`) and the value in force when that window
 starts. A reset clears it, as does a plain load, which starts with nothing
 watched. `waves()` and `wave(i)` read it.
+
+## Four-state signals
+
+**Designed, not built** ([ADR 0035](decisions/0035-four-state-signals.md)).
+Everything above and below this section describes the engine as it runs
+today, two-state. These are the rules it will follow; where one replaces a
+rule elsewhere in this document, it says so.
+
+### Values
+
+Each bit is `0`, `1`, `X` (unknown) or `Z` (nothing drives it). A net keeps
+a second word, `unknown`, beside its value:
+
+| `unknown` | `value` | The bit is |
+|-----------|---------|------------|
+| 0 | 0 | `0` |
+| 0 | 1 | `1` |
+| 1 | 0 | `Z` |
+| 1 | 1 | `X` |
+
+A circuit with no unknown bit has the values it has today. Everything
+starts known: nets, flip-flops and RAM at 0. A value word alone does not
+say what a bit is (an `X` has its value bit set), so every test of a value
+is "a known 1" or "a known 0".
+
+`Z` comes only from a tri-state buffer that is not enabled, and lives on
+wires: an LED, the inspector and a waveform show it. Every part that
+computes reads a `Z` bit as `X`.
+
+An unconnected input still reads `0` and warns, and so does an instance's
+pin left unconnected. So a bus whose buffers are all disabled reads `Z`,
+and the same wires with the last buffer deleted read `0`.
+
+### Parts
+
+Bit by bit, never more unknown than the inputs force:
+
+| Part | Output |
+|------|--------|
+| AND | `0` if either input is `0`; `1` if both are `1`; else `X` |
+| OR | `1` if either input is `1`; `0` if both are `0`; else `X` |
+| NOT | `X` for `X` or `Z`; NAND and NOR are NOT of the above |
+| XOR, XNOR | `X` if either input is unknown |
+| Split, merge | each bit passes through; a `Z` becomes `X` |
+| ROM | all `X` if any address bit is unknown |
+| Switch, keyboard, clock | always known |
+| Tri-state buffer (`tri`: `in`, `en` → `out`) | `en` a known `1`: `in`, a `Z` bit as `X`; `en` a known `0`: all `Z`; `en` unknown: all `X` |
+
+### Parts with state
+
+A flip-flop remembers the clock as `0`, `1` or unknown. Its value and each
+RAM cell can hold `X` bits. Data comes from the snapshot, which carries the
+`unknown` word.
+
+- **A certain edge:** the clock at a known `1` after a known `0`. The
+  flip-flop takes `d`, unknown bits as `X`.
+- **A possible edge:** any evaluation that finds the clock unknown,
+  whatever it was before, and a known `1` after unknown. An unknown clock
+  may be toggling, so it may rise at any time. Each stored bit becomes `X`,
+  except a known bit that equals `d`'s known bit both in the snapshot and
+  on the net now. A flip-flop is evaluated again whenever `d` changes, so
+  data that moves under an unknown clock is caught.
+- A known `0` after unknown, and a known `0` after `1`, are no edge.
+- **A RAM reads** all `X` if any address bit is unknown, else the cell.
+- **A RAM writes** at a certain edge with `we` a known `1` and a known
+  address: the cell takes `din`, unknown bits as `X`. If `we` is a known
+  `0`, or there is no edge, nothing is written. Otherwise it looks at
+  `we`, the address and `din` in the snapshot and now: nothing happens if
+  `we` is a known `0` in both; for each address that is known, that cell
+  becomes `X` as a flip-flop's value does; if either address is unknown,
+  every cell does.
+- **A load's settle and a Reset's settle are never an edge,** certain or
+  possible. Both settle from all-zero nets, where every buffer is disabled
+  for a moment. Each part takes the clock's settled value as the one it
+  last saw. If that value is unknown, the part takes one possible edge at
+  the end of the settle against the settled data, and what follows settles
+  as an ordinary settle does.
+
+### Several drivers
+
+A net may have two or more drivers only if every one is a tri-state
+buffer's output. It is resolved bit by bit:
+
+| | `Z` | `0` | `1` | `X` |
+|---|---|---|---|---|
+| **`Z`** | `Z` | `0` | `1` | `X` |
+| **`0`** | `0` | `0` | `X` | `X` |
+| **`1`** | `1` | `X` | `1` | `X` |
+| **`X`** | `X` | `X` | `X` | `X` |
+
+The table is symmetric and gives the same result in any grouping, so the
+order of the drivers never matters. Any other net with two or more outputs
+stays a load error; when one of them is a tri-state buffer's, the message
+says that only tri-state outputs may share a wire.
+
+- **Bus pins.** A definition's output pin is a bus pin when, inside, the
+  net that reaches it has at least one driver, every driver is a tri-state
+  buffer's output or a bus pin of an instance, and no input pin is on that
+  net.
+- **On a sheet as drawn** (wires that touch a pin), several drivers are
+  accepted when each is a tri-state buffer's output or an instance's bus
+  pin. An ordinary output pin cannot share a wire, nor can a pin wired
+  straight through from an input pin. Two bus pins that share a net inside
+  their instance join the buses wired to them outside.
+- **On the flattened circuit**, every driver of a net with several must be
+  a tri-state buffer.
+- Net labels join nets before either check counts drivers.
+
+In the netlist such a net compiles to one hidden primitive, a
+**resolver**: its inputs are the drivers' own nets and its output is the
+bus. Every wire of the group, every reader and each buffer's reported
+`out` take the resolver's net. Resolvers are numbered after every part's
+primitives. Where the engine names a net's driver, a bus gives its buffer
+with the lowest ID. A resolver adds one delta; a buffer alone on its net
+needs none.
+
+Because every primitive takes one delta, **a bus is `Z` or in conflict for
+a delta or two whenever its enables change.** A flip-flop is safe, since it
+samples the snapshot. A latch built from gates, or a derived clock, that
+reads the bus can take that `X` and keep it.
+
+### A loop that does not settle
+
+This replaces "keeps the last values" and the resumed settle under
+Combinational evaluation. When a settle reaches its delta limit, it goes
+on in two stages:
+
+1. **Marking.** A primitive whose output would change gets `X` in the
+   bits that would change and keeps the rest. Stored state follows the
+   same rule. Bits only become unknown here, each at most once, so the
+   stage ends within 32 deltas per net.
+2. **Clearing.** Every primitive marked is evaluated again in the normal
+   way and the settle runs on. From here values only become more known,
+   so this ends too. Logic that does not depend on the loop keeps its
+   values.
+
+Every delta still reads one snapshot and applies its writes after. The
+settle reports the `unstable` error, naming the parts whose outputs were
+changing at the limit; that stops a tick, pauses a run and refuses a
+challenge check. Afterwards the circuit is settled, with `X` where the
+loop was, and nothing is kept to resume. While any of the named parts
+still has an `X` output bit, each later settle reports a warning,
+`unsettled`, which stops nothing. The list is dropped when none has an `X`
+bit left, and at Reset or a load.
+
+A NOT fed back to itself reads `X`. So does a cross-coupled latch released
+from `S = R = 1`.
+
+### At the engine's edge
+
+- `unknown()` beside `nets()`; the worker's `state` message carries
+  `unknown`, empty while no bit is unknown.
+- A waveform record is `(time, value, unknown)`.
+- `memory_unknown()` beside `memory()`, empty while every cell is known.
+- Run until stops when the LED's net was a known `0` and now has a bit
+  that is a known `1`.
+- A challenge check counts any unknown bit in a compared output or memory
+  byte as a mismatch, and a bench step's `until` waits for a known `1`.
 
 ## Determinism
 
