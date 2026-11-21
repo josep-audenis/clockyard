@@ -365,6 +365,34 @@ What the engine has to work with:
     - **The editor** reads three numbers a waveform change and ignores the
       third, and ignores `unknown` in a state, until step 4.
 
+    *As built (step 3):* the tri-state buffer and nets with several
+    drivers, in `sim-core`.
+    - **`tri` is hidden from the editor.** The editor's kinds, layouts and
+      file check follow the catalog `sim-wasm` gives it, so that catalog
+      leaves `tri` out until step 4. The engine loads it; the editor
+      refuses a file that holds one.
+    - **A circuit with a buffer never takes the two-state path** (item 11's
+      fast path): a disabled buffer's own net is `Z`, so some bit is always
+      unknown. Such a circuit runs about a third slower than the same logic
+      built with multiplexers would. No benchmark has a bus yet.
+    - **A loop over a floating bus is `X` without a report.** It reads `X`
+      from the first delta and `X` is stable, so no settle fails. Handed a
+      known bus it oscillates, and is reported.
+    - **`unstable` on a ring** names the one primitive changing when the
+      limit comes, as it always did. When that one is a resolver, the
+      report names every buffer on its bus.
+    - **Bus pins** are worked out by the per-sheet check itself, which is
+      run once for each definition, after the definitions it uses. An
+      output pin that nothing drives inside is not a bus pin.
+    - **Reset's settle not being an edge** (item 4) now has a test: a
+      clock that comes through a buffer floats for one delta of that
+      settle.
+    - **A challenge mismatch with unknown bits** has its test: a buffer's
+      output, disabled, where 0 is expected.
+    - **Clearing and marking by bit still cannot be told apart** by any
+      circuit found, with `Z` or without. Both stay as the ADR has them;
+      clearing is a guard.
+
 ## Alternatives considered
 
 - **An unconnected input reads `Z`,** as `docs/simulation-model.md` once
