@@ -97,9 +97,11 @@ What the engine has to work with:
    - **A possible edge** is any evaluation that finds the clock unknown,
      whatever it was before, and also a known `1` after unknown. An
      unknown clock may be toggling (item 8), so it may rise at any time.
-     The flip-flop cannot know whether it sampled: each stored bit
-     becomes `X`, except a known bit that equals `d`'s known bit, which
-     sampling would not change.
+     The flip-flop cannot know whether it sampled, or when: each stored
+     bit becomes `X`, except a known bit that equals `d`'s known bit both
+     in the snapshot and on the net now, which sampling would not change.
+     A flip-flop is evaluated again whenever `d` changes, so data that
+     moves under an unknown clock is caught.
    - A known `0` after unknown, and a known `0` after `1`, are no edge.
    - **A RAM reads** all `X` if any address bit is unknown, else the
      cell.
@@ -107,8 +109,11 @@ What the engine has to work with:
      address: the cell takes `din`, unknown bits as `X`. If `we` is a
      known `0`, or there is no edge, nothing is written. In every other
      case (a possible edge, or `we` or the address unknown) it cannot know
-     what was written. With a known address, that cell becomes `X` as a
-     flip-flop's value does; with an unknown address, every cell does.
+     what was written. It looks at `we`, the address and `din` both in
+     the snapshot and now: nothing happens if `we` is a known `0` in
+     both; for each address that is known, that cell becomes `X` as a
+     flip-flop's value does; if either address is unknown, every cell
+     does.
    - A screen is a RAM (ADR 0021), so the same holds for its pixels.
    - **A load's settle and a Reset's settle are never an edge,** certain
      or possible. A load already works so (ADR 0033); Reset now does too.
@@ -116,8 +121,11 @@ What the engine has to work with:
      moment and a clock that comes through one reads unknown. Without
      this rule that moment would leave registers at `X` after Reset.
      Each part takes the clock's settled value as the one it last saw.
-   - So Reset makes all state known again. An edit that keeps state (ADR
-     0033) keeps unknown bits with it.
+     If that value is unknown, the part takes one possible edge at the
+     end of the settle, against the settled data: the clock may be
+     toggling, and nothing would evaluate the part again.
+   - So after Reset all state is known, unless a clock settles unknown.
+     An edit that keeps state (ADR 0033) keeps unknown bits with it.
 
 5. **The tri-state buffer.** A new part, `tri`: inputs `in` (width *w*)
    and `en` (1 bit), output `out` (width *w*), sized 1 to 32 like a gate.
@@ -153,7 +161,9 @@ What the engine has to work with:
      per definition, inner definitions first.
    - **On a sheet as drawn** (wires that touch a pin), several drivers
      are accepted when each is a tri-state buffer's output or an
-     instance's bus pin. So an instance's ordinary output pin, driven
+     instance's bus pin. Two bus pins that share a net inside their
+     instance join the buses they are wired to outside into one, as the
+     wiring says. So an instance's ordinary output pin, driven
      inside by a gate, cannot share a wire, and neither can a pin wired
      straight through from an input pin: joined to a bus outside, that
      one would let the bus drive backwards into the instance's input.
@@ -190,7 +200,9 @@ What the engine has to work with:
      bits that would change and keeps the rest. Stored state follows the
      same rule: a flip-flop's or RAM cell's bits that an edge would
      change become `X`. Bits only become unknown in this stage, each at
-     most once, so it ends within 32 deltas per net.
+     most once, so it ends within 32 deltas per net. A certain edge that
+     falls in this stage therefore leaves `X` where the new data differs,
+     which is pessimistic and stays until the next certain edge.
    - **Clearing.** Marking can leave an `X` on a primitive whose inputs
      turned out known. So every primitive marked is evaluated again in
      the normal way, and the settle runs on. From here values only become
@@ -206,10 +218,12 @@ What the engine has to work with:
    - **Afterwards** the circuit is settled, with `X` where the loop was.
      Nothing is kept to resume, and a tick of a circuit with no clock
      changes nothing. The engine remembers the parts it named. After
-     each later settle, while any of them still has an unknown output
-     bit, it reports a warning, `unsettled`, naming those that do. A
-     warning stops nothing. The list is dropped when none has an unknown
-     bit left, and at Reset or a load. If one of those parts later reads
+     each later settle, while any of them still has an `X` output bit,
+     it reports a warning, `unsettled`, naming those that do. A warning
+     stops nothing: it comes back from a settle as a diagnostic does
+     now, and `tick`, the worker's run and a challenge check stop on
+     errors only. The list is dropped when none has an `X` bit left, and
+     at Reset or a load. If one of those parts later reads
      an `X` from somewhere else, the warning stays with it; that is
      accepted.
    - A NOT fed back to itself reads `X`. So does a cross-coupled latch
@@ -262,7 +276,8 @@ What the engine has to work with:
     benchmark program before and after the change and runs the two
     alternately, ten times each, on `cpu-1k` and `counters-1k`. The
     median ticks per second after may be at most 10% below the median
-    before. If it falls further, the step is not merged until an
+    before. If the result is within the runs' spread of that limit, the
+    comparison is repeated. If it falls further, the step is not merged until an
     optimization brings it back (the obvious one: a primitive whose
     inputs are all known takes today's path). The numbers and the method
     go in `docs/performance.md` either way.
@@ -275,14 +290,17 @@ What the engine has to work with:
        that was never written, and the plan for unconnected inputs.
     2. The engine's values: the `unknown` word, items 3, 4, 8 and 9, with
        native tests and the benchmark comparison. No part produces `Z`
-       yet, so only an unstable loop shows anything new. The editor keeps
+       yet, so only an unstable loop shows anything new. Its tests include
+       data that changes under an unknown clock, a clock that settles
+       unknown at load and at Reset, and the same for a RAM's `we`. The
+       editor keeps
        drawing value words until step 4, so such a loop's `X` looks like
        a 1 there, which is no worse than the made-up values of today.
     3. The tri-state buffer and nets with several drivers, in the engine:
        items 5, 6 and 7, with native tests. Among them: a gate-driven pin
        joined to a buffer, a pin wired straight through, a buffer on a
        definition's input pin, labels joining two buses, and a definition
-       opened as a sheet.
+       opened as a sheet, and two bus pins on one inner net.
     4. The editor: item 10, the part and format 12, and Make component's
        refusal (item 7).
     5. An example, *Shared bus*: two 8-bit sources behind tri-state
