@@ -406,6 +406,39 @@ test("tri-state buffers share a bus: it reads Z with none enabled, a value with 
   await expect(readout(page, "LED Bus")).toHaveText("LED Bus: Z");
 });
 
+test("the shared bus example: one source enabled shows its value, both show X where they differ, neither shows Z (ADR 0035)", async ({ page }) => {
+  await page.goto("/");
+  await openTab(page, "Learn");
+  await page.getByRole("region", { name: "EXAMPLES" }).getByRole("button", { name: "Shared bus" }).click();
+  await expect(page.getByRole("textbox", { name: "Notes" })).toHaveValue(/^Two 8-bit sources, A and B, share one wire, the bus\./);
+  await expect(status(page)).toContainText("Settled");
+  await expect(readout(page, "LED Bus")).toHaveText("LED Bus: 0xZZ");
+  const at = await grid(page);
+  const value = page.getByLabel("Value");
+  // A at (0,0) is a 5x2 wide switch: a click selects it and focuses its Value field.
+  await click(page, at(2.5, 1));
+  await expect(value).toBeFocused();
+  await value.fill("0x5A");
+  await value.press("Enter");
+  await expect(readout(page, "LED Bus")).toHaveText("LED Bus: 0xZZ");
+  await click(page, at(1, 5)); // Enable A
+  await expect(readout(page, "LED Bus")).toHaveText("LED Bus: 90 (0x5A)");
+  // B is 0: with both enabled, the bits where they differ are X, and here that is a bit in each hex digit.
+  await click(page, at(1, 15)); // Enable B
+  await expect(readout(page, "LED Bus")).toHaveText("LED Bus: 0xXX");
+  await expect(status(page)).toContainText("Settled");
+  // B's low digit made equal to A's: that digit is known again.
+  await click(page, at(2.5, 11));
+  await expect(value).toBeFocused();
+  await value.fill("0x0A");
+  await value.press("Enter");
+  await expect(readout(page, "LED Bus")).toHaveText("LED Bus: 0xXA");
+  await click(page, at(1, 5));
+  await expect(readout(page, "LED Bus")).toHaveText("LED Bus: 10 (0x0A)");
+  await click(page, at(1, 15));
+  await expect(readout(page, "LED Bus")).toHaveText("LED Bus: 0xZZ");
+});
+
 test("invalid and unstable circuits are reported and recover", async ({ page }) => {
   await page.goto("/");
   const at = await grid(page);

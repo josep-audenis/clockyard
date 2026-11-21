@@ -208,8 +208,11 @@ export type NetView = {
 /**
  * Whether making a component of `inside` would split a bus (ADR 0035 item 7): some of its drivers inside and some
  * left out. Such a bus would have to cross the component's edge in both directions, and pins have one. The engine
- * says which nets are buses. On one, the drivers are the tri-state buffers and the instances' output pins (bus pins,
- * or the net would not have loaded); an instance reports only its output pins.
+ * says which nets are buses. On one, the drivers are the tri-state buffers and the instances' output pins; an
+ * instance reports only its output pins.
+ * shortcut: an instance that only reads the bus through a pin wired straight to an output pin has that output on
+ * the bus net too, and is counted as a driver, so selecting it without the buffers is refused. Have the engine name
+ * each bus's drivers if that gets in the way.
  */
 function splitsBus(circuit: Circuit, inside: Set<string>, nets: NetView): boolean {
   const buses = new Set(nets.buses);
