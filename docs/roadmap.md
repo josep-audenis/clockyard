@@ -674,7 +674,9 @@ targets, as in Phase 5.
    2. ✅ The assembler and the model: one assembler for both CPUs, the
       editor's status counting the words only the second runs, and a
       model of Reference CPU 2 held to hand-worked results.
-   3. ⬜ The circuit and its example.
+   3. ✅ The circuit and its example, generated from the first CPU's
+      sheet and held to the model cycle by cycle; it keeps the 10,000
+      setting in the browser.
    4. ⬜ Catch 2, with single pixels and shared drawing code.
 
 ## Outside the phases

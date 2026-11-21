@@ -1,9 +1,9 @@
 # Reference CPU 2: specification
 
-Status: **the assembler and the model are built; the circuit is not**
-(ADR 0036, accepted). The assembler knows the eleven instructions, and a
-model written from this page is held to results worked out by hand
-(`crates/sim-core/tests/cpu2.rs`). No circuit runs them yet.
+Status: **built** (ADR 0036, accepted). The circuit,
+`examples/reference-cpu-2.clockyard.json`, is held to a model written from
+this page: native tests run the same programs on both and compare them
+after every clock cycle (`crates/sim-core/tests/cpu2.rs`).
 Change this page first to change the instruction set.
 
 Reference CPU 2 is the [reference CPU](reference-cpu.md) with eleven more

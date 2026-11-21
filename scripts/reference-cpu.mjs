@@ -11,6 +11,7 @@
 // examples/8-bit-adder.clockyard.json, so a change there is picked up here.
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { blocks, chip, control, field, HEX_DIGITS, IO, io, iodec, ones, part, root, wires } from "./cpu-pieces.mjs";
 
 // --- The main sheet -----------------------------------------------------------
@@ -27,7 +28,8 @@ const program = [
   "",
 ].join("\n");
 
-const components = [
+/** The main sheet's parts. Reference CPU 2 (scripts/reference-cpu-2.mjs) is built from these and adds to them. */
+export const components = [
   // Clock and constants: XNOR and XOR of a net with itself are 1 and 0.
   part("clk", "clock", 0, 13, { label: "Clock" }),
   part("one", "xnor", 5, 13),
@@ -129,7 +131,7 @@ const components = [
 
 // Net labels: each name joins a device by the canvas origin to its far end of the sheet.
 const label = (id, x, y, name) => ({ id, position: { x, y }, name });
-const junctions = [
+export const junctions = [
   label("key-near", 18, 10, "KEY"),
   label("key-far", 96, 59, "KEY"),
   label("high-near", 11, 7, "HEX high"),
@@ -139,7 +141,8 @@ const junctions = [
 ];
 
 const clocked = ["irl", "irh", "pc", "t", "h", "a", "z", "c", "outr", "sptr", "hex"];
-const main = wires([
+/** The main sheet's wires, as pairs of ends. */
+export const pairs = [
   ["clk.out", "one.a"],
   ["clk.out", "one.b"],
   ["clk.out", "zero.a"],
@@ -302,7 +305,8 @@ const main = wires([
   ["high-near", "hexhigh.seg"],
   ["hexlowrom.out", "low-far"],
   ["low-near", "hexlow.seg"],
-]);
+];
+const main = wires(pairs);
 
 const document = {
   format: "clockyard",
@@ -345,17 +349,28 @@ const game = {
   },
 };
 
-for (const [name, doc] of [["reference-cpu", document], ["catch", game]]) {
-  const path = `examples/${name}.clockyard.json`;
-  const text = `${JSON.stringify(doc, null, 2)}\n`;
-  if (process.argv.includes("--check")) {
-    // Line endings may follow the checkout's settings; the content may not differ.
-    if (readFileSync(root(path), "utf8").replaceAll("\r\n", "\n") !== text) {
-      console.error(`${path} is out of date: run node scripts/reference-cpu.mjs`);
-      process.exit(1);
+/** Writes each example, or with --check fails if a file is not what would be written. `script` names the generator. */
+export function emit(script, files) {
+  for (const [name, doc] of files) {
+    const path = `examples/${name}.clockyard.json`;
+    const text = `${JSON.stringify(doc, null, 2)}\n`;
+    if (process.argv.includes("--check")) {
+      // Line endings may follow the checkout's settings; the content may not differ.
+      if (readFileSync(root(path), "utf8").replaceAll("\r\n", "\n") !== text) {
+        console.error(`${path} is out of date: run node scripts/${script}`);
+        process.exit(1);
+      }
+    } else {
+      writeFileSync(root(path), text);
+      console.log(`${path}: ${doc.circuit.components.length} parts, ${doc.circuit.wires.length} wires on the main sheet`);
     }
-  } else {
-    writeFileSync(root(path), text);
-    console.log(`${path}: ${components.length} parts, ${main.length} wires on the main sheet`);
   }
+}
+
+// Importing this file (as scripts/reference-cpu-2.mjs does) writes nothing.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  emit("reference-cpu.mjs", [
+    ["reference-cpu", document],
+    ["catch", game],
+  ]);
 }

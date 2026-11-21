@@ -2202,7 +2202,7 @@ function ProgramEditor({ part }: { part: CircuitComponent }) {
     // would run those words as NOP, with nothing to show why.
     const second =
       result.second > 0
-        ? `; ${result.second} ${result.second === 1 ? "is an instruction" : "are instructions"} only Reference CPU 2 runs (designed, not built yet)`
+        ? `; ${result.second} ${result.second === 1 ? "is an instruction" : "are instructions"} only Reference CPU 2 runs`
         : "";
     setStatus({ text: `Assembled ${result.words.length} ${result.words.length === 1 ? "word" : "words"}${second}.`, words: result.words.join(), source: draft });
   };
