@@ -713,6 +713,39 @@ runs per build and single readings for draw calls and frame rates, found two cau
   Keeping the shapes fixed and taking colour and width from the engine's values in a shader would make a toggle upload a
   small table instead. That changes how the canvas draws, so it would need its own ADR.
 
+## Unknown values (ADR 0035)
+
+The engine keeps a second word for each net, its unknown bits. ADR 0035 item 11 allows at most 10% fewer ticks per
+second on `cpu-1k` and `counters-1k`, natively.
+
+**Method.** Two separate runs cannot be compared on this machine: the same binary gave 77,000 to 203,000 ticks per
+second on `cpu-1k` within one session. So the benchmark program (`cargo build --release -p sim-core --example bench`)
+was built from `main` and from the branch, and the two were run alternately on `benchmarks/`, fifteen times each. Each
+run is itself a median of five. The table gives the median of the fifteen, their range, the best run, and in how many
+of the fifteen pairs the new engine was the faster.
+
+| Benchmark | Before, ticks per second (range) | After (range) | Median | Best run | Pairs won by after |
+|---|---:|---:|---:|---:|---:|
+| cpu-1k | 184,476 (77,391–202,769) | 186,380 (86,078–213,482) | +1.0% | +5.3% | 13 of 15 |
+| counters-1k | 302,564 (138,199–340,498) | 297,249 (129,496–337,569) | −1.8% | −0.9% | 5 of 15 |
+
+Both are inside the 10%, and inside the noise.
+
+**What it took.** The first version computed both words everywhere and was 30% and 37% slower. Three changes brought it
+back, each measured the same way:
+
+1. *Two-state evaluation while nothing is unknown.* The engine keeps one flag, whether any net, flip-flop or RAM cell
+   may hold an unknown bit. While it is false, gates and clock edges take the code they had before. Alone this changed
+   little (29% and 23% slower): gate evaluation was not where the time went.
+2. *A two-state delta.* While the flag is false, a delta reads, compares and writes one word a net, and the snapshot
+   copies one array. The medians came within 6%, but a second run gave 33% and 13%.
+3. *The size of a primitive.* A RAM's unknown bits had made every primitive 96 bytes, from 72. They moved behind a
+   pointer, and a test now holds the size. Then the two-state edge and evaluation were inlined into the delta loop,
+   where the first version had them before it was split into functions. That gave the table above.
+
+A circuit with an unknown bit takes the two-word path for every evaluation until the bit is gone. That path is not
+measured here: no benchmark has an unstable loop. It was about a third slower when everything took it.
+
 ## Earlier measurements
 
 - The reference CPU runs at the 10,000 cycles per second setting in the browser, about 9,950 measured (ADR 0019).

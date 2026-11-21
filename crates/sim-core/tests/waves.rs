@@ -6,6 +6,24 @@ mod common;
 use common::load;
 use sim_core::{CircuitDescription, Simulator, WAVE_WINDOW};
 
+/// The waves with no unknown bit anywhere, as `(time, value)`: what these tests are about (ADR 0035 added the third word).
+trait KnownWaves {
+    fn known_waves(&self) -> Vec<Vec<(u64, u32)>>;
+}
+
+impl KnownWaves for Simulator {
+    fn known_waves(&self) -> Vec<Vec<(u64, u32)>> {
+        let known = |&(t, v, u): &(u64, u32, u32)| {
+            assert_eq!(u, 0, "an unknown bit at tick {t}");
+            (t, v)
+        };
+        self.waves()
+            .iter()
+            .map(|w| w.iter().map(known).collect())
+            .collect()
+    }
+}
+
 /// The 8-bit counter example counting, watching its clock, its value and its Count switch.
 fn counter() -> Simulator {
     let mut sim = load("8-bit-counter");
@@ -24,9 +42,9 @@ fn the_record_holds_every_tick_however_the_ticks_are_split() {
         pieces.tick(count);
     }
     assert_eq!(pieces.time(), 100);
-    assert_eq!(whole.waves(), pieces.waves());
+    assert_eq!(whole.known_waves(), pieces.known_waves());
 
-    let waves = whole.waves();
+    let waves = whole.known_waves();
     // The clock changes at every tick, rising at odd ones.
     assert_eq!(waves[0].len(), 101);
     assert_eq!(&waves[0][..3], &[(0, 0), (1, 1), (2, 0)]);
@@ -44,12 +62,12 @@ fn an_input_change_is_recorded_at_its_tick_and_a_later_one_replaces_it() {
     sim.set_input("count", 0).unwrap();
     sim.tick(2);
     sim.set_input("count", 1).unwrap();
-    assert_eq!(sim.waves()[2], [(0, 1), (4, 0), (6, 1)]);
+    assert_eq!(sim.known_waves()[2], [(0, 1), (4, 0), (6, 1)]);
     // Off again within tick 6: it never changed at that tick.
     sim.set_input("count", 0).unwrap();
-    assert_eq!(sim.waves()[2], [(0, 1), (4, 0)]);
+    assert_eq!(sim.known_waves()[2], [(0, 1), (4, 0)]);
     // The counter held its value while Count was off.
-    assert_eq!(sim.waves()[1].last(), Some(&(3, 2)));
+    assert_eq!(sim.known_waves()[1].last(), Some(&(3, 2)));
 }
 
 #[test]
@@ -58,12 +76,12 @@ fn the_window_drops_old_changes_but_keeps_the_value_in_force() {
     sim.tick(2 * WAVE_WINDOW + 3);
     let time = sim.time();
     let start = time - WAVE_WINDOW;
-    for wave in sim.waves() {
+    for wave in sim.known_waves() {
         assert!(wave.len() as u64 <= WAVE_WINDOW + 1, "{}", wave.len());
         assert!(wave[0].0 <= start);
         assert!(wave.get(1).is_none_or(|c| c.0 > start));
     }
-    let waves = sim.waves();
+    let waves = sim.known_waves();
     assert_eq!(waves[0].len() as u64, WAVE_WINDOW + 1);
     assert_eq!(waves[0].last(), Some(&(time, 1)));
     assert_eq!(waves[2], [(0, 1)]);
@@ -75,24 +93,27 @@ fn a_reset_or_a_load_clears_the_record() {
     sim.tick(10);
     sim.reset();
     // Time is back to 0; the switch keeps its position.
-    assert_eq!(sim.waves(), [vec![(0, 0)], vec![(0, 0)], vec![(0, 1)]]);
+    assert_eq!(
+        sim.known_waves(),
+        [vec![(0, 0)], vec![(0, 0)], vec![(0, 1)]]
+    );
 
     let sim = load("8-bit-counter");
-    assert!(sim.waves().is_empty());
+    assert!(sim.known_waves().is_empty());
 }
 
 #[test]
 fn watching_keeps_the_record_of_a_net_still_watched_and_refuses_one_that_does_not_exist() {
     let mut sim = counter();
     sim.tick(5);
-    let before = sim.waves();
+    let before = sim.known_waves();
     let [clk, q] = ["w-clk", "w-q"].map(|w| sim.wire_nets()[w]);
     // The clock stays watched, so its record stays (ADR 0033); the others' are dropped.
     sim.watch(&[clk]).unwrap();
-    assert_eq!(sim.waves(), [before[0].clone()]);
+    assert_eq!(sim.known_waves(), [before[0].clone()]);
     // Watched again, the value starts a new record from its current value.
     sim.watch(&[clk, q]).unwrap();
-    assert_eq!(sim.waves(), [before[0].clone(), vec![(5, 3)]]);
+    assert_eq!(sim.known_waves(), [before[0].clone(), vec![(5, 3)]]);
 
     let missing = sim.nets().len() as u32;
     assert_eq!(
@@ -102,7 +123,7 @@ fn watching_keeps_the_record_of_a_net_still_watched_and_refuses_one_that_does_no
 }
 
 #[test]
-fn a_tick_that_does_not_settle_is_recorded_with_the_values_it_stopped_at() {
+fn a_tick_that_does_not_settle_is_recorded_as_unknown() {
     // A NAND fed back to itself, gated by the clock: settled while it is low, oscillating once it rises.
     let description: CircuitDescription = serde_json::from_value(serde_json::json!({
         "components": [{ "id": "k", "kind": "clock" }, { "id": "o", "kind": "nand" }],
@@ -118,9 +139,12 @@ fn a_tick_that_does_not_settle_is_recorded_with_the_values_it_stopped_at() {
     assert!(sim.tick(4).is_some());
     assert_eq!(sim.time(), 1);
     let waves = sim.waves();
-    assert_eq!(waves[0], [(0, 0), (1, 1)]);
-    let stopped = sim.nets()[nets[1] as usize];
-    assert_eq!(waves[1].last(), Some(&(1, stopped)));
+    assert_eq!(waves[0], [(0, 0, 0), (1, 1, 0)]);
+    // The loop is X from that tick (ADR 0035): a record is made when either word changes. It was 1 before.
+    assert_eq!(waves[1], [(0, 1, 0), (1, 1, 1)]);
+    // The next tick lowers the clock, and NAND(0, X) is a known 1 again.
+    assert_eq!(sim.tick(1), None);
+    assert_eq!(sim.waves()[1].last(), Some(&(2, 1, 0)));
 }
 
 #[test]
@@ -135,10 +159,10 @@ fn time_without_a_clock_moves_the_window_along() {
     sim.watch(&[sim.wire_nets()["w"]]).unwrap();
     sim.tick(5);
     sim.set_input("a", 0).unwrap();
-    assert_eq!(sim.waves(), [vec![(0, 1), (5, 0)]]);
+    assert_eq!(sim.known_waves(), [vec![(0, 1), (5, 0)]]);
     // Nothing settles in these ticks, yet the change at 0 leaves the window.
     sim.tick(10_000);
-    assert_eq!(sim.waves(), [vec![(5, 0)]]);
+    assert_eq!(sim.known_waves(), [vec![(5, 0)]]);
 }
 
 /// The cost of recording (ADR 0026 item 6): `cargo test --release --test waves -- --ignored --nocapture`.

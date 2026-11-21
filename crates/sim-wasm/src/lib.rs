@@ -294,6 +294,12 @@ impl Engine {
         Some(words[..words.len().min(count as usize)].to_vec())
     }
 
+    /// The unknown bits of those words, beside `memory` (ADR 0035): empty while every word is known.
+    pub fn memory_unknown(&self, component: &str, count: u32) -> Option<Vec<u32>> {
+        let unknown = self.sim.as_ref()?.memory_unknown(component)?;
+        Some(unknown[..unknown.len().min(count as usize)].to_vec())
+    }
+
     /// Records the nets of `wires`, each once; a net already recorded keeps its record, and a load with `keep`
     /// carries them (ADRs 0026, 0033). Wires not in the circuit record nothing.
     pub fn watch(&mut self, wires: Vec<String>) -> Result<(), JsError> {
@@ -309,13 +315,14 @@ impl Engine {
             .map_or_else(Vec::new, Simulator::recorded_nets)
     }
 
-    /// The `index`th watched net's changes as `[t0, v0, t1, v1, …]`, oldest first; times are exact
-    /// up to 2^53 ticks, values always. Nothing if no such net is watched or nothing is loaded.
+    /// The `index`th watched net's changes as `[t0, v0, u0, t1, v1, u1, …]`, oldest first: time, value and
+    /// unknown bits (ADR 0035). Times are exact up to 2^53 ticks, the words always. Nothing if no such net is
+    /// watched or nothing is loaded.
     pub fn wave(&self, index: u32) -> Option<Vec<f64>> {
         let changes = self.sim.as_ref()?.wave(index as usize)?;
         Some(
             changes
-                .flat_map(|(t, v)| [t as f64, f64::from(v)])
+                .flat_map(|(t, v, u)| [t as f64, f64::from(v), f64::from(u)])
                 .collect(),
         )
     }
@@ -341,6 +348,15 @@ impl Engine {
         self.sim
             .as_ref()
             .map_or_else(Vec::new, |sim| sim.nets().to_vec())
+    }
+
+    /// Each net's unknown bits, beside `nets` (ADR 0035): where one is set, the bit is `X` if the value's bit
+    /// is 1 and `Z` if it is 0. Empty while no bit is unknown, and when nothing is loaded.
+    pub fn unknown(&self) -> Vec<u32> {
+        match &self.sim {
+            Some(sim) if sim.unknown().iter().any(|&u| u != 0) => sim.unknown().to_vec(),
+            _ => Vec::new(),
+        }
     }
 }
 

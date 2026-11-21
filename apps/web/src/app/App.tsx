@@ -39,6 +39,7 @@ import { withContents } from "../editor/blueprints";
 import { deleteRefusal, liveDefinitions, liveWatches, mainCircuit, MAX_WATCHES, useEditor } from "../editor/store";
 import { assemble, check, connectEngine, control, disassemble, readMemory, setSpeed, setUntil, SPEEDS, useSim, type Loaded } from "../simulation/sync";
 import type { AsmError, Report } from "../simulation/protocol";
+import { WAVE_STRIDE } from "../simulation/protocol";
 import { MAX_DOCUMENT_BYTES, parseDocument, serializeDocument } from "../storage/file";
 import { benchOf, CHALLENGES, findChallenge, reportText, starterDocument, type ChallengeEntry } from "../storage/challenges";
 import { EXAMPLES, exampleDocument } from "../storage/examples";
@@ -968,14 +969,14 @@ const AXIS_HEIGHT = 20;
 const CYCLE_LABELS = 5;
 
 /**
- * In a trace as the worker sends it, `[t0, v0, t1, v1, …]`, the index of the last change at or before `tick`, or -1
+ * In a trace as the worker sends it, `[t0, v0, u0, t1, v1, u1, …]`, the index of the last change at or before `tick`, or -1
  * when the record starts later. A binary search: a trace holds up to 4,097 changes, read every frame.
  */
 function changeAt(trace: Float64Array, tick: number): number {
-  let [low, high, found] = [0, (trace.length >> 1) - 1, -1];
+  let [low, high, found] = [0, trace.length / WAVE_STRIDE - 1, -1];
   while (low <= high) {
     const middle = (low + high) >> 1;
-    if ((trace[2 * middle] ?? Infinity) <= tick) [found, low] = [middle, middle + 1];
+    if ((trace[WAVE_STRIDE * middle] ?? Infinity) <= tick) [found, low] = [middle, middle + 1];
     else high = middle - 1;
   }
   return found;
@@ -984,7 +985,7 @@ function changeAt(trace: Float64Array, tick: number): number {
 /** What a trace held at `tick`; nothing before its record began. */
 function valueAt(trace: Float64Array, tick: number): number | undefined {
   const i = changeAt(trace, tick);
-  return i < 0 ? undefined : trace[2 * i + 1];
+  return i < 0 ? undefined : trace[WAVE_STRIDE * i + 1];
 }
 
 /** A trace's name: its net label, else the part driving it with the port unless that is `out`, else the wire's ID. */
@@ -1004,13 +1005,14 @@ function traceName(circuit: Circuit, loaded: Loaded, net: number, wire: string):
 function Lane({ trace, width, start, end }: { trace: Float64Array; width: number; start: number; end: number }) {
   // From the change in force at `start`: keyed by the tick each began, so a band keeps its element as time scrolls.
   const segments: { tick: number; x0: number; x1: number; value: number; cutLeft: boolean; cutRight: boolean }[] = [];
-  for (let i = Math.max(0, changeAt(trace, start)); 2 * i < trace.length; i++) {
-    const [tick = 0, value = 0] = [trace[2 * i], trace[2 * i + 1]];
+  for (let i = Math.max(0, changeAt(trace, start)); WAVE_STRIDE * i < trace.length; i++) {
+    const at = WAVE_STRIDE * i;
+    const [tick = 0, value = 0] = [trace[at], trace[at + 1]];
     if (tick > end) break;
-    const to = Math.min(trace[2 * i + 2] ?? end + 1, end + 1);
+    const to = Math.min(trace[at + WAVE_STRIDE] ?? end + 1, end + 1);
     const from = Math.max(tick, start);
     // A value running past the window's edge has no end to draw there.
-    const cutRight = (trace[2 * i + 2] ?? Infinity) > end;
+    const cutRight = (trace[at + WAVE_STRIDE] ?? Infinity) > end;
     if (to > from) segments.push({ tick, x0: (from - start) * TICK_PX, x1: (to - start) * TICK_PX, value, cutLeft: tick < start, cutRight });
   }
   const [top, bottom, middle] = [4, LANE_HEIGHT - 4, LANE_HEIGHT / 2];

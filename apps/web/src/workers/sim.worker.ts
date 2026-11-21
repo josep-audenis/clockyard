@@ -51,7 +51,7 @@ let stopped: Stopped | null = null;
 
 const state = (diagnostics: Diagnostic[]) => {
   last = diagnostics;
-  reply({ type: "state", nets: engine?.nets() ?? new Uint32Array(), diagnostics, time: engine?.time() ?? 0, running: run !== null, ...(stopped && { stopped }) });
+  reply({ type: "state", nets: engine?.nets() ?? new Uint32Array(), unknown: engine?.unknown() ?? new Uint32Array(), diagnostics, time: engine?.time() ?? 0, running: run !== null, ...(stopped && { stopped }) });
 };
 
 const pause = () => {
@@ -91,8 +91,8 @@ function slice() {
       } else {
         diagnostics = JSON.parse(engine.tick(count)) as Diagnostic[];
       }
-      // A loop that does not settle pauses the run (ADR 0017).
-      if (diagnostics.length > 0) {
+      // A loop that does not settle pauses the run (ADR 0017). The warning that its X remains does not (ADR 0035).
+      if (diagnostics.some((d) => d.severity === "error")) {
         pause();
         stopped = { reason: "unstable" };
       }
@@ -182,7 +182,7 @@ onmessage = async (event: MessageEvent<Command>) => {
         break;
       }
       case "readMemory":
-        reply({ type: "memory", component: command.component, words: engine.memory(command.component, command.count) ?? new Uint32Array() });
+        reply({ type: "memory", component: command.component, words: engine.memory(command.component, command.count) ?? new Uint32Array(), unknown: engine.memory_unknown(command.component, command.count) ?? new Uint32Array() });
         break;
       // The assembler lives in the same module (crates/asm through sim-wasm, ADR 0019); it simulates nothing.
       case "assemble":

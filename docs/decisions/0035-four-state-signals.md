@@ -312,6 +312,36 @@ What the engine has to work with:
        with different values and reads `X`, and enables neither and reads
        `Z`. Then the docs and the roadmap.
 
+    *As built (step 2):* the engine's values, in `sim-core`, `sim-wasm`
+    and the worker.
+    - **Two paths.** One flag says whether any bit may be unknown. While
+      it is false, evaluation, clock edges and deltas are the two-state
+      code of before, on one word. The first version, two words
+      everywhere, was 30% and 37% slower; with this, a RAM's unknown bits
+      behind a pointer and the hot loop inlined again, the medians of
+      fifteen alternating pairs are +1.0% on `cpu-1k` and −1.8% on
+      `counters-1k` (`docs/performance.md`). The two-word path was about a
+      third slower when everything took it, and a circuit takes it only
+      while it holds an unknown bit.
+    - **The parts `unstable` names** are those changing at the limit: the
+      loop, and whatever was still following it, as before. The
+      `unsettled` warning looks at those same parts only. A register that
+      took an `X` from the loop, but was not changing at the limit, holds
+      its `X` without a warning once the loop itself is known again.
+    - **Two settles at a load.** The possible edge for a clock that
+      settles unknown is a second, ordinary settle of the parts concerned.
+      A load or Reset reports the first settle's error if there is one,
+      else the second's.
+    - **A warning from `tick`.** `tick` returns the last tick's warning
+      when no tick failed, and `tick_until` carries it in the field that
+      held only the error.
+    - **Not testable yet:** a challenge mismatch with unknown bits. A
+      check refuses at the settle that finds the loop, so no compared
+      output is ever `X`. The field, the report text ("out should be 3 but
+      is X") and its test are there for step 3, when `Z` exists.
+    - **The editor** reads three numbers a waveform change and ignores the
+      third, and ignores `unknown` in a state, until step 4.
+
 ## Alternatives considered
 
 - **An unconnected input reads `Z`,** as `docs/simulation-model.md` once

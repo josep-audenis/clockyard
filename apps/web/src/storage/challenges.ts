@@ -61,6 +61,21 @@ const named = (name: string) => {
   return byte ? `${byte[1] === "ram" ? "RAM" : byte[1]} byte ${byte[2]}` : name;
 };
 
+/**
+ * A value with unknown bits in words (ADR 0035): one bit as `X` or `Z`; a wider one in hex, a digit `Z` if all its
+ * bits are Z, `X` if any other is unknown. A known value is its number.
+ */
+export function showUnknown(value: number, unknown = 0): string {
+  if (unknown === 0) return String(value);
+  if ((value | unknown) >>> 1 === 0) return value ? "X" : "Z";
+  let digits = "";
+  for (let rest = (value | unknown) >>> 0, shift = 0; rest !== 0; rest >>>= 4, shift += 4) {
+    const [v, u] = [(value >>> shift) & 15, (unknown >>> shift) & 15];
+    digits = (u === 0 ? v.toString(16).toUpperCase() : u === 15 && v === 0 ? "Z" : "X") + digits;
+  }
+  return `0x${digits}`;
+}
+
 const assignments = (values: { name: string; value: number }[]) => values.map(({ name, value }) => `${name} = ${value}`).join(", ");
 
 /** A report in words: "Passed, 4 of 4 steps.", the first failing step, or why the check could not run. */
@@ -69,7 +84,7 @@ export function reportText(report: Report, challenge: Challenge): string {
     case "passed":
       return `Passed, ${report.steps} of ${stepCount(challenge)} steps.`;
     case "failed": {
-      const wrong = report.mismatches.map(({ name, expected, got }) => `${named(name)} should be ${expected} but is ${got}`).join("; ");
+      const wrong = report.mismatches.map(({ name, expected, got, unknown }) => `${named(name)} should be ${expected} but is ${showUnknown(got, unknown)}`).join("; ");
       // On a bench the run is named, and its steps are counted within it (ADR 0034).
       const steps = challenge.runs?.find((run) => run.name === report.run)?.steps.length ?? challenge.steps.length;
       const where = `${report.run === undefined ? "Step" : `Run ${report.run}, step`} ${report.step + 1} of ${steps} failed.`;

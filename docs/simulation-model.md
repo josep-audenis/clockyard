@@ -1,8 +1,9 @@
 # Simulation model
 
 Status: **built** for combinational logic (Phase 1, ADR 0006) and sequential
-logic (Phase 3, ADR 0017). Four-state values and nets with several drivers
-are **designed** (ADR 0035) and not yet built: see Four-state signals.
+logic (Phase 3, ADR 0017), and for unknown values (ADR 0035, step 2). The
+tri-state buffer and nets with several drivers are **designed** (ADR 0035)
+and not yet built: see Four-state signals.
 
 ## Terms
 
@@ -18,16 +19,18 @@ are **designed** (ADR 0035) and not yet built: see Four-state signals.
 
 ## Signal values
 
-Binary. A net carries `width` bits (1–32, ADR 0014), each `0` low or `1`
-high, stored as one `u32` cut to that width. A 1-bit net holds `0` or `1`.
+A net carries `width` bits (1–32, ADR 0014), each `0` low or `1` high,
+stored as one `u32` cut to that width. A second word, `unknown`, marks the
+bits that are not known (ADR 0035): see Four-state signals. In a circuit
+that settles, no bit is unknown.
 Widths are declared on parts (`width` on switches, LEDs and gates, `fields`
 on splits and merges) and never inferred. They are checked when a circuit
 loads: a bad `width` or `fields` is `invalidWidth`, and ports of different
 widths on one net are `widthMismatch`, never a silent truncation. The engine,
 protocol, file format (v5) and editor all carry them (ADR 0014).
 
-`X` (unknown) and `Z` (high impedance) are designed and not yet built: see
-Four-state signals.
+`X` (unknown) is built. `Z` (high impedance) waits for the tri-state
+buffer, the only part that gives it.
 
 ## Custom components
 
@@ -129,25 +132,26 @@ Properties:
 - **Bounded.** The delta limit (default proportional to primitive count, with a
   floor) guarantees termination. An oscillating loop, such as a NOT gate fed
   back to itself, yields an `Unstable` diagnostic naming, once each, the parts
-  whose outputs were still changing. The engine stops settling, keeps the last
-  values, and waits for the next command. It never freezes. The components
-  still pending are kept and resumed by the next settle, so a live loop is
-  reported again after every input change until an input breaks it.
+  whose outputs were still changing. The engine then settles the loop to `X`
+  (see A loop that does not settle) and waits for the next command. It never
+  freezes.
 
 Known consequence: with uniform one-delta gate delay, a cross-coupled NOR latch
 released from `S=R=1` to `S=R=0` simultaneously oscillates. Real hardware
-resolves this through metastability; Clockyard reports it as unstable (later as
-`X`). Edge-triggered flip-flop primitives (Phase 3) avoid the issue for normal
-designs.
+resolves this through metastability; Clockyard reports it as unstable and
+shows `X` on both outputs. Edge-triggered flip-flop primitives (Phase 3) avoid
+the issue for normal designs.
 
 ### Initial state
 
 On load and on reset, all nets start at `0`, every component is marked dirty,
 and the circuit settles. A lone NOT gate therefore outputs `1` immediately.
-A load's settle is never a clock edge (ADR 0033): flip-flops and RAMs do not
-sample or write during it, and each takes its clock input's settled value as the
-one it last saw. From all-zero nets this changes nothing, since an edge there
-could only sample zeros; it matters for state carried across an edit (below).
+A load's settle and a reset's settle are never a clock edge (ADRs 0033,
+0035): flip-flops and RAMs do not sample or write during it, and each takes
+its clock input's settled value as the one it last saw. From all-zero nets
+this changes nothing, since an edge there could only sample zeros; it matters
+for state carried across an edit (below). A clock that settles unknown counts
+once afterwards (see Parts with state).
 
 Before that settle, every component that cannot reach a feedback loop is
 evaluated once in topological order; otherwise a chain of *n* gates
@@ -208,9 +212,10 @@ together.
 - Every settle, whatever started it (a tick, a switch change, a load, a
   reset), first copies the net values it starts from: the **snapshot**.
 - Each flip-flop remembers the last value it saw on `clk`, starting at 0. When
-  a delta evaluates it and finds `clk` at 1 after a 0, it takes `d` from the
-  snapshot, never from the current nets. Its new `q` appears in the following
-  delta, like any primitive's output.
+  a delta evaluates it and finds `clk` at a known 1 after a known 0, it takes
+  `d` from the snapshot, never from the current nets. Its new `q` appears in
+  the following delta, like any primitive's output. An unknown clock is a
+  possible edge: see Parts with state.
 - So results do not depend on iteration order or on how many deltas a gated
   clock takes to arrive. A derived clock, a ripple chain (one flip-flop's `q`
   clocking the next) and a switch on `clk` all sample pre-edge data. A shift
@@ -219,9 +224,6 @@ together.
 - Switches that change together are set in one settle (`set_inputs`), so a
   flip-flop clocked by one of them samples the others' old values in any
   order. The editor restores every switch in one command after a load.
-- After a settle that hit its delta limit, the next settle starts where it
-  stopped, so its snapshot is not a settled state; the circuit has already
-  been reported as unstable.
 - A flip-flop is stateful, so the topological pre-settle (Initial state)
   treats it, and everything feeding it, as part of a loop.
 
@@ -245,8 +247,8 @@ and asynchronous reset (asynchronous reset acts like a combinational input).
 
 | Control | Engine meaning |
 |---------|----------------|
-| Run / Pause | The worker ticks in slices, each 16 ms after the last finished: as many ticks as the speed calls for since then, in chunks of 64, starting no new chunk after 8 ms. Ticks that do not fit are dropped, so a circuit too heavy for the speed runs slower rather than catching up. A tick that is unstable pauses the run |
-| Run until | Run, stopping at the tick where a chosen LED's net rises: 0 just before the tick (after any switch change), not 0 after it, so an LED lit at the start must go dark first (`tick_until`, ADR 0019). Where it stops does not depend on how the run is split into slices |
+| Run / Pause | The worker ticks in slices, each 16 ms after the last finished: as many ticks as the speed calls for since then, in chunks of 64, starting no new chunk after 8 ms. Ticks that do not fit are dropped, so a circuit too heavy for the speed runs slower rather than catching up. A tick that is unstable pauses the run; the warning that a loop's `X` remains does not |
+| Run until | Run, stopping at the tick where a chosen LED's net rises: a known 0 just before the tick (after any switch change), and a bit at a known 1 after it, so an LED lit at the start must go dark first, and one that leaves `X` for 1 has not risen (`tick_until`, ADR 0019). Where it stops does not depend on how the run is split into slices |
 | Step | `step_cycle`: ticks until the clock has risen once and is low again (2 ticks from low, 3 from high) |
 | Reset | Flip-flops, RAM, the clock and time to 0, switch values and ROM kept; nets to 0, then pre-settle and settle as a load does |
 | Speed | Target cycles per wall-clock second (1 to 10,000). Pacing decides only how many ticks run, so the state after *n* ticks is the same at any speed |
@@ -272,8 +274,8 @@ wire, and remembers the wires: `load_keeping` watches them again and carries
 each net's record from the first watched wire on it that was recorded before
 (ADR 0033). `watch(nets)` forgets them, so after it a kept load carries no
 record. After every settle (a switch
-change, each tick, a reset), a watched net whose value differs from its last
-record gets `(time, value)`; a later settle at the same tick replaces that
+change, each tick, a reset), a watched net whose value or unknown bits
+differ from its last record gets `(time, value, unknown)`; a later settle at the same tick replaces that
 tick's value, so a net has one value per tick and deltas inside a settle are
 never recorded. Recording happens inside `tick`, so the record after *n* ticks
 does not depend on how the ticks were split into calls. The record keeps the
@@ -283,27 +285,20 @@ watched. `waves()` and `wave(i)` read it.
 
 ## Four-state signals
 
-**Designed, not built** ([ADR 0035](decisions/0035-four-state-signals.md)).
-Everything above and below this section describes the engine as it runs
-today, two-state. These are the rules it will follow. They replace these
-rules elsewhere in this document:
+[ADR 0035](decisions/0035-four-state-signals.md). **Built:** values, what
+parts do with unknown bits, parts with state, a loop that does not settle,
+and the engine's edge. Until the tri-state buffer exists, the only source
+of an unknown bit is a loop that does not settle, and it is always `X`.
 
-- **Terms** and **Nets:** a net has exactly one driver, and any two outputs
-  or pins on one net are an error, on a sheet as drawn and after flattening
-  (see Several drivers).
-- **Combinational evaluation:** a settle that hits its limit keeps the last
-  values and is resumed by the next; and under **Edge sampling rule**, "the
-  next settle starts where it stopped" (see A loop that does not settle).
-- **Edge sampling rule:** an edge is `clk` at 1 after a 0, seen by a
-  flip-flop that remembers one bit (see Parts with state).
-- **Initial state:** only a load's settle is never a clock edge (Reset's is
-  not one either, and a clock that settles unknown counts once).
-- **Execution controls,** Run until: "0 just before the tick, not 0 after"
-  (see At the engine's edge).
-- **Waveforms:** a record is `(time, value)`.
+**Designed, not built:** the tri-state buffer, `Z`, and Several drivers.
+That subsection will replace two rules elsewhere in this document: under
+**Terms** and **Nets**, that a net has exactly one driver, and that any two
+outputs or pins on one net are an error, on a sheet as drawn and after
+flattening.
 
 The editor's part of the design (how `X` and `Z` are drawn, and Make
-component refusing to split a bus) is in the ADR.
+component refusing to split a bus) is in the ADR. Until it is built, the
+editor draws value words only, so an `X` looks like a 1 there.
 
 ### Values
 
@@ -425,9 +420,7 @@ reads the bus can take that `X` and keep it.
 
 ### A loop that does not settle
 
-This replaces "keeps the last values" and the resumed settle under
-Combinational evaluation. When a settle reaches its delta limit, it goes
-on in two stages:
+When a settle reaches its delta limit, it goes on in two stages:
 
 1. **Marking.** A primitive whose output would change gets `X` in the
    bits that would change and keeps the rest. Stored state follows the
@@ -443,9 +436,10 @@ on in two stages:
 Every delta still reads one snapshot and applies its writes after. The
 settle reports the `unstable` error, naming the parts whose outputs were
 changing at the limit; that stops a tick, pauses a run and refuses a
-challenge check. Afterwards the circuit is settled, with `X` where the
-loop was, and nothing is kept to resume. While any of the named parts
-still has an `X` output bit, each later settle reports a warning,
+challenge check. The parts named are those changing at the limit: the
+loop, and whatever was still following it. Afterwards the circuit is
+settled, with `X` where the loop was, and nothing is kept to resume. While
+any of the named parts still has an `X` output bit, each later settle reports a warning,
 `unsettled`, naming those that do; it stops nothing. The list is dropped
 when none has an `X` bit left, and at Reset or a load.
 
@@ -455,8 +449,12 @@ certain edge loads known data, or Reset.
 
 ### At the engine's edge
 
-- `unknown()` beside `nets()`; the worker's `state` message carries
-  `unknown`, empty while no bit is unknown.
+- `unknown()` beside `nets()`; `sim-wasm`'s `unknown()` and the worker's
+  `state` message give it empty while no bit is unknown.
+- A settle returns at most one diagnostic: the `unstable` error, or the
+  `unsettled` warning. `tick` stops at an error and otherwise returns the
+  last tick's warning; the worker's run and a challenge check stop on errors
+  only.
 - A waveform record is `(time, value, unknown)`, made when either word
   changes.
 - `memory_unknown()` beside `memory()`, empty while every cell is known.

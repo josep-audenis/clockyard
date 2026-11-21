@@ -284,8 +284,9 @@ fn switches_set_together_settle_once_whatever_their_order() {
 }
 
 #[test]
-fn without_a_clock_tick_stops_at_the_first_tick_that_reports_a_loop() {
-    // A flip-flop beside an oscillating NOT: nothing to clock, but the loop is still unstable.
+fn without_a_clock_a_loop_settled_at_x_stops_no_tick() {
+    // A flip-flop beside an oscillating NOT: nothing to clock. The loop was reported at the load and is
+    // settled at X (ADR 0035), so ticks pass, each with the warning that the X remains.
     let description: CircuitDescription = serde_json::from_value(json!({
         "components": parts(&[("f", "dff"), ("n", "not")]),
         "connections": wires(&[("n.out", "n.in")]),
@@ -293,12 +294,9 @@ fn without_a_clock_tick_stops_at_the_first_tick_that_reports_a_loop() {
     .unwrap();
     let (mut sim, warnings) = Simulator::load(&description).expect("valid");
     assert!(warnings.iter().any(|d| d.code == Code::Unstable));
-    assert_eq!(sim.tick(64).map(|d| d.code), Some(Code::Unstable));
-    assert_eq!(
-        sim.time(),
-        1,
-        "stopped at the first tick, whatever the chunk"
-    );
+    let warning = sim.tick(64).expect("the X remains");
+    assert_eq!((warning.code, warning.is_error()), (Code::Unsettled, false));
+    assert_eq!(sim.time(), 64);
 }
 
 #[test]

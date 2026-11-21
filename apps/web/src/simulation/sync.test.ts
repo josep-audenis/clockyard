@@ -75,11 +75,11 @@ test("watched memories are read once a frame however many states arrive, a newly
   expect(reads()).toEqual([]);
   vi.advanceTimersByTime(20);
   expect(reads()).toHaveLength(1);
-  worker.reply({ type: "memory", component: "s", words: new Uint32Array([1, 2]) });
+  worker.reply({ type: "memory", component: "s", words: new Uint32Array([1, 2]), unknown: new Uint32Array() });
   const first = useSim.getState().memory.s;
-  worker.reply({ type: "memory", component: "s", words: new Uint32Array([1, 2]) });
+  worker.reply({ type: "memory", component: "s", words: new Uint32Array([1, 2]), unknown: new Uint32Array() });
   expect(useSim.getState().memory.s).toBe(first);
-  worker.reply({ type: "memory", component: "s", words: new Uint32Array([1, 3]) });
+  worker.reply({ type: "memory", component: "s", words: new Uint32Array([1, 3]), unknown: new Uint32Array() });
   expect([...(useSim.getState().memory.s ?? [])]).toEqual([1, 3]);
   stop();
   vi.useRealTimers();
@@ -90,7 +90,7 @@ test("why a run stopped is the worker's latest word on it, and a pause gives non
   const stop = connectEngine();
   // Each state is applied once the messages already waiting are handled (ADR 0030).
   const state = (running: boolean, stopped?: Extract<Result, { type: "state" }>["stopped"]) => {
-    worker.reply({ type: "state", nets: new Uint32Array(), diagnostics: [], time: 0, running, ...(stopped && { stopped }) });
+    worker.reply({ type: "state", nets: new Uint32Array(), unknown: new Uint32Array(), diagnostics: [], time: 0, running, ...(stopped && { stopped }) });
     vi.runAllTimers();
   };
   state(true);
@@ -180,7 +180,7 @@ test("waveforms: watch follows the load it belongs to, an open's load or an edit
   const stop = connectEngine();
   worker.reply({ type: "loaded", portNets: {}, wireNets: {} } as unknown as Result);
   worker.sent.length = 0;
-  const waves = (time: number) => ({ type: "waves", time, nets: [1], traces: [new Float64Array([0, 1])] }) as Result;
+  const waves = (time: number) => ({ type: "waves", time, nets: [1], traces: [new Float64Array([0, 1, 0])] }) as Result;
   const circuit = {
     components: [
       { id: "s", kind: "switch" as const, position: { x: 0, y: 0 }, rotation: 0 as const, props: {} },
@@ -267,7 +267,7 @@ test("an edit's load keeps state, an open's starts again even when nothing chang
   worker.reply(state(10));
   vi.runAllTimers();
   const epoch = useSim.getState().epoch;
-  const waves = { type: "waves", time: 10, nets: [1], traces: [new Float64Array([0, 1])] } as Result;
+  const waves = { type: "waves", time: 10, nets: [1], traces: [new Float64Array([0, 1, 0])] } as Result;
   useEditor.setState({ watches: ["w"], circuit: { ...before.circuit, wires: [{ id: "w", from: { junction: "a" }, to: { junction: "b" } }] } });
   worker.reply({ type: "loaded", portNets: {}, wireNets: { w: 1 } } as unknown as Result);
   worker.reply(state(10));

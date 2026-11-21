@@ -651,9 +651,10 @@ targets, as in Phase 5.
 5. ⬜ Four-state signals (ADR 0035, accepted): `X`, `Z`, a multiple-driver
    rule, a tri-state buffer.
    1. ✅ The rules, written in `docs/simulation-model.md` before any code.
-   2. ⬜ The engine's values: an `unknown` word per net, parts and state
+   2. ✅ The engine's values: an `unknown` word per net, parts and state
       with unknown bits, loops that settle to `X`, and the values that
-      cross the engine's edge; its cost compared on the benchmarks.
+      cross the engine's edge; its cost compared on the benchmarks
+      (`docs/performance.md`). The editor still draws value words only.
    3. ⬜ The tri-state buffer and nets with several drivers, in the engine.
    4. ⬜ The editor: `X` and `Z` drawn and written, the part, format 12.
    5. ⬜ The *Shared bus* example and the browser target.
