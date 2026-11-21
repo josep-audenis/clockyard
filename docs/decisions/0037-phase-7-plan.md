@@ -86,6 +86,9 @@ What is still open, from the brief and from the roadmap:
         changes.
       - Text on the canvas: notes placed on a sheet, kept in the document
         apart from its parts, so the engine never receives them.
+      - Open for the increment's ADR: how a key reaches a push button
+        without clashing with the editor's shortcuts and the keyboard
+        part.
       - Target: a 4-input AND with a push button on each input, and a
         note beside it, saved and opened again.
    2. **Computers you can read.**
@@ -93,9 +96,12 @@ What is still open, from the brief and from the roadmap:
         (fetch, control, the ALU, the registers, I/O, and on Reference
         CPU 2 the logic unit and the stack), using the notes of increment
         1 as titles and net labels in place of long wires. Everything
-        stays on the main sheet, so it all runs live. The circuits, their
-        models and what their tests check do not change; their positions
-        do, and so do the end-to-end tests that click their parts.
+        stays on the main sheet, so it all runs live. The circuits'
+        connectivity, their models and what their tests check do not
+        change; their positions and wires do, and so do the end-to-end
+        tests that click their parts.
+      - Routing that keeps clear of label tags, from the rough edges,
+        comes first, since the new layout leans on net labels.
       - A list of a sheet's notes that jumps the view to each, so a region
         can be shown at a readable zoom.
       - The program followed as it runs: the program editor's listing
@@ -103,11 +109,16 @@ What is still open, from the brief and from the roadmap:
         that is the instruction to be fetched next; the listing says so.
         It knows nothing about CPUs: it reads the ROM's `addr` net, so it
         works for any circuit that fetches from a ROM.
-      - Target: in a 1280×800 window, each region of the reference CPU
-        fits the canvas at 100% when jumped to; stepping one instruction
-        moves the listing's mark to the next.
+      - The about page brought up to date with the bundled computers it
+        shows: its shots, and its text (twelve challenges, the tri-state
+        buffer, what is built). The page is another session's work in
+        progress; whatever that work has not done by then is done here.
+      - Target: in a 1280×800 window, with the left panel and the
+        inspector open at their default widths, each region of the
+        reference CPU fits the canvas at 100% when jumped to; stepping one
+        instruction moves the listing's mark to the next.
    3. **Rough edges.** The increment's ADR names the items to close:
-      routing over label tags; Make component covering parts, refusing a
+      Make component covering parts, refusing a
       single item, and counting a bus that only passes through as a
       driver; the readout missing memories and screens; a bench
       challenge's text in one paragraph and its pass not naming runs; and
@@ -139,10 +150,12 @@ What is still open, from the brief and from the roadmap:
         list differs by platform.
       - `sim-core` documented: `missing_docs` on, and `cargo doc` with
         warnings as errors in `pnpm verify`.
-      - Node 22.18 or later required, so the generated files' checks
-        cannot pass unrun.
+      - The generators that check the bundled examples fail at once when
+        `import.meta.main` is not there, and `package.json` asks for a
+        Node that has it, so a check can never pass unrun.
       - Target: a fresh clone set up from `CONTRIBUTING.md` alone runs
-        `pnpm verify` to the end, and the license check passes. This
+        `pnpm verify` to the end, on Windows and on one Linux machine, and
+        the license check passes. This
         increment has no Playwright test of its own: its target is the
         check itself.
 
@@ -209,5 +222,5 @@ What is still open, from the brief and from the roadmap:
   drawing tests that use its sheet as a large one, and the about page's
   shots all follow, in increment 2.
 - Gates with more inputs and a push button change the file format and
-  the engine's catalog.
+  the engine's catalog; notes on the canvas change the file format.
 - Each target is concrete enough to check, so "done" stays checkable.
