@@ -1,6 +1,6 @@
 # 0035. Four-state signals: `X`, `Z`, a tri-state buffer and shared buses
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-21
 - Depends on: ADR 0028 (Phase 6 plan, increment 5); ADR 0006 (the
   combinational engine); ADR 0014 (buses); ADR 0017 (flip-flops); ADR 0018
