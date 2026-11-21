@@ -963,7 +963,7 @@ fn a_display_with_one_wrong_wire_fails_the_challenge() {
 
 #[test]
 fn a_part_built_from_a_definition_the_user_added_under_a_bench_id_is_refused() {
-    // Add components numbers an ID already taken, so a second copy of a bench's register
+    // Add components numbers an ID already taken, so a register added from another bench file
     // arrives as `bench-reg8-2`. The check leaves every `bench-` definition of the user's out.
     let c = challenge("12-display");
     let mut document = solution("12-display");
@@ -982,6 +982,8 @@ fn a_part_built_from_a_definition_the_user_added_under_a_bench_id_is_refused() {
         .unwrap();
     let register = display.components.iter_mut().find(|c| c.id == "r").unwrap();
     register.definition = Some("bench-reg8-2".into());
-    let reason = refusal(report(&document, &c));
-    assert!(reason.contains("bench-reg8-2"), "{reason}");
+    assert_eq!(
+        refusal(report(&document, &c)),
+        "The circuit has errors to fix first: display/r refers to unknown definition 'bench-reg8-2'"
+    );
 }

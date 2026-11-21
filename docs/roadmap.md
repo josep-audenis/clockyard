@@ -645,9 +645,9 @@ targets, as in Phase 5.
    5. ✅ The editor's reports and the browser target, built along with
       steps 3 and 4: a failure names its run, its step and what was set
       ("Run Sum to 2, step 2 of 3 failed. With key = 2: out should be 3
-      but is 2."), and Playwright fails each starter and passes each
-      solution through the Check button, writing challenge 11's program
-      in the ROM's editor.
+      but is 2."), and Playwright fails each starter through the Check
+      button and passes the solutions of 10 and 12, and for 11 a program
+      written in the ROM's editor.
 5. ⬜ Four-state signals: `X`, `Z`, a multiple-driver rule, a tri-state
    buffer.
 6. ⬜ A second reference CPU: bit operations and call/return, specification
@@ -679,7 +679,7 @@ its first four increments, devices (ADR 0021), memory-mapped I/O on the
 reference CPU (ADR 0022), the game demo, Catch (ADR 0023), and sharing
 through a URL fragment (ADR 0024), are built with their demos, and so is
 increment 5, challenges 1 to 9 checked by behavioural tests (ADR 0025);
-challenges 10 to 12 wait for their own ADR. Increment 6, waveforms of
+challenges 10 to 12 were left to Phase 6 (ADR 0034). Increment 6, waveforms of
 watched wires recorded by the engine (ADR 0026), and increment 7, examples
 in the editor with notes and components added from other files (ADR 0027),
 are built too, which completes the plan of ADR 0020. Phase 6 is planned in
@@ -701,6 +701,8 @@ Rough edges still open:
   steps of all its runs ("30 of 30 steps") without naming runs.
 - A component added from another file under a `bench-` ID cannot be used
   in a bench challenge: the check refuses it as unknown (ADR 0034).
+- The about page (`apps/web/about/index.html`) still says nine challenges
+  and lists 01 to 09.
 - Routing does not yet avoid label tags (ADR 0015).
 - A component made by Make component can cover parts below it (ADR 0016).
 - Make component is offered only for two or more selected items.

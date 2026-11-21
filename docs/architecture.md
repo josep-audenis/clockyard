@@ -153,7 +153,14 @@ Rules:
   by part ID with their widths, the primitive kinds it may use, and steps of
   inputs and expected outputs. `sim_core::check` runs it on a bench of its
   own (switches on the input pins, LEDs on the outputs) in a fresh
-  simulator; `sim-wasm`'s `check` takes and returns JSON. The editor bundles
+  simulator; `sim-wasm`'s `check` takes and returns JSON. Challenges 10 to
+  12 (ADR 0034) name a bench instead, a circuit file in
+  `challenges/benches/` with one empty slot, and have `runs` in place of
+  steps: `sim_core::check::check_on` puts the user's definition in the slot,
+  loads each run's program into the bench's ROM, clocks it, and compares
+  LEDs and memory bytes. Definitions with IDs starting `bench-` always come
+  from the bench, never from the document. `sim-wasm`'s `check` takes the
+  bench as an optional third argument. The editor bundles
   the challenges and starters (`storage/challenges.ts`); starting one loads
   its starter with `metadata.challenge` set (format 10), and the panel's
   Check sends the whole document to the worker's `check`.
@@ -251,7 +258,7 @@ type Command =
   | { type: "readMemory"; component: string; count: number } // a memory's first count words (ADRs 0018, 0021: every screen on the sheet, once a frame)
   | { type: "assemble"; request: number; source: string }    // reference-CPU assembly (ADR 0019)
   | { type: "disassemble"; request: number; words: number[] }
-  | { type: "check"; request: number; circuit: CircuitDescription; challenge: Challenge } // a bench of its own (ADR 0025)
+  | { type: "check"; request: number; circuit: CircuitDescription; challenge: Challenge; bench?: CircuitDescription } // a bench of its own (ADR 0025), or the challenge's (ADR 0034)
   | { type: "watch"; wires: string[] } // record these wires' nets, again from every later load (ADR 0026)
   | { type: "readWaves" };             // what is recorded (once a frame while a wire is watched)
 

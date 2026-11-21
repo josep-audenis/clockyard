@@ -275,12 +275,6 @@ Four questions decide the design:
    4. Challenges 11 and 12.
    5. The editor's reports, the Playwright target, and the docs.
 
-   *As built (step 5):* the editor's reports and the Playwright target
-   were built with steps 3 and 4, each challenge needing them to be
-   checked in the browser. What was left: a native test that a part built
-   from a definition added under a `bench-` ID is refused, and the
-   roadmap. All five steps are built.
-
    When this ADR is accepted, ADRs 0028 and 0025 are marked amended by it
    in their status lines and in `docs/decisions/README.md`.
 
@@ -396,6 +390,12 @@ Four questions decide the design:
      `bench-` definition of the user's out. A part built from one is then
      refused for an unknown definition. Building from the provided `reg8`
      avoids it.
+
+   *As built (step 5):* the editor's reports and the Playwright target
+   were built with steps 3 and 4, each challenge needing them to be
+   checked in the browser. What was left: a native test that a part built
+   from a definition added under a `bench-` ID is refused, the bench check
+   in `docs/architecture.md`, and the roadmap. All five steps are built.
 
 ## Alternatives considered
 
