@@ -667,8 +667,8 @@ targets, as in Phase 5.
       buffers on one wire. Playwright opens it from the Examples list and
       reads `Z` on the bus, then one source's value, then `X` in the
       digits where two enabled sources differ, then `Z` again.
-6. ⬜ A second reference CPU: bit operations and call/return, specification
-   first.
+6. ⬜ A second reference CPU (ADR 0036, accepted): bit operations and
+   call/return, specification first.
 
 ## Outside the phases
 
@@ -712,7 +712,7 @@ and a screen interface, each checked by programs run on a bench.
 Increment 5, four-state signals (ADR 0035), is built: `X` and `Z` in the
 engine and the editor, a tri-state buffer, buses that several buffers
 share, and loops that settle to `X`. Increment 6, a second reference CPU,
-is next: its specification comes first, and it needs its own ADR.
+is next: ADR 0036 (accepted) designs it, specification first.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is

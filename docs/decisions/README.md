@@ -33,7 +33,7 @@ replacement.
 | [0025](0025-challenges.md) | Challenges checked by behavioural tests | Accepted; amended by 0034 |
 | [0026](0026-waveforms.md) | Waveforms: watched wires recorded by the engine | Accepted |
 | [0027](0027-library-and-teaching.md) | Library and teaching: examples in the editor, notes, and components from other files | Accepted |
-| [0028](0028-phase-6-plan.md) | Phase 6: what comes after the Phase 5 plan | Accepted; amended by 0034 |
+| [0028](0028-phase-6-plan.md) | Phase 6: what comes after the Phase 5 plan | Accepted; amended by 0034 and 0036 |
 | [0029](0029-local-persistence.md) | Local persistence: projects, autosave and a component library in the browser | Accepted |
 | [0030](0030-benchmarks.md) | Benchmarks: generated circuits, measured in the engine and in the browser | Accepted |
 | [0031](0031-about-page.md) | An about page built from the running app | Accepted |
@@ -41,6 +41,7 @@ replacement.
 | [0033](0033-editing-a-running-circuit.md) | Editing a running circuit: state kept across edits, matched by part ID | Accepted |
 | [0034](0034-cpu-challenges.md) | Challenges 10 to 12: a CPU, a program and a screen, checked on a computer bench | Accepted |
 | [0035](0035-four-state-signals.md) | Four-state signals: `X`, `Z`, a tri-state buffer and shared buses | Accepted |
+| [0036](0036-second-reference-cpu.md) | A second reference CPU: bit operations, shifts, a jump, and call and return | Accepted |
 
 ## Template
 
