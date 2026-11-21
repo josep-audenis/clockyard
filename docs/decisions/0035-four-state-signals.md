@@ -444,13 +444,15 @@ What the engine has to work with:
     The two sources are 8-bit switches, both 0 when it opens, so the
     Playwright target types a value into A before it enables both. It
     reads `0xZZ`, `90 (0x5A)`, `0xXX`, then `0xXA` once B's low digit
-    equals A's, and `0xZZ` again. A native test holds the same values.
+    equals A's, and `0xZZ` again. A native test holds the same cases.
     All five steps are built.
 
-    Left as rough edges, on the roadmap: a bus design is not benchmarked,
-    two enabled drivers that disagree have no diagnostic, and Make
-    component counts an instance that only passes a bus through as one of
-    its drivers.
+    Left as rough edges, all on the roadmap: a bus design is not
+    benchmarked; two enabled drivers that disagree have no diagnostic;
+    Make component counts an instance that only passes a bus through as
+    one of its drivers; a register left at `X` by a loop has no warning
+    once the loop is known; a transient cut by the limit is reported as a
+    loop; and a challenge mismatch is written without its width.
 
 ## Alternatives considered
 

@@ -721,15 +721,24 @@ Rough edges still open:
   path throughout, and no benchmark has a bus (ADR 0035).
 - Two enabled drivers that disagree show `X` and nothing else: no
   diagnostic names them (ADR 0035, left out by design).
-- Make component refuses a component that only passes a bus through (an
-  input pin wired straight to an output pin) unless the bus's buffers are
-  selected with it: it is counted as one of the bus's drivers (ADR 0035).
+- Make component counts a component that only passes a bus through (an
+  input pin wired straight to an output pin) as one of the bus's drivers:
+  it and the bus's buffers must be selected together or not at all,
+  though the message speaks of buffers only (ADR 0035).
+- A register that took `X` from a loop holds it with no warning once the
+  loop itself is known again; and a settle cut by the delta limit on a
+  transient that then ends is reported as an oscillating loop, with no
+  `X` left (ADR 0035).
+- A challenge mismatch is written without its width, so an all-`Z` top
+  digit of fewer than four bits reads `X` there; no challenge allows a
+  tri-state buffer (ADR 0035).
 - A bench challenge's text is one long paragraph, and a pass counts the
   steps of all its runs ("30 of 30 steps") without naming runs.
 - A component added from another file under a `bench-` ID cannot be used
   in a bench challenge: the check refuses it as unknown (ADR 0034).
 - The about page (`apps/web/about/index.html`) still says nine challenges
-  and lists 01 to 09, and its list of parts has no tri-state buffer.
+  and lists 01 to 09, its list of parts has no tri-state buffer, and it
+  names challenges for the CPU and four-state signals as still to come.
 - Routing does not yet avoid label tags (ADR 0015).
 - A component made by Make component can cover parts below it (ADR 0016).
 - Make component is offered only for two or more selected items.

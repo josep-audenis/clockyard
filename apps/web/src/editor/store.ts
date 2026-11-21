@@ -211,8 +211,9 @@ export type NetView = {
  * says which nets are buses. On one, the drivers are the tri-state buffers and the instances' output pins; an
  * instance reports only its output pins.
  * shortcut: an instance that only reads the bus through a pin wired straight to an output pin has that output on
- * the bus net too, and is counted as a driver, so selecting it without the buffers is refused. Have the engine name
- * each bus's drivers if that gets in the way.
+ * the bus net too, and is counted as a driver: selecting it without the buffers is refused, and so is selecting
+ * every buffer without it, though the message asks for just that. Have the engine name each bus's drivers if that
+ * gets in the way.
  */
 function splitsBus(circuit: Circuit, inside: Set<string>, nets: NetView): boolean {
   const buses = new Set(nets.buses);
