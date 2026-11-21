@@ -6,6 +6,11 @@ run the same programs on the netlist and on a model written from this page,
 and the results must match after every clock cycle. Change this page first
 to change the instruction set.
 
+A second CPU, [Reference CPU 2](reference-cpu-2.md) (ADR 0036, designed
+and not yet built), is this one with eleven more instructions under the
+opcodes `0xD` and `0xF`, which do nothing here. Nothing on this page
+changes for it.
+
 ## Machine
 
 - 8-bit data. Harvard: the program is in a ROM and data in a RAM, each with
