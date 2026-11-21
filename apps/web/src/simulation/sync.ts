@@ -23,6 +23,11 @@ export type SimState = {
   error: string | null;
   loaded: Loaded | null;
   nets: Uint32Array | null;
+  /**
+   * Each net's unknown bits, beside `nets` (ADR 0035): where one is set, the bit is X if the value's bit is 1 and Z if
+   * it is 0. Empty while no bit is unknown.
+   */
+  unknown: Uint32Array;
   /** Diagnostics from the latest settle (e.g. an unstable loop). */
   runtime: Diagnostic[];
   /** The document changed and the engine has not reported on it yet. */
@@ -39,6 +44,8 @@ export type SimState = {
   until: string | null;
   /** Each memory's words last asked for with `readMemory`, by component ID, as the engine reported them (ADRs 0018, 0021). */
   memory: Record<string, Uint32Array>;
+  /** Those words' unknown bits, by component ID; an empty array while every word is known (ADR 0035). */
+  memoryUnknown: Record<string, Uint32Array>;
   /**
    * The watched wires' record, as last read (ADR 0026); null while nothing is watched, since an open's load was sent, or
    * since any load was answered, until it is read again (ADR 0033).
@@ -56,6 +63,7 @@ export const useSim = create<SimState>()(() => ({
   error: null,
   loaded: null,
   nets: null,
+  unknown: new Uint32Array(),
   runtime: [],
   stale: true,
   time: 0,
@@ -64,6 +72,7 @@ export const useSim = create<SimState>()(() => ({
   speed: 2,
   until: null,
   memory: {},
+  memoryUnknown: {},
   waves: null,
   epoch: 0,
 }));
@@ -203,9 +212,10 @@ export function connectEngine(): () => void {
       since("engine-input", inputsSent);
       inputsSent = -1;
     }
-    const { nets, diagnostics: runtime, time } = message;
+    const { nets, unknown, diagnostics: runtime, time } = message;
     useSim.setState(({ time: before, epoch }) => ({
       nets,
+      unknown,
       runtime,
       time,
       stale: false,
@@ -243,7 +253,7 @@ export function connectEngine(): () => void {
           status: "error",
           error: message.message,
           ...(message.running !== undefined && { running: message.running }),
-          ...(message.load && { loaded: null, nets: null, runtime: [], stale: pending > 0, waves: null }),
+          ...(message.load && { loaded: null, nets: null, unknown: new Uint32Array(), runtime: [], stale: pending > 0, waves: null }),
         });
         break;
       // A reply means the engine works again, so an earlier command error no longer applies.
@@ -268,9 +278,15 @@ export function connectEngine(): () => void {
         break;
       case "memory": {
         // Words as before keep their array, so nothing showing them redraws (a screen at top speed, ADR 0021).
-        const before = useSim.getState().memory[message.component];
-        const same = before?.length === message.words.length && before.every((w, i) => w === message.words[i]);
-        if (!same) useSim.setState(({ memory }) => ({ memory: { ...memory, [message.component]: message.words } }));
+        const { memory, memoryUnknown } = useSim.getState();
+        const alike = (before: Uint32Array | undefined, now: Uint32Array) => before?.length === now.length && before.every((w, i) => w === now[i]);
+        if (!alike(memory[message.component], message.words)) {
+          useSim.setState(({ memory }) => ({ memory: { ...memory, [message.component]: message.words } }));
+        }
+        // The same for the unknown bits, which change apart from the words when a known 1 becomes X.
+        if (!alike(memoryUnknown[message.component], message.unknown)) {
+          useSim.setState(({ memoryUnknown }) => ({ memoryUnknown: { ...memoryUnknown, [message.component]: message.unknown } }));
+        }
         break;
       }
       case "waves":

@@ -1,9 +1,9 @@
-// The editable circuit document, format version 11 (docs/architecture.md#circuit-document, ADRs 0010, 0012, 0014, 0015, 0017, 0018, 0021, 0025, 0027).
+// The editable circuit document, format version 12 (docs/architecture.md#circuit-document, ADRs 0010, 0012, 0014, 0015, 0017, 0018, 0021, 0025, 0027, 0035).
 // Connectivity is explicit: wires reference ports and junctions by ID, never by geometry.
 import type { CircuitBody, CircuitDescription, Endpoint, JunctionRef, PinDesc } from "../simulation/protocol";
 
 /** The built-in parts (the engine's catalog). */
-export const COMPONENT_KINDS = ["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "split", "merge", "clock", "dff", "rom", "ram", "seg7", "screen", "keyboard"] as const;
+export const COMPONENT_KINDS = ["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "split", "merge", "clock", "dff", "rom", "ram", "seg7", "screen", "keyboard", "tri"] as const;
 export type ComponentKind = (typeof COMPONENT_KINDS)[number];
 /** A splitter or merger: its `fields` prop adds a port per field (ADR 0014). Every other built-in part takes `width`. */
 export type FieldedKind = "split" | "merge";
@@ -111,13 +111,35 @@ export function fieldRanges(fields: readonly number[]): string[] {
   });
 }
 
-/** A value in hex, one digit per started 4 bits: an 8-bit 44 is "0x2C". */
-export const hex = (value: number, width: number) =>
-  `0x${value.toString(16).toUpperCase().padStart(Math.ceil(width / 4), "0")}`;
+/**
+ * What a value's bits are, given its unknown bits (ADR 0035): `x` if any bit is X (unknown, and the value's bit is 1),
+ * else `z` if any is Z (unknown, and the value's bit is 0), else known.
+ */
+export const signalState = (value: number, unknown: number): "known" | "x" | "z" => ((value & unknown) !== 0 ? "x" : unknown !== 0 ? "z" : "known");
 
-/** How the readout shows a value: on or off for 1 bit, else decimal and hex ("44 (0x2C)"). */
-export const showValue = (value: number, width: number) =>
-  width > 1 ? `${value} (${hex(value, width)})` : value === 1 ? "on" : "off";
+/**
+ * A value in hex, one digit per started 4 bits: an 8-bit 44 is "0x2C". With unknown bits (ADR 0035), a digit is `Z` if
+ * all its bits are Z, and `X` if any other bit of it is unknown.
+ */
+export function hex(value: number, width: number, unknown = 0): string {
+  const digits = Math.ceil(width / 4);
+  if (unknown === 0) return `0x${value.toString(16).toUpperCase().padStart(digits, "0")}`;
+  let text = "";
+  for (let digit = 0; digit < digits; digit++) {
+    // The top digit of a width that is not a multiple of 4 has fewer bits.
+    const mask = 2 ** Math.min(4, width - 4 * digit) - 1;
+    const [v, u] = [(value >>> (4 * digit)) & mask, (unknown >>> (4 * digit)) & mask];
+    text = (u === 0 ? v.toString(16).toUpperCase() : u === mask && v === 0 ? "Z" : "X") + text;
+  }
+  return `0x${text}`;
+}
+
+/**
+ * How the readout shows a value: on or off for 1 bit, else decimal and hex ("44 (0x2C)"). With unknown bits (ADR 0035):
+ * X or Z for 1 bit, else its hex digits alone ("0xXZ").
+ */
+export const showValue = (value: number, width: number, unknown = 0) =>
+  unknown !== 0 ? (width > 1 ? hex(value, width, unknown) : value === 1 ? "X" : "Z") : width > 1 ? `${value} (${hex(value, width)})` : value === 1 ? "on" : "off";
 
 /** Largest value `width` bits hold. Not built with `<<`, which is 32-bit signed in JS. */
 export const maxValue = (width: number) => 2 ** width - 1;
@@ -199,7 +221,7 @@ export type Definition = { id: string; name: string; circuit: Circuit };
 
 export type CircuitDocument = {
   format: "clockyard";
-  version: 11;
+  version: 12;
   /**
    * `challenge`: the challenge the document was started from, by its file name such as `01-inverter` (ADR 0025).
    * `notes`: plain text about the design, paragraphs separated by blank lines, at most `MAX_NOTES` characters (ADR 0027).

@@ -2,8 +2,8 @@
 
 Status: **built** for combinational logic (Phase 1, ADR 0006) and sequential
 logic (Phase 3, ADR 0017), and for four-state signals (ADR 0035): unknown
-values, the tri-state buffer and nets with several drivers. The editor does
-not offer the buffer or draw `X` and `Z` yet: see Four-state signals.
+values, the tri-state buffer and nets with several drivers. See Four-state
+signals.
 
 ## Terms
 
@@ -290,11 +290,9 @@ watched. `waves()` and `wave(i)` read it.
 [ADR 0035](decisions/0035-four-state-signals.md). Everything in this
 section is built in the engine.
 
-**Not built yet: the editor's part** (how `X` and `Z` are drawn, the buffer
-in the parts panel, the file format that holds it, and Make component
-refusing to split a bus). It is in the ADR. Until then the editor draws
-value words only, so an `X` looks like a 1 there and a `Z` like a 0, and
-it refuses a file with a `tri` part.
+The editor's part (how `X` and `Z` are drawn and written, the buffer in the
+parts panel, and Make component refusing to split a bus) is in the ADR and
+in `docs/architecture.md`, Rendering.
 
 ### Values
 

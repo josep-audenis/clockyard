@@ -404,6 +404,41 @@ What the engine has to work with:
       cuts a transient that then ends. The message still says a loop
       oscillates. This was so before four-state signals; it is left.
 
+    *As built (step 4):* the editor.
+    - **Wires.** X: the X colour, long dashes. Z: the Z colour, dots. Both
+      colours were already in the design tokens. A wire the engine names
+      in an error keeps the error's colour, and its dashes.
+    - **The LED** is a ring in its state's colour with the letter `X` or
+      `Z` in it. A wide LED, switch or register writes its digits.
+    - **Digits.** `hex` and `showValue` take the unknown word: one bit is
+      `X` or `Z`; a wider value is its hex digits alone ("0x5X"), with no
+      decimal beside them. In the readout "unknown" still means the engine
+      has not reported yet.
+    - **Waveforms.** A one-bit X or Z runs along the middle of the lane,
+      dashed as on a wire. A bus band with unknown digits is outlined in
+      the X style and shows them.
+    - **The part** sits with the gates: a buffer's triangle, `en` below
+      `in` on the left, as every part has its inputs. It has no shortcut
+      key.
+    - **Make component.** The engine's `loaded` reply lists the nets that
+      are buses (`buses`), since port nets alone cannot tell: two
+      instances' output pins share a net with no bus whenever both are
+      undriven or wired through from one source. On a bus, the drivers
+      are each tri-state buffer's `out` and each instance's output pins.
+      A selection that takes some and leaves others is refused: "A shared
+      bus would be split: select every tri-state buffer on it, or none of
+      them." While the engine has not caught up with a sheet that has a
+      buffer, it asks to wait, since a bus joined by labels crosses no
+      wire.
+    - **The inspector's memory dump** writes unknown words with their
+      digits.
+    - **A seven-segment display and a screen** show an unknown segment or
+      pixel by colour alone, as item 10 has it, with `X` and `Z` alike.
+    - **Not done:** the about page's list of parts (another session's
+      work in progress). A challenge mismatch is written without its
+      width, so an all-`Z` top digit of fewer than four bits reads `X`
+      there; no challenge allows a buffer.
+
 ## Alternatives considered
 
 - **An unconnected input reads `Z`,** as `docs/simulation-model.md` once

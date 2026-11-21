@@ -5,7 +5,7 @@ test fixture: the Rust and frontend test suites load them and check their
 behavior through the real engine. Expected outputs live in tests, never baked
 into the example files.
 
-Examples are written in format version 11 (ADR 0027): each carries its own notes in
+Examples are written in format version 11 (ADR 0027), which the editor still reads, though it writes 12. Each carries its own notes in
 `metadata.notes`, saying what it shows and what to try, which the editor's Notes panel shows. Open
 one from the **Examples** list in the editor, which orders them from the AND gate to Catch;
 Import opens the files too. `apps/web/src/storage/examples.ts` lists them, and its test fails if a file is missing

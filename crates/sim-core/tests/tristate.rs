@@ -747,7 +747,7 @@ fn a_bus_takes_any_number_of_buffers_and_a_circuit_any_number_of_buses() {
     assert_eq!(bits(&sim, "l1", "in"), (0b1011, 0b0011));
     assert_eq!(bits(&sim, "l2", "in"), (0b0110, 0));
 
-    // A watched bus records its Z, its value and its X; an edit that keeps state keeps the record and the bus.
+    // A watched bus is recorded like any net; an edit that keeps state keeps the record and the bus.
     let bus = sim.wire_nets()["w2"];
     sim.watch_wires(&["w2"]);
     sim.set_input("et0", 0).unwrap();

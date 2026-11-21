@@ -33,21 +33,16 @@ struct FieldPorts {
 /// `inputs` and `outputs` are the fixed ports; field ports come from `fieldPorts`.
 #[wasm_bindgen]
 pub fn catalog() -> String {
-    // The tri-state buffer is in the engine (ADR 0035, step 3) and not yet in the editor, whose kinds, layouts and
-    // file format follow this list: it joins it with step 4.
-    let parts = Kind::ALL
-        .into_iter()
-        .filter(|&kind| kind != Kind::Tri)
-        .map(|kind| Part {
-            kind: kind.name(),
-            inputs: kind.inputs(),
-            outputs: kind.outputs(),
-            sized: kind.sized(),
-            field_ports: kind.field_ports().map(|(output, prefix)| FieldPorts {
-                side: if output { "outputs" } else { "inputs" },
-                prefix,
-            }),
-        });
+    let parts = Kind::ALL.into_iter().map(|kind| Part {
+        kind: kind.name(),
+        inputs: kind.inputs(),
+        outputs: kind.outputs(),
+        sized: kind.sized(),
+        field_ports: kind.field_ports().map(|(output, prefix)| FieldPorts {
+            side: if output { "outputs" } else { "inputs" },
+            prefix,
+        }),
+    });
     serde_json::to_string(&parts.collect::<Vec<_>>()).expect("catalog serializes")
 }
 
@@ -136,6 +131,8 @@ struct Loaded<'a> {
     port_nets: &'a PortNets,
     /// Net index → the top-level part driving it, `null` for ground (ADR 0016).
     net_drivers: Vec<Option<&'a str>>,
+    /// The nets several tri-state buffers share (ADR 0035): Make component may not split one.
+    buses: Vec<u32>,
     /// Validation results: errors, or warnings such as unconnected inputs.
     diagnostics: &'a [Diagnostic],
     /// Result of the initial settle (an unstable loop), superseded by later settles.
@@ -210,6 +207,7 @@ impl Engine {
             wire_widths: sim.map_or(&empty.0, Simulator::wire_widths),
             port_nets: sim.map_or(&empty.1, Simulator::port_nets),
             net_drivers: sim.map_or_else(Vec::new, Simulator::net_drivers),
+            buses: sim.map_or_else(Vec::new, Simulator::buses),
             diagnostics: &diagnostics,
             runtime: &runtime,
         };
