@@ -727,3 +727,201 @@ fn every_reserved_word_does_what_nop_does() {
         assert_eq!(a, b, "{word:04X}");
     }
 }
+
+const CATCH2: &str = include_str!("../../../scripts/catch2.asm");
+const LEFT: u8 = 0x82;
+const RIGHT: u8 = 0x83;
+
+/// Catch 2's RAM, as docs/reference-cpu-2.md lists it.
+const PADDLE: usize = 0;
+const COLUMN: usize = 1;
+const TOP: usize = 2;
+const DELAY: usize = 4;
+const SCORE: usize = 5;
+
+/// The screen's lit pixels as (column, row).
+fn pixels(state: &State) -> Vec<(usize, usize)> {
+    (0..64 * 32)
+        .filter(|&n| state.screen[n / 8] & (0x80 >> (n % 8)) != 0)
+        .map(|n| (n % 64, n / 64))
+        .collect()
+}
+
+/// The paddle at `left` and a block at `column` on rows `top` and `top + 1`, as pixels.
+fn picture(left: usize, block: Option<(usize, usize)>) -> Vec<(usize, usize)> {
+    let mut lit: Vec<(usize, usize)> = (left..left + 8).map(|c| (c, 31)).collect();
+    if let Some((column, top)) = block {
+        lit.extend([
+            (column, top),
+            (column + 1, top),
+            (column, top + 1),
+            (column + 1, top + 1),
+        ]);
+    }
+    lit.sort_by_key(|&(c, r)| (r, c));
+    lit
+}
+
+/// Plays Catch 2 on the model and the circuit together until it halts or `limit` cycles pass,
+/// with `key(state)` held each cycle.
+fn play(limit: usize, key: impl Fn(&State) -> u8) -> Run {
+    let mut run = Run::new(&assemble(CATCH2));
+    for _ in 0..limit {
+        if run.state.h {
+            break;
+        }
+        run.key = key(&run.state);
+        run.cycle();
+    }
+    run
+}
+
+#[test]
+fn catch_2_scores_the_first_block_and_halts_on_a_miss_with_single_pixels() {
+    // No key: the first block falls in column 28, over the paddle at 28 to 35; the second in column 51.
+    let run = play(80_000, |_| 0);
+    assert!(run.state.h, "a miss halts");
+    assert_eq!((run.state.ram[SCORE], run.state.hex), (1, 1));
+    // The missed block stays where it landed, on rows 29 and 30, beside the paddle.
+    assert_eq!(pixels(&run.state), picture(28, Some((51, 29))));
+}
+
+#[test]
+fn catch_2_moves_the_paddle_one_pixel_at_a_time_to_catch_a_block_elsewhere() {
+    // Right is held while the second block falls, until the paddle's left column is 46: under 51 and 52.
+    let run = play(120_000, |s| {
+        if s.ram[SCORE] == 1 && s.ram[PADDLE] < 46 {
+            RIGHT
+        } else {
+            0
+        }
+    });
+    assert!(run.state.h);
+    // Caught: the third block, in column 51 + 23 - 63 = 11, is missed.
+    assert_eq!(run.state.ram[SCORE], 2);
+    assert_eq!(pixels(&run.state), picture(46, Some((11, 29))));
+}
+
+/// Catch 2 on the model alone, for its timing: what the circuit does cycle by cycle is held above.
+fn on_model(limit: usize, key: impl Fn(&State) -> u8) -> (Model, Vec<(u8, usize)>) {
+    let mut model = Model::new(&assemble(CATCH2));
+    // Each row the block reaches, and the cycle it got there.
+    let mut rows = Vec::new();
+    for cycle in 1..=limit {
+        if model.state.h {
+            break;
+        }
+        model.key = key(&model.state);
+        let top = model.state.ram[TOP];
+        model.cycle();
+        if model.state.ram[TOP] != top {
+            rows.push((model.state.ram[TOP], cycle));
+        }
+    }
+    (model, rows)
+}
+
+#[test]
+fn catch_2_stops_the_paddle_at_both_edges() {
+    let row = |state: &State| -> Vec<usize> {
+        pixels(state)
+            .into_iter()
+            .filter(|&(_, r)| r == 31)
+            .map(|(c, _)| c)
+            .collect()
+    };
+    let (model, _) = on_model(80_000, |_| LEFT);
+    assert_eq!(
+        (model.state.ram[PADDLE], row(&model.state)),
+        (0, (0..8).collect())
+    );
+    let (model, _) = on_model(80_000, |_| RIGHT);
+    assert_eq!(
+        (model.state.ram[PADDLE], row(&model.state)),
+        (56, (56..64).collect())
+    );
+}
+
+#[test]
+fn catch_2_keeps_an_even_pace_within_its_budget_and_speeds_up_down_to_a_delay_of_6() {
+    // A row of fall is the wait, 8 cycles a round of the delay and 4 to start it, then the rest, the
+    // same whatever the block's column; and with both paddle moves no more than 1,000 cycles.
+    let row =
+        |rows: &[(u8, usize)]| -> Vec<usize> { rows.windows(2).map(|w| w[1].1 - w[0].1).collect() };
+    let (_, still) = on_model(30_000, |_| 0);
+    let (_, moving) = on_model(30_000, |s| {
+        if s.ram[TOP] >= 1 {
+            if s.ram[PADDLE] > 0 { LEFT } else { 0 }
+        } else {
+            0
+        }
+    });
+    let wait = 8 * 60 + 4;
+    let still: Vec<usize> = row(&still)[1..20].to_vec();
+    assert!(still.iter().all(|&c| c == still[0]), "{still:?}");
+    assert_eq!(still[0] - wait, 436, "a row with no key");
+    let moving = row(&moving)[2..10].to_vec();
+    assert!(moving.iter().all(|&c| c - wait <= 1_000), "{moving:?}");
+    // The same whatever the column. The first block falls in column 28 and the second in 51, with the
+    // delay held at 60: between them they take each branch of locate's bit both ways (28 has bit 2 of its
+    // low three set, 51 bits 1 and 0).
+    let mut model = Model::new(&assemble(CATCH2));
+    let mut cycles: Vec<(u8, usize)> = Vec::new();
+    let (mut top, mut at) = (0, 0);
+    for cycle in 1..80_000 {
+        model.state.ram[DELAY] = 60;
+        model.cycle();
+        if model.state.ram[TOP] != top {
+            if (2..28).contains(&model.state.ram[TOP]) {
+                cycles.push((model.state.ram[COLUMN], cycle - at));
+            }
+            (top, at) = (model.state.ram[TOP], cycle);
+        }
+    }
+    let columns: Vec<u8> = cycles.iter().map(|&(c, _)| c).collect();
+    assert!(
+        columns.contains(&28) && columns.contains(&51),
+        "{columns:?}"
+    );
+    assert!(cycles.iter().all(|&(_, c)| c == still[0]), "{cycles:?}");
+
+    // Each catch takes 6 off the delay, down to 6: ten catches, then it stays. A paddle that follows the block.
+    let (model, _) = on_model(2_000_000, |s| {
+        let target = s.ram[COLUMN].saturating_sub(3).min(56);
+        match s.ram[PADDLE] {
+            p if p < target => RIGHT,
+            p if p > target => LEFT,
+            _ => 0,
+        }
+    });
+    let state = &model.state;
+    assert!(state.ram[SCORE] >= 12, "score {}", state.ram[SCORE]);
+    assert_eq!(state.ram[DELAY], 6);
+}
+
+#[test]
+fn the_catch_2_example_holds_the_game_as_assembled() {
+    let document: Value = serde_json::from_str(&example("catch-2")).expect("valid");
+    let rom = document["circuit"]["components"]
+        .as_array()
+        .expect("components")
+        .iter()
+        .find(|c| c["id"] == "rom")
+        .expect("the program ROM");
+    let words: Vec<u16> = rom["props"]["data"]
+        .as_array()
+        .expect("words")
+        .iter()
+        .map(|w| w.as_u64().expect("a word") as u16)
+        .collect();
+    assert_eq!(words, assemble(CATCH2));
+    assert_eq!(
+        rom["props"]["source"].as_str(),
+        Some(CATCH2.replace("\r\n", "\n").as_str())
+    );
+    // The same sheet as Reference CPU 2's, the ROM apart.
+    let sheet: Value = serde_json::from_str(&example("reference-cpu-2")).expect("valid");
+    let parts = |d: &Value| d["circuit"]["components"].as_array().expect("parts").len();
+    assert_eq!(parts(&document), parts(&sheet));
+    assert!(words.len() <= 256);
+}

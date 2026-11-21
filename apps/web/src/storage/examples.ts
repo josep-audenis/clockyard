@@ -18,6 +18,7 @@ export const EXAMPLES = [
   { name: "reference-cpu", title: "Reference CPU" },
   { name: "catch", title: "Catch" },
   { name: "reference-cpu-2", title: "Reference CPU 2" },
+  { name: "catch-2", title: "Catch 2" },
 ] as const;
 
 /** Every bundled example's file name, as found, for the test that every one is listed. */

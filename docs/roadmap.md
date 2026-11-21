@@ -667,7 +667,7 @@ targets, as in Phase 5.
       buffers on one wire. Playwright opens it from the Examples list and
       reads `Z` on the bus, then one source's value, then `X` in the
       digits where two enabled sources differ, then `Z` again.
-6. ⬜ A second reference CPU (ADR 0036, accepted): bit operations and
+6. ✅ A second reference CPU (ADR 0036, accepted): bit operations and
    call/return, specification first.
    1. ✅ The specification, `docs/reference-cpu-2.md`: eleven instructions
       and a return stack added to the first CPU's, marked as designed.
@@ -677,7 +677,11 @@ targets, as in Phase 5.
    3. ✅ The circuit and its example, generated from the first CPU's
       sheet and held to the model cycle by cycle; it keeps the 10,000
       setting in the browser.
-   4. ⬜ Catch 2, with single pixels and shared drawing code.
+   4. ✅ Catch 2, with single pixels and shared drawing code: its rules
+      in the specification, 189 words, a block 2 pixels square in any of
+      63 columns, a paddle that moves one pixel at a time, every pixel
+      drawn by one routine. Playwright plays it: the first block caught,
+      the paddle moved under the second, a miss halts.
 
 ## Outside the phases
 
@@ -720,8 +724,11 @@ Increment 4, challenges 10 to 12 (ADR 0034), is built: a CPU, a program
 and a screen interface, each checked by programs run on a bench.
 Increment 5, four-state signals (ADR 0035), is built: `X` and `Z` in the
 engine and the editor, a tri-state buffer, buses that several buffers
-share, and loops that settle to `X`. Increment 6, a second reference CPU,
-is next: ADR 0036 (accepted) designs it, specification first.
+share, and loops that settle to `X`. Increment 6, a second reference CPU
+(ADR 0036), is built: Reference CPU 2, the first with bit operations,
+shifts, `JNZ`, and `CALL` and `RET` on a stack of its own, and Catch 2
+drawn in single pixels by one shared routine. That completes the plan of
+ADR 0028. What comes after Phase 6 needs a plan of its own.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is

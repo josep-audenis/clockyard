@@ -1629,6 +1629,54 @@ test("game demo: in Catch the first block is caught, a miss halts the run, and a
   await expect(contents).toContainText("0x00 0x00 0x00 0x3C 0x00 0x00 0x00 0xFF"); // the block in lane 3, the paddle in lane 7
 });
 
+test("game demo: in Catch 2 the paddle moves a pixel at a time, under a block in another column, and scores (ADR 0036)", async ({ page }) => {
+  // Real time, as for Catch: the checks are outcomes, and the key is held for a number of the CPU's
+  // cycles rather than of seconds. The game runs at 1,000 cycles a second until the paddle has moved, so
+  // seeing the score change, and the key landing, both take a small part of a row of fall.
+  test.setTimeout(300_000);
+  const game = { timeout: 120_000 };
+  await page.goto("/");
+  await openTab(page, "Learn");
+  await page.getByRole("region", { name: "EXAMPLES" }).getByRole("button", { name: "Catch 2" }).click();
+  await expect(page.getByRole("textbox", { name: "Notes" })).toHaveValue(/^Catch, drawn in single pixels/);
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  const at = await grid(page);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const low = readout(page, "Seven-segment Low");
+  const speed = page.getByLabel("Speed");
+  await speed.selectOption("1000");
+  await page.getByLabel("Run until").selectOption({ label: "Until LED Halted lights" });
+  // No keys: the first block falls in column 28, over the paddle at 28 to 35, and scores.
+  await button("Run").click();
+  await expect(low).toHaveText("Seven-segment Low: 6 (0x06)", game); // 1
+  // The second falls in column 51. Right held for about 10 rows of its fall, two pixels a row, puts the
+  // paddle's left column near 48: under 51 and 52 anywhere from 45 to 51. A row with both moves is about
+  // 1,290 cycles at this block's delay, so 17 to 23 pixels is 11,000 to
+  // 14,800 cycles held.
+  const cycle = async () => Number(/\d+/.exec((await counter(page).textContent()) ?? "")?.[0]);
+  await click(page, at(14, 10)); // the keyboard at (12,9), as on the first CPU's sheet
+  await expect(status(page)).toContainText("The keyboard has the keys");
+  const from = await cycle();
+  await page.keyboard.down("ArrowRight");
+  await expect.poll(cycle, { timeout: 60_000, intervals: [20] }).toBeGreaterThanOrEqual(from + 12_900);
+  await page.keyboard.up("ArrowRight");
+  await speed.selectOption("10000");
+  await expect(low).toHaveText("Seven-segment Low: 91 (0x5B)", game); // 2
+  // The third, in column 11, is missed: the run halts.
+  await expect(readout(page, "LED Halted")).toHaveText("LED Halted: on", game);
+  await click(page, at(35, 5)); // the screen at (25,0)
+  const row31 = (await page.getByRole("region", { name: "Screen contents" }).textContent())?.trim().split("\n").at(-1) ?? "";
+  // The paddle's 8 pixels, moved a pixel at a time: not on a byte's edge, and under columns 51 and 52.
+  const lit = row31
+    .trim()
+    .split(/\s+/)
+    .flatMap((b, byte) => Array.from({ length: 8 }, (_, bit) => ((Number(b) >> (7 - bit)) & 1 ? [8 * byte + bit] : [])).flat());
+  expect(lit).toHaveLength(8);
+  expect((lit.at(-1) ?? 0) - (lit[0] ?? 0)).toBe(7);
+  expect(lit[0]).toBeGreaterThanOrEqual(45);
+  expect(lit[0]).toBeLessThanOrEqual(51);
+});
+
 test("waveforms: the 8-bit counter stepped three times reads 0x00 to 0x03, and a cursor reads any tick (ADR 0026)", async ({ page }) => {
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("8-bit-counter"));
