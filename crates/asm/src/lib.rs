@@ -42,8 +42,9 @@ pub const INSTRUCTIONS: [(&str, u16, bool); 24] = [
     ("RET", 0xF900, false),
 ];
 
-/// The instruction a word executes as on Reference CPU 2, if any: by its
-/// opcode, and under opcode 0xF by bits 11-8 as well.
+/// The named instruction a word is on Reference CPU 2, if any (a reserved
+/// word has none, and executes as `NOP`): by its opcode, and under opcode 0xF
+/// by bits 11-8 as well.
 fn instruction(word: u16) -> Option<(&'static str, u16, bool)> {
     let key = if word >> 12 == 0xF {
         word & 0xFF00
@@ -298,6 +299,18 @@ mod tests {
     }
 
     #[test]
+    fn the_second_cpus_words_are_as_its_page_gives_them() {
+        // docs/reference-cpu-2.md's table, word for word.
+        assert_eq!(
+            assemble("JNZ 1\nAND 1\nOR 1\nXOR 1\nANI 1\nORI 1\nXRI 1\nSHL\nSHR\nCALL 1\nRET"),
+            Ok(vec![
+                0xD001, 0xF001, 0xF101, 0xF201, 0xF301, 0xF401, 0xF501, 0xF600, 0xF700, 0xF801,
+                0xF900
+            ])
+        );
+    }
+
+    #[test]
     fn the_second_cpus_examples_assemble() {
         // docs/reference-cpu-2.md: a routine that doubles A, called twice.
         let twice = "        LDI 5\n        CALL twice\n        CALL twice\n        OUT\n        HLT\ntwice:  SHL\n        RET\n";
@@ -432,10 +445,21 @@ mod tests {
         // instruction (a reserved word runs as NOP) and, where that takes one, its operand. The bits an
         // instruction ignores (11-8 outside opcode 0xF, 7-0 where there is no operand) come back as 0.
         for word in 0..=u16::MAX {
-            let expected = match instruction(word) {
-                Some((_, base, true)) => base | word & 0xFF,
-                Some((_, base, false)) => base,
-                None => 0,
+            // From the two pages, not from this crate's table: which bits each word's instruction uses.
+            let expected = match word >> 12 {
+                // NOP, OUT, HLT: no operand.
+                0x0 | 0xB | 0xC => word & 0xF000,
+                // Reserved on both CPUs.
+                0xE => 0,
+                0xF => match (word >> 8) & 0xF {
+                    // AND, OR, XOR, ANI, ORI, XRI, CALL: the operand.
+                    0x0..=0x5 | 0x8 => word,
+                    // SHL, SHR, RET: no operand.
+                    0x6 | 0x7 | 0x9 => word & 0xFF00,
+                    _ => 0,
+                },
+                // Every other opcode takes an operand, and ignores bits 11-8.
+                _ => word & 0xF0FF,
             };
             assert_eq!(
                 assemble(&disassemble(word)),

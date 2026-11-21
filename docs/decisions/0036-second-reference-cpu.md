@@ -247,9 +247,13 @@ What there is to build on:
      instructions only Reference CPU 2 runs (designed, not built yet)."
      The words in brackets go when the circuit exists.
    - **The model** is `crates/sim-core/tests/cpu2.rs`, written from the
-     two specification pages and apart from the first CPU's model. Eleven
-     tests hold it to results worked out by hand: the page's examples,
-     each instruction and flag, and the stack's corner cases.
+     two specification pages and apart from the first CPU's model; its part
+     for the first CPU's instructions mirrors that model. Sixteen tests hold
+     it to results worked out by hand: the page's examples, each new
+     instruction with each flag going either way, the stack's corner cases,
+     and every reserved word against `NOP`. The first CPU's semantics in it
+     are held by step 3, which runs the first CPU's programs on it and on
+     a circuit.
    - **A program whose result relied on `0xD` doing nothing** (item 8):
      none of the first CPU's tests is changed here, since they run the
      first CPU. Step 3 chooses which of them the second model takes.

@@ -276,7 +276,7 @@ type Result =
   | { type: "state"; nets: Uint32Array; unknown: Uint32Array; diagnostics: Diagnostic[]; // nets each cut to its width;
       time: number; running: boolean }   // unknown bits beside them, empty while none (ADR 0035); ticks; whether a run is under way
   | { type: "memory"; component: string; words: Uint32Array; unknown: Uint32Array } // empty when not a memory; unknown bits, empty while none
-  | { type: "assembled"; request: number; words: number[]; errors: { line: number; message: string }[] }
+  | { type: "assembled"; request: number; words: number[]; errors: { line: number; message: string }[]; second: number } // second: words only Reference CPU 2 runs (ADR 0036)
   | { type: "disassembled"; request: number; lines: string[] }
   | { type: "checked"; request: number; report: Report } // passed, failed (first step) or refused (why)
   | { type: "waves"; time: number; nets: number[]; traces: Float64Array[] } // per net: [t0, v0, u0, t1, v1, u1, …] (time, value, unknown bits), transferred

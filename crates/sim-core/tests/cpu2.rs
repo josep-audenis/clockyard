@@ -1,9 +1,10 @@
 //! Reference CPU 2 (ADR 0036) as its specification has it: `docs/reference-cpu-2.md`,
 //! read with `docs/reference-cpu.md`, which it adds to.
 //!
-//! `Model` below is written from those two pages alone, apart from the first CPU's
-//! model in `cpu.rs`, and is the independent reference the circuit will be held
-//! to. Until the circuit exists (ADR 0036, step 3), the tests here hold the model
+//! `Model` below is written from those two pages, apart from the first CPU's model in
+//! `cpu.rs`: no code is shared. Its part for the first CPU's thirteen instructions
+//! mirrors that model's, since the pages agree there; step 3 holds both halves to a
+//! circuit. It is the independent reference the circuit will be held to. Until the circuit exists (ADR 0036, step 3), the tests here hold the model
 //! itself to results worked out by hand from the pages.
 
 /// The machine state the two pages define.
@@ -392,4 +393,103 @@ fn a_halted_cpu_keeps_its_stack_and_reserved_words_do_nothing() {
         (s.a, s.out, s.z, s.c, s.sp, s.pc),
         (5, 5, false, false, 0, 8)
     );
+}
+
+/// The state after `words` run until halted, at most `limit` cycles.
+fn after(words: &[u16], limit: usize) -> State {
+    let mut model = Model::new(words);
+    for _ in 0..limit {
+        if model.state.h {
+            break;
+        }
+        model.cycle();
+    }
+    model.state
+}
+
+#[test]
+fn a_shift_moves_in_a_0_whatever_c_held() {
+    // C set first (200 + 100 carries): a rotate through carry would move it in.
+    let state = halted("LDI 200\nADI 100\nLDI 1\nSHL\nHLT");
+    assert_eq!((state.a, state.c), (2, false));
+    let state = halted("LDI 200\nADI 100\nLDI 2\nSHR\nHLT");
+    assert_eq!((state.a, state.c), (1, false));
+    let state = halted("LDI 200\nADI 100\nLDI 0x80\nSHR\nHLT");
+    assert_eq!((state.a, state.c), (0x40, false));
+}
+
+#[test]
+fn the_bit_operations_keep_a_c_that_is_0_and_set_z_either_way() {
+    // No carry first: C is 0, and stays 0 through each of the six.
+    let with = |tail: &str| halted(&format!("LDI 0b1100\nSTA 0\nLDI 0b1010\n{tail}\nHLT"));
+    for tail in [
+        "AND 0",
+        "OR 0",
+        "XOR 0",
+        "ANI 0b1100",
+        "ORI 0b1100",
+        "XRI 0b1100",
+    ] {
+        assert!(!with(tail).c, "{tail}");
+    }
+    // Z goes from 1 to 0: A was 0 (LDI 0 sets Z), and the result is not.
+    for tail in ["OR 0", "XOR 0", "ORI 5", "XRI 5"] {
+        let state = halted(&format!("LDI 0b1100\nSTA 0\nLDI 0\n{tail}\nHLT"));
+        assert!(state.a != 0 && !state.z, "{tail}");
+    }
+    // And from 0 to 1: A is 7, RAM[1] is 0.
+    for tail in ["AND 1", "ANI 0"] {
+        let state = halted(&format!("LDI 7\n{tail}\nHLT"));
+        assert_eq!((state.a, state.z), (0, true), "{tail}");
+    }
+}
+
+#[test]
+fn call_ret_and_jnz_leave_flags_that_are_0_at_0_and_a_carry_set() {
+    // Z and C both 0 before the call: they come back 0.
+    let state = halted("LDI 1\nCALL f\nHLT\nf: RET");
+    assert_eq!((state.a, state.z, state.c), (1, false, false));
+    // A taken JNZ keeps C.
+    let state = halted("LDI 200\nADI 100\nJNZ next\nnext: HLT");
+    assert_eq!((state.a, state.z, state.c), (44, false, true));
+}
+
+#[test]
+fn the_stack_is_apart_from_the_data_ram() {
+    let state = halted("LDI 9\nCALL f\nOUT\nHLT\nf: CALL g\nRET\ng: RET");
+    assert_eq!(state.out, 9);
+    assert!(
+        state.ram.iter().all(|&b| b == 0),
+        "no call wrote the data RAM"
+    );
+    // CALL f at 1 stored 2; CALL g at 4 stored 5.
+    assert_eq!(state.stack[..2], [2, 5]);
+}
+
+#[test]
+fn every_reserved_word_does_what_nop_does() {
+    // A program that touches A, the flags, RAM, OUT, the stack and the screen, with a reserved word
+    // after each instruction. It must end as the same program with 0x0000 there, the IR apart.
+    // Each word is followed by the reserved one, so the program's own words sit at even addresses: the
+    // routine f is at 10, and the CALL at 4 returns to 5, a reserved word, then the OUT at 6.
+    let program = [
+        0x1005, // LDI 5
+        0x3010, // STA 0x10
+        0xF80A, // CALL f
+        0xB000, // OUT
+        0xC000, // HLT
+        0x6001, // f: ADI 1
+        0xF900, // RET
+    ];
+    let reserved = [
+        0xE000, 0xE700, 0xEFFF, 0xFA00, 0xFB12, 0xFC12, 0xFD00, 0xFE34, 0xFFFF,
+    ];
+    for &word in &reserved {
+        let with: Vec<u16> = program.iter().flat_map(|&w| [w, word]).collect();
+        let without: Vec<u16> = program.iter().flat_map(|&w| [w, 0x0000]).collect();
+        let (mut a, mut b) = (after(&with, 200), after(&without, 200));
+        assert!(a.h && b.h, "{word:04X} halts");
+        (a.ir, b.ir) = (0, 0);
+        assert_eq!(a, b, "{word:04X}");
+    }
 }
