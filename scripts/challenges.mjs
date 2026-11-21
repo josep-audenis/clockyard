@@ -1,6 +1,7 @@
 // Writes the challenges of ADR 0025 into challenges/: for each, the challenge
 // (NN-name.json), a reference solution (solutions/NN-name.clockyard.json) and
-// the starter the editor opens (starters/NN-name.clockyard.json).
+// the starter the editor opens (starters/NN-name.clockyard.json). And the benches
+// of ADR 0034 (benches/), with the reference parts on them, from scripts/computer.mjs.
 //
 //   node scripts/challenges.mjs           writes the files
 //   node scripts/challenges.mjs --check   fails if a file is not what it would write
@@ -10,6 +11,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { computers } from "./computer.mjs";
 
 const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 
@@ -504,6 +506,27 @@ const document = (name, challenge, definitions) => ({
 });
 
 const files = [];
+
+// The benches of ADR 0034, one per slot, and the reference parts on them: each a whole computer.
+// The bench holds its slot empty; the solution is the same sheet with the reference part in it.
+const computer = (name, sheet, definitions) => ({
+  format: "clockyard",
+  version: 11,
+  metadata: { name, createdAt: "2026-11-21T12:00:00.000Z", modifiedAt: "2026-11-21T12:00:00.000Z" },
+  circuit: sheet,
+  definitions,
+});
+for (const [slot, c] of Object.entries(computers)) {
+  files.push([`challenges/benches/${slot}.clockyard.json`, computer(`Bench: ${slot}`, c.sheet, [c.empty, ...c.owned])]);
+}
+files.push(
+  ["challenges/solutions/10-cpu.clockyard.json", computer("CPU: solution", computers.cpu.sheet, [computers.cpu.reference, ...computers.cpu.given, ...computers.cpu.owned])],
+  [
+    "challenges/solutions/12-display.clockyard.json",
+    computer("Display: solution", computers.display.sheet, [computers.display.reference, ...computers.display.given, ...computers.display.owned]),
+  ],
+);
+
 for (const c of challenges) {
   const { id, circuit } = c.definition;
   const kinds = (kind) => circuit.components.filter((p) => p.kind === kind);

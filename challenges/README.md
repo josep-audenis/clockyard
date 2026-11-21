@@ -11,8 +11,21 @@ these files by hand: `node scripts/challenges.mjs` writes them, and
 - `starters/NN-name.clockyard.json`: what the editor opens. The definition
   holds only its pins; parts the challenge provides are kept.
 
+- `benches/cpu`, `program`, `display` (`.clockyard.json`): the computers of
+  ADR 0034, for challenges 10 to 12. Each is a sheet with a program ROM, a
+  data RAM, a key read at `0xFF`, the I/O decoding, a `HEX` register, a
+  screen, a clock switch and LEDs, round one slot: the `cpu`, the `program`
+  ROM, or the `display` that drives the screen. The slot's definition is
+  empty (its pins only; an empty ROM for `program`). Definitions the bench
+  owns have IDs starting `bench-`.
+- `solutions/10-cpu` and `12-display` are those benches with the reference
+  part in the slot: the reference CPU cut along its memory boundary, and
+  its screen interface. Their challenge files come with the challenges.
+
 `crates/sim-core/tests/challenges.rs` checks that every solution passes and
-every starter fails, through the engine.
+every starter fails, through the engine. `crates/sim-core/tests/cpu.rs`
+holds the cut CPU and the display, on their benches, to the same model of
+`docs/reference-cpu.md` as the example sheet.
 
 | File | Build | Parts |
 |------|-------|-------|

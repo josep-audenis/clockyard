@@ -135,9 +135,9 @@ test.each(readdirSync(benchmarks).filter((name) => name.endsWith(".clockyard.jso
   expect(result.ok ? "ok" : result.error).toBe("ok");
 });
 
-// The challenges' starters and solutions (ADR 0025) are project files too.
+// The challenges' starters and solutions (ADR 0025), and their benches (ADR 0034), are project files too.
 const challenges = new URL("../../../../challenges/", import.meta.url);
-const challengeFiles = ["starters/", "solutions/"].flatMap((dir) =>
+const challengeFiles = ["starters/", "solutions/", "benches/"].flatMap((dir) =>
   readdirSync(new URL(dir, challenges)).map((name) => `${dir}${name}`),
 );
 test.each(challengeFiles)("challenge file %s is a valid project file", (name) => {

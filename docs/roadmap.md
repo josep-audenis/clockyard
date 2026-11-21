@@ -629,6 +629,14 @@ targets, as in Phase 5.
 4. ⬜ Challenges 10–12 (ADR 0034, accepted): a CPU, a program for it,
    and a screen interface, each checked by running programs on a bench with
    its own ROM, RAM and devices.
+   1. ✅ The benches as circuit files, and the reference CPU cut along its
+      memory boundary and its screen interface on them, generated from
+      pieces shared with the example and held to the same model.
+   2. ⬜ The engine: a bench argument to `check`, runs, cycles, memory
+      expectations.
+   3. ⬜ Challenge 10.
+   4. ⬜ Challenges 11 and 12.
+   5. ⬜ The editor's reports and the browser target.
 5. ⬜ Four-state signals: `X`, `Z`, a multiple-driver rule, a tri-state
    buffer.
 6. ⬜ A second reference CPU: bit operations and call/return, specification
