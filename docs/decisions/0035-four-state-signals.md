@@ -439,6 +439,21 @@ What the engine has to work with:
       width, so an all-`Z` top digit of fewer than four bits reads `X`
       there; no challenge allows a buffer.
 
+    *As built (step 5):* `examples/shared-bus.clockyard.json`, written by
+    hand in format 12, with its notes, listed after the 8-bit counter.
+    The two sources are 8-bit switches, both 0 when it opens, so the
+    Playwright target types a value into A before it enables both. It
+    reads `0xZZ`, `90 (0x5A)`, `0xXX`, then `0xXA` once B's low digit
+    equals A's, and `0xZZ` again. A native test holds the same cases.
+    All five steps are built.
+
+    Left as rough edges, all on the roadmap: a bus design is not
+    benchmarked; two enabled drivers that disagree have no diagnostic;
+    Make component counts an instance that only passes a bus through as
+    one of its drivers; a register left at `X` by a loop has no warning
+    once the loop is known; a transient cut by the limit is reported as a
+    loop; and a challenge mismatch is written without its width.
+
 ## Alternatives considered
 
 - **An unconnected input reads `Z`,** as `docs/simulation-model.md` once

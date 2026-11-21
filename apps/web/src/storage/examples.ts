@@ -13,6 +13,7 @@ export const EXAMPLES = [
   { name: "4-bit-adder", title: "4-bit adder" },
   { name: "8-bit-adder", title: "8-bit adder" },
   { name: "8-bit-counter", title: "8-bit counter" },
+  { name: "shared-bus", title: "Shared bus" },
   { name: "devices", title: "Devices" },
   { name: "reference-cpu", title: "Reference CPU" },
   { name: "catch", title: "Catch" },

@@ -119,3 +119,29 @@ fn devices() {
     sim.step_cycle();
     assert_eq!(sim.memory("scr").unwrap()[0], 0);
 }
+
+#[test]
+fn shared_bus() {
+    // ADR 0035's target: two tri-state buffers share one bus, and two drivers on at once show X.
+    let mut sim = load("shared-bus");
+    let bus = |sim: &sim_core::Simulator| {
+        let net = sim.port_nets()["bus"]["in"] as usize;
+        (sim.nets()[net], sim.unknown()[net])
+    };
+    assert_eq!(bus(&sim), (0, 0xFF), "neither enabled: every bit Z");
+    sim.set_inputs(&[("a", 0x5A), ("enable-a", 1)]).unwrap();
+    assert_eq!(bus(&sim), (0x5A, 0));
+    sim.set_inputs(&[("b", 0x0F), ("enable-b", 1)]).unwrap();
+    assert_eq!(
+        bus(&sim),
+        (0x5F, 0x55),
+        "the bits where A and B differ are X"
+    );
+    sim.set_input("b", 0x5A).unwrap();
+    assert_eq!(bus(&sim), (0x5A, 0), "two drivers that agree");
+    sim.set_input("enable-a", 0).unwrap();
+    sim.set_input("b", 0x0F).unwrap();
+    assert_eq!(bus(&sim), (0x0F, 0));
+    sim.set_input("enable-b", 0).unwrap();
+    assert_eq!(bus(&sim), (0, 0xFF));
+}

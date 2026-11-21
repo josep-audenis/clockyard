@@ -648,7 +648,7 @@ targets, as in Phase 5.
       but is 2."), and Playwright fails each starter through the Check
       button and passes the solutions of 10 and 12, and for 11 a program
       written in the ROM's editor.
-5. ⬜ Four-state signals (ADR 0035, accepted): `X`, `Z`, a multiple-driver
+5. ✅ Four-state signals (ADR 0035, accepted): `X`, `Z`, a multiple-driver
    rule, a tri-state buffer.
    1. ✅ The rules, written in `docs/simulation-model.md` before any code.
    2. ✅ The engine's values: an `unknown` word per net, parts and state
@@ -663,7 +663,10 @@ targets, as in Phase 5.
       the *Tri-state buffer* part, format 12, and Make component refusing
       to split a bus. Playwright: two buffers on a wire read `Z`, then a
       value, then `X` when they disagree.
-   5. ⬜ The *Shared bus* example and the browser target.
+   5. ✅ The *Shared bus* example: two 8-bit sources behind tri-state
+      buffers on one wire. Playwright opens it from the Examples list and
+      reads `Z` on the bus, then one source's value, then `X` in the
+      digits where two enabled sources differ, then `Z` again.
 6. ⬜ A second reference CPU: bit operations and call/return, specification
    first.
 
@@ -706,17 +709,36 @@ built: an edit keeps time, flip-flops, memories, switches and the waveform
 record, a large file opens framed, and the readout lists registers.
 Increment 4, challenges 10 to 12 (ADR 0034), is built: a CPU, a program
 and a screen interface, each checked by programs run on a bench.
-Increment 5, four-state signals, is next; ADR 0035 (accepted) designs it.
+Increment 5, four-state signals (ADR 0035), is built: `X` and `Z` in the
+engine and the editor, a tri-state buffer, buses that several buffers
+share, and loops that settle to `X`. Increment 6, a second reference CPU,
+is next: its specification comes first, and it needs its own ADR.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
   opened again (by design, ADR 0011).
+- A circuit with a tri-state buffer runs on the engine's slower two-word
+  path throughout, and no benchmark has a bus (ADR 0035).
+- Two enabled drivers that disagree show `X` and nothing else: no
+  diagnostic names them (ADR 0035, left out by design).
+- Make component counts a component that only passes a bus through (an
+  input pin wired straight to an output pin) as one of the bus's drivers:
+  it and the bus's buffers must be selected together or not at all,
+  though the message speaks of buffers only (ADR 0035).
+- A register that took `X` from a loop holds it with no warning once the
+  loop itself is known again; and a settle cut by the delta limit on a
+  transient that then ends is reported as an oscillating loop, with no
+  `X` left (ADR 0035).
+- A challenge mismatch is written without its width, so an all-`Z` top
+  digit of fewer than four bits reads `X` there; no challenge allows a
+  tri-state buffer (ADR 0035).
 - A bench challenge's text is one long paragraph, and a pass counts the
   steps of all its runs ("30 of 30 steps") without naming runs.
 - A component added from another file under a `bench-` ID cannot be used
   in a bench challenge: the check refuses it as unknown (ADR 0034).
 - The about page (`apps/web/about/index.html`) still says nine challenges
-  and lists 01 to 09, and its list of parts has no tri-state buffer.
+  and lists 01 to 09, its list of parts has no tri-state buffer, and it
+  names challenges for the CPU and four-state signals as still to come.
 - Routing does not yet avoid label tags (ADR 0015).
 - A component made by Make component can cover parts below it (ADR 0016).
 - Make component is offered only for two or more selected items.

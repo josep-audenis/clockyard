@@ -1,0 +1,171 @@
+{
+  "format": "clockyard",
+  "version": 12,
+  "metadata": {
+    "name": "Shared bus",
+    "createdAt": "2026-11-21T12:00:00.000Z",
+    "modifiedAt": "2026-11-21T12:00:00.000Z",
+    "notes": "Two 8-bit sources, A and B, share one wire, the bus. Each reaches it through a tri-state buffer, which drives its output only while its enable is on, and otherwise lets go of the wire.\n\nWith neither enable on, nothing drives the bus: it floats, drawn dotted, and Bus reads Z. Turn Enable A on and Bus shows A. Select A and type a value, such as 0x5A, to see it follow.\n\nNow turn Enable B on as well. Where A and B differ, two drivers pull the wire opposite ways, and nobody can say what it carries: those bits are X, the bus is drawn dashed, and Bus shows X for each hex digit that holds one. Make B equal to A and the conflict is gone. This is how a computer puts many parts on one bus: every part has a buffer, and only one is enabled at a time."
+  },
+  "circuit": {
+    "components": [
+      {
+        "id": "a",
+        "kind": "switch",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "rotation": 0,
+        "props": {
+          "label": "A",
+          "width": 8
+        }
+      },
+      {
+        "id": "enable-a",
+        "kind": "switch",
+        "position": {
+          "x": 0,
+          "y": 4
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Enable A"
+        }
+      },
+      {
+        "id": "buffer-a",
+        "kind": "tri",
+        "position": {
+          "x": 10,
+          "y": 0
+        },
+        "rotation": 0,
+        "props": {
+          "width": 8
+        }
+      },
+      {
+        "id": "b",
+        "kind": "switch",
+        "position": {
+          "x": 0,
+          "y": 10
+        },
+        "rotation": 0,
+        "props": {
+          "label": "B",
+          "width": 8
+        }
+      },
+      {
+        "id": "enable-b",
+        "kind": "switch",
+        "position": {
+          "x": 0,
+          "y": 14
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Enable B"
+        }
+      },
+      {
+        "id": "buffer-b",
+        "kind": "tri",
+        "position": {
+          "x": 10,
+          "y": 10
+        },
+        "rotation": 0,
+        "props": {
+          "width": 8
+        }
+      },
+      {
+        "id": "bus",
+        "kind": "led",
+        "position": {
+          "x": 22,
+          "y": 5
+        },
+        "rotation": 0,
+        "props": {
+          "label": "Bus",
+          "width": 8
+        }
+      }
+    ],
+    "junctions": [],
+    "wires": [
+      {
+        "id": "w-a",
+        "from": {
+          "component": "a",
+          "port": "out"
+        },
+        "to": {
+          "component": "buffer-a",
+          "port": "in"
+        }
+      },
+      {
+        "id": "w-enable-a",
+        "from": {
+          "component": "enable-a",
+          "port": "out"
+        },
+        "to": {
+          "component": "buffer-a",
+          "port": "en"
+        }
+      },
+      {
+        "id": "w-b",
+        "from": {
+          "component": "b",
+          "port": "out"
+        },
+        "to": {
+          "component": "buffer-b",
+          "port": "in"
+        }
+      },
+      {
+        "id": "w-enable-b",
+        "from": {
+          "component": "enable-b",
+          "port": "out"
+        },
+        "to": {
+          "component": "buffer-b",
+          "port": "en"
+        }
+      },
+      {
+        "id": "w-bus-a",
+        "from": {
+          "component": "buffer-a",
+          "port": "out"
+        },
+        "to": {
+          "component": "bus",
+          "port": "in"
+        }
+      },
+      {
+        "id": "w-bus-b",
+        "from": {
+          "component": "buffer-b",
+          "port": "out"
+        },
+        "to": {
+          "component": "bus",
+          "port": "in"
+        }
+      }
+    ]
+  },
+  "definitions": []
+}
