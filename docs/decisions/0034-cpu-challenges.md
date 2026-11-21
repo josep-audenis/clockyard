@@ -275,6 +275,12 @@ Four questions decide the design:
    4. Challenges 11 and 12.
    5. The editor's reports, the Playwright target, and the docs.
 
+   *As built (step 5):* the editor's reports and the Playwright target
+   were built with steps 3 and 4, each challenge needing them to be
+   checked in the browser. What was left: a native test that a part built
+   from a definition added under a `bench-` ID is refused, and the
+   roadmap. All five steps are built.
+
    When this ADR is accepted, ADRs 0028 and 0025 are marked amended by it
    in their status lines and in `docs/decisions/README.md`.
 
@@ -378,8 +384,8 @@ Four questions decide the design:
    - **What no program on the bench can see.** `swe` a cycle late, or
      `sptr` loaded at the falling edge: `addr`, `dout` and `sptr` hold
      through the fetch that follows a store, so the same byte lands one
-     edge later, and a `HLT` always has a fetch before it. The text asks
-     for neither, and the check lets both pass.
+     edge later, and a `HLT` always has a fetch before it. The text rules
+     both out, but the check lets both pass.
    - **Playwright.** Challenge 11's starter fails (the CPU never halts on
      an empty ROM); a program that shows the key is written in the ROM's
      editor, assembled, and fails at the second key; the sum passes, 15 of

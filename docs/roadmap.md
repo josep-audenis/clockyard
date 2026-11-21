@@ -453,8 +453,8 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       solution, fail every starter, and fail wrong circuits that once passed. Solutions and starters name their
       challenge (format 10). Playwright: the one-bit register's starter fails
       at its first loading edge, and its solution, imported, passes.
-   4. ⬜ Challenges 10–12 (CPU, program, output device): moved to Phase 6
-      increment 4 (ADR 0028), designed in ADR 0034.
+   4. ✅ Challenges 10–12 (CPU, program, output device): built as
+      Phase 6 increment 4 (ADR 0028, ADR 0034).
 6. ✅ Waveforms (ADR 0026, accepted): watched wires recorded per tick by
    the engine, in a window of 4,096 ticks, and drawn in a panel below the
    canvas.
@@ -626,7 +626,7 @@ targets, as in Phase 5.
    5. ✅ The target's browser tests: the 8-bit counter counts on after
       its wire is deleted and put back, and a paused reference CPU keeps
       its registers and cycle when an LED is added.
-4. ⬜ Challenges 10–12 (ADR 0034, accepted): a CPU, a program for it,
+4. ✅ Challenges 10–12 (ADR 0034, accepted): a CPU, a program for it,
    and a screen interface, each checked by running programs on a bench with
    its own ROM, RAM and devices.
    1. ✅ The benches as circuit files, and the reference CPU cut along its
@@ -642,7 +642,12 @@ targets, as in Phase 5.
    4. ✅ Challenges 11 and 12: a program for the provided CPU, written
       in its ROM's editor and checked by the sums it shows for five keys;
       and the screen interface, checked by what three programs draw.
-   5. ⬜ The editor's reports and the browser target.
+   5. ✅ The editor's reports and the browser target, built along with
+      steps 3 and 4: a failure names its run, its step and what was set
+      ("Run Sum to 2, step 2 of 3 failed. With key = 2: out should be 3
+      but is 2."), and Playwright fails each starter and passes each
+      solution through the Check button, writing challenge 11's program
+      in the ROM's editor.
 5. ⬜ Four-state signals: `X`, `Z`, a multiple-driver rule, a tri-state
    buffer.
 6. ⬜ A second reference CPU: bit operations and call/return, specification
@@ -685,12 +690,17 @@ interactive targets apply at 1,000 parts and the larger sheets are kept
 as stress tests. Increment 3, editing a running circuit (ADR 0033), is
 built: an edit keeps time, flip-flops, memories, switches and the waveform
 record, a large file opens framed, and the readout lists registers.
-Increment 4, challenges 10 to 12, is next; ADR 0034 (accepted) designs
-it.
+Increment 4, challenges 10 to 12 (ADR 0034), is built: a CPU, a program
+and a screen interface, each checked by programs run on a bench.
+Increment 5, four-state signals, is next and needs its own ADR.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
   opened again (by design, ADR 0011).
+- A bench challenge's text is one long paragraph, and a pass counts the
+  steps of all its runs ("30 of 30 steps") without naming runs.
+- A component added from another file under a `bench-` ID cannot be used
+  in a bench challenge: the check refuses it as unknown (ADR 0034).
 - Routing does not yet avoid label tags (ADR 0015).
 - A component made by Make component can cover parts below it (ADR 0016).
 - Make component is offered only for two or more selected items.
