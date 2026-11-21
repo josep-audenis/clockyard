@@ -295,20 +295,23 @@ What there is to build on:
    *As built (step 4):* Catch 2, `scripts/catch2.asm`, 189 words, in the
    ROM of `examples/catch-2.clockyard.json`, which the same script writes.
    - **As item 7 asked:** single pixels; every pixel through `toggle`,
-     called from four places; `toggle` and `test` both call `locate`; the
+     called seven times from four routines; `toggle` and `test` both call `locate`; the
      bit built from the column's three low bits one at a time, with `NOP`s
      in the branches not taken, so a row of fall takes 436 cycles in every
      column before waiting; the keys read twice a row; at most 1,000
      cycles a row with both moves.
    - **Pace.** `DELAY` 60 to start, 6 off a catch, down to 6: a row is 920
      cycles at the start, about 2.7 s a block at the 10,000 setting, and
-     about 1.4 s at its fastest. It starts slower than Catch, as the
-     paper sketch said it would.
+     about 1.5 s at its fastest. A block falls a little faster than in
+     Catch (about 3 s), against what the paper sketch expected: a row with
+     no key is 436 cycles, less than the sketch's 900, which had counted
+     both paddle moves in every row. A row with both moves is 832 or 844.
    - **A catch** needs the paddle under both of the block's columns.
    - **Tests:** two games on the circuit and the model together (the
      first block caught and the second missed; the paddle moved right
      under the second), and on the model alone the edges, the pace in
-     columns that take each branch of `locate` both ways, and twelve
+     columns that take each branch of `locate` both ways, the cycles of a
+     row with each key, the catch at each edge of the paddle, and twelve
      catches bringing the delay down to 6. Playwright plays it in the
      browser.
    - All four steps are built.

@@ -860,8 +860,22 @@ fn catch_2_keeps_an_even_pace_within_its_budget_and_speeds_up_down_to_a_delay_of
     let still: Vec<usize> = row(&still)[1..20].to_vec();
     assert!(still.iter().all(|&c| c == still[0]), "{still:?}");
     assert_eq!(still[0] - wait, 436, "a row with no key");
+    // Both moves, each way: a move left is 106 instructions, a move right 109, so a row is 832 or 844
+    // cycles before the wait.
     let moving = row(&moving)[2..10].to_vec();
-    assert!(moving.iter().all(|&c| c - wait <= 1_000), "{moving:?}");
+    assert!(moving.iter().all(|&c| c - wait == 832), "{moving:?}");
+    let (_, right) = on_model(30_000, |s| {
+        if s.ram[TOP] >= 1 && s.ram[PADDLE] < 56 {
+            RIGHT
+        } else {
+            0
+        }
+    });
+    let right = row(&right)[2..10].to_vec();
+    assert!(right.iter().all(|&c| c - wait == 844), "{right:?}");
+    // Two pixels a row while a key is held: five rows of Right take the paddle from 28 to 38.
+    let (model, _) = on_model(30_000, |s| if s.ram[TOP] < 5 { RIGHT } else { 0 });
+    assert_eq!(model.state.ram[PADDLE], 38);
     // The same whatever the column. The first block falls in column 28 and the second in 51, with the
     // delay held at 60: between them they take each branch of locate's bit both ways (28 has bit 2 of its
     // low three set, 51 bits 1 and 0).
@@ -885,7 +899,7 @@ fn catch_2_keeps_an_even_pace_within_its_budget_and_speeds_up_down_to_a_delay_of
     );
     assert!(cycles.iter().all(|&(_, c)| c == still[0]), "{cycles:?}");
 
-    // Each catch takes 6 off the delay, down to 6: ten catches, then it stays. A paddle that follows the block.
+    // Each catch takes 6 off the delay, down to 6: nine catches, then it stays. A paddle that follows the block.
     let (model, _) = on_model(2_000_000, |s| {
         let target = s.ram[COLUMN].saturating_sub(3).min(56);
         match s.ram[PADDLE] {
@@ -924,4 +938,24 @@ fn the_catch_2_example_holds_the_game_as_assembled() {
     let parts = |d: &Value| d["circuit"]["components"].as_array().expect("parts").len();
     assert_eq!(parts(&document), parts(&sheet));
     assert!(words.len() <= 256);
+}
+
+#[test]
+fn a_catch_needs_the_paddle_under_both_of_the_blocks_columns() {
+    // The second block falls in column 51, columns 51 and 52. The paddle is moved there during its fall and
+    // left at `left`: 45 covers 45 to 52, the last that catches on that side; 44 covers 51 but not 52; 52
+    // covers 52 but not 51.
+    for (left, caught) in [(45u8, true), (44, false), (51, true), (52, false)] {
+        let (model, _) = on_model(200_000, |s| match (s.ram[SCORE], s.ram[PADDLE]) {
+            (1, p) if p < left => RIGHT,
+            _ => 0,
+        });
+        assert!(model.state.h, "{left}");
+        assert_eq!(model.state.ram[PADDLE], left);
+        assert_eq!(
+            model.state.ram[SCORE],
+            if caught { 2 } else { 1 },
+            "the paddle at {left}"
+        );
+    }
 }

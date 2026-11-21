@@ -487,7 +487,7 @@ Plan (ADR 0020, accepted): increments, each with its own ADR and target:
       and in challenge 5's starter it arrives as "8-bit adder 2" with
       "Full adder 2", a second add adding nothing.
 
-## Phase 6 — Persistence, scale and depth (ADR 0028, accepted)
+## Phase 6 — Persistence, scale and depth (ADR 0028, accepted) ✅
 
 A project phase after the brief's five: increments with their own ADRs and
 targets, as in Phase 5.

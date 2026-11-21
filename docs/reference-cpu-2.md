@@ -187,15 +187,16 @@ speed to 10,000, Run, click the keyboard and hold Left or Right.
   falls in column 28, so the first point needs no keys. Each later block
   falls 23 columns on, modulo 63: 28, 51, 11, 34, 57, 17, and so on
   through all 63.
-- **Pace:** each row waits in a loop of `DELAY` rounds of 4 instructions,
-  8 cycles a round. The rest of a row is 436 cycles, whatever the
-  block's column, and at most 1,000 with both paddle moves. `DELAY`
-  starts at 60, so a row is 920 cycles and a block takes about 2.7 s to
-  fall at the 10,000 setting. Each catch takes 6 off, down to 6: about
-  1.4 s.
+- **Pace:** each row waits in a loop of `DELAY` rounds of 4 instructions:
+  8 × `DELAY` + 4 cycles. The rest of a row is 436 cycles, whatever the
+  block's column: 832 with both paddle moves left, 844 with both right.
+  `DELAY` starts at 60, so a row is 920 cycles and a block takes about
+  2.7 s to fall at the 10,000 setting. Each catch takes 6 off, down to 6
+  after nine catches: about 1.5 s. The score shown wraps at 256.
 - **Drawing:** every pixel is flipped by one routine, `toggle`, called
-  from the game's four drawing places (the paddle at the start, its two
-  moves, and the block's two rows). It finds the pixel's byte and bit
+  seven times from four routines: drawing the paddle at the start, moving
+  it left, moving it right, and `pair`, which draws or erases a row of
+  the block. It finds the pixel's byte and bit
   through `locate`, which `test` uses too. `locate` builds the bit from
   the column's three low bits one at a time, with `NOP`s where a shift is
   not needed, so it takes the same time in every column.

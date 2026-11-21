@@ -1650,8 +1650,8 @@ test("game demo: in Catch 2 the paddle moves a pixel at a time, under a block in
   await button("Run").click();
   await expect(low).toHaveText("Seven-segment Low: 6 (0x06)", game); // 1
   // The second falls in column 51. Right held for about 10 rows of its fall, two pixels a row, puts the
-  // paddle's left column near 48: under 51 and 52 anywhere from 45 to 51. A row with both moves is about
-  // 1,290 cycles at this block's delay, so 17 to 23 pixels is 11,000 to
+  // paddle's left column near 48: under 51 and 52 anywhere from 45 to 51. A row with both moves is 1,280
+  // cycles at this block's delay, so 17 to 23 pixels is 11,000 to
   // 14,800 cycles held.
   const cycle = async () => Number(/\d+/.exec((await counter(page).textContent()) ?? "")?.[0]);
   await click(page, at(14, 10)); // the keyboard at (12,9), as on the first CPU's sheet
@@ -1665,7 +1665,9 @@ test("game demo: in Catch 2 the paddle moves a pixel at a time, under a block in
   // The third, in column 11, is missed: the run halts.
   await expect(readout(page, "LED Halted")).toHaveText("LED Halted: on", game);
   await click(page, at(35, 5)); // the screen at (25,0)
-  const row31 = (await page.getByRole("region", { name: "Screen contents" }).textContent())?.trim().split("\n").at(-1) ?? "";
+  const dump = page.getByRole("region", { name: "Screen contents" });
+  await expect(dump).toHaveText(/0x[0-9A-F]{2}\s*$/); // the words have arrived
+  const row31 = (await dump.textContent())?.trim().split("\n").at(-1) ?? "";
   // The paddle's 8 pixels, moved a pixel at a time: not on a byte's edge, and under columns 51 and 52.
   const lit = row31
     .trim()
