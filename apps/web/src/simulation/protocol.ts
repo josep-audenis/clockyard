@@ -86,7 +86,7 @@ export type Challenge = {
   steps: ChallengeStep[];
   /** For a challenge checked on a bench (ADR 0034): the bench's name, and its runs, each on a fresh bench. */
   bench?: string;
-  runs?: { name: string; words?: number[]; steps: ChallengeStep[] }[];
+  runs?: { name: string; source?: string; words?: number[]; steps: ChallengeStep[] }[];
 };
 
 /**

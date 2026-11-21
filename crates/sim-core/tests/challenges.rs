@@ -44,6 +44,23 @@ fn all() -> Vec<String> {
     names
 }
 
+/// The challenge checked as the editor checks it: on its bench, if it names one.
+fn report(document: &CircuitDescription, challenge: &Challenge) -> Report {
+    match &challenge.bench {
+        Some(name) => check_on(
+            document,
+            challenge,
+            &description(&read(&format!("benches/{name}.clockyard.json"))),
+        ),
+        None => check(document, challenge),
+    }
+}
+
+/// The steps a pass counts: the challenge's own, or those of every run.
+fn steps(challenge: &Challenge) -> usize {
+    challenge.steps.len() + challenge.runs.iter().map(|r| r.steps.len()).sum::<usize>()
+}
+
 fn refusal(report: Report) -> String {
     match report {
         Report::Refused { reason } => reason,
@@ -52,7 +69,7 @@ fn refusal(report: Report) -> String {
 }
 
 #[test]
-fn there_are_nine_challenges_so_far() {
+fn there_are_ten_challenges_so_far() {
     assert_eq!(
         all(),
         [
@@ -64,7 +81,8 @@ fn there_are_nine_challenges_so_far() {
             "06-register",
             "07-register8",
             "08-counter8",
-            "09-alu"
+            "09-alu",
+            "10-cpu"
         ]
     );
 }
@@ -73,11 +91,10 @@ fn there_are_nine_challenges_so_far() {
 fn every_solution_passes_its_challenge() {
     for name in all() {
         let c = challenge(&name);
+        assert!(steps(&c) > 0, "{name} checks something");
         assert_eq!(
-            check(&solution(&name), &c),
-            Report::Passed {
-                steps: c.steps.len()
-            },
+            report(&solution(&name), &c),
+            Report::Passed { steps: steps(&c) },
             "{name}"
         );
     }
@@ -86,7 +103,7 @@ fn every_solution_passes_its_challenge() {
 #[test]
 fn every_starter_fails_its_challenge() {
     for name in all() {
-        let report = check(&starter(&name), &challenge(&name));
+        let report = report(&starter(&name), &challenge(&name));
         assert!(
             matches!(report, Report::Failed { .. }),
             "{name}: {report:?}"
@@ -337,7 +354,11 @@ fn bench(slot: &str) -> CircuitDescription {
 }
 
 fn words(source: &str) -> Vec<u16> {
-    asm::assemble(source).expect("assembles")
+    words_of(source)
+}
+
+fn words_of(source: &str) -> Vec<u16> {
+    asm::assemble(source).unwrap_or_else(|e| panic!("{source} assembles: {e:?}"))
 }
 
 /// A challenge for the `cpu` slot, as a challenge file would hold it, with `runs` as given.
@@ -695,4 +716,120 @@ fn until_runs_no_cycle_once_its_led_is_lit_and_a_failed_step_reports_what_it_set
             }],
         }
     );
+}
+
+#[test]
+fn every_run_holds_its_program_as_assembled_and_names_the_pins_of_its_bench() {
+    for name in all() {
+        let text = read(&format!("{name}.json"));
+        let file: serde_json::Value = serde_json::from_str(&text).expect("valid challenge");
+        let c = challenge(&name);
+        let Some(slot) = &c.bench else {
+            assert!(c.runs.is_empty(), "{name}: runs need a bench");
+            continue;
+        };
+        // The words written out by hand are what the assembler makes of the source beside them.
+        for run in file["runs"].as_array().expect("runs") {
+            let Some(source) = run["source"].as_str() else {
+                continue;
+            };
+            let words: Vec<u64> = run["words"]
+                .as_array()
+                .expect("words beside their source")
+                .iter()
+                .map(|w| w.as_u64().expect("a word"))
+                .collect();
+            let assembled: Vec<u64> = words_of(source).iter().map(|&w| u64::from(w)).collect();
+            assert_eq!(words, assembled, "{name}, run {}", run["name"]);
+        }
+        // The challenge lists every pin the bench wires to its slot, so a missing one is named as a pin,
+        // not as an error on a bench wire the user cannot see.
+        let bench = bench(slot);
+        let slot = bench
+            .definitions
+            .iter()
+            .find(|d| d.id == c.definition)
+            .unwrap_or_else(|| panic!("{name}: the bench has a {}", c.definition));
+        let names = |pins: &[sim_core::description::PinDesc]| {
+            let mut names: Vec<String> = pins.iter().map(|p| p.name.clone()).collect();
+            names.sort();
+            names
+        };
+        let listed = |specs: &[sim_core::check::PinSpec]| {
+            let mut names: Vec<String> = specs.iter().map(|p| p.name.clone()).collect();
+            names.sort();
+            names
+        };
+        assert_eq!(listed(&c.inputs), names(&slot.inputs), "{name}: inputs");
+        assert_eq!(listed(&c.outputs), names(&slot.outputs), "{name}: outputs");
+    }
+}
+
+/// The reference CPU with the wire into `to` (a part's port inside `cpu`) taken from `from` instead.
+fn rewired(to: (&str, &str), from: (&str, &str)) -> CircuitDescription {
+    rewire(solution("10-cpu"), to, from)
+}
+
+fn rewire(
+    mut wrong: CircuitDescription,
+    to: (&str, &str),
+    from: (&str, &str),
+) -> CircuitDescription {
+    let port = |(component, port): (&str, &str)| {
+        Endpoint::Port(PortRef {
+            component: component.into(),
+            port: port.into(),
+        })
+    };
+    let cpu = wrong
+        .definitions
+        .iter_mut()
+        .find(|d| d.id == "cpu")
+        .unwrap();
+    let wire = cpu
+        .connections
+        .iter_mut()
+        .find(|w| w.to == port(to))
+        .unwrap_or_else(|| panic!("a wire into {to:?}"));
+    wire.from = port(from);
+    wrong
+}
+
+#[test]
+fn a_cpu_with_one_wrong_wire_fails_the_challenge() {
+    let c = challenge("10-cpu");
+    // What is miswired. `one.out` is the constant 1 inside the CPU. Each passed every run before
+    // the run "Flags are kept" and the step past the halt were added, except the first.
+    let mutants = [
+        // The carry fed from the zero logic.
+        (("c", "d"), ("isz", "out")),
+        // OUT loads on every execute, or on every cycle.
+        (("outr", "en"), ("exec", "out")),
+        (("outr", "en"), ("one", "out")),
+        // C reloaded by every load, or by every instruction.
+        (("c", "en"), ("aen", "out")),
+        (("c", "en"), ("exec", "out")),
+        // Z reloaded by every instruction; loads that do not set Z.
+        (("z", "en"), ("exec", "out")),
+        (("z", "en"), ("cen", "out")),
+        // The fetch pin stuck at 1, or at 0.
+        (("fetch", "in"), ("one", "out")),
+        (("fetch", "in"), ("zero", "out")),
+    ];
+    for (to, from) in mutants {
+        let report = report(&rewired(to, from), &c);
+        assert!(
+            matches!(report, Report::Failed { .. }),
+            "{to:?} from {from:?}: {report:?}"
+        );
+    }
+    // A halt that lights but stops nothing: the phase keeps turning, and fetch and execute go on.
+    let one = ("one", "out");
+    let running = rewire(
+        rewire(rewired(("t", "en"), one), ("fetchg", "b"), one),
+        ("exec", "b"),
+        one,
+    );
+    let report = report(&running, &c);
+    assert!(matches!(report, Report::Failed { .. }), "{report:?}");
 }

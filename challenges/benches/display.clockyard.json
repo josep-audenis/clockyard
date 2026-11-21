@@ -13,7 +13,7 @@
         "kind": "switch",
         "position": {
           "x": 0,
-          "y": 10
+          "y": 18
         },
         "rotation": 0,
         "props": {
@@ -25,7 +25,7 @@
         "kind": "switch",
         "position": {
           "x": 0,
-          "y": 30
+          "y": 54
         },
         "rotation": 0,
         "props": {
@@ -37,8 +37,8 @@
         "id": "zero",
         "kind": "xor",
         "position": {
-          "x": 6,
-          "y": 44
+          "x": 10,
+          "y": 79
         },
         "rotation": 0,
         "props": {}
@@ -47,8 +47,8 @@
         "id": "zero8",
         "kind": "merge",
         "position": {
-          "x": 12,
-          "y": 44
+          "x": 19,
+          "y": 79
         },
         "rotation": 0,
         "props": {
@@ -68,8 +68,8 @@
         "id": "rom",
         "kind": "rom",
         "position": {
-          "x": 10,
-          "y": 2
+          "x": 16,
+          "y": 4
         },
         "rotation": 0,
         "props": {
@@ -82,8 +82,8 @@
         "kind": "custom",
         "definition": "bench-cpu",
         "position": {
-          "x": 24,
-          "y": 4
+          "x": 38,
+          "y": 7
         },
         "rotation": 0,
         "props": {
@@ -94,7 +94,7 @@
         "id": "out",
         "kind": "led",
         "position": {
-          "x": 40,
+          "x": 64,
           "y": 0
         },
         "rotation": 0,
@@ -107,8 +107,8 @@
         "id": "fetch",
         "kind": "led",
         "position": {
-          "x": 40,
-          "y": 6
+          "x": 64,
+          "y": 11
         },
         "rotation": 0,
         "props": {
@@ -119,8 +119,8 @@
         "id": "halt",
         "kind": "led",
         "position": {
-          "x": 40,
-          "y": 10
+          "x": 64,
+          "y": 18
         },
         "rotation": 0,
         "props": {
@@ -131,8 +131,8 @@
         "id": "ram",
         "kind": "ram",
         "position": {
-          "x": 40,
-          "y": 16
+          "x": 64,
+          "y": 29
         },
         "rotation": 0,
         "props": {
@@ -144,8 +144,8 @@
         "id": "iodec",
         "kind": "rom",
         "position": {
-          "x": 22,
-          "y": 30
+          "x": 35,
+          "y": 54
         },
         "rotation": 0,
         "props": {
@@ -416,8 +416,8 @@
         "id": "ios",
         "kind": "split",
         "position": {
-          "x": 30,
-          "y": 30
+          "x": 48,
+          "y": 54
         },
         "rotation": 0,
         "props": {
@@ -434,8 +434,8 @@
         "id": "nio",
         "kind": "not",
         "position": {
-          "x": 36,
-          "y": 30
+          "x": 58,
+          "y": 54
         },
         "rotation": 0,
         "props": {}
@@ -444,8 +444,8 @@
         "id": "ramwe",
         "kind": "and",
         "position": {
-          "x": 42,
-          "y": 30
+          "x": 67,
+          "y": 54
         },
         "rotation": 0,
         "props": {}
@@ -454,8 +454,8 @@
         "id": "hexen",
         "kind": "and",
         "position": {
-          "x": 54,
-          "y": 30
+          "x": 86,
+          "y": 54
         },
         "rotation": 0,
         "props": {}
@@ -465,8 +465,8 @@
         "kind": "custom",
         "definition": "bench-reg8",
         "position": {
-          "x": 60,
-          "y": 30
+          "x": 96,
+          "y": 54
         },
         "rotation": 0,
         "props": {
@@ -478,8 +478,8 @@
         "kind": "custom",
         "definition": "display",
         "position": {
-          "x": 54,
-          "y": 14
+          "x": 86,
+          "y": 25
         },
         "rotation": 0,
         "props": {
@@ -490,7 +490,7 @@
         "id": "screen",
         "kind": "screen",
         "position": {
-          "x": 64,
+          "x": 102,
           "y": 0
         },
         "rotation": 0,
@@ -506,8 +506,8 @@
         "kind": "custom",
         "definition": "bench-mux8",
         "position": {
-          "x": 20,
-          "y": 44
+          "x": 32,
+          "y": 79
         },
         "rotation": 0,
         "props": {
@@ -519,8 +519,8 @@
         "kind": "custom",
         "definition": "bench-mux8",
         "position": {
-          "x": 28,
-          "y": 44
+          "x": 45,
+          "y": 79
         },
         "rotation": 0,
         "props": {
@@ -532,8 +532,8 @@
         "kind": "custom",
         "definition": "bench-mux8",
         "position": {
-          "x": 36,
-          "y": 44
+          "x": 58,
+          "y": 79
         },
         "rotation": 0,
         "props": {
@@ -545,8 +545,8 @@
         "kind": "custom",
         "definition": "bench-mux8",
         "position": {
-          "x": 44,
-          "y": 44
+          "x": 70,
+          "y": 79
         },
         "rotation": 0,
         "props": {
@@ -558,8 +558,8 @@
         "kind": "custom",
         "definition": "bench-mux8",
         "position": {
-          "x": 52,
-          "y": 44
+          "x": 83,
+          "y": 79
         },
         "rotation": 0,
         "props": {

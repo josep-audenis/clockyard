@@ -636,7 +636,9 @@ targets, as in Phase 5.
       with runs of program words, cycles until an LED, and memory
       expectations; the bench's own definitions always win. Through
       `sim-wasm` and the worker; not used by the editor yet.
-   3. ⬜ Challenge 10.
+   3. ✅ Challenge 10, the CPU: ten runs of eight programs on the bench,
+      its starter a computer with an empty CPU, and the reference CPU its
+      solution, passing through the Check button.
    4. ⬜ Challenges 11 and 12.
    5. ⬜ The editor's reports and the browser target.
 5. ⬜ Four-state signals: `X`, `Z`, a multiple-driver rule, a tri-state

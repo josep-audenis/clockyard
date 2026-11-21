@@ -36,6 +36,9 @@ pub struct Challenge {
     /// For a challenge with a bench (ADR 0034): each run starts a fresh bench.
     #[serde(default)]
     pub runs: Vec<Run>,
+    /// The bench's name, `challenges/benches/<name>`: whoever calls reads the file and gives it to [`check_on`].
+    #[serde(default)]
+    pub bench: Option<String>,
 }
 
 /// One program run on a fresh bench: the words for the bench's program ROM, if

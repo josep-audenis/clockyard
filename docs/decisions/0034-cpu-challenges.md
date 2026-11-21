@@ -296,7 +296,9 @@ Four questions decide the design:
      random programs with changing keys.
 
    *As built (step 2):* `sim_core::check::check_on(description, challenge,
-   bench)` is the bench check; `check` is unchanged for challenges 1 to 9.
+   bench)` is the bench check. `check` runs challenges 1 to 9 as before,
+   and now refuses a challenge that has runs (its bench was not given) or
+   no steps, so nothing passes by default.
    `sim-wasm`'s `check` takes the bench as an optional third argument, and
    the worker's `check` command an optional `bench`.
    - **Definitions.** The check takes every definition whose ID does not
@@ -318,6 +320,44 @@ Four questions decide the design:
      in a bench or challenge file is `Refused`, starting "This challenge's
      bench cannot run".
    - The editor does not load a bench yet: that comes with challenge 10.
+
+   *As built (step 3):* challenge 10, `challenges/10-cpu.json`, with its
+   solution and starter.
+   - **Runs.** Ten, from eight programs: a load and `OUT`; additions and
+     subtractions whose jumps are taken only with the right flags; stores
+     and loads; a loop as long as the key, with keys 3 and 9; a branch on
+     the key, with keys 4 and 200; flags kept by the instructions that do
+     not set them, and set by `ADD` and `SUB` of a RAM byte; the reserved
+     opcodes D to F, which have no assembly; and the reserved addresses,
+     `NOP` and the screen. Only the two programs that read the key run
+     with more than one, not each program as item 4 said.
+   - **Steps.** Each run has three: the key set (if the program reads it)
+     and two cycles, after which `fetch` is 1; cycles until `halt`, the
+     model's own count and 20 more, then `out` and every byte stored;
+     then four more cycles, after which `out`, `halt`, `fetch` at 0 and
+     the bytes must be as they were.
+   - **The model** is `scripts/cpu-runs.mjs`, instruction by instruction.
+     The words are written by hand there, and `challenges.rs` holds them
+     to `asm::assemble` of their source and the reference CPU to every
+     run. Ten CPUs with one thing miswired each fail: review found six
+     of them passing the first eight runs (OUT loading on every
+     instruction, a halt that stops nothing, C reloaded by loads, `fetch`
+     stuck at 1 or at 0), which the flags run and the steps before and
+     past the halt now catch.
+   - **The starter** is the bench with the CPU's pins only and the
+     building blocks, so its main sheet is a computer to run the CPU in.
+     ADR 0025's "only the pins" holds for the definition; the main sheet
+     is new.
+   - **The pins a challenge lists** are those its bench wires to the slot,
+     which a native test holds, so a missing pin is named as a pin.
+   - **The editor** reads the bench a challenge names
+     (`storage/challenges.ts`, `benchOf`), projects it and passes it to the
+     check. A failure reads "Run Store and load, step 2 of 3 failed.
+     RAM byte 16 should be 7 but is 0." A Playwright test opens the
+     challenge, fails its starter, and passes the reference CPU through
+     the Check button: 30 of 30 steps.
+   - The bench's parts are spread out when written, after it was first
+     seen in the editor.
 
 ## Alternatives considered
 
