@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import { Engine, assemble, catalog, check, disassemble, initSync, max_width } from "../generated/sim-wasm/sim_wasm.js";
-import { COMPONENT_KINDS, MAX_WIDTH, takesWidth } from "../editor/document";
+import { COMPONENT_KINDS, MAX_WIDTH, project, takesWidth } from "../editor/document";
+import { parseDocument } from "../storage/file";
 import type { CircuitDescription, Diagnostic, Result } from "../simulation/protocol";
 
 type Loaded = Omit<Extract<Result, { type: "loaded" }>, "type">;
@@ -286,4 +287,30 @@ test("an edit's load keeps time and state across the boundary; an open's does no
   expect(Array.from(engine.nets())).toContain(1);
   engine.load(JSON.stringify(andDemo), false);
   expect(engine.time()).toBe(0);
+});
+
+test("a challenge with a bench is checked in the bench's slot, as the editor projects both (ADR 0034)", () => {
+  const projected = (path: string) => {
+    const parsed = parseDocument(readFileSync(new URL(`../../../../challenges/${path}.clockyard.json`, import.meta.url), "utf8"));
+    if (!parsed.ok) throw new Error(`${path}: ${parsed.error}`);
+    return JSON.stringify(project(parsed.document.circuit, parsed.document.definitions));
+  };
+  const challenge = JSON.stringify({
+    definition: "cpu",
+    inputs: [],
+    outputs: [{ name: "out", width: 8 }],
+    runs: [
+      {
+        name: "Add",
+        // LDA 0xFF; ADI 7; STA 16; OUT; HLT
+        words: [0x20ff, 0x6007, 0x3010, 0xb000, 0xc000],
+        steps: [{ set: { key: 5 }, cycles: 100, until: "halt", expect: { out: 12 }, memory: { ram: { "16": 12 } } }],
+      },
+    ],
+  });
+  const bench = projected("benches/cpu");
+  expect(JSON.parse(check(projected("solutions/10-cpu"), challenge, bench))).toEqual({ result: "passed", steps: 1 });
+  // The bench's own document holds the slot empty: nothing halts.
+  expect(JSON.parse(check(bench, challenge, bench))).toMatchObject({ result: "failed", run: "Add", step: 0, inputs: [{ name: "key", value: 5 }] });
+  expect(() => check(bench, challenge, "{ not json")).toThrow("invalid bench");
 });

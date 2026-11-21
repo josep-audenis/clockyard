@@ -142,9 +142,12 @@ export async function disassemble(words: number[]): Promise<string[] | null> {
   return result.type === "disassembled" ? result.lines : null;
 }
 
-/** Checks a challenge against a circuit in the worker (ADR 0025); a failure to run at all is a refusal saying why. */
-export async function check(circuit: CircuitDescription, challenge: Challenge): Promise<Report> {
-  const result = await ask((request) => ({ type: "check", request, circuit, challenge }));
+/**
+ * Checks a challenge against a circuit in the worker (ADR 0025), on `bench` if the challenge has one (ADR 0034); a
+ * failure to run at all is a refusal saying why.
+ */
+export async function check(circuit: CircuitDescription, challenge: Challenge, bench?: CircuitDescription): Promise<Report> {
+  const result = await ask((request) => ({ type: "check", request, circuit, challenge, ...(bench && { bench }) }));
   if (result.type === "checked") return result.report;
   const message = result.type === "error" ? result.message : "no answer from the engine";
   return { result: "refused", reason: `Could not check: ${message}.` };

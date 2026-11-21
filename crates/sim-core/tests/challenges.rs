@@ -6,7 +6,7 @@ mod common;
 
 use common::description;
 use sim_core::CircuitDescription;
-use sim_core::check::{Challenge, Mismatch, Reading, Report, check};
+use sim_core::check::{Challenge, Mismatch, Reading, Report, check, check_on};
 use sim_core::description::{Endpoint, PortRef};
 
 fn read(path: &str) -> String {
@@ -100,6 +100,7 @@ fn a_failed_step_names_its_inputs_and_the_outputs_that_differ() {
     assert_eq!(
         check(&starter("01-inverter"), &challenge("01-inverter")),
         Report::Failed {
+            run: None,
             step: 0,
             inputs: vec![Reading {
                 name: "A".into(),
@@ -327,4 +328,249 @@ fn the_main_circuit_is_not_checked() {
         check(&doc, &challenge("01-inverter")),
         Report::Passed { .. }
     ));
+}
+
+// --- Benches (ADR 0034) -----------------------------------------------------------------
+
+fn bench(slot: &str) -> CircuitDescription {
+    description(&read(&format!("benches/{slot}.clockyard.json")))
+}
+
+fn words(source: &str) -> Vec<u16> {
+    asm::assemble(source).expect("assembles")
+}
+
+/// A challenge for the `cpu` slot, as a challenge file would hold it, with `runs` as given.
+fn cpu_challenge(runs: serde_json::Value) -> Challenge {
+    serde_json::from_value(serde_json::json!({
+        "definition": "cpu",
+        "inputs": [{ "name": "clk", "width": 1 }, { "name": "instr", "width": 16 }, { "name": "din", "width": 8 }],
+        "outputs": [
+            { "name": "pc", "width": 8 }, { "name": "addr", "width": 8 }, { "name": "dout", "width": 8 },
+            { "name": "we", "width": 1 }, { "name": "out", "width": 8 }, { "name": "halt", "width": 1 },
+            { "name": "fetch", "width": 1 }
+        ],
+        "parts": ["not", "and", "nand", "or", "nor", "xor", "xnor", "dff", "split", "merge", "rom"],
+        "runs": runs
+    }))
+    .expect("a challenge")
+}
+
+/// Adds the key to 7, stores it at RAM 16, shows it and halts.
+fn add_run(key: u32, total: u32) -> serde_json::Value {
+    serde_json::json!({
+        "name": format!("Add {key}"),
+        "words": words("LDA 0xFF\nADI 7\nSTA 16\nOUT\nHLT"),
+        "steps": [
+            { "set": { "key": key }, "cycles": 2, "expect": { "halt": 0 } },
+            { "cycles": 100, "until": "halt", "expect": { "out": total }, "memory": { "ram": { "16": total, "17": 0 } } }
+        ]
+    })
+}
+
+#[test]
+fn the_reference_cpu_passes_runs_on_its_bench_and_the_empty_slot_fails_them() {
+    let challenge = cpu_challenge(serde_json::json!([add_run(5, 12), add_run(250, 1)]));
+    assert_eq!(
+        check_on(&solution("10-cpu"), &challenge, &bench("cpu")),
+        Report::Passed { steps: 4 }
+    );
+    // The bench itself holds the slot empty, as a starter would: it never halts.
+    assert_eq!(
+        check_on(&bench("cpu"), &challenge, &bench("cpu")),
+        Report::Failed {
+            run: Some("Add 5".into()),
+            step: 1,
+            inputs: vec![Reading {
+                name: "key".into(),
+                value: 5
+            }],
+            mismatches: vec![
+                Mismatch {
+                    name: "halt".into(),
+                    expected: 1,
+                    got: 0
+                },
+                Mismatch {
+                    name: "out".into(),
+                    expected: 12,
+                    got: 0
+                },
+                Mismatch {
+                    name: "ram[16]".into(),
+                    expected: 12,
+                    got: 0
+                },
+            ],
+        }
+    );
+}
+
+#[test]
+fn a_run_that_does_not_halt_in_its_cycles_fails_and_a_wrong_byte_is_named() {
+    // A loop that never halts: the budget ends the step.
+    let spin = cpu_challenge(serde_json::json!([{
+        "name": "Spin", "words": words("loop: JMP loop"),
+        "steps": [{ "cycles": 50, "until": "halt" }]
+    }]));
+    assert_eq!(
+        check_on(&solution("10-cpu"), &spin, &bench("cpu")),
+        Report::Failed {
+            run: Some("Spin".into()),
+            step: 0,
+            inputs: vec![],
+            mismatches: vec![Mismatch {
+                name: "halt".into(),
+                expected: 1,
+                got: 0
+            }],
+        }
+    );
+    // The second run is the one that fails, and says which byte.
+    let wrong = cpu_challenge(serde_json::json!([
+        add_run(1, 8),
+        { "name": "Store", "words": words("LDI 9\nSTA 3\nHLT"), "steps": [{ "cycles": 20, "until": "halt", "memory": { "ram": { "3": 8 } } }] }
+    ]));
+    assert_eq!(
+        check_on(&solution("10-cpu"), &wrong, &bench("cpu")),
+        Report::Failed {
+            run: Some("Store".into()),
+            step: 0,
+            inputs: vec![],
+            mismatches: vec![Mismatch {
+                name: "ram[3]".into(),
+                expected: 8,
+                got: 9
+            }],
+        }
+    );
+}
+
+#[test]
+fn a_bench_check_refuses_what_it_cannot_run_and_says_why() {
+    let challenge = cpu_challenge(serde_json::json!([add_run(5, 12)]));
+    let solved = solution("10-cpu");
+    let cpu_bench = bench("cpu");
+
+    let mut missing = solved.clone();
+    missing.definitions.retain(|d| d.id != "cpu");
+    assert!(
+        refusal(check_on(&missing, &challenge, &cpu_bench))
+            .starts_with("The component this challenge checks is missing")
+    );
+
+    let mut narrow = solved.clone();
+    let cpu = narrow
+        .definitions
+        .iter_mut()
+        .find(|d| d.id == "cpu")
+        .unwrap();
+    let din = cpu.components.iter_mut().find(|c| c.id == "din").unwrap();
+    din.width = Some(4.0);
+    assert_eq!(
+        refusal(check_on(&narrow, &challenge, &cpu_bench)),
+        "Pin din is 4 bits wide; this challenge needs 8 bits."
+    );
+
+    // A RAM inside the CPU is not one of the parts allowed.
+    let mut with_ram = solved.clone();
+    let cpu = with_ram
+        .definitions
+        .iter_mut()
+        .find(|d| d.id == "cpu")
+        .unwrap();
+    cpu.components.push(sim_core::description::ComponentDesc {
+        id: "extra".into(),
+        kind: "ram".into(),
+        ..Default::default()
+    });
+    assert_eq!(
+        refusal(check_on(&with_ram, &challenge, &cpu_bench)),
+        "This challenge allows only these parts: not, and, nand, or, nor, xor, xnor, dff, split, merge, rom. The component uses: ram."
+    );
+
+    // Faults of the challenge or bench file, not of the user's circuit.
+    let faults = [
+        (serde_json::json!([]), "it has no runs"),
+        (
+            serde_json::json!([{ "name": "Long", "steps": [{ "cycles": 600 }, { "cycles": 401 }] }]),
+            "run Long asks for more than 1000 cycles",
+        ),
+        (
+            serde_json::json!([{ "name": "Lamp", "steps": [{ "expect": { "lamp": 1 } }] }]),
+            "run Lamp, step 1: the bench has no LED lamp",
+        ),
+        (
+            serde_json::json!([{ "name": "Disk", "steps": [{ "memory": { "disk": { "0": 1 } } }] }]),
+            "run Disk, step 1: the bench has no memory disk",
+        ),
+        (
+            serde_json::json!([{ "name": "Far", "steps": [{ "memory": { "ram": { "256": 1 } } }] }]),
+            "run Far, step 1: ram has no address 256",
+        ),
+    ];
+    for (runs, what) in faults {
+        assert_eq!(
+            refusal(check_on(&solved, &cpu_challenge(runs), &cpu_bench)),
+            format!("This challenge's bench cannot run: {what}.")
+        );
+    }
+    // A bench whose CPU is its own has no slot for this challenge.
+    assert_eq!(
+        refusal(check_on(&solved, &challenge, &bench("program"))),
+        "This challenge's bench cannot run: it has no cpu."
+    );
+}
+
+#[test]
+fn the_bench_keeps_its_own_definitions_whatever_the_document_holds() {
+    // Challenge 12's shape: `display` is checked, and the CPU is the bench's.
+    let challenge: Challenge = serde_json::from_value(serde_json::json!({
+        "definition": "display",
+        "inputs": [
+            { "name": "clk", "width": 1 }, { "name": "addr", "width": 8 },
+            { "name": "dout", "width": 8 }, { "name": "we", "width": 1 }
+        ],
+        "outputs": [{ "name": "sptr", "width": 8 }, { "name": "swe", "width": 1 }],
+        "runs": [{
+            "name": "Draw",
+            "words": words("LDI 7\nSTA 0xFE\nLDI 0x81\nSTA 0xFD\nHLT"),
+            "steps": [{ "cycles": 40, "until": "halt", "memory": { "screen": { "7": 129, "0": 0 } } }]
+        }]
+    }))
+    .expect("a challenge");
+    let display_bench = bench("display");
+    let solved = solution("12-display");
+    assert_eq!(
+        check_on(&solved, &challenge, &display_bench),
+        Report::Passed { steps: 1 }
+    );
+
+    // The document's copy of the provided CPU, gutted: the check runs the bench's, so it still passes.
+    let mut tampered = solved.clone();
+    let cpu = tampered
+        .definitions
+        .iter_mut()
+        .find(|d| d.id == "bench-cpu")
+        .unwrap();
+    cpu.connections.clear();
+    assert_eq!(
+        check_on(&tampered, &challenge, &display_bench),
+        Report::Passed { steps: 1 }
+    );
+
+    // The user's own display, with nothing inside, fails: the screen is never written.
+    assert_eq!(
+        check_on(&display_bench, &challenge, &display_bench),
+        Report::Failed {
+            run: Some("Draw".into()),
+            step: 0,
+            inputs: vec![],
+            mismatches: vec![Mismatch {
+                name: "screen[7]".into(),
+                expected: 129,
+                got: 0
+            }],
+        }
+    );
 }

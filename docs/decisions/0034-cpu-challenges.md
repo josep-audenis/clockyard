@@ -295,6 +295,30 @@ Four questions decide the design:
      the clock as a switch: the instruction and device programs, and 60
      random programs with changing keys.
 
+   *As built (step 2):* `sim_core::check::check_on(description, challenge,
+   bench)` is the bench check; `check` is unchanged for challenges 1 to 9.
+   `sim-wasm`'s `check` takes the bench as an optional third argument, and
+   the worker's `check` command an optional `bench`.
+   - **Definitions.** The check takes every definition whose ID does not
+     start `bench-` from the user's document, not only the closure of the
+     one under test, as `check` already does; unused ones are never
+     elaborated. The bench's own non-`bench-` definitions, its empty
+     slot, are dropped.
+   - **The slot** is every instance on the bench of the definition under
+     test; allowed parts are counted inside it.
+   - **Steps.** `set` names bench switches and `expect` bench LEDs.
+     `until` stops the cycles once its LED reads 1, checked before each
+     cycle, so a CPU already halted runs none.
+   - **Runs.** A run's `words` go into the bench part `rom`; the clock is
+     the bench switch `clk`. No run may total more than 1,000 cycles
+     (`MAX_RUN_CYCLES`).
+   - **Reports.** `Failed` has `run` (absent for challenges 1 to 9) and
+     memory mismatches named `ram[16]`. Its `inputs` are the switches the
+     run has set so far. `Passed` counts the steps of every run. A fault
+     in a bench or challenge file is `Refused`, starting "This challenge's
+     bench cannot run".
+   - The editor does not load a bench yet: that comes with challenge 10.
+
 ## Alternatives considered
 
 - **Benches built in code.** That is how challenges 1 to 9 are built, and
