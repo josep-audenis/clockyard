@@ -111,8 +111,8 @@ What is still open, from the brief and from the roadmap:
         works for any circuit that fetches from a ROM.
       - The about page brought up to date with the bundled computers it
         shows: its shots, and its text (twelve challenges, the tri-state
-        buffer, what is built). The page is another session's work in
-        progress; whatever that work has not done by then is done here.
+        buffer, what is built), whatever work already under way on the
+        page has not done by then.
       - Target: in a 1280×800 window, with the left panel and the
         inspector open at their default widths, each region of the
         reference CPU fits the canvas at 100% when jumped to; stepping one
@@ -131,6 +131,7 @@ What is still open, from the brief and from the roadmap:
       needs a bench built around Reference CPU 2, as challenge 11's is
       around the first. Each is checked by behavioural tests, as ADRs
       0025 and 0034 do; the increment's ADR chooses them.
+      - The about page's list of challenges grows with them.
       - Target: each starter fails and each solution passes in the
         browser.
    5. **A project others can join.**
