@@ -57,6 +57,20 @@ impl V {
         }
     }
 
+    /// Every bit `Z`, before masking: what a net with no driver enabled carries.
+    const FLOATING: V = V { v: 0, u: !0 };
+
+    /// Two drivers on one net, bit by bit (ADR 0035 item 6): `Z` gives way to the other, equal known bits stay,
+    /// and anything else is `X`. Symmetric, and the same in any grouping.
+    fn resolve(self, other: V) -> V {
+        let (z, other_z) = (self.u & !self.v, other.u & !other.v);
+        let x = (self.u & self.v) | (other.u & other.v) | (!self.u & !other.u & (self.v ^ other.v));
+        V {
+            v: x | (self.v & !self.u) | (other.v & !other.u),
+            u: x | (z & other_z),
+        }
+    }
+
     /// Bit 0, for a clock, an enable or a write strobe.
     fn level(self) -> Level {
         match (self.u & 1, self.v & 1) {
@@ -198,6 +212,9 @@ pub struct Simulator {
     /// Whether any bit may be unknown: on a net, in a flip-flop or RAM, or in the snapshot. While it is false every
     /// evaluation takes the two-state path (ADR 0035 item 11), and `snapshot_unknown` is all zeros.
     murky: bool,
+    /// Whether the circuit has a tri-state buffer. The two-state path has no `Z` to give for a buffer that is not
+    /// enabled, so such a circuit is always `murky`.
+    tristate: bool,
     /// The watched nets and their recorded changes (ADR 0026).
     traces: Vec<Trace>,
     /// The watched wires, as `watch_wires` was given them; a load that keeps state watches them again (ADR 0033).
@@ -229,6 +246,11 @@ enum Op {
     },
     /// The global clock's level, set on each tick.
     Clock,
+    /// Inputs `in`, `en`: a tri-state buffer (ADR 0035 item 5).
+    Tri,
+    /// The value of a net with several drivers, all tri-state buffers: its inputs are their own nets (item 7).
+    /// It belongs to no part of its own; `part` is the buffer with the lowest ID.
+    Resolve,
     /// Inputs `d`, `clk`; outputs its state. `clk_was` is the clock value it last saw.
     Dff {
         clk_was: Level,
@@ -329,6 +351,15 @@ pub(crate) fn width_mismatch(wires: &[String], ports: &[(String, u32)]) -> Strin
         wires_verb(wires, "connect"),
         found.join(", ")
     )
+}
+
+/// What an error about several drivers adds when one of them is a tri-state buffer.
+fn only_tri(mixed: bool) -> &'static str {
+    if mixed {
+        ": only tri-state outputs may share a wire"
+    } else {
+        ""
+    }
 }
 
 /// One net as joined by wires: its output and input ports (part, slot), wires,
@@ -621,6 +652,9 @@ impl Simulator {
 
         let mut wire_nets = BTreeMap::new();
         let mut wire_widths = BTreeMap::new();
+        // Nets with several drivers, all tri-state buffers: the bus's net, numbered after every part's, and the
+        // output ports that drive it (ADR 0035 item 7).
+        let mut buses: Vec<(u32, Vec<(usize, usize)>)> = Vec::new();
         for root in order {
             let group = &groups[&root];
             let mut wires: Vec<String> = group.wires.iter().map(|w| (*w).to_string()).collect();
@@ -652,19 +686,30 @@ impl Simulator {
                     errors.push(Diagnostic::error(Code::InputToInput, message, wires));
                     continue;
                 }
-                (_, []) => {
-                    let count = match group.outputs.len() {
+                (drivers, _) if drivers.iter().all(|&(c, _)| kinds[c] == Kind::Tri) => {
+                    net_count += 1;
+                    buses.push((net_count - 1, drivers.to_vec()));
+                    net_count - 1
+                }
+                (drivers, []) => {
+                    let count = match drivers.len() {
                         2 => "two".to_string(),
                         n => n.to_string(),
                     };
-                    let message = format!("{} {count} outputs", wires_verb(&wires, "connect"));
+                    let message = format!(
+                        "{} {count} outputs{}",
+                        wires_verb(&wires, "connect"),
+                        only_tri(drivers.iter().any(|&(c, _)| kinds[c] == Kind::Tri))
+                    );
                     errors.push(Diagnostic::error(Code::OutputToOutput, message, wires));
                     continue;
                 }
-                (_, [(reader, slot), ..]) => {
+                (drivers, [(reader, slot), ..]) => {
                     let message = format!(
-                        "input {}.{} has more than one driver",
-                        ids[*reader], ports[*reader][*slot].name
+                        "input {}.{} has more than one driver{}",
+                        ids[*reader],
+                        ports[*reader][*slot].name,
+                        only_tri(drivers.iter().any(|&(c, _)| kinds[c] == Kind::Tri))
                     );
                     let mut culprits: Vec<String> =
                         group.inputs.iter().map(|(c, _)| ids[*c].clone()).collect();
@@ -691,12 +736,18 @@ impl Simulator {
             return Err(errors);
         }
 
+        let bus_of: BTreeMap<(usize, usize), u32> = buses
+            .iter()
+            .flat_map(|(bus, drivers)| drivers.iter().map(move |&driver| (driver, *bus)))
+            .collect();
         // Warnings are per part port, so a split's `in` warns once, not once per field.
         let mut warnings = Vec::new();
         let mut port_nets = PortNets::new();
         for (c, part_ports) in ports.iter().enumerate() {
             let mut named = BTreeMap::new();
-            for (port, &net) in part_ports.iter().zip(&port_net[c]) {
+            for (slot, (port, &net)) in part_ports.iter().zip(&port_net[c]).enumerate() {
+                // A buffer on a bus reports the bus: a port and its wire always agree. Its own net is internal.
+                let net = bus_of.get(&(c, slot)).copied().unwrap_or(net);
                 if !port.output && net == GROUND {
                     let message =
                         format!("input {}.{} is unconnected and reads 0", ids[c], port.name);
@@ -743,6 +794,7 @@ impl Simulator {
                 // ADR 0021: a keyboard is a switch the editor sets from the key held.
                 Kind::Switch | Kind::Keyboard => add(Op::Switch, &[], 0),
                 Kind::Clock => add(Op::Clock, &[], 0),
+                Kind::Tri => add(Op::Tri, &nets[..2], 2),
                 Kind::Dff => add(
                     Op::Dff {
                         clk_was: Level::Low,
@@ -795,6 +847,18 @@ impl Simulator {
                 }
             }
         }
+        for (bus, drivers) in &buses {
+            debug_assert_eq!(*bus as usize, prims.len() + 1);
+            let (first, slot) = drivers.iter().copied().min().expect("a bus has drivers");
+            prims.push(Prim {
+                op: Op::Resolve,
+                inputs: drivers.iter().map(|&(c, slot)| port_net[c][slot]).collect(),
+                mask: mask(ports[first][slot].width),
+                part: first as u32,
+                state: 0,
+                unknown: 0,
+            });
+        }
         let mut fanout = vec![Vec::new(); net_count as usize];
         for (p, prim) in prims.iter().enumerate() {
             for &net in &prim.inputs {
@@ -811,6 +875,7 @@ impl Simulator {
         let stateful = prims
             .iter()
             .any(|p| matches!(p.op, Op::Dff { .. } | Op::Ram { .. }));
+        let tristate = prims.iter().any(|p| matches!(p.op, Op::Tri));
         let mut sim = Simulator {
             ids,
             kinds,
@@ -827,7 +892,8 @@ impl Simulator {
             stateful,
             snapshot: Vec::new(),
             snapshot_unknown: vec![0; net_count as usize],
-            murky: forced(),
+            murky: forced() || tristate,
+            tristate,
             traces: Vec::new(),
             watched: Vec::new(),
             sampling: false,
@@ -963,6 +1029,15 @@ impl Simulator {
     fn settle_fresh(&mut self) -> Option<Diagnostic> {
         let count = self.prims.len() as u32;
         self.sampling = false;
+        // All nets are 0 here, every enable with them: so a buffer drives nothing, and a bus floats. Starting
+        // them at 0 instead would hand a loop through a bus a known value to oscillate on, at a load or a Reset
+        // only.
+        for p in 0..self.prims.len() {
+            if matches!(self.prims[p].op, Op::Tri | Op::Resolve) {
+                let floating = V::FLOATING.mask(self.prims[p].mask);
+                self.put(p + 1, floating);
+            }
+        }
         self.presettle();
         let first = self.settle((0..count).collect());
         self.sampling = true;
@@ -1073,7 +1148,8 @@ impl Simulator {
 
     /// Net index → the top-level part that drives it, `None` for ground.
     /// Primitive `p` drives net `p + 1`; a part inside an instance is reported
-    /// as the instance (ADR 0016).
+    /// as the instance (ADR 0016), and a bus as its buffer with the lowest ID
+    /// (ADR 0035).
     pub fn net_drivers(&self) -> Vec<Option<&str>> {
         let driver = |p: &Prim| Some(top(&self.ids[p.part as usize]));
         std::iter::once(None)
@@ -1088,6 +1164,9 @@ impl Simulator {
         let input = |i: usize| prim.inputs.get(i).map_or(0, |&net| self.nets[net as usize]);
         let value = match &prim.op {
             Op::Switch | Op::Clock | Op::Dff { .. } => prim.state,
+            Op::Tri | Op::Resolve => {
+                unreachable!("a circuit with a tri-state buffer is never two-state")
+            }
             Op::Rom { words } => words.get(input(0) as usize).copied().unwrap_or(0),
             Op::Ram { memory, .. } => memory.cells.get(input(0) as usize).copied().unwrap_or(0),
             Op::Gate(kind) => kind.gate(input(0), input(1)),
@@ -1112,6 +1191,16 @@ impl Simulator {
         };
         let value = match &prim.op {
             Op::Switch | Op::Clock => V::known(prim.state),
+            Op::Tri => match input(1).level() {
+                Level::High => input(0),
+                Level::Low => V::FLOATING,
+                Level::Unknown => V::UNKNOWN,
+            },
+            // The drivers' nets as they are: here `Z` is not read as `X`, it gives way.
+            Op::Resolve => prim
+                .inputs
+                .iter()
+                .fold(V::FLOATING, |bus, &net| bus.resolve(self.get(net as usize))),
             Op::Dff { .. } => V {
                 v: prim.state,
                 u: prim.unknown,
@@ -1529,6 +1618,7 @@ impl Simulator {
             self.snapshot_unknown.clone_from(&self.unknown);
             // Known again once no net, flip-flop or cell holds an unknown bit: the copy just made is then all zeros.
             self.murky = forced()
+                || self.tristate
                 || self.unknown.iter().any(|&u| u != 0)
                 || self.prims.iter().any(|p| match &p.op {
                     Op::Ram { memory, .. } => memory.unknown.iter().any(|&u| u != 0),
@@ -1637,9 +1727,20 @@ impl Simulator {
         true
     }
 
-    /// The parts of `prims`, each once, in ID order.
+    /// The parts of `prims`, each once, in ID order. A resolver stands for every buffer on its bus.
     fn parts_of(&self, prims: &[u32]) -> Vec<String> {
-        let mut parts: Vec<u32> = prims.iter().map(|&p| self.prims[p as usize].part).collect();
+        let mut parts: Vec<u32> = prims
+            .iter()
+            .flat_map(|&p| {
+                let prim = &self.prims[p as usize];
+                let drivers = match prim.op {
+                    Op::Resolve => prim.inputs.as_slice(),
+                    _ => &[],
+                };
+                let buffers = drivers.iter().map(|&net| self.prims[net as usize - 1].part);
+                std::iter::once(prim.part).chain(buffers)
+            })
+            .collect();
         parts.sort_unstable();
         parts.dedup();
         parts

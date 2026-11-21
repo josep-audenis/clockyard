@@ -38,6 +38,8 @@ pub enum Kind {
     Seg7,
     Screen,
     Keyboard,
+    /// A tri-state buffer (ADR 0035): `out` is `in` while `en` is 1, and drives nothing while it is 0.
+    Tri,
 }
 
 /// One port of a part, with the width its props give it.
@@ -49,7 +51,7 @@ pub struct Port {
 }
 
 impl Kind {
-    pub const ALL: [Kind; 18] = [
+    pub const ALL: [Kind; 19] = [
         Kind::Switch,
         Kind::Led,
         Kind::Not,
@@ -68,6 +70,7 @@ impl Kind {
         Kind::Seg7,
         Kind::Screen,
         Kind::Keyboard,
+        Kind::Tri,
     ];
 
     /// Name used in circuit descriptions.
@@ -91,6 +94,7 @@ impl Kind {
             Kind::Seg7 => "seg7",
             Kind::Screen => "screen",
             Kind::Keyboard => "keyboard",
+            Kind::Tri => "tri",
         }
     }
 
@@ -142,6 +146,7 @@ impl Kind {
             Kind::Led | Kind::Not | Kind::Split => &["in"],
             Kind::Seg7 => &["seg"],
             Kind::Dff => &["d", "clk"],
+            Kind::Tri => &["in", "en"],
             Kind::Rom => &["addr"],
             Kind::Ram | Kind::Screen => &["addr", "din", "we", "clk"],
             _ => &["a", "b"],
@@ -159,7 +164,7 @@ impl Kind {
 
     /// Every port, inputs first, for an already validated shape.
     /// A split's `in` and a merge's `out` are as wide as all fields together;
-    /// `clk` and `we` are always 1 bit, and a memory's `addr` is its address width.
+    /// `clk`, `we` and `en` are always 1 bit, and a memory's `addr` is its address width.
     pub fn ports(self, shape: &Shape) -> Vec<Port> {
         let (width, fields, address) = (shape.width, shape.fields.as_slice(), shape.address);
         let fixed_width = if self.sized() {
@@ -173,7 +178,7 @@ impl Kind {
             names.iter().map(move |name| Port {
                 name: Cow::Borrowed(*name),
                 width: match *name {
-                    "clk" | "we" => 1,
+                    "clk" | "we" | "en" => 1,
                     "addr" => address,
                     _ => fixed_width,
                 },
@@ -217,7 +222,8 @@ impl Kind {
             | Kind::Ram
             | Kind::Seg7
             | Kind::Screen
-            | Kind::Keyboard => {
+            | Kind::Keyboard
+            | Kind::Tri => {
                 unreachable!("{} is not a gate", self.name())
             }
         }

@@ -119,6 +119,7 @@ pub fn elaborate(
         stack: Vec::new(),
         pins_ok: BTreeMap::new(),
         wired: BTreeSet::new(),
+        bus_pins: BTreeMap::new(),
         size: 0,
         words: 0,
     };
@@ -235,6 +236,11 @@ enum Role {
 /// instance's input port reads and its output port drives; inside a definition, its pin switches
 /// drive and its pin LEDs read. Every net's widths are checked (ADR 0014); its drivers and readers
 /// only where it touches a pin, the rest being left to net resolution, which sees nets whole.
+///
+/// Several drivers may share a net when each is a tri-state buffer's output or an instance's bus
+/// pin (ADR 0035 item 6). `bus_pins` gives each definition's, by pin part; the second result is this
+/// level's own: its output pins whose net has a driver, every driver one that may share, which
+/// leaves out any net an input pin is on.
 fn check_wiring<'a>(
     components: &[ComponentDesc],
     junctions: &'a [JunctionDesc],
@@ -242,13 +248,15 @@ fn check_wiring<'a>(
     prefix: &str,
     pins: &BTreeMap<&str, &str>,
     instances: &BTreeMap<&str, &DefinitionDesc>,
-) -> Vec<Diagnostic> {
+    bus_pins: &BTreeMap<&str, BTreeSet<String>>,
+) -> (Vec<Diagnostic>, BTreeSet<String>) {
     let parts: BTreeMap<&str, &ComponentDesc> =
         components.iter().map(|c| (c.id.as_str(), c)).collect();
     // A switch's or LED's width; widths were checked before any wiring.
     let width = |c: &ComponentDesc| c.ports_shape().map_or(1, |shape| shape.width);
-    // Role of a port end, whether it is a pin (an instance's port or a pin part), and its width.
-    let role = |port: &PortRef| -> Option<(Role, bool, u32)> {
+    // Role of a port end, whether it is a pin (an instance's port or a pin part), its width, and
+    // whether it is a driver that may share its net.
+    let role = |port: &PortRef| -> Option<(Role, bool, u32, bool)> {
         let name = port.port.as_str();
         if let Some(definition) = instances.get(port.component.as_str()) {
             let inputs = definition.inputs.iter().map(|p| (p, Role::Reads));
@@ -259,7 +267,11 @@ fn check_wiring<'a>(
                 .components
                 .iter()
                 .find(|c| c.id == pin.component)?;
-            return Some((role, true, width(part)));
+            let shares = role == Role::Drives
+                && bus_pins
+                    .get(definition.id.as_str())
+                    .is_some_and(|bus| bus.contains(&pin.component));
+            return Some((role, true, width(part), shares));
         }
         let part = *parts.get(port.component.as_str())?;
         if let Some(&own) = pins.get(port.component.as_str()) {
@@ -268,7 +280,7 @@ fn check_wiring<'a>(
             } else {
                 Role::Reads
             };
-            return (name == own).then_some((role, true, width(part)));
+            return (name == own).then_some((role, true, width(part), false));
         }
         let kind = Kind::from_name(&part.kind)?;
         let shape = part.ports_shape().ok()?;
@@ -278,7 +290,7 @@ fn check_wiring<'a>(
         } else {
             Role::Reads
         };
-        Some((role, false, port.width))
+        Some((role, false, port.width, kind == Kind::Tri && port.output))
     };
     // Union-find over this level's ends: ports by (component, port), junctions by ID.
     let mut nodes: BTreeMap<(bool, &'a str, &'a str), usize> = BTreeMap::new();
@@ -328,18 +340,21 @@ fn check_wiring<'a>(
     #[derive(Clone, Default)]
     struct Tally {
         drives: usize,
+        /// Of the drivers, those that may share a net.
+        shares: usize,
         reads: usize,
         pin: bool,
         widths: Vec<(u32, usize)>,
     }
     let mut tally = vec![Tally::default(); ends.len()];
     for (node, end) in ends.iter().enumerate() {
-        if let Some((role, pin, width)) = *end {
+        if let Some((role, pin, width, shares)) = *end {
             let net = &mut tally[find(&mut parent, node)];
             match role {
                 Role::Drives => net.drives += 1,
                 Role::Reads => net.reads += 1,
             }
+            net.shares += usize::from(shares);
             net.pin |= pin;
             // Name each width by its first port in (component, port) order, never by wire direction.
             match net.widths.iter_mut().find(|w| w.0 == width) {
@@ -361,6 +376,8 @@ fn check_wiring<'a>(
         let code = match (net.widths.len(), net.drives, net.reads, net.pin) {
             (2.., ..) => Code::WidthMismatch,
             (_, _, _, false) => continue,
+            // A bus: its drivers are all tri-state once flattened, which net resolution checks again.
+            (_, 2.., ..) if net.shares == net.drives => continue,
             (_, 2.., 0, _) => Code::OutputToOutput,
             (_, 2.., _, _) => Code::MultipleDrivers,
             (_, 0, 2.., _) => Code::InputToInput,
@@ -372,7 +389,16 @@ fn check_wiring<'a>(
         });
         found[at].2.push(format!("{prefix}{wire}"));
     }
-    found
+    // This level's output pins that may share a wire outside: see above.
+    let own_bus_pins = (0..ends.len())
+        .filter(|&node| pins.get(keys[node].0) == Some(&"in") && ends[node].is_some())
+        .filter(|&node| {
+            let net = &tally[find(&mut parent, node)];
+            net.drives > 0 && net.shares == net.drives
+        })
+        .map(|node| keys[node].0.to_string())
+        .collect();
+    let diagnostics = found
         .into_iter()
         .map(|(code, root, mut wires)| {
             wires.sort();
@@ -405,13 +431,18 @@ fn check_wiring<'a>(
                 Code::MultipleDrivers => "an input to more than one driver",
                 _ => "inputs and nothing drives them",
             };
-            let message = format!("{} {what}", wires_verb(&wires, "connect"));
+            let mixed = match tally[root].shares {
+                0 => "",
+                _ => ": only tri-state outputs may share a wire",
+            };
+            let message = format!("{} {what}{mixed}", wires_verb(&wires, "connect"));
             let mut ids: Vec<String> = wires.iter().map(|w| top(w).to_string()).collect();
             ids.sort();
             ids.dedup();
             Diagnostic::error(code, message, ids)
         })
-        .collect()
+        .collect();
+    (diagnostics, own_bus_pins)
 }
 
 struct Flat<'a> {
@@ -425,6 +456,9 @@ struct Flat<'a> {
     pins_ok: BTreeMap<&'a str, bool>,
     /// Definitions whose own wiring has been checked (once, at their first instance).
     wired: BTreeSet<&'a str>,
+    /// Each checked definition's bus pins, by pin part (ADR 0035): worked out with its wiring, so
+    /// after the definitions it uses.
+    bus_pins: BTreeMap<&'a str, BTreeSet<String>>,
     /// Items emitted or expanded so far, against `MAX_PARTS`.
     size: usize,
     /// Memory words emitted so far, against `MAX_WORDS`.
@@ -531,15 +565,19 @@ impl<'a> Flat<'a> {
             }
         }
         if definition.is_none_or(|d| self.wired.insert(d.id.as_str())) {
-            let found = check_wiring(
+            let (found, bus) = check_wiring(
                 components,
                 junctions,
                 connections,
                 prefix,
                 &pins,
                 &instances,
+                &self.bus_pins,
             );
             self.errors.extend(found);
+            if let Some(d) = definition {
+                self.bus_pins.insert(d.id.as_str(), bus);
+            }
         }
     }
 

@@ -1,9 +1,9 @@
 # Simulation model
 
 Status: **built** for combinational logic (Phase 1, ADR 0006) and sequential
-logic (Phase 3, ADR 0017), and for unknown values (ADR 0035, step 2). The
-tri-state buffer and nets with several drivers are **designed** (ADR 0035)
-and not yet built: see Four-state signals.
+logic (Phase 3, ADR 0017), and for four-state signals (ADR 0035): unknown
+values, the tri-state buffer and nets with several drivers. The editor does
+not offer the buffer or draw `X` and `Z` yet: see Four-state signals.
 
 ## Terms
 
@@ -11,7 +11,7 @@ and not yet built: see Four-state signals.
 |------|---------|
 | Component | A primitive in the compiled netlist (gate, switch, LED, flip-flop, …) |
 | Port | A named input or output of a component, with a width |
-| Net | Ports joined by wires, directly or through junctions: exactly one driver output, any number of reader inputs |
+| Net | Ports joined by wires, directly or through junctions: one driver output, or several tri-state buffers (see Several drivers), and any number of reader inputs |
 | Value | The signal on a net |
 | Delta | One evaluation round inside a settle, at a single instant of virtual time |
 | Settle | Repeating deltas until no net changes |
@@ -29,8 +29,8 @@ loads: a bad `width` or `fields` is `invalidWidth`, and ports of different
 widths on one net are `widthMismatch`, never a silent truncation. The engine,
 protocol, file format (v5) and editor all carry them (ADR 0014).
 
-`X` (unknown) is built. `Z` (high impedance) waits for the tri-state
-buffer, the only part that gives it.
+A bit can also be `X` (unknown) or `Z` (high impedance), which only a
+tri-state buffer gives.
 
 ## Custom components
 
@@ -46,7 +46,7 @@ definition used, an instance is a black box whose input ports read and output
 ports drive, and inside a definition its pin switches drive and its pin LEDs
 read. The table below then applies to each such group of wires on its own:
 two pins driving one wire is `outputToOutput` (or `multipleDrivers` with a
-reader), and inputs joined to a pin with nothing driving them `inputToInput`,
+reader) unless each driver may share a wire (see Several drivers), and inputs joined to a pin with nothing driving them `inputToInput`,
 whatever the flattened net would show. After flattening, a net with no output
 that reaches a pin is a pin left unconnected: its readers read 0 and warn. So
 a pin passed straight through an instance and left unconnected reads 0 on the
@@ -67,8 +67,9 @@ ADR 0010) and checks each resulting net as a whole:
 | 1 | any | Valid: the output drives every input; every wire in the net reports it |
 | 0 | 0 or 1 | Valid dangling branch: its input reads 0 and warns as unconnected; its wires read 0 |
 | 0 | 2 or more | `inputToInput` error: nothing drives the net |
-| 2 or more | 0 | `outputToOutput` error |
-| 2 or more | 1 or more | `multipleDrivers` error |
+| 2 or more, all tri-state buffers | any | Valid: a bus, resolved by a table (see Several drivers) |
+| 2 or more, otherwise | 0 | `outputToOutput` error |
+| 2 or more, otherwise | 1 or more | `multipleDrivers` error |
 
 Duplicate wires between the same ends are harmless: they join nothing new.
 
@@ -144,8 +145,9 @@ the issue for normal designs.
 
 ### Initial state
 
-On load and on reset, all nets start at `0`, every component is marked dirty,
-and the circuit settles. A lone NOT gate therefore outputs `1` immediately.
+On load and on reset, all nets start at `0` (a tri-state buffer's and a bus's
+at `Z`, see Four-state signals), every component is marked dirty, and the
+circuit settles. A lone NOT gate therefore outputs `1` immediately.
 A load's settle and a reset's settle are never a clock edge (ADRs 0033,
 0035): flip-flops and RAMs do not sample or write during it, and each takes
 its clock input's settled value as the one it last saw. From all-zero nets
@@ -173,9 +175,9 @@ four-state signals (ADR 0035).
 
 ### Multiple drivers
 
-Two outputs on one net is a validation error. Tri-state outputs will be
-allowed to share a net, resolved by a table that never depends on evaluation
-order: see Four-state signals.
+Two outputs on one net is a validation error, unless every one is a
+tri-state buffer's: those share the net, resolved by a table that never
+depends on evaluation order. See Several drivers.
 
 ## Sequential logic
 
@@ -285,20 +287,14 @@ watched. `waves()` and `wave(i)` read it.
 
 ## Four-state signals
 
-[ADR 0035](decisions/0035-four-state-signals.md). **Built:** values, what
-parts do with unknown bits, parts with state, a loop that does not settle,
-and the engine's edge. Until the tri-state buffer exists, the only source
-of an unknown bit is a loop that does not settle, and it is always `X`.
+[ADR 0035](decisions/0035-four-state-signals.md). Everything in this
+section is built in the engine.
 
-**Designed, not built:** the tri-state buffer, `Z`, and Several drivers.
-That subsection will replace two rules elsewhere in this document: under
-**Terms** and **Nets**, that a net has exactly one driver, and that any two
-outputs or pins on one net are an error, on a sheet as drawn and after
-flattening.
-
-The editor's part of the design (how `X` and `Z` are drawn, and Make
-component refusing to split a bus) is in the ADR. Until it is built, the
-editor draws value words only, so an `X` looks like a 1 there.
+**Not built yet: the editor's part** (how `X` and `Z` are drawn, the buffer
+in the parts panel, the file format that holds it, and Make component
+refusing to split a bus). It is in the ADR. Until then the editor draws
+value words only, so an `X` looks like a 1 there and a `Z` like a 0, and
+it refuses a file with a `tri` part.
 
 ### Values
 
@@ -415,6 +411,10 @@ names a net's driver, a bus gives its buffer with the lowest ID, and an
 `unstable` report that would name a resolver names every buffer on its
 bus. A resolver adds one delta; a buffer alone on its net needs none.
 
+A circuit with a tri-state buffer never takes the two-state path that
+other circuits take while nothing is unknown: that path has no `Z` to give
+a buffer that is not enabled.
+
 Because every primitive takes one delta, **a bus is `Z` or in conflict for
 a delta or two whenever its enables change.** A flip-flop is safe, since it
 samples the snapshot. A latch built from gates, or a derived clock, that
@@ -434,9 +434,10 @@ When a settle reaches its delta limit, it goes on in two stages:
    again in the normal way and the settle runs on. From here nets only
    become more known; a flip-flop or RAM can still lose bits to a possible
    edge, each bit once. So this ends too. Logic that does not depend on
-   the loop keeps its values. With no tri-state buffer yet, marking
-   already ends where clearing would, so this stage changes nothing
-   today.
+   the loop keeps its values. It matters when the limit cuts a transient
+   that would have ended by itself: marking turns its last changes to
+   `X`, nothing keeps that `X`, and clearing finds every net known. The
+   settle is still reported, since it reached the limit.
 
 Every delta still reads one snapshot and applies its writes after. The
 settle reports the `unstable` error, naming the parts whose outputs were
@@ -448,6 +449,13 @@ engine remembers the parts named, adding those of any later loop. While
 any of them still has an `X` output bit, each later settle reports a warning,
 `unsettled`, naming those that do; it stops nothing. The list is dropped
 when none has an `X` bit left, and at Reset or a load.
+
+A loop that reads a floating bus never oscillates at all: it reads `X`
+from the start, `X` is stable, and nothing is reported, since nothing
+failed to settle. That holds at a load and a Reset too, because their
+settle starts with every buffer's net and every bus at `Z` (all nets are 0
+there, enables included, so no buffer drives). A buffer whose own `en`
+reads its bus is such a loop: it stays `X`, Reset included.
 
 A NOT fed back to itself reads `X`. So does a cross-coupled latch released
 from `S = R = 1`. A register clocked by such a loop holds `X` until a
@@ -466,7 +474,7 @@ certain edge loads known data, or Reset.
 - `memory_unknown()` beside `memory()`, empty while every cell is known.
 - Run until stops when the LED's net was a known `0` and now has a bit
   that is a known `1`. A net that goes `0`, then `X`, then `1` does not
-  stop the run.
+  stop the run, and neither does a bus that goes from `Z` to `1`.
 - A challenge check counts any unknown bit in a compared output or memory
   byte as a mismatch, reported with its unknown bits, and a bench step's
   `until` waits for a known `1`.

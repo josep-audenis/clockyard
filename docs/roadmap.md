@@ -655,7 +655,9 @@ targets, as in Phase 5.
       with unknown bits, loops that settle to `X`, and the values that
       cross the engine's edge; its cost compared on the benchmarks
       (`docs/performance.md`). The editor still draws value words only.
-   3. ⬜ The tri-state buffer and nets with several drivers, in the engine.
+   3. ✅ The tri-state buffer and nets with several drivers, in the engine:
+      a bus resolved by a table, bus pins on components, and a hidden
+      resolver for each bus. The editor does not know the part yet.
    4. ⬜ The editor: `X` and `Z` drawn and written, the part, format 12.
    5. ⬜ The *Shared bus* example and the browser target.
 6. ⬜ A second reference CPU: bit operations and call/return, specification
