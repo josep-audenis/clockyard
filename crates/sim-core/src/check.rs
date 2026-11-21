@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::catalog::mask;
 use crate::description::{
     CircuitDescription, Code, ComponentDesc, Connection, DefinitionDesc, Endpoint, PortRef,
 };
@@ -123,7 +124,15 @@ fn refused(reason: String) -> Report {
 }
 
 /// Runs `challenge` against its definition in `description`. The main circuit is not used.
+/// A challenge names its bench (`bench`, the editor's to read); with runs it is checked by [`check_on`].
 pub fn check(description: &CircuitDescription, challenge: &Challenge) -> Report {
+    // Never a pass by default: a challenge with runs needs its bench, and one with no steps checks nothing.
+    if !challenge.runs.is_empty() {
+        return fault("it was not given".to_string());
+    }
+    if challenge.steps.is_empty() {
+        return fault("it has no steps".to_string());
+    }
     match bench(description, challenge).and_then(|bench| run(&bench, challenge)) {
         Ok(report) | Err(report) => report,
     }
@@ -226,11 +235,16 @@ fn run_on(computer: &CircuitDescription, challenge: &Challenge) -> Result<Report
     if slots.is_empty() {
         return Err(fault(format!("it has no {}", challenge.definition)));
     }
+    // Errors first, as `run` has them: a part of an unknown kind is an error, not a part to allow.
+    Simulator::load(computer).map_err(|errors| circuit_errors(&errors))?;
     if let Some(allowed) = &challenge.parts {
         parts_allowed(computer, &slots, allowed)?;
     }
     let mut steps = 0;
     for run in &challenge.runs {
+        if run.steps.is_empty() {
+            return Err(fault(format!("run {} has no steps", run.name)));
+        }
         let cycles: u64 = run.steps.iter().map(|s| u64::from(s.cycles)).sum();
         if cycles > u64::from(MAX_RUN_CYCLES) {
             return Err(fault(format!(
@@ -247,6 +261,16 @@ fn run_on(computer: &CircuitDescription, challenge: &Challenge) -> Result<Report
             else {
                 return Err(fault("it has no program ROM".to_string()));
             };
+            // Checked here, so words that do not fit are the challenge's fault, not an error in the user's circuit.
+            let fits = rom.ports_shape().is_ok_and(|shape| {
+                words.len() <= 1 << shape.address && words.iter().all(|&w| w <= mask(shape.width))
+            });
+            if !fits {
+                return Err(fault(format!(
+                    "run {}'s words do not fit the program ROM",
+                    run.name
+                )));
+            }
             rom.data = Some(words.iter().map(|&w| f64::from(w)).collect());
         }
         let (mut sim, warnings) =

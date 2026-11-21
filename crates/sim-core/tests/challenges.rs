@@ -515,6 +515,77 @@ fn a_bench_check_refuses_what_it_cannot_run_and_says_why() {
             format!("This challenge's bench cannot run: {what}.")
         );
     }
+    // What a step sets must be a bench switch, with a value that fits.
+    for (set, what) in [
+        (
+            serde_json::json!({ "out": 1 }),
+            "run Set, step 1: out is a led, not a switch or keyboard",
+        ),
+        (
+            serde_json::json!({ "key": 256 }),
+            "run Set, step 1: key is 8 bits wide, so 256 does not fit",
+        ),
+        (
+            serde_json::json!({ "knob": 1 }),
+            "run Set, step 1: unknown component knob",
+        ),
+    ] {
+        let runs = serde_json::json!([{ "name": "Set", "steps": [{ "set": set }] }]);
+        assert_eq!(
+            refusal(check_on(&solved, &cpu_challenge(runs), &cpu_bench)),
+            format!("This challenge's bench cannot run: {what}.")
+        );
+    }
+    // Words that do not fit the ROM, a run with no steps: the challenge's faults, not the circuit's.
+    for (run, what) in [
+        (
+            serde_json::json!({ "name": "Wide", "words": [70000], "steps": [{ "cycles": 1 }] }),
+            "run Wide's words do not fit the program ROM",
+        ),
+        (
+            serde_json::json!({ "name": "Long", "words": vec![0; 257], "steps": [{ "cycles": 1 }] }),
+            "run Long's words do not fit the program ROM",
+        ),
+        (
+            serde_json::json!({ "name": "Idle", "steps": [] }),
+            "run Idle has no steps",
+        ),
+    ] {
+        assert_eq!(
+            refusal(check_on(
+                &solved,
+                &cpu_challenge(serde_json::json!([run])),
+                &cpu_bench
+            )),
+            format!("This challenge's bench cannot run: {what}.")
+        );
+    }
+    // On the program bench the ROM is the user's component: a run cannot supply words.
+    let mut program = cpu_challenge(serde_json::json!([add_run(5, 12)]));
+    program.definition = "program".into();
+    program.inputs.clear();
+    program.outputs.clear();
+    assert_eq!(
+        refusal(check_on(&bench("program"), &program, &bench("program"))),
+        "This challenge's bench cannot run: it has no program ROM."
+    );
+    // An unknown kind inside the slot is an error in the circuit, not a part to allow.
+    let mut unknown = solved.clone();
+    let cpu = unknown
+        .definitions
+        .iter_mut()
+        .find(|d| d.id == "cpu")
+        .unwrap();
+    cpu.components.push(sim_core::description::ComponentDesc {
+        id: "odd".into(),
+        kind: "flux".into(),
+        ..Default::default()
+    });
+    assert!(
+        refusal(check_on(&unknown, &challenge, &cpu_bench))
+            .starts_with("The circuit has errors to fix first:")
+    );
+
     // A bench whose CPU is its own has no slot for this challenge.
     assert_eq!(
         refusal(check_on(&solved, &challenge, &bench("program"))),
@@ -570,6 +641,57 @@ fn the_bench_keeps_its_own_definitions_whatever_the_document_holds() {
                 name: "screen[7]".into(),
                 expected: 129,
                 got: 0
+            }],
+        }
+    );
+}
+
+#[test]
+fn a_challenge_with_runs_is_never_passed_without_its_bench_nor_one_with_no_steps() {
+    // The empty slot, checked the way challenges 1 to 9 are: refused, not passed with nothing run.
+    let challenge = cpu_challenge(serde_json::json!([add_run(5, 12)]));
+    assert_eq!(
+        refusal(check(&bench("cpu"), &challenge)),
+        "This challenge's bench cannot run: it was not given."
+    );
+    assert_eq!(
+        refusal(check(&bench("cpu"), &cpu_challenge(serde_json::json!([])))),
+        "This challenge's bench cannot run: it has no steps."
+    );
+}
+
+#[test]
+fn until_runs_no_cycle_once_its_led_is_lit_and_a_failed_step_reports_what_it_set() {
+    // Fetch is lit from the start, so no cycle runs: nothing is stored, though 20 cycles would store 9.
+    let early = cpu_challenge(serde_json::json!([{
+        "name": "Early", "words": words("LDI 9\nSTA 3\nHLT"),
+        "steps": [
+            { "cycles": 20, "until": "fetch", "memory": { "ram": { "3": 0 } } },
+            { "cycles": 20, "until": "halt", "memory": { "ram": { "3": 9 } } }
+        ]
+    }]));
+    assert_eq!(
+        check_on(&solution("10-cpu"), &early, &bench("cpu")),
+        Report::Passed { steps: 2 }
+    );
+    // The step that fails is the one that sets the key: the report has it.
+    let wrong = cpu_challenge(serde_json::json!([{
+        "name": "Key", "words": words("LDA 0xFF\nOUT\nHLT"),
+        "steps": [{ "set": { "key": 3 }, "cycles": 20, "until": "halt", "expect": { "out": 4 } }]
+    }]));
+    assert_eq!(
+        check_on(&solution("10-cpu"), &wrong, &bench("cpu")),
+        Report::Failed {
+            run: Some("Key".into()),
+            step: 0,
+            inputs: vec![Reading {
+                name: "key".into(),
+                value: 3
+            }],
+            mismatches: vec![Mismatch {
+                name: "out".into(),
+                expected: 4,
+                got: 3
             }],
         }
     );
