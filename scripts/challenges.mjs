@@ -12,6 +12,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { computers } from "./computer.mjs";
+import { cpuRuns } from "./cpu-runs.mjs";
 
 const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 
@@ -509,23 +510,67 @@ const files = [];
 
 // The benches of ADR 0034, one per slot, and the reference parts on them: each a whole computer.
 // The bench holds its slot empty; the solution is the same sheet with the reference part in it.
-const computer = (name, sheet, definitions) => ({
+const computer = (name, sheet, definitions, challenge) => ({
   format: "clockyard",
   version: 11,
-  metadata: { name, createdAt: "2026-11-21T12:00:00.000Z", modifiedAt: "2026-11-21T12:00:00.000Z" },
+  metadata: { name, createdAt: "2026-11-21T12:00:00.000Z", modifiedAt: "2026-11-21T12:00:00.000Z", ...(challenge && { challenge }) },
   circuit: sheet,
   definitions,
 });
 for (const [slot, c] of Object.entries(computers)) {
   files.push([`challenges/benches/${slot}.clockyard.json`, computer(`Bench: ${slot}`, c.sheet, [c.empty, ...c.owned])]);
 }
-files.push(
-  ["challenges/solutions/10-cpu.clockyard.json", computer("CPU: solution", computers.cpu.sheet, [computers.cpu.reference, ...computers.cpu.given, ...computers.cpu.owned])],
-  [
-    "challenges/solutions/12-display.clockyard.json",
-    computer("Display: solution", computers.display.sheet, [computers.display.reference, ...computers.display.given, ...computers.display.owned]),
-  ],
-);
+files.push([
+  "challenges/solutions/12-display.clockyard.json",
+  computer("Display: solution", computers.display.sheet, [computers.display.reference, ...computers.display.given, ...computers.display.owned]),
+]);
+
+// Challenges checked on a bench (ADR 0034): the part to build sits in the bench's slot, and the starter
+// is the bench itself, so the main sheet is a computer to run the part in.
+const INSTRUCTIONS = [
+  "0 NOP: nothing",
+  "1 LDI n: A = n",
+  "2 LDA n: A = RAM[n]",
+  "3 STA n: RAM[n] = A",
+  "4 ADD n: A = A + RAM[n]",
+  "5 SUB n: A = A - RAM[n]",
+  "6 ADI n: A = A + n",
+  "7 SBI n: A = A - n",
+  "8 JMP n: PC = n",
+  "9 JZ n: PC = n if Z",
+  "A JC n: PC = n if C",
+  "B OUT: out = A",
+  "C HLT: halt",
+].join("; ");
+const benchChallenges = [
+  {
+    file: "10-cpu",
+    slot: "cpu",
+    title: "CPU",
+    text:
+      "Build a CPU that runs programs. Each instruction is a 16-bit word: its top four bits are the opcode and its low eight the operand n. " +
+      "It takes two clock cycles. In the first, the word on instr is kept and PC goes up by one; in the second, the instruction is carried out. " +
+      `The opcodes: ${INSTRUCTIONS}. D to F do nothing. ` +
+      "Loads, additions and subtractions set Z when A becomes 0. Additions set C on a carry; subtractions set C when nothing is borrowed. " +
+      "pc is the address of the next word. For RAM[n], put n on addr: the byte there arrives on din. To store, hold A on dout and we at 1 through the second cycle. " +
+      "fetch is 1 during a first cycle. Once halted, halt is 1 and nothing changes. " +
+      "Registers, a multiplexer and an 8-bit adder are provided, and a ROM can decode the opcode. The main sheet is a computer to run your CPU in.",
+    parts: [...GATES, "dff", "split", "merge", "rom"],
+    runs: cpuRuns,
+  },
+];
+for (const c of benchChallenges) {
+  const { reference, empty, given, owned, sheet } = computers[c.slot];
+  const pins = (kind) => reference.circuit.components.filter((p) => p.kind === kind).map((p) => ({ name: p.id, width: p.props.width ?? 1 }));
+  files.push(
+    [
+      `challenges/${c.file}.json`,
+      { title: c.title, text: c.text, definition: reference.id, bench: c.slot, inputs: pins("switch"), outputs: pins("led"), parts: c.parts, steps: [], runs: c.runs },
+    ],
+    [`challenges/solutions/${c.file}.clockyard.json`, computer(`${c.title}: solution`, sheet, [reference, ...given, ...owned], c.file)],
+    [`challenges/starters/${c.file}.clockyard.json`, computer(c.title, sheet, [empty, ...given, ...owned], c.file)],
+  );
+}
 
 for (const c of challenges) {
   const { id, circuit } = c.definition;
@@ -553,8 +598,10 @@ for (const c of challenges) {
 /** JSON as written: indented, except a challenge's steps, one to a line, so long step lists stay readable. */
 function format(value) {
   if (!value.steps) return `${JSON.stringify(value, null, 2)}\n`;
-  const steps = value.steps.map((s) => `    ${JSON.stringify(s)}`).join(",\n");
-  return `${JSON.stringify({ ...value, steps: [] }, null, 2).replace('"steps": []', () => `"steps": [\n${steps}\n  ]`)}\n`;
+  const lines = (items) => (items.length > 0 ? `[\n${items.map((s) => `    ${JSON.stringify(s)}`).join(",\n")}\n  ]` : "[]");
+  return `${JSON.stringify({ ...value, steps: [], ...(value.runs && { runs: [] }) }, null, 2)
+    .replace('"steps": []', () => `"steps": ${lines(value.steps)}`)
+    .replace('"runs": []', () => `"runs": ${lines(value.runs ?? [])}`)}\n`;
 }
 
 let stale = false;
@@ -576,4 +623,4 @@ for (const [path, value] of files) {
   }
 }
 if (stale) process.exit(1);
-if (!process.argv.includes("--check")) console.log(`${challenges.length} challenges written to challenges/`);
+if (!process.argv.includes("--check")) console.log(`${challenges.length + benchChallenges.length} challenges written to challenges/`);

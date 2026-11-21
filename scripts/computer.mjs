@@ -417,7 +417,9 @@ function benchSheet(slot) {
     [io("hex"), "rd4.s"],
     ["rd4.out", "cpu.din"],
   ]);
-  return { components, junctions: [], wires: sheet };
+  // Laid out close above, then spread: instances are taller than their pins suggest, and wires need room.
+  const spread = components.map((c) => ({ ...c, position: { x: Math.round(c.position.x * 1.6), y: Math.round(c.position.y * 1.8) } }));
+  return { components: spread, junctions: [], wires: sheet };
 }
 
 // --- What the files hold -------------------------------------------------------------

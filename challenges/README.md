@@ -20,7 +20,14 @@ these files by hand: `node scripts/challenges.mjs` writes them, and
   owns have IDs starting `bench-`.
 - `solutions/10-cpu` and `12-display` are those benches with the reference
   part in the slot: the reference CPU cut along its memory boundary, and
-  its screen interface. Their challenge files come with the challenges.
+  its screen interface. A bench challenge's starter is its bench with the
+  slot empty and the parts it provides.
+- A bench challenge (`"bench": "cpu"`) has `runs` in place of steps: each a
+  program (`words`, beside the `source` they were assembled from by hand)
+  run on a fresh bench, and steps that set bench switches, run `cycles`
+  clock cycles `until` an LED lights, then `expect` LEDs and `memory`
+  bytes. `scripts/cpu-runs.mjs` holds the programs and the model the
+  expected values come from.
 
 `crates/sim-core/tests/challenges.rs` checks that every solution passes and
 every starter fails, through the engine. `crates/sim-core/tests/cpu.rs`
@@ -38,6 +45,7 @@ holds the cut CPU and the display, on their benches, to the same model of
 | `07-register8` | `D[8]`, `load`, `clk` → `Q[8]` | gates, dff, split, merge |
 | `08-counter8` | `en`, `clr`, `clk` → `Q[8]` | gates, dff, split, merge |
 | `09-alu` | `A[8]`, `B[8]`, `sub` → `Y[8]`, `C`, `Z` | gates, split, merge (8-bit adder provided) |
+| `10-cpu` | `clk`, `instr[16]`, `din[8]` → `pc[8]`, `addr[8]`, `dout[8]`, `we`, `out[8]`, `halt`, `fetch` | gates, dff, split, merge, rom (registers, multiplexer and 8-bit adder provided) |
 
 A clocked challenge changes its data inputs with `clk` low, and nothing
 else in the step that raises `clk`, so every edge samples settled inputs.

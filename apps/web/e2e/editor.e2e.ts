@@ -272,6 +272,23 @@ test("the one-bit register: the starter fails at the first edge that loads; the 
   await expect(checked(page)).toHaveText("Passed, 25 of 25 steps.");
 });
 
+test("the CPU challenge: its starter never halts, and the reference CPU passes every run on the bench (ADR 0034)", async ({ page }) => {
+  await page.goto("/");
+  await openTab(page, "Learn");
+  await challenges(page).getByRole("button", { name: "10. CPU" }).click();
+  await expect(challenge(page)).toContainText("Build a CPU that runs programs");
+  // It opens on the CPU's own sheet, empty but for its pins; the main sheet is the computer round it.
+  await expect(page.getByRole("navigation", { name: "Sheet" })).toContainText("CPU");
+  await challenge(page).getByRole("button", { name: "Check" }).click();
+  await expect(checked(page)).toHaveText("Run Load and show, step 1 of 1 failed. With key = 0: halt should be 1 but is 0; out should be 5 but is 0.");
+
+  // The reference CPU, cut along its memory boundary, as the solution: every program runs on its gates.
+  await page.locator('[data-testid="import-file"]').setInputFiles(solution("10-cpu"));
+  await expect(page.getByLabel("Project name")).toHaveValue("CPU: solution");
+  await challenge(page).getByRole("button", { name: "Check" }).click();
+  await expect(checked(page)).toHaveText("Passed, 8 of 8 steps.");
+});
+
 test("a broken link shows its reason and opens nothing (ADR 0024)", async ({ page }) => {
   await page.goto("/#circuit=1.A");
   await expect(page.getByRole("alert")).toHaveText("Could not open the link: This link is cut short or damaged.");
