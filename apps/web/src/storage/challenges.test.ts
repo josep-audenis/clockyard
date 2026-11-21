@@ -48,7 +48,11 @@ test("a challenge with a bench gets it projected, and its reports name the run a
   expect(bench?.definitions?.map((d) => d.id)).toEqual(["cpu", "bench-mux8", "bench-reg8"]);
 
   const runs = cpu.runs ?? [];
-  expect(reportText({ result: "passed", steps: runs.length }, cpu)).toBe(`Passed, ${runs.length} of ${runs.length} steps.`);
+  const steps = runs.reduce((n, run) => n + run.steps.length, 0);
+  expect(steps).toBe(2 * runs.length);
+  expect(reportText({ result: "passed", steps }, cpu)).toBe(`Passed, ${steps} of ${steps} steps.`);
+  // Every challenge with a bench has one that opens.
+  for (const { challenge } of CHALLENGES) expect(benchOf(challenge) === undefined).toBe(challenge.bench === undefined);
   const failed = reportText(
     {
       result: "failed",
@@ -63,9 +67,9 @@ test("a challenge with a bench gets it projected, and its reports name the run a
     },
     cpu,
   );
-  expect(failed).toBe("Run Store and load, step 1 of 1 failed. With key = 0: halt should be 1 but is 0; RAM byte 16 should be 7 but is 0; screen byte 3 should be 129 but is 0.");
+  expect(failed).toBe("Run Store and load, step 1 of 2 failed. With key = 0: halt should be 1 but is 0; RAM byte 16 should be 7 but is 0; screen byte 3 should be 129 but is 0.");
   // A run that set nothing says nothing of inputs.
   expect(reportText({ result: "failed", run: "Devices", step: 0, inputs: [], mismatches: [{ name: "out", expected: 3, got: 0 }] }, cpu)).toBe(
-    "Run Devices, step 1 of 1 failed. out should be 3 but is 0.",
+    "Run Devices, step 1 of 2 failed. out should be 3 but is 0.",
   );
 });

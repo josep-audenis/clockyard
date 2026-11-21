@@ -323,17 +323,25 @@ Four questions decide the design:
 
    *As built (step 3):* challenge 10, `challenges/10-cpu.json`, with its
    solution and starter.
-   - **Runs.** Eight, from six programs: a load and `OUT`; additions and
+   - **Runs.** Ten, from eight programs: a load and `OUT`; additions and
      subtractions whose jumps are taken only with the right flags; stores
      and loads; a loop as long as the key, with keys 3 and 9; a branch on
-     the key, with keys 4 and 200; and the reserved addresses, `NOP` and
-     the screen. Each is one step: the key set, cycles until `halt` (the
-     model's own count and 20 more), then `out` and every byte stored.
+     the key, with keys 4 and 200; flags kept by the instructions that do
+     not set them, and set by `ADD` and `SUB` of a RAM byte; the reserved
+     opcodes D to F, which have no assembly; and the reserved addresses,
+     `NOP` and the screen. Only the two programs that read the key run
+     with more than one, not each program as item 4 said.
+   - **Steps.** Each run has two: the key set (if the program reads it)
+     and cycles until `halt`, the model's own count and 20 more, then
+     `out` and every byte stored; then four more cycles, after which
+     `out`, `halt`, `fetch` at 0 and the bytes must be as they were.
    - **The model** is `scripts/cpu-runs.mjs`, instruction by instruction.
      The words are written by hand there, and `challenges.rs` holds them
      to `asm::assemble` of their source and the reference CPU to every
-     run. A CPU whose carry is wired from the zero logic fails the flags
-     run.
+     run. Nine CPUs with one thing miswired each fail: review found five
+     of them passing the first eight runs (OUT loading on every
+     instruction, a halt that stops nothing, C reloaded by loads, `fetch`
+     stuck), which the flags run and the step past the halt now catch.
    - **The starter** is the bench with the CPU's pins only and the
      building blocks, so its main sheet is a computer to run the CPU in.
      ADR 0025's "only the pins" holds for the definition; the main sheet
@@ -342,10 +350,10 @@ Four questions decide the design:
      which a native test holds, so a missing pin is named as a pin.
    - **The editor** reads the bench a challenge names
      (`storage/challenges.ts`, `benchOf`), projects it and passes it to the
-     check. A failure reads "Run Store and load, step 1 of 1 failed. With
-     key = 0: RAM byte 16 should be 7 but is 0." A Playwright test opens the
+     check. A failure reads "Run Store and load, step 1 of 2 failed.
+     RAM byte 16 should be 7 but is 0." A Playwright test opens the
      challenge, fails its starter, and passes the reference CPU through
-     the Check button: 8 of 8.
+     the Check button: 20 of 20 steps.
    - The bench's parts are spread out when written, after it was first
      seen in the editor.
 

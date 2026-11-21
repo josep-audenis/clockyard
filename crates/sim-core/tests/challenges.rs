@@ -765,11 +765,22 @@ fn every_run_holds_its_program_as_assembled_and_names_the_pins_of_its_bench() {
     }
 }
 
-#[test]
-fn a_cpu_with_one_wrong_wire_fails_the_challenge() {
-    // The reference CPU with its carry flag fed from the zero flag's input: only programs that use C notice.
-    let c = challenge("10-cpu");
-    let mut wrong = solution("10-cpu");
+/// The reference CPU with the wire into `to` (a part's port inside `cpu`) taken from `from` instead.
+fn rewired(to: (&str, &str), from: (&str, &str)) -> CircuitDescription {
+    rewire(solution("10-cpu"), to, from)
+}
+
+fn rewire(
+    mut wrong: CircuitDescription,
+    to: (&str, &str),
+    from: (&str, &str),
+) -> CircuitDescription {
+    let port = |(component, port): (&str, &str)| {
+        Endpoint::Port(PortRef {
+            component: component.into(),
+            port: port.into(),
+        })
+    };
     let cpu = wrong
         .definitions
         .iter_mut()
@@ -778,19 +789,46 @@ fn a_cpu_with_one_wrong_wire_fails_the_challenge() {
     let wire = cpu
         .connections
         .iter_mut()
-        .find(|w| {
-            w.to == Endpoint::Port(PortRef {
-                component: "c".into(),
-                port: "d".into(),
-            })
-        })
-        .expect("the wire into C");
-    wire.from = Endpoint::Port(PortRef {
-        component: "isz".into(),
-        port: "out".into(),
-    });
-    match report(&wrong, &c) {
-        Report::Failed { run, .. } => assert_eq!(run.as_deref(), Some("Add, subtract and flags")),
-        other => panic!("expected a failed run, got {other:?}"),
+        .find(|w| w.to == port(to))
+        .unwrap_or_else(|| panic!("a wire into {to:?}"));
+    wire.from = port(from);
+    wrong
+}
+
+#[test]
+fn a_cpu_with_one_wrong_wire_fails_the_challenge() {
+    let c = challenge("10-cpu");
+    // What is miswired. `one.out` is the constant 1 inside the CPU. Each passed every run before
+    // the run "Flags are kept" and the step past the halt were added, except the first.
+    let mutants = [
+        // The carry fed from the zero logic.
+        (("c", "d"), ("isz", "out")),
+        // OUT loads on every execute, or on every cycle.
+        (("outr", "en"), ("exec", "out")),
+        (("outr", "en"), ("one", "out")),
+        // C reloaded by every load, or by every instruction.
+        (("c", "en"), ("aen", "out")),
+        (("c", "en"), ("exec", "out")),
+        // Z reloaded by every instruction; loads that do not set Z.
+        (("z", "en"), ("exec", "out")),
+        (("z", "en"), ("cen", "out")),
+        // The fetch pin stuck at 1.
+        (("fetch", "in"), ("one", "out")),
+    ];
+    for (to, from) in mutants {
+        let report = report(&rewired(to, from), &c);
+        assert!(
+            matches!(report, Report::Failed { .. }),
+            "{to:?} from {from:?}: {report:?}"
+        );
     }
+    // A halt that lights but stops nothing: the phase keeps turning, and fetch and execute go on.
+    let one = ("one", "out");
+    let running = rewire(
+        rewire(rewired(("t", "en"), one), ("fetchg", "b"), one),
+        ("exec", "b"),
+        one,
+    );
+    let report = report(&running, &c);
+    assert!(matches!(report, Report::Failed { .. }), "{report:?}");
 }

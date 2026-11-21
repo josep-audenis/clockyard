@@ -1703,7 +1703,13 @@ function ChallengePanel() {
     setChecked(null);
     const state = useEditor.getState();
     const definitions = liveDefinitions(state);
-    const report = await check(project(mainCircuit(state), definitions), challenge, benchOf(challenge));
+    let report: Report;
+    try {
+      report = await check(project(mainCircuit(state), definitions), challenge, benchOf(challenge));
+    } catch (error) {
+      // A bench that does not open is the bundle's fault; the button must still work afterwards.
+      report = { result: "refused", reason: `Could not check: ${error instanceof Error ? error.message : String(error)}` };
+    }
     checking.current = false;
     if (report.result === "passed") void recordPass(entry.name);
     setChecked({ report, circuits: definitions.map((d) => d.circuit) });

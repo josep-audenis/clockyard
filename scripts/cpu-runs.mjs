@@ -65,12 +65,13 @@ export function execute(words, key = 0, limit = 400) {
 }
 
 /**
- * One run of a challenge: `words` (omitted when the user's own program is run) with `key` held,
- * until the CPU halts, then OUT and every byte the program stored. `budget` is the model's own
- * cycles and some more, so a correct circuit halts well inside it.
+ * One run of a challenge: `words` (omitted when the user's own program is run) with `key` held
+ * (undefined for a program that never reads it), until the CPU halts, then OUT and every byte the
+ * program stored. The cycles allowed are the model's own and some more, so a correct circuit halts
+ * well inside them. A second step clocks on past the halt: nothing may change, and `fetch` stays 0.
  */
 export function run(name, words, key, { source, program = words } = {}) {
-  const end = execute(program, key);
+  const end = execute(program, key ?? 0);
   if (!end.halted) throw new Error(`${name} does not halt in the model`);
   const memory = {
     ...(Object.keys(end.ram).length > 0 && { ram: end.ram }),
@@ -88,12 +89,14 @@ export function run(name, words, key, { source, program = words } = {}) {
         expect: { out: end.out },
         ...(Object.keys(memory).length > 0 && { memory }),
       },
+      { cycles: 4, expect: { out: end.out, halt: 1, fetch: 0 }, ...(Object.keys(memory).length > 0 && { memory }) },
     ],
   };
 }
 
 // Challenge 10's programs: source as the assembler reads it, and its words written out by hand.
-// crates/sim-core/tests/challenges.rs fails if `asm::assemble(source)` is not `words`.
+// crates/sim-core/tests/challenges.rs fails if `asm::assemble(source)` is not `words`. One program
+// has no source: the assembler has no name for the reserved opcodes.
 const PROGRAMS = [
   { name: "Load and show", source: "LDI 5\nOUT\nHLT", words: [0x1005, 0xb000, 0xc000] },
   {
@@ -121,6 +124,20 @@ const PROGRAMS = [
     keys: [4, 200],
   },
   {
+    // Z and C survive every instruction that does not set them (LDI and LDA leave C; STA, OUT, NOP and
+    // jumps leave both); ADD and SUB of a RAM byte set them; A changes after an OUT, which must not
+    // show; and the words after the HLT would change OUT if the CPU did not stop.
+    name: "Flags are kept",
+    source:
+      "LDI 200\nADI 100\nSTA 16\nLDI 0\nSTA 17\nOUT\nNOP\nJC 9\nHLT\nJZ 11\nHLT\nLDA 16\nADD 16\nJC 23\nSUB 16\nSUB 16\nJZ 18\nHLT\nJC 20\nHLT\nLDI 6\nOUT\nLDI 9\nHLT\nLDI 8\nOUT",
+    words: [0x10c8, 0x6064, 0x3010, 0x1000, 0x3011, 0xb000, 0x0000, 0xa009, 0xc000, 0x900b, 0xc000, 0x2010, 0x4010, 0xa017, 0x5010, 0x5010, 0x9012, 0xc000, 0xa014, 0xc000, 0x1006, 0xb000, 0x1009, 0xc000, 0x1008, 0xb000],
+  },
+  {
+    // Opcodes D, E and F do nothing, whatever their other bits.
+    name: "Reserved opcodes",
+    words: [0x1005, 0xd000, 0xe0ff, 0xf012, 0xb000, 0xc000],
+  },
+  {
     // A reserved address stores nothing and reads 0; NOP does nothing; the screen is reached through SPTR.
     name: "Devices",
     source: "LDI 9\nSTA 0xF0\nNOP\nLDA 0xF0\nJZ 6\nHLT\nLDI 3\nSTA 0xFE\nLDI 0x81\nSTA 0xFD\nLDA 0xFE\nOUT\nHLT",
@@ -130,5 +147,5 @@ const PROGRAMS = [
 
 /** Challenge 10's runs: each program once, or once for each of its keys. */
 export const cpuRuns = PROGRAMS.flatMap(({ name, source, words, keys }) =>
-  keys ? keys.map((key) => run(`${name}, key ${key}`, words, key, { source })) : [run(name, words, 0, { source })],
+  keys ? keys.map((key) => run(`${name}, key ${key}`, words, key, { source })) : [run(name, words, undefined, { source })],
 );

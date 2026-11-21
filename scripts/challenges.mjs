@@ -551,9 +551,11 @@ const benchChallenges = [
       "Build a CPU that runs programs. Each instruction is a 16-bit word: its top four bits are the opcode and its low eight the operand n. " +
       "It takes two clock cycles. In the first, the word on instr is kept and PC goes up by one; in the second, the instruction is carried out. " +
       `The opcodes: ${INSTRUCTIONS}. D to F do nothing. ` +
-      "Loads, additions and subtractions set Z when A becomes 0. Additions set C on a carry; subtractions set C when nothing is borrowed. " +
+      "A and PC are 8 bits and wrap; everything starts at 0. " +
+      "Whenever A is loaded (LDI, LDA and the four additions and subtractions), Z becomes 1 if the new A is 0, else 0. " +
+      "An addition makes C 1 on a carry, else 0; a subtraction makes C 1 when nothing is borrowed, else 0. Every other instruction leaves Z and C as they are, and LDI and LDA leave C. " +
       "pc is the address of the next word. For RAM[n], put n on addr: the byte there arrives on din. To store, hold A on dout and we at 1 through the second cycle. " +
-      "fetch is 1 during a first cycle. Once halted, halt is 1 and nothing changes. " +
+      "we is 0 at any other time. fetch is 1 during a first cycle. Once halted, halt is 1, fetch is 0 and nothing changes. " +
       "Registers, a multiplexer and an 8-bit adder are provided, and a ROM can decode the opcode. The main sheet is a computer to run your CPU in.",
     parts: [...GATES, "dff", "split", "merge", "rom"],
     runs: cpuRuns,
