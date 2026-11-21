@@ -100,6 +100,13 @@ pub struct Mismatch {
     pub name: String,
     pub expected: u32,
     pub got: u32,
+    /// The bits of `got` that are not known (ADR 0035): `X` where `got` has a 1, `Z` where it has a 0.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub unknown: u32,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -330,19 +337,21 @@ enum Problem {
 fn bench_step(sim: &mut Simulator, step: &Step) -> Result<Vec<Mismatch>, Problem> {
     let settle = |result: Result<Option<crate::Diagnostic>, String>| match result {
         Err(message) => Err(Problem::Fault(message)),
-        Ok(Some(d)) => Err(Problem::Unsettled(d.message)),
-        Ok(None) => Ok(()),
+        Ok(Some(d)) if d.is_error() => Err(Problem::Unsettled(d.message)),
+        // A warning that a loop's X remains stops nothing: the X fails what is compared.
+        Ok(_) => Ok(()),
     };
+    // An LED's value and its unknown bits.
     let led = |sim: &Simulator, name: &str| {
         let net = sim.port_nets().get(name).and_then(|ports| ports.get("in"));
-        net.map(|&net| sim.nets()[net as usize])
+        net.map(|&net| (sim.nets()[net as usize], sim.unknown()[net as usize]))
             .ok_or_else(|| Problem::Fault(format!("the bench has no LED {name}")))
     };
     let values: Vec<(&str, u32)> = step.set.iter().map(|(n, &v)| (n.as_str(), v)).collect();
     settle(sim.set_inputs(&values))?;
     for _ in 0..step.cycles {
         if let Some(until) = &step.until
-            && led(sim, until)? == 1
+            && led(sim, until)? == (1, 0)
         {
             break;
         }
@@ -351,12 +360,13 @@ fn bench_step(sim: &mut Simulator, step: &Step) -> Result<Vec<Mismatch>, Problem
         }
     }
     let mut mismatches = Vec::new();
-    let mut compare = |name: String, expected: u32, got: u32| {
-        if got != expected {
+    let mut compare = |name: String, expected: u32, (got, unknown): (u32, u32)| {
+        if got != expected || unknown != 0 {
             mismatches.push(Mismatch {
                 name,
                 expected,
                 got,
+                unknown,
             });
         }
     };
@@ -367,14 +377,15 @@ fn bench_step(sim: &mut Simulator, step: &Step) -> Result<Vec<Mismatch>, Problem
         compare(name.clone(), expected, led(sim, name)?);
     }
     for (part, bytes) in &step.memory {
-        let Some(words) = sim.memory(part) else {
+        let (Some(words), Some(unknown)) = (sim.memory(part), sim.memory_unknown(part)) else {
             return Err(Problem::Fault(format!("the bench has no memory {part}")));
         };
         for (&address, &expected) in bytes {
             let Some(&got) = words.get(address as usize) else {
                 return Err(Problem::Fault(format!("{part} has no address {address}")));
             };
-            compare(format!("{part}[{address}]"), expected, got);
+            let unknown = unknown.get(address as usize).copied().unwrap_or(0);
+            compare(format!("{part}[{address}]"), expected, (got, unknown));
         }
     }
     Ok(mismatches)
@@ -524,14 +535,14 @@ fn run(bench: &CircuitDescription, challenge: &Challenge) -> Result<Report, Repo
             Err(message) => {
                 return Err(refused(format!("Step {}: {}", step + 1, plain(&message))));
             }
-            Ok(Some(d)) => {
+            Ok(Some(d)) if d.is_error() => {
                 return Err(refused(format!(
                     "At step {} the circuit did not settle: {}",
                     step + 1,
                     plain(&d.message)
                 )));
             }
-            Ok(None) => {}
+            Ok(_) => {}
         }
         let mut mismatches = Vec::new();
         for output in &challenge.outputs {
@@ -539,12 +550,13 @@ fn run(bench: &CircuitDescription, challenge: &Challenge) -> Result<Report, Repo
                 continue;
             };
             let net = sim.port_nets()[format!("output:{}", output.name).as_str()]["in"];
-            let got = sim.nets()[net as usize];
-            if got != expected {
+            let (got, unknown) = (sim.nets()[net as usize], sim.unknown()[net as usize]);
+            if got != expected || unknown != 0 {
                 mismatches.push(Mismatch {
                     name: output.name.clone(),
                     expected,
                     got,
+                    unknown,
                 });
             }
         }

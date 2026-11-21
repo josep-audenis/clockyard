@@ -128,7 +128,8 @@ fn a_failed_step_names_its_inputs_and_the_outputs_that_differ() {
             mismatches: vec![Mismatch {
                 name: "Y".into(),
                 expected: 1,
-                got: 0
+                got: 0,
+                unknown: 0,
             }],
         }
     );
@@ -412,17 +413,20 @@ fn the_reference_cpu_passes_runs_on_its_bench_and_the_empty_slot_fails_them() {
                 Mismatch {
                     name: "halt".into(),
                     expected: 1,
-                    got: 0
+                    got: 0,
+                    unknown: 0,
                 },
                 Mismatch {
                     name: "out".into(),
                     expected: 12,
-                    got: 0
+                    got: 0,
+                    unknown: 0,
                 },
                 Mismatch {
                     name: "ram[16]".into(),
                     expected: 12,
-                    got: 0
+                    got: 0,
+                    unknown: 0,
                 },
             ],
         }
@@ -445,7 +449,8 @@ fn a_run_that_does_not_halt_in_its_cycles_fails_and_a_wrong_byte_is_named() {
             mismatches: vec![Mismatch {
                 name: "halt".into(),
                 expected: 1,
-                got: 0
+                got: 0,
+                unknown: 0,
             }],
         }
     );
@@ -463,7 +468,8 @@ fn a_run_that_does_not_halt_in_its_cycles_fails_and_a_wrong_byte_is_named() {
             mismatches: vec![Mismatch {
                 name: "ram[3]".into(),
                 expected: 8,
-                got: 9
+                got: 9,
+                unknown: 0,
             }],
         }
     );
@@ -663,7 +669,8 @@ fn the_bench_keeps_its_own_definitions_whatever_the_document_holds() {
             mismatches: vec![Mismatch {
                 name: "screen[7]".into(),
                 expected: 129,
-                got: 0
+                got: 0,
+                unknown: 0,
             }],
         }
     );
@@ -714,7 +721,8 @@ fn until_runs_no_cycle_once_its_led_is_lit_and_a_failed_step_reports_what_it_set
             mismatches: vec![Mismatch {
                 name: "out".into(),
                 expected: 4,
-                got: 3
+                got: 3,
+                unknown: 0,
             }],
         }
     );

@@ -8,6 +8,24 @@ use serde_json::{Value, json};
 use sim_core::description::{ComponentDesc, Connection, Endpoint, PortRef};
 use sim_core::{CircuitDescription, Code, Simulator};
 
+/// The waves with no unknown bit anywhere, as `(time, value)`: what these tests are about (ADR 0035 added the third word).
+trait KnownWaves {
+    fn known_waves(&self) -> Vec<Vec<(u64, u32)>>;
+}
+
+impl KnownWaves for Simulator {
+    fn known_waves(&self) -> Vec<Vec<(u64, u32)>> {
+        let known = |&(t, v, u): &(u64, u32, u32)| {
+            assert_eq!(u, 0, "an unknown bit at tick {t}");
+            (t, v)
+        };
+        self.waves()
+            .iter()
+            .map(|w| w.iter().map(known).collect())
+            .collect()
+    }
+}
+
 fn port(spec: &str) -> Endpoint {
     let (component, port) = spec.split_once('.').expect("component.port");
     Endpoint::Port(PortRef {
@@ -387,13 +405,13 @@ fn records_are_kept_and_follow_their_wires_when_nets_split_or_join() {
     sim.watch_wires(&["w-q", "w-out", "w-count"]);
     sim.tick(6);
     // `w-q` and `w-out` share the register's net: one record.
-    let before = sim.waves();
+    let before = sim.known_waves();
     assert_eq!(before.len(), 2);
     assert_eq!(before[0], [(0, 0), (1, 1), (3, 2), (5, 3)]);
 
     // Kept as it was across an edit that leaves the nets alone.
     let kept = keep(&counter_with_led(), &sim);
-    assert_eq!(kept.waves(), before);
+    assert_eq!(kept.known_waves(), before);
 
     // Split: `w-out` now comes from `count`. Both halves show the register's history; the `count` net, whose first
     // watched wire is now `w-out`, takes it too.
@@ -408,7 +426,7 @@ fn records_are_kept_and_follow_their_wires_when_nets_split_or_join() {
             c.width = None;
         }
     }
-    let waves = keep(&split, &sim).waves();
+    let waves = keep(&split, &sim).known_waves();
     assert_eq!(waves.len(), 2);
     assert_eq!(waves[0], before[0]);
     assert_eq!(waves[1][..4], before[0][..]);
@@ -425,10 +443,10 @@ fn records_are_kept_and_follow_their_wires_when_nets_split_or_join() {
     // Watching by net forgets the wires, so a kept load would carry no record.
     sim2.watch_wires(&["w-q"]);
     sim2.watch(&[sim2.wire_nets()["w-q"]]).unwrap();
-    assert!(keep(&counter_with_led(), &sim2).waves().is_empty());
+    assert!(keep(&counter_with_led(), &sim2).known_waves().is_empty());
     sim2.watch_wires(&["w-count", "w-q"]);
     sim2.tick(6);
-    let count_history = sim2.waves()[0].clone();
+    let count_history = sim2.known_waves()[0].clone();
     let mut joined = description(&example("8-bit-counter"));
     joined.components.push(part("extra", "led"));
     for w in &mut joined.connections {
@@ -437,6 +455,6 @@ fn records_are_kept_and_follow_their_wires_when_nets_split_or_join() {
             w.to = port("extra.in");
         }
     }
-    let waves = keep(&joined, &sim2).waves();
+    let waves = keep(&joined, &sim2).known_waves();
     assert_eq!(waves, [count_history]);
 }

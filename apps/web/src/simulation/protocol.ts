@@ -36,6 +36,9 @@ export type Diagnostic = {
   ids: string[];
 };
 
+/** How many numbers a waveform trace holds for each change: its tick, its value, its unknown bits (ADR 0035). */
+export const WAVE_STRIDE = 3;
+
 export type Command =
   /**
    * `keep`: an edit's load, which carries time and state from the circuit simulated before it, or from the last one
@@ -110,7 +113,8 @@ export type Report =
       run?: string;
       step: number;
       inputs: { name: string; value: number }[];
-      mismatches: { name: string; expected: number; got: number }[];
+      /** `unknown`: the bits of `got` that are not known, X where `got` has a 1 and Z where it has a 0 (ADR 0035). */
+      mismatches: { name: string; expected: number; got: number; unknown?: number }[];
     }
   | { result: "refused"; reason: string };
 
@@ -135,24 +139,25 @@ export type Result =
       netDrivers: (string | null)[];
       diagnostics: Diagnostic[];
     }
-  /** `nets`: each net's value, cut to its width. */
   /**
+   * `nets`: each net's value, cut to its width. `unknown`: each net's unknown bits, X where the value has a 1 and Z
+   * where it has a 0 (ADR 0035); empty while no bit is unknown.
    * `time`: virtual time in ticks (cycle count `(time + 1) / 2`); `running`: whether a run is under way.
    * `stopped`: why the last run ended by itself (ADR 0021), on every state until the next load, Run, Pause,
    * Step or Reset; never for a pause.
    */
-  | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[]; time: number; running: boolean; stopped?: Stopped }
+  | { type: "state"; nets: Uint32Array; unknown: Uint32Array; diagnostics: Diagnostic[]; time: number; running: boolean; stopped?: Stopped }
   /** `errors` empty: the source assembled to `words` (empty for an empty program). */
   | { type: "assembled"; request: number; words: number[]; errors: AsmError[] }
   | { type: "disassembled"; request: number; lines: string[] }
   | { type: "checked"; request: number; report: Report }
   /**
-   * `nets`: the watched nets, each once; `traces[i]`: net `nets[i]`'s changes as `[t0, v0, t1, v1, …]`, oldest
-   * first, the first in force when the 4,096-tick window starts (ADR 0026). `time`: ticks, as in `state`.
+   * `nets`: the watched nets, each once; `traces[i]`: net `nets[i]`'s changes as `[t0, v0, u0, t1, v1, u1, …]`
+   * (time, value, unknown bits: `WAVE_STRIDE` numbers each, ADR 0035), oldest first, the first in force when the 4,096-tick window starts (ADR 0026). `time`: ticks, as in `state`.
    */
   | { type: "waves"; time: number; nets: number[]; traces: Float64Array[] }
-  /** `words`: empty when the component is not a memory or nothing is loaded. */
-  | { type: "memory"; component: string; words: Uint32Array }
+  /** `words`: empty when the component is not a memory or nothing is loaded. `unknown`: their unknown bits, empty while every word is known (ADR 0035). */
+  | { type: "memory"; component: string; words: Uint32Array; unknown: Uint32Array }
   /**
    * `load`: the failing command was a load, which then gets no `loaded` reply.
    * `running`: whether a run is still under way after the failure (ADR 0017).

@@ -271,13 +271,13 @@ type Result =
       portNets: Record<string, Record<string, number>>; // part → port → net; an instance's output pins by name (ADR 0033)
       netDrivers: (string | null)[];      // net → top-level part driving it, null for net 0
       diagnostics: Diagnostic[] }
-  | { type: "state"; nets: Uint32Array; diagnostics: Diagnostic[]; // nets each cut to its width
-      time: number; running: boolean }   // ticks; whether a run is under way
-  | { type: "memory"; component: string; words: Uint32Array } // empty when not a memory
+  | { type: "state"; nets: Uint32Array; unknown: Uint32Array; diagnostics: Diagnostic[]; // nets each cut to its width;
+      time: number; running: boolean }   // unknown bits beside them, empty while none (ADR 0035); ticks; whether a run is under way
+  | { type: "memory"; component: string; words: Uint32Array; unknown: Uint32Array } // empty when not a memory; unknown bits, empty while none
   | { type: "assembled"; request: number; words: number[]; errors: { line: number; message: string }[] }
   | { type: "disassembled"; request: number; lines: string[] }
   | { type: "checked"; request: number; report: Report } // passed, failed (first step) or refused (why)
-  | { type: "waves"; time: number; nets: number[]; traces: Float64Array[] } // per net: [t0, v0, t1, v1, …], transferred
+  | { type: "waves"; time: number; nets: number[]; traces: Float64Array[] } // per net: [t0, v0, u0, t1, v1, u1, …] (time, value, unknown bits), transferred
   | { type: "error"; message: string; load?: true; running?: boolean; request?: number }; // load: answers a load; running: after the failure; request: answers that request
 ```
 
@@ -290,7 +290,11 @@ type Result =
   States that arrive while a newer load is pending are dropped.
 - `loaded.diagnostics` holds validation results only. The initial settle's
   runtime result (an unstable loop) arrives with the first `state`, so the
-  settles that follow, such as restored switch positions, replace it.
+  settles that follow, such as restored switch positions, replace it: the
+  `unstable` error with the `unsettled` warning, for as long as the loop's
+  `X` remains (ADR 0035). The status bar reads Unstable for either (Running, while
+  a run goes on past the warning), and the canvas highlights the parts
+  either names.
 - `netDrivers` is for *Make component* (ADR 0016): whether a crossing net's
   driver is inside the selection.
 - A `setInputs` value is a JS number. `sim-wasm` refuses a non-integer, a

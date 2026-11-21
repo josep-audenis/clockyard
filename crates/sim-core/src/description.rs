@@ -309,6 +309,8 @@ pub enum Code {
     InvalidContents,
     // Runtime
     Unstable,
+    /// A warning: a loop that did not settle left outputs at `X` (ADR 0035).
+    Unsettled,
 }
 
 /// A problem pointing at the document IDs (components, wires) involved.
@@ -328,6 +330,11 @@ impl Diagnostic {
             message,
             ids,
         }
+    }
+
+    /// Whether it stops what reported it: a tick, a run, a challenge check.
+    pub fn is_error(&self) -> bool {
+        self.severity == Severity::Error
     }
 
     pub(crate) fn warning(code: Code, message: String, ids: Vec<String>) -> Self {

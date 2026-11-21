@@ -264,7 +264,7 @@ test("a challenge is checked through the boundary: passed, the first failing ste
   expect(() => check("{}", JSON.stringify(challenge))).toThrow("invalid circuit description");
 });
 
-test("watched wires' records cross as interleaved times and values, by net; an unknown wire records nothing (ADR 0026)", () => {
+test("watched wires' records cross as interleaved times, values and unknown bits, by net; an unknown wire records nothing (ADR 0026)", () => {
   const engine = new Engine();
   const loaded = JSON.parse(engine.load(JSON.stringify(andDemo), false)) as Loaded;
   engine.watch(["w3", "w1", "missing"]);
@@ -272,8 +272,8 @@ test("watched wires' records cross as interleaved times and values, by net; an u
   engine.set_inputs(JSON.stringify({ a: 1, b: 1 }));
   engine.tick(3);
   engine.set_inputs(JSON.stringify({ b: 0 }));
-  expect(Array.from(engine.wave(0) ?? [])).toEqual([0, 1, 3, 0]);
-  expect(Array.from(engine.wave(1) ?? [])).toEqual([0, 1]);
+  expect(Array.from(engine.wave(0) ?? [])).toEqual([0, 1, 0, 3, 0, 0]);
+  expect(Array.from(engine.wave(1) ?? [])).toEqual([0, 1, 0]);
   expect(engine.wave(2)).toBeUndefined();
 });
 
@@ -313,4 +313,29 @@ test("a challenge with a bench is checked in the bench's slot, as the editor pro
   // The bench's own document holds the slot empty: nothing halts.
   expect(JSON.parse(check(bench, challenge, bench))).toMatchObject({ result: "failed", run: "Add", step: 0, inputs: [{ name: "key", value: 5 }] });
   expect(() => check(bench, challenge, "{ not json")).toThrow("invalid bench");
+});
+
+test("a loop that does not settle crosses as unknown bits, and nothing unknown crosses as an empty array (ADR 0035)", () => {
+  const engine = new Engine();
+  const end = (component: string, port: string) => ({ component, port });
+  const circuit = {
+    components: [
+      { id: "en", kind: "switch" },
+      { id: "x", kind: "nand" },
+    ],
+    connections: [
+      { id: "w0", from: end("en", "out"), to: end("x", "a") },
+      { id: "w1", from: end("x", "out"), to: end("x", "b") },
+    ],
+  };
+  const loaded = JSON.parse(engine.load(JSON.stringify(circuit), false)) as { wireNets: Record<string, number> };
+  expect(Array.from(engine.unknown())).toEqual([]);
+  const report = JSON.parse(engine.set_input("en", 1)) as { severity: string; code: string }[];
+  expect(report.map((d) => [d.severity, d.code])).toEqual([["error", "unstable"]]);
+  const net = loaded.wireNets.w1 ?? -1;
+  expect([engine.nets()[net], engine.unknown()[net]]).toEqual([1, 1]);
+  // The X remains: a warning, which a run does not stop for.
+  const later = JSON.parse(engine.tick(4)) as { severity: string; code: string }[];
+  expect(later.map((d) => [d.severity, d.code])).toEqual([["warning", "unsettled"]]);
+  expect(engine.time()).toBe(4);
 });

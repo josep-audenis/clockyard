@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { benchOf, CHALLENGES, findChallenge, reportText, starterDocument } from "./challenges";
+import { benchOf, CHALLENGES, findChallenge, reportText, showUnknown, starterDocument } from "./challenges";
 
 const entry = findChallenge("01-inverter");
 if (!entry) throw new Error("the inverter challenge is missing");
@@ -72,4 +72,14 @@ test("a challenge with a bench gets it projected, and its reports name the run a
   expect(reportText({ result: "failed", run: "Devices", step: 0, inputs: [], mismatches: [{ name: "out", expected: 3, got: 0 }] }, cpu)).toBe(
     "Run Devices, step 1 of 3 failed. out should be 3 but is 0.",
   );
+});
+
+test("a value with unknown bits is written with X and Z digits (ADR 0035)", () => {
+  expect(showUnknown(3)).toBe("3");
+  expect(showUnknown(1, 1)).toBe("X");
+  expect(showUnknown(0, 1)).toBe("Z");
+  // 0xF known, then a digit all Z, then one with a single X bit.
+  expect(showUnknown(0x10f, 0x1f0)).toBe("0xXZF");
+  const failed = reportText({ result: "failed", step: 0, inputs: [], mismatches: [{ name: "Y", expected: 1, got: 1, unknown: 1 }] }, inverter);
+  expect(failed).toContain("Y should be 1 but is X.");
 });

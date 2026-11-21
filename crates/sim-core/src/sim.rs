@@ -17,6 +17,154 @@ pub const WAVE_WINDOW: u64 = 4096;
 /// Component ID → port name → net index.
 pub type PortNets = BTreeMap<String, BTreeMap<String, u32>>;
 
+/// A net's two words (ADR 0035): where `u` is 0 the bit is `v`; where it is 1 the bit is `Z` if `v` is 0 and `X`
+/// if `v` is 1. Always cut to the net's width.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct V {
+    v: u32,
+    u: u32,
+}
+
+impl V {
+    /// Every bit `X`, before masking.
+    const UNKNOWN: V = V { v: !0, u: !0 };
+
+    fn known(v: u32) -> V {
+        V { v, u: 0 }
+    }
+
+    /// As a part that computes reads it: a `Z` bit is `X`.
+    fn read(self) -> V {
+        V {
+            v: self.v | self.u,
+            u: self.u,
+        }
+    }
+
+    /// Either of the two: a bit stays only where both are known and equal, and is `X` elsewhere.
+    fn join(self, other: V) -> V {
+        let u = self.u | other.u | (self.v ^ other.v);
+        V {
+            v: self.v | other.v | u,
+            u,
+        }
+    }
+
+    fn mask(self, mask: u32) -> V {
+        V {
+            v: self.v & mask,
+            u: self.u & mask,
+        }
+    }
+
+    /// Bit 0, for a clock, an enable or a write strobe.
+    fn level(self) -> Level {
+        match (self.u & 1, self.v & 1) {
+            (0, 0) => Level::Low,
+            (0, _) => Level::High,
+            _ => Level::Unknown,
+        }
+    }
+}
+
+/// A one-bit input as a part with state sees it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Level {
+    Low,
+    High,
+    Unknown,
+}
+
+/// What a clock did between two evaluations (ADR 0035 item 4).
+enum Edge {
+    None,
+    /// A known 1 after a known 0.
+    Certain,
+    /// The clock is unknown, or 1 after unknown: it may have risen, at any time.
+    Possible,
+}
+
+fn edge(was: Level, now: Level) -> Edge {
+    match (was, now) {
+        (Level::Low, Level::High) => Edge::Certain,
+        (_, Level::Unknown) | (Level::Unknown, Level::High) => Edge::Possible,
+        _ => Edge::None,
+    }
+}
+
+/// A gate's output for inputs already `read`: never more unknown than they force (ADR 0035 item 3).
+fn gate(kind: Kind, a: V, b: V) -> V {
+    if a.u | b.u == 0 {
+        return V::known(kind.gate(a.v, b.v));
+    }
+    // Per bit: known 0, known 1. A read value has `v` set wherever `u` is.
+    let (a0, a1, b0, b1) = (!a.v, a.v & !a.u, !b.v, b.v & !b.u);
+    let known = !(a.u | b.u);
+    let differ = a.v ^ b.v;
+    let (one, zero) = match kind {
+        Kind::Not => (a0, a1),
+        Kind::And => (a1 & b1, a0 | b0),
+        Kind::Nand => (a0 | b0, a1 & b1),
+        Kind::Or => (a1 | b1, a0 & b0),
+        Kind::Nor => (a0 & b0, a1 | b1),
+        Kind::Xor => (differ & known, !differ & known),
+        Kind::Xnor => (!differ & known, differ & known),
+        _ => unreachable!("{} is not a gate", kind.name()),
+    };
+    V {
+        v: !zero,
+        u: !(one | zero),
+    }
+}
+
+/// A RAM cell with its unknown bits; `unknown` is empty while every cell is known.
+fn cell(cells: &[u32], unknown: &[u32], at: usize) -> V {
+    V {
+        v: cells.get(at).copied().unwrap_or(0),
+        u: unknown.get(at).copied().unwrap_or(0),
+    }
+}
+
+fn store(cells: &mut [u32], unknown: &mut Vec<u32>, at: usize, value: V) {
+    if at >= cells.len() {
+        return;
+    }
+    cells[at] = value.v;
+    if value.u != 0 && unknown.is_empty() {
+        unknown.resize(cells.len(), 0);
+    }
+    if let Some(u) = unknown.get_mut(at) {
+        *u = value.u;
+    }
+}
+
+/// A write that may have happened: `data` joined into the cell at `address`, or into every cell if it is unknown.
+fn smear(cells: &mut [u32], unknown: &mut Vec<u32>, address: V, data: V) {
+    let range = if address.u == 0 {
+        address.v as usize..address.v as usize + 1
+    } else {
+        0..cells.len()
+    };
+    for at in range {
+        let joined = cell(cells, unknown, at).join(data);
+        store(cells, unknown, at, joined);
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Set by a test to make every simulator on its thread take the two-word path, to compare with the two-state one.
+    static FORCE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether a test asked for the two-word path everywhere. Never outside tests.
+fn forced() -> bool {
+    #[cfg(test)]
+    return FORCE.with(std::cell::Cell::get);
+    #[cfg(not(test))]
+    false
+}
+
 /// A compiled circuit and its current signal values.
 ///
 /// Parts are indexed in ascending document ID order, so the same description
@@ -30,12 +178,14 @@ pub struct Simulator {
     /// Net → the primitives reading it, each once.
     fanout: Vec<Vec<u32>>,
     nets: Vec<u32>,
+    /// Each net's unknown bits, beside `nets` (ADR 0035).
+    unknown: Vec<u32>,
     wire_nets: BTreeMap<String, u32>,
     wire_widths: BTreeMap<String, u32>,
     port_nets: PortNets,
-    /// Primitives still dirty when the last settle hit its delta limit; the
-    /// next settle resumes them, so a live loop is reported until it resolves.
-    unsettled: Vec<u32>,
+    /// The primitives whose outputs were changing when a settle last hit its delta limit. While any still has an
+    /// `X` bit, every settle warns (ADR 0035 item 8).
+    looping: Vec<u32>,
     /// Virtual time in ticks, one per half clock period: low at even ticks (ADR 0017).
     time: u64,
     /// The clock primitives, set to the clock's level on each tick.
@@ -44,6 +194,10 @@ pub struct Simulator {
     stateful: bool,
     /// Net values as the current settle started: the pre-edge state flip-flops sample.
     snapshot: Vec<u32>,
+    snapshot_unknown: Vec<u32>,
+    /// Whether any bit may be unknown: on a net, in a flip-flop or RAM, or in the snapshot. While it is false every
+    /// evaluation takes the two-state path (ADR 0035 item 11), and `snapshot_unknown` is all zeros.
+    murky: bool,
     /// The watched nets and their recorded changes (ADR 0026).
     traces: Vec<Trace>,
     /// The watched wires, as `watch_wires` was given them; a load that keeps state watches them again (ADR 0033).
@@ -52,13 +206,13 @@ pub struct Simulator {
     sampling: bool,
 }
 
-/// A watched net's changes as `(time, value)`, oldest first: at most one per
-/// tick, each differing from the one before, the first in force when the
-/// window starts.
+/// A watched net's changes as `(time, value, unknown)`, oldest first: at most
+/// one per tick, each differing from the one before, the first in force when
+/// the window starts.
 #[derive(Debug)]
 struct Trace {
     net: u32,
-    changes: VecDeque<(u64, u32)>,
+    changes: VecDeque<(u64, u32, u32)>,
 }
 
 /// What a primitive computes. A split compiles to one `Field` per field; an
@@ -77,7 +231,7 @@ enum Op {
     Clock,
     /// Inputs `d`, `clk`; outputs its state. `clk_was` is the clock value it last saw.
     Dff {
-        clk_was: bool,
+        clk_was: Level,
     },
     /// Input `addr`; outputs the word there (ADR 0018).
     Rom {
@@ -85,9 +239,17 @@ enum Op {
     },
     /// Inputs `addr`, `din`, `we`, `clk`; outputs the cell at `addr`, written on a rising `clk`.
     Ram {
-        cells: Vec<u32>,
-        clk_was: bool,
+        /// Boxed, so that a primitive stays the size it had with one word a cell.
+        memory: Box<Memory>,
+        clk_was: Level,
     },
+}
+
+#[derive(Debug)]
+struct Memory {
+    cells: Vec<u32>,
+    /// The cells' unknown bits; empty while every cell is known.
+    unknown: Vec<u32>,
 }
 
 #[derive(Debug)]
@@ -101,6 +263,8 @@ struct Prim {
     part: u32,
     /// A switch's user-set value, a clock's level, or a flip-flop's stored value.
     state: u32,
+    /// A flip-flop's unknown bits.
+    unknown: u32,
 }
 
 /// A node of the connection graph: a part's port (part, slot) or a junction.
@@ -118,9 +282,10 @@ pub struct Until {
     pub ticks: u64,
     /// Whether it stopped because the watched net rose.
     pub rose: bool,
-    /// The tick that did not settle, if it stopped at one. `rose` can be true
-    /// as well, if the net rose on that same tick.
-    pub unstable: Option<Diagnostic>,
+    /// The tick that did not settle, if it stopped at one (`rose` can be true
+    /// as well, if the net rose on that same tick); else the last tick's
+    /// warning that a loop's `X` remains, which stops nothing.
+    pub diagnostic: Option<Diagnostic>,
 }
 
 /// A runtime diagnostic with its IDs lifted to top-level IDs.
@@ -570,6 +735,7 @@ impl Simulator {
                     mask: mask(ports[c][slot].width),
                     part: c as u32,
                     state: 0,
+                    unknown: 0,
                 });
             };
             match kind {
@@ -577,7 +743,13 @@ impl Simulator {
                 // ADR 0021: a keyboard is a switch the editor sets from the key held.
                 Kind::Switch | Kind::Keyboard => add(Op::Switch, &[], 0),
                 Kind::Clock => add(Op::Clock, &[], 0),
-                Kind::Dff => add(Op::Dff { clk_was: false }, &nets[..2], 2),
+                Kind::Dff => add(
+                    Op::Dff {
+                        clk_was: Level::Low,
+                    },
+                    &nets[..2],
+                    2,
+                ),
                 // ADR 0018: a ROM's words padded to its size; a RAM's cells start at 0.
                 Kind::Rom => {
                     let mut words = shapes[c].data.clone();
@@ -588,8 +760,11 @@ impl Simulator {
                     let cells = vec![0; 1 << shapes[c].address];
                     add(
                         Op::Ram {
-                            cells,
-                            clk_was: false,
+                            memory: Box::new(Memory {
+                                cells,
+                                unknown: Vec::new(),
+                            }),
+                            clk_was: Level::Low,
                         },
                         &nets[..4],
                         4,
@@ -642,14 +817,17 @@ impl Simulator {
             prims,
             fanout,
             nets: vec![0; net_count as usize],
+            unknown: vec![0; net_count as usize],
             wire_nets,
             wire_widths,
             port_nets,
-            unsettled: Vec::new(),
+            looping: Vec::new(),
             time: 0,
             clocks,
             stateful,
             snapshot: Vec::new(),
+            snapshot_unknown: vec![0; net_count as usize],
+            murky: forced(),
             traces: Vec::new(),
             watched: Vec::new(),
             sampling: false,
@@ -657,10 +835,7 @@ impl Simulator {
         if let Some(previous) = previous {
             sim.carry(previous);
         }
-        // A load is never a clock edge: each flip-flop and RAM takes its clock's settled value as the one it last saw.
-        sim.presettle();
-        warnings.extend(sim.settle((0..count).collect()));
-        sim.sampling = true;
+        warnings.extend(sim.settle_fresh());
         Ok((sim, warnings))
     }
 
@@ -693,14 +868,20 @@ impl Simulator {
             match (&mut prim.op, &old.op) {
                 // A switch whose width changed keeps the bits that still fit, as the editor does (ADR 0014).
                 (Op::Switch, Op::Switch) => prim.state = old.state & prim.mask,
-                (Op::Dff { .. }, Op::Dff { .. }) if old.mask == prim.mask => prim.state = old.state,
+                (Op::Dff { .. }, Op::Dff { .. }) if old.mask == prim.mask => {
+                    prim.state = old.state;
+                    prim.unknown = old.unknown;
+                    self.murky |= old.unknown != 0;
+                }
                 (
-                    Op::Ram { cells, .. },
+                    Op::Ram { memory, .. },
                     Op::Ram {
-                        cells: old_cells, ..
+                        memory: old_memory, ..
                     },
-                ) if old.mask == prim.mask && cells.len() == old_cells.len() => {
-                    cells.clone_from(old_cells)
+                ) if old.mask == prim.mask && memory.cells.len() == old_memory.cells.len() => {
+                    memory.cells.clone_from(&old_memory.cells);
+                    memory.unknown.clone_from(&old_memory.unknown);
+                    self.murky |= !old_memory.unknown.is_empty();
                 }
                 _ => {}
             }
@@ -770,8 +951,37 @@ impl Simulator {
             }
         }
         for &p in peeled.iter().rev() {
-            self.nets[p + 1] = self.eval(p);
+            let value = self.eval(p);
+            self.put(p + 1, value);
         }
+    }
+
+    /// Settles from all-zero nets, for a load or a reset. That settle is never a clock edge, certain or possible
+    /// (ADRs 0033, 0035): each flip-flop and RAM takes its clock's settled value as the one it last saw. A clock that
+    /// settles unknown may be toggling, though, so such a part then takes one possible edge against the settled
+    /// data, in an ordinary settle.
+    fn settle_fresh(&mut self) -> Option<Diagnostic> {
+        let count = self.prims.len() as u32;
+        self.sampling = false;
+        self.presettle();
+        let first = self.settle((0..count).collect());
+        self.sampling = true;
+        let adrift: Vec<u32> = (0..count)
+            .filter(|&p| {
+                let prim = &self.prims[p as usize];
+                let clk = match prim.op {
+                    Op::Dff { .. } => prim.inputs[1],
+                    Op::Ram { .. } => prim.inputs[3],
+                    _ => return false,
+                };
+                self.get(clk as usize).level() == Level::Unknown
+            })
+            .collect();
+        if adrift.is_empty() {
+            return first;
+        }
+        let second = self.settle(adrift);
+        first.or(second)
     }
 
     /// Sets a switch to `value` and settles. Refuses a value wider than the
@@ -819,9 +1029,29 @@ impl Simulator {
         Ok(p)
     }
 
-    /// Current value of every net, cut to its width. Net 0 is ground.
+    /// Current value of every net, cut to its width. Net 0 is ground. A bit
+    /// set in `unknown` is not that value: see there.
     pub fn nets(&self) -> &[u32] {
         &self.nets
+    }
+
+    /// Every net's unknown bits, beside `nets` (ADR 0035): where a bit is
+    /// set, the net's bit is `X` if its value bit is 1 and `Z` if it is 0.
+    pub fn unknown(&self) -> &[u32] {
+        &self.unknown
+    }
+
+    fn get(&self, net: usize) -> V {
+        V {
+            v: self.nets[net],
+            u: self.unknown[net],
+        }
+    }
+
+    fn put(&mut self, net: usize, value: V) {
+        self.nets[net] = value.v;
+        self.unknown[net] = value.u;
+        self.murky |= value.u != 0;
     }
 
     /// Wire ID → net index, for coloring wires.
@@ -851,13 +1081,15 @@ impl Simulator {
             .collect()
     }
 
-    fn eval(&self, p: usize) -> u32 {
+    /// `eval` while nothing is unknown: one word, as before ADR 0035.
+    #[inline]
+    fn eval_known(&self, p: usize) -> u32 {
         let prim = &self.prims[p];
         let input = |i: usize| prim.inputs.get(i).map_or(0, |&net| self.nets[net as usize]);
         let value = match &prim.op {
             Op::Switch | Op::Clock | Op::Dff { .. } => prim.state,
             Op::Rom { words } => words.get(input(0) as usize).copied().unwrap_or(0),
-            Op::Ram { cells, .. } => cells.get(input(0) as usize).copied().unwrap_or(0),
+            Op::Ram { memory, .. } => memory.cells.get(input(0) as usize).copied().unwrap_or(0),
             Op::Gate(kind) => kind.gate(input(0), input(1)),
             Op::Field { shift } => input(0) >> shift,
             Op::Merge { shifts } => shifts
@@ -868,36 +1100,177 @@ impl Simulator {
         value & prim.mask
     }
 
+    fn eval(&self, p: usize) -> V {
+        if !self.murky {
+            return V::known(self.eval_known(p));
+        }
+        let prim = &self.prims[p];
+        let input = |i: usize| {
+            prim.inputs
+                .get(i)
+                .map_or(V::default(), |&net| self.get(net as usize).read())
+        };
+        let value = match &prim.op {
+            Op::Switch | Op::Clock => V::known(prim.state),
+            Op::Dff { .. } => V {
+                v: prim.state,
+                u: prim.unknown,
+            },
+            // An address with an unknown bit could be any word.
+            Op::Rom { words } => match input(0) {
+                V { v, u: 0 } => V::known(words.get(v as usize).copied().unwrap_or(0)),
+                _ => V::UNKNOWN,
+            },
+            Op::Ram { memory, .. } => match input(0) {
+                V { v, u: 0 } => cell(&memory.cells, &memory.unknown, v as usize),
+                _ => V::UNKNOWN,
+            },
+            Op::Gate(kind) => gate(*kind, input(0), input(1)),
+            Op::Field { shift } => {
+                let whole = input(0);
+                V {
+                    v: whole.v >> shift,
+                    u: whole.u >> shift,
+                }
+            }
+            Op::Merge { shifts } => {
+                shifts
+                    .iter()
+                    .enumerate()
+                    .fold(V::default(), |value, (i, shift)| {
+                        let field = input(i);
+                        V {
+                            v: value.v | field.v << shift,
+                            u: value.u | field.u << shift,
+                        }
+                    })
+            }
+        };
+        value.mask(prim.mask)
+    }
+
     /// A flip-flop that sees `clk` at 1 after a 0 takes `d` from the net values
-    /// the settle started from, never from this edge's new data (ADR 0017).
-    fn clock_edge(&mut self, p: usize) {
+    /// the settle started from, never from this edge's new data (ADR 0017). With
+    /// an unknown clock it cannot tell whether it sampled, or when: its bits
+    /// that differ from `d`, as the settle started or now, become `X`; a RAM
+    /// does the same to the cells that may have been written (ADR 0035 item 4).
+    /// While `marking`, a certain edge too only makes bits unknown (item 8).
+    fn clock_edge(&mut self, p: usize, marking: bool) {
+        // From here a bit may become unknown: a part that last saw its clock unknown takes a possible edge.
+        self.murky = true;
+        let prim = &self.prims[p];
+        let clk = match prim.op {
+            Op::Dff { .. } => 1,
+            Op::Ram { .. } => 3,
+            _ => return,
+        };
+        let before = |slot: usize| {
+            let net = prim.inputs[slot] as usize;
+            V {
+                v: self.snapshot[net],
+                u: self.snapshot_unknown[net],
+            }
+            .read()
+        };
+        let now = |slot: usize| self.get(prim.inputs[slot] as usize).read();
+        let level = now(clk).level();
+        // What the part reads, as the settle started and now: `d`; or `addr`, `din`, `we`.
+        let (first, second) = (before(0), now(0));
+        let ram = matches!(prim.op, Op::Ram { .. }).then(|| (before(1), now(1), before(2), now(2)));
         let sampling = self.sampling;
         let prim = &mut self.prims[p];
-        let before = |slot: usize| self.snapshot[prim.inputs[slot] as usize];
+        let mask = prim.mask;
         match &mut prim.op {
             Op::Dff { clk_was } => {
-                let clk = self.nets[prim.inputs[1] as usize] == 1;
-                if sampling && clk && !*clk_was {
-                    prim.state = before(0) & prim.mask;
+                let state = V {
+                    v: prim.state,
+                    u: prim.unknown,
+                };
+                let next = match edge(*clk_was, level) {
+                    _ if !sampling => state,
+                    Edge::None => state,
+                    Edge::Certain if marking => state.join(first),
+                    Edge::Certain => first,
+                    Edge::Possible => state.join(first).join(second),
                 }
-                *clk_was = clk;
+                .mask(mask);
+                (prim.state, prim.unknown) = (next.v, next.u);
+                *clk_was = level;
             }
             // A RAM writes `din` at `addr` when `we` was set, all three as the settle started (ADR 0018). At a load
             // `we` reads 0 anyway (nothing feeding a RAM is pre-settled); `sampling` keeps that true if presettle changes.
-            Op::Ram { cells, clk_was } => {
-                let clk = self.nets[prim.inputs[3] as usize] == 1;
+            Op::Ram { memory, clk_was } => {
+                let Memory { cells, unknown } = &mut **memory;
+                let (din, din_now, we, we_now) = ram.expect("a RAM's inputs");
+                let (din, din_now) = (din.mask(mask), din_now.mask(mask));
+                match edge(*clk_was, level) {
+                    _ if !sampling => {}
+                    Edge::None => {}
+                    Edge::Certain => match we.level() {
+                        Level::Low => {}
+                        Level::High if first.u == 0 && !marking => {
+                            store(cells, unknown, first.v as usize, din)
+                        }
+                        _ => smear(cells, unknown, first, din),
+                    },
+                    Edge::Possible => {
+                        if (we.level(), we_now.level()) != (Level::Low, Level::Low) {
+                            for address in [first, second] {
+                                for data in [din, din_now] {
+                                    smear(cells, unknown, address, data);
+                                }
+                            }
+                        }
+                    }
+                }
+                *clk_was = level;
+            }
+            _ => {}
+        }
+    }
+
+    /// `clock_edge` while nothing is unknown: an edge is certain or is none, as before ADR 0035. Returns false,
+    /// doing nothing, for a part that last saw its clock unknown, which is a possible edge.
+    #[inline]
+    fn clock_edge_known(&mut self, p: usize) -> bool {
+        let sampling = self.sampling;
+        let prim = &mut self.prims[p];
+        let level = |net: u32| match self.nets[net as usize] & 1 {
+            0 => Level::Low,
+            _ => Level::High,
+        };
+        let before = |net: u32| self.snapshot[net as usize];
+        match &mut prim.op {
+            Op::Dff { clk_was } => {
+                // Defensive: with every net known, a part has already seen its clock known.
+                if *clk_was == Level::Unknown {
+                    return false;
+                }
+                let clk = level(prim.inputs[1]);
+                if sampling && clk == Level::High && *clk_was == Level::Low {
+                    prim.state = before(prim.inputs[0]) & prim.mask;
+                }
+                *clk_was = clk;
+            }
+            Op::Ram { memory, clk_was } => {
+                let Memory { cells, unknown } = &mut **memory;
+                if *clk_was == Level::Unknown {
+                    return false;
+                }
+                let clk = level(prim.inputs[3]);
                 if sampling
-                    && clk
-                    && !*clk_was
-                    && before(2) == 1
-                    && let Some(cell) = cells.get_mut(before(0) as usize)
+                    && clk == Level::High
+                    && *clk_was == Level::Low
+                    && before(prim.inputs[2]) & 1 == 1
                 {
-                    *cell = before(1) & prim.mask;
+                    let data = V::known(before(prim.inputs[1]) & prim.mask);
+                    store(cells, unknown, before(prim.inputs[0]) as usize, data);
                 }
                 *clk_was = clk;
             }
             _ => {}
         }
+        true
     }
 
     /// The words of ROM or RAM `component`, by elaborated ID (`instance/ram`
@@ -912,66 +1285,89 @@ impl Simulator {
             .find(|p| p.part as usize == c)
             .and_then(|p| match &p.op {
                 Op::Rom { words } => Some(words.as_slice()),
-                Op::Ram { cells, .. } => Some(cells.as_slice()),
+                Op::Ram { memory, .. } => Some(memory.cells.as_slice()),
+                _ => None,
+            })
+    }
+
+    /// The unknown bits of memory `component`'s words, beside `memory`: empty
+    /// while every word is known, as a ROM's always are (ADR 0035).
+    pub fn memory_unknown(&self, component: &str) -> Option<&[u32]> {
+        let c = self
+            .ids
+            .binary_search_by(|id| id.as_str().cmp(component))
+            .ok()?;
+        self.prims
+            .iter()
+            .find(|p| p.part as usize == c)
+            .and_then(|p| match &p.op {
+                Op::Rom { .. } => Some(&[][..]),
+                Op::Ram { memory, .. } => Some(memory.unknown.as_slice()),
                 _ => None,
             })
     }
 
     /// Advances the clock `count` ticks, settling after each. Stops at the
-    /// first tick that does not settle and returns its diagnostic.
+    /// first tick that does not settle and returns its error. Otherwise
+    /// returns the last tick's warning, if a loop's `X` remains (ADR 0035).
     pub fn tick(&mut self, count: u64) -> Option<Diagnostic> {
         if self.clocks.is_empty() {
-            // Nothing changes, except a loop still oscillating: resumed and reported on the first tick, as
-            // any settle does, so time stops there whatever `count` was.
-            if self.unsettled.is_empty() || count == 0 {
-                self.time = self.time.saturating_add(count);
-                // No value changes; this only moves the waveform window along.
-                self.record();
-                return None;
-            }
-            self.time = self.time.saturating_add(1);
-            return self.settle(Vec::new()).map(lift_one);
+            // Nothing changes: a loop that did not settle is settled at `X` (ADR 0035).
+            self.time = self.time.saturating_add(count);
+            // This only moves the waveform window along.
+            self.record();
+            return self.standing().map(lift_one);
         }
+        let mut last = None;
         for _ in 0..count {
             self.time = self.time.saturating_add(1);
             let level = (self.time % 2) as u32;
             for &p in &self.clocks {
                 self.prims[p as usize].state = level;
             }
-            if let Some(d) = self.settle(self.clocks.clone()) {
-                return Some(lift_one(d));
+            last = self.settle(self.clocks.clone());
+            if last.as_ref().is_some_and(Diagnostic::is_error) {
+                break;
             }
         }
-        None
+        last.map(lift_one)
     }
 
-    /// Ticks as `tick` does until net `net` rises: it read 0 just before a tick
-    /// (after any switch change since) and not 0 after it, so a net lit when
-    /// the run starts must go dark and light again (ADR 0019 item 6). Stops there, after `count` ticks, or at a tick
+    /// Ticks as `tick` does until net `net` rises: it read a known 0 just before a tick
+    /// (after any switch change since) and has a bit at a known 1 after it, so a net lit when
+    /// the run starts must go dark and light again (ADR 0019 item 6), and one that passes through `X` does not
+    /// count (ADR 0035). Stops there, after `count` ticks, or at a tick
     /// that does not settle, so where it stops never depends on how the caller
     /// splits a long run into calls.
     pub fn tick_until(&mut self, count: u64, net: u32) -> Until {
         let start = self.time;
-        if self.clocks.is_empty() && self.unsettled.is_empty() {
-            // Nothing changes without a clock or a loop still settling, so nothing can rise.
-            self.tick(count);
+        if self.clocks.is_empty() {
+            // Nothing changes without a clock, so nothing can rise.
+            let diagnostic = self.tick(count);
             return Until {
                 ticks: self.time - start,
                 rose: false,
-                unstable: None,
+                diagnostic,
             };
         }
-        let level = |sim: &Simulator| sim.nets.get(net as usize).copied().unwrap_or(0);
+        let level = |sim: &Simulator| {
+            if (net as usize) < sim.nets.len() {
+                sim.get(net as usize)
+            } else {
+                V::default()
+            }
+        };
         let mut was = level(self);
+        let mut diagnostic = None;
         for _ in 0..count {
-            let unstable = self.tick(1);
+            diagnostic = self.tick(1);
             let now = level(self);
-            let rose = was == 0 && now != 0;
-            if rose || unstable.is_some() {
+            let rose = was == V::default() && now.v & !now.u != 0;
+            if rose || diagnostic.as_ref().is_some_and(Diagnostic::is_error) {
                 return Until {
                     ticks: self.time - start,
                     rose,
-                    unstable,
+                    diagnostic,
                 };
             }
             was = now;
@@ -979,7 +1375,7 @@ impl Simulator {
         Until {
             ticks: self.time - start,
             rose: false,
-            unstable: None,
+            diagnostic,
         }
     }
 
@@ -993,8 +1389,9 @@ impl Simulator {
     /// settles from all-zero nets as a load does.
     pub fn reset(&mut self) -> Option<Diagnostic> {
         self.time = 0;
-        self.unsettled.clear();
+        self.looping.clear();
         self.nets.fill(0);
+        self.unknown.fill(0);
         for trace in &mut self.traces {
             trace.changes.clear();
         }
@@ -1002,19 +1399,18 @@ impl Simulator {
             match &mut prim.op {
                 Op::Clock => prim.state = 0,
                 Op::Dff { clk_was } => {
-                    prim.state = 0;
-                    *clk_was = false;
+                    (prim.state, prim.unknown) = (0, 0);
+                    *clk_was = Level::Low;
                 }
-                Op::Ram { cells, clk_was } => {
-                    cells.fill(0);
-                    *clk_was = false;
+                Op::Ram { memory, clk_was } => {
+                    memory.cells.fill(0);
+                    memory.unknown.clear();
+                    *clk_was = Level::Low;
                 }
                 _ => {}
             }
         }
-        self.presettle();
-        let all = (0..self.prims.len() as u32).collect();
-        self.settle(all).map(lift_one)
+        self.settle_fresh().map(lift_one)
     }
 
     /// Records `nets`, in this order: a net already watched keeps its record,
@@ -1072,10 +1468,10 @@ impl Simulator {
         self.record();
     }
 
-    /// Each watched net's changes as `(time, value)`, oldest first, in the
+    /// Each watched net's changes as `(time, value, unknown)`, oldest first, in the
     /// order `watch` was given. The first is the value in force when the
     /// window of [`WAVE_WINDOW`] ticks starts, or when watching began.
-    pub fn waves(&self) -> Vec<Vec<(u64, u32)>> {
+    pub fn waves(&self) -> Vec<Vec<(u64, u32, u32)>> {
         self.traces
             .iter()
             .map(|t| t.changes.iter().copied().collect())
@@ -1083,7 +1479,7 @@ impl Simulator {
     }
 
     /// The changes of the `index`th watched net, as [`Simulator::waves`] lists them.
-    pub fn wave(&self, index: usize) -> Option<impl Iterator<Item = (u64, u32)> + '_> {
+    pub fn wave(&self, index: usize) -> Option<impl Iterator<Item = (u64, u32, u32)> + '_> {
         Some(self.traces.get(index)?.changes.iter().copied())
     }
 
@@ -1092,16 +1488,17 @@ impl Simulator {
     fn record(&mut self) {
         let (time, start) = (self.time, self.time.saturating_sub(WAVE_WINDOW));
         for trace in &mut self.traces {
-            let value = self.nets[trace.net as usize];
+            let net = trace.net as usize;
+            let value = (self.nets[net], self.unknown[net]);
             let changes = &mut trace.changes;
-            if changes.back().is_some_and(|&(t, _)| t == time) {
+            if changes.back().is_some_and(|&(t, ..)| t == time) {
                 changes.pop_back();
             }
-            if changes.back().is_none_or(|&(_, v)| v != value) {
-                changes.push_back((time, value));
+            if changes.back().is_none_or(|&(_, v, u)| (v, u) != value) {
+                changes.push_back((time, value.0, value.1));
             }
             // Keep the change in force at `start`; drop those before it.
-            while changes.get(1).is_some_and(|&(t, _)| t <= start) {
+            while changes.get(1).is_some_and(|&(t, ..)| t <= start) {
                 changes.pop_front();
             }
         }
@@ -1120,30 +1517,94 @@ impl Simulator {
         unstable
     }
 
-    /// Runs deltas until no net changes, bounded so oscillation cannot hang.
+    /// Runs deltas until no net changes, bounded so oscillation cannot hang. A
+    /// loop still changing at the bound is settled to `X` (ADR 0035 item 8).
     fn settle_nets(&mut self, mut dirty: Vec<u32>) -> Option<Diagnostic> {
         // Acyclic circuits settle in at most depth + 1 <= primitives + 1 deltas.
         let limit = self.prims.len() + 64;
-        dirty.append(&mut self.unsettled);
         if self.stateful {
             self.snapshot.clone_from(&self.nets);
         }
+        if self.murky {
+            self.snapshot_unknown.clone_from(&self.unknown);
+            // Known again once no net, flip-flop or cell holds an unknown bit: the copy just made is then all zeros.
+            self.murky = forced()
+                || self.unknown.iter().any(|&u| u != 0)
+                || self.prims.iter().any(|p| match &p.op {
+                    Op::Ram { memory, .. } => memory.unknown.iter().any(|&u| u != 0),
+                    _ => p.unknown != 0,
+                });
+        }
         let mut changed = Vec::new();
         for _ in 0..limit {
-            dirty.sort_unstable();
-            dirty.dedup();
-            if dirty.is_empty() {
-                return None;
+            if !self.delta(&mut dirty, &mut changed, false) {
+                return self.standing();
             }
-            if self.stateful {
-                for &p in &dirty {
-                    self.clock_edge(p as usize);
+        }
+        if dirty.is_empty() {
+            return self.standing();
+        }
+        let looping: Vec<u32> = changed.iter().map(|&net| net as u32 - 1).collect();
+        // Name each part once, however many of its primitives were still changing.
+        let culprits = self.parts_of(&looping);
+        // An earlier loop may still hold its X: the warning goes on watching it too.
+        self.looping.extend(looping);
+        self.looping.sort_unstable();
+        self.looping.dedup();
+        self.murky = true;
+        // Marking: what would change becomes `X` where it would change. Bits only become unknown, on nets and in
+        // state, each once, so this ends.
+        let mut marked = Vec::new();
+        loop {
+            // Everything evaluated here is evaluated again below, changed or not: an X it held from before may
+            // have turned out known.
+            marked.extend_from_slice(&dirty);
+            if !self.delta(&mut dirty, &mut changed, true) {
+                break;
+            }
+        }
+        // Clearing: marking can leave an `X` on a primitive whose inputs turned out known. Evaluated again in the
+        // normal way, nets only become more known; a flip-flop or RAM can still lose bits to a possible edge, each
+        // bit once. So this ends too. Should it ever outlast the guard, marking finishes the settle, which is
+        // certain to end.
+        dirty = marked;
+        for _ in 0..limit + 33 * self.nets.len() {
+            if !self.delta(&mut dirty, &mut changed, false) {
+                break;
+            }
+        }
+        while self.delta(&mut dirty, &mut changed, true) {}
+        let message = format!(
+            "circuit did not settle within {limit} deltas: oscillating loop, now unknown (X)"
+        );
+        Some(Diagnostic::error(Code::Unstable, message, culprits))
+    }
+
+    /// One delta: every dirty primitive reads the same values, and the writes
+    /// apply after. `changed` gets the nets written, `dirty` their readers.
+    /// While `marking`, a net that would change gets `X` in the bits that
+    /// would. Returns false, doing nothing, when nothing is dirty.
+    #[inline]
+    fn delta(&mut self, dirty: &mut Vec<u32>, changed: &mut Vec<usize>, marking: bool) -> bool {
+        dirty.sort_unstable();
+        dirty.dedup();
+        if dirty.is_empty() {
+            return false;
+        }
+        if self.stateful {
+            let known = !self.murky && !marking;
+            for &p in dirty.iter() {
+                // Nets stay as they are through this loop, so the two-state edge holds for every part in it.
+                if !(known && self.clock_edge_known(p as usize)) {
+                    self.clock_edge(p as usize, marking);
                 }
             }
-            // Every dirty primitive reads the same snapshot; writes apply after.
+        }
+        if !self.murky && !marking {
+            // Nothing is unknown: one word a net, as before ADR 0035 (its item 11 bounds what the second costs).
             let writes: Vec<(usize, u32)> = dirty
                 .iter()
-                .map(|&p| (p as usize + 1, self.eval(p as usize)))
+                .map(|&p| (p as usize + 1, self.eval_known(p as usize)))
                 .collect();
             dirty.clear();
             changed.clear();
@@ -1154,31 +1615,77 @@ impl Simulator {
                     dirty.extend_from_slice(&self.fanout[net]);
                 }
             }
+            return true;
         }
-        if dirty.is_empty() {
-            return None;
-        }
-        // Name each part once, however many of its primitives were still changing.
-        let mut parts: Vec<u32> = changed
+        let writes: Vec<(usize, V)> = dirty
             .iter()
-            .map(|&net| self.prims[net - 1].part)
+            .map(|&p| (p as usize + 1, self.eval(p as usize)))
             .collect();
+        dirty.clear();
+        changed.clear();
+        for (net, mut value) in writes {
+            let old = self.get(net);
+            if marking && value != old {
+                value = old.join(value);
+            }
+            if old != value {
+                self.put(net, value);
+                changed.push(net);
+                dirty.extend_from_slice(&self.fanout[net]);
+            }
+        }
+        true
+    }
+
+    /// The parts of `prims`, each once, in ID order.
+    fn parts_of(&self, prims: &[u32]) -> Vec<String> {
+        let mut parts: Vec<u32> = prims.iter().map(|&p| self.prims[p as usize].part).collect();
         parts.sort_unstable();
         parts.dedup();
-        let culprits = parts
+        parts
             .iter()
             .map(|&c| self.ids[c as usize].clone())
+            .collect()
+    }
+
+    /// The warning that a loop's `X` remains: while any primitive named when
+    /// a settle last hit its limit still has an `X` output bit. Forgets them
+    /// once none has (ADR 0035 item 8).
+    fn standing(&mut self) -> Option<Diagnostic> {
+        let still: Vec<u32> = self
+            .looping
+            .iter()
+            .copied()
+            .filter(|&p| {
+                let net = self.get(p as usize + 1);
+                net.v & net.u != 0
+            })
             .collect();
-        self.unsettled = dirty;
-        let message = format!("circuit did not settle within {limit} deltas: oscillating loop");
-        Some(Diagnostic::error(Code::Unstable, message, culprits))
+        if still.is_empty() {
+            self.looping.clear();
+            return None;
+        }
+        let message = "a loop did not settle, and these outputs are still unknown (X)".to_string();
+        Some(Diagnostic::warning(
+            Code::Unsettled,
+            message,
+            self.parts_of(&still),
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use crate::description::{ComponentDesc, Connection, JunctionDesc, PortRef, Severity};
+
+    #[test]
+    #[cfg(target_pointer_width = "64")]
+    fn a_primitive_is_no_larger_than_before_unknown_bits() {
+        // Ticks per second follow this size (docs/performance.md, ADR 0035).
+        assert_eq!(std::mem::size_of::<Prim>(), 72);
+    }
 
     /// "component.port", or a bare junction ID.
     fn end(spec: &str) -> Endpoint {
@@ -1354,12 +1861,19 @@ mod tests {
         assert_eq!(warnings.len(), 1);
         assert_eq!(warnings[0].code, Code::Unstable);
         assert_eq!(warnings[0].ids, vec!["n".to_string()]);
-        // The engine keeps working, and the loop, still live, is reported again.
-        let again = sim.set_input("s", 1).unwrap().expect("still unstable");
+        // The loop is settled at X (ADR 0035), and the engine keeps working: a warning, which stops nothing,
+        // says so after every later settle.
+        let net = sim.port_nets()["n"]["out"] as usize;
+        assert_eq!((sim.nets()[net], sim.unknown()[net]), (1, 1));
+        let again = sim.set_input("s", 1).unwrap().expect("still unknown");
         assert_eq!(
-            (again.code, again.ids),
-            (Code::Unstable, vec!["n".to_string()])
+            (again.code, again.is_error(), again.ids),
+            (Code::Unsettled, false, vec!["n".to_string()])
         );
+        assert_eq!(sim.tick(3).map(|d| d.code), Some(Code::Unsettled));
+        assert_eq!(sim.time(), 3);
+        // Reset settles from zero again, and the loop is found again.
+        assert_eq!(sim.reset().map(|d| d.code), Some(Code::Unstable));
     }
 
     #[test]
@@ -1371,11 +1885,15 @@ mod tests {
         ));
         let unstable = |r: Result<Option<Diagnostic>, String>| r.unwrap().map(|d| d.code);
         assert_eq!(unstable(sim.set_input("en", 1)), Some(Code::Unstable));
-        assert_eq!(unstable(sim.set_input("t", 1)), Some(Code::Unstable));
-        // Disabling the loop settles it consistently: NAND(0, x) = 1.
+        assert_eq!(unstable(sim.set_input("t", 1)), Some(Code::Unsettled));
+        // Disabling the loop settles it consistently: NAND(0, X) = 1, known again, and the warning goes.
         assert_eq!(unstable(sim.set_input("en", 0)), None);
         assert_eq!(value(&sim, "o", "out"), 1);
         assert_eq!(value(&sim, "o", "b"), 1);
+        assert_eq!(sim.unknown().iter().sum::<u32>(), 0);
+        assert_eq!(unstable(sim.set_input("t", 0)), None);
+        // The next settle found nothing unknown, so the engine is back on its two-state path.
+        assert!(!sim.murky);
     }
 
     #[test]
@@ -1653,6 +2171,230 @@ mod tests {
         assert_eq!(
             codes(Simulator::load(&clash)),
             vec![Code::DuplicateId, Code::DuplicateId]
+        );
+    }
+
+    #[test]
+    fn a_second_loop_does_not_make_the_engine_forget_the_first() {
+        let mut sim = load(&circuit(
+            &[
+                ("e1", "switch"),
+                ("x1", "nand"),
+                ("e2", "switch"),
+                ("x2", "nand"),
+            ],
+            &[
+                ("e1.out", "x1.a"),
+                ("x1.out", "x1.b"),
+                ("e2.out", "x2.a"),
+                ("x2.out", "x2.b"),
+            ],
+        ));
+        let report = |r: Result<Option<Diagnostic>, String>| r.unwrap().map(|d| (d.code, d.ids));
+        let named = |code, id: &str| Some((code, vec![id.to_string()]));
+        assert_eq!(report(sim.set_input("e1", 1)), named(Code::Unstable, "x1"));
+        assert_eq!(report(sim.set_input("e2", 1)), named(Code::Unstable, "x2"));
+        // The second loop broken, the first is still X, and still warned about.
+        assert_eq!(report(sim.set_input("e2", 0)), named(Code::Unsettled, "x1"));
+        assert_eq!(sim.tick(1).map(|d| d.ids), Some(vec!["x1".to_string()]));
+        assert_eq!(report(sim.set_input("e1", 0)), None);
+    }
+
+    /// A small generator, the same on every machine.
+    struct Rng(u64);
+
+    impl Rng {
+        fn below(&mut self, n: u32) -> u32 {
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (self.0 >> 33) as u32 % n
+        }
+    }
+
+    /// A random circuit of every kind of primitive, wired at random, feedback included; its switches and LEDs.
+    fn random(rng: &mut Rng) -> (CircuitDescription, Vec<String>, Vec<String>) {
+        use serde_json::json;
+        let (mut parts, mut wires) = (Vec::new(), Vec::new());
+        // Outputs of one bit and of two, and inputs with their widths.
+        let (mut one, mut two, mut inputs) = (Vec::new(), Vec::new(), Vec::new());
+        let (mut switches, mut leds) = (Vec::new(), Vec::new());
+        for i in 0..3 + rng.below(12) {
+            let id = format!("p{i:02}");
+            let port = |name: &str| format!("{id}.{name}");
+            let kind = match rng.below(100) {
+                0..=11 => "switch",
+                12..=16 => "clock",
+                17..=24 => "not",
+                25..=32 => "and",
+                33..=40 => "nand",
+                41..=46 => "or",
+                47..=54 => "nor",
+                55..=60 => "xor",
+                61..=64 => "xnor",
+                65..=78 => "dff",
+                79..=85 => "ram",
+                86..=89 => "rom",
+                90..=94 => "merge",
+                _ => "split",
+            };
+            let mut part = json!({ "id": id, "kind": kind });
+            match kind {
+                "switch" | "clock" => one.push(port("out")),
+                "not" => {
+                    inputs.push((port("in"), 1));
+                    one.push(port("out"));
+                }
+                "dff" => {
+                    inputs.extend([(port("d"), 1), (port("clk"), 1)]);
+                    one.push(port("q"));
+                }
+                "ram" | "rom" => {
+                    inputs.push((port("addr"), 2));
+                    if kind == "ram" {
+                        inputs.extend([(port("din"), 1), (port("we"), 1), (port("clk"), 1)]);
+                    } else {
+                        part["data"] =
+                            json!([rng.below(2), rng.below(2), rng.below(2), rng.below(2)]);
+                    }
+                    part["width"] = json!(1);
+                    part["addressWidth"] = json!(2);
+                    one.push(port("out"));
+                }
+                "merge" => {
+                    inputs.extend([(port("f0"), 1), (port("f1"), 1)]);
+                    part["fields"] = json!([1, 1]);
+                    two.push(port("out"));
+                }
+                "split" => {
+                    inputs.push((port("in"), 2));
+                    part["fields"] = json!([1, 1]);
+                    one.extend([port("f0"), port("f1")]);
+                }
+                _ => {
+                    inputs.extend([(port("a"), 1), (port("b"), 1)]);
+                    one.push(port("out"));
+                }
+            }
+            if kind == "switch" {
+                switches.push(id.clone());
+            }
+            parts.push(part);
+        }
+        for i in 0..2 {
+            let id = format!("z{i}");
+            inputs.push((format!("{id}.in"), 1));
+            parts.push(json!({ "id": id, "kind": "led" }));
+            leds.push(id);
+        }
+        let end = |spec: &str| {
+            let (component, port) = spec.split_once('.').unwrap();
+            json!({ "component": component, "port": port })
+        };
+        for (i, (port, width)) in inputs.iter().enumerate() {
+            let pool = if *width == 1 { &one } else { &two };
+            // Some inputs stay unconnected.
+            if pool.is_empty() || rng.below(12) == 0 {
+                continue;
+            }
+            let from = &pool[rng.below(pool.len() as u32) as usize];
+            wires.push(json!({ "id": format!("w{i}"), "from": end(from), "to": end(port) }));
+        }
+        let description = json!({ "components": parts, "connections": wires });
+        (serde_json::from_value(description).unwrap(), switches, leds)
+    }
+
+    /// Everything a simulator holds that a later command could show.
+    fn dump(sim: &Simulator) -> String {
+        let mut text = format!("{:?} {:?} t{} ", sim.nets, sim.unknown, sim.time);
+        for prim in &sim.prims {
+            match &prim.op {
+                Op::Dff { clk_was } => {
+                    text += &format!("D{clk_was:?},{},{} ", prim.state, prim.unknown)
+                }
+                Op::Ram { memory, clk_was } => {
+                    let unknown: Vec<u32> = (0..memory.cells.len())
+                        .map(|at| memory.unknown.get(at).copied().unwrap_or(0))
+                        .collect();
+                    text += &format!("R{clk_was:?},{:?},{unknown:?} ", memory.cells)
+                }
+                _ => {}
+            }
+        }
+        text + &format!("{:?}", sim.waves())
+    }
+
+    #[test]
+    fn the_two_state_path_and_the_two_word_path_agree_on_random_circuits() {
+        // The engine runs two-state code while nothing is unknown (ADR 0035 item 11). Here every command runs on
+        // two simulators, one of them forced onto the two-word path throughout: results and state must match, and
+        // each net must be what its primitive evaluates to.
+        let mut loops = 0;
+        for seed in 0..400 {
+            let mut rng = Rng(seed * 7919 + 13);
+            let (description, switches, leds) = random(&mut rng);
+            FORCE.with(|force| force.set(false));
+            let Ok((mut fast, _)) = Simulator::load(&description) else {
+                continue;
+            };
+            FORCE.with(|force| force.set(true));
+            let mut slow = Simulator::load(&description).expect("it loaded once").0;
+            for step in 0..40 {
+                let (op, count) = (rng.below(20), 1 + u64::from(rng.below(5)));
+                let pick = |rng: &mut Rng| {
+                    (
+                        rng.below(switches.len().max(1) as u32) as usize,
+                        rng.below(2),
+                    )
+                };
+                let (first, second) = (pick(&mut rng), pick(&mut rng));
+                let led = fast.port_nets()[&leds[rng.below(2) as usize]]["in"];
+                let run = |sim: &mut Simulator, force: bool| -> String {
+                    FORCE.with(|f| f.set(force));
+                    match op {
+                        0..=8 if !switches.is_empty() => {
+                            let mut values = vec![(switches[first.0].as_str(), first.1)];
+                            if op > 5 && second.0 != first.0 {
+                                values.push((switches[second.0].as_str(), second.1));
+                            }
+                            format!("set {:?}", sim.set_inputs(&values))
+                        }
+                        9..=14 => format!("tick {:?}", sim.tick(count)),
+                        15 => format!("reset {:?}", sim.reset()),
+                        16 | 17 => {
+                            let (next, warnings) =
+                                Simulator::load_keeping(&description, sim).unwrap();
+                            *sim = next;
+                            format!("keep {warnings:?}")
+                        }
+                        18 => format!("until {:?}", sim.tick_until(count, led)),
+                        _ => format!("step {:?}", sim.step_cycle()),
+                    }
+                };
+                let (a, b) = (run(&mut fast, false), run(&mut slow, true));
+                loops += usize::from(a.contains("Unstable"));
+                assert_eq!(a, b, "seed {seed}, step {step}: results");
+                assert_eq!(dump(&fast), dump(&slow), "seed {seed}, step {step}: state");
+                if !fast.murky {
+                    assert!(
+                        fast.unknown.iter().all(|&u| u == 0),
+                        "seed {seed}, step {step}"
+                    );
+                }
+                for p in 0..slow.prims.len() {
+                    assert_eq!(
+                        slow.eval(p),
+                        slow.get(p + 1),
+                        "seed {seed}, step {step}: primitive {p}"
+                    );
+                }
+            }
+        }
+        FORCE.with(|force| force.set(false));
+        assert!(
+            loops > 100,
+            "the circuits hit the delta limit {loops} times: too few to test it"
         );
     }
 }

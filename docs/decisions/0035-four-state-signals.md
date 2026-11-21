@@ -312,6 +312,59 @@ What the engine has to work with:
        with different values and reads `X`, and enables neither and reads
        `Z`. Then the docs and the roadmap.
 
+    *As built (step 2):* the engine's values, in `sim-core`, `sim-wasm`
+    and the worker.
+    - **Two paths.** One flag says whether any bit may be unknown. While
+      it is false, evaluation, clock edges and deltas are the two-state
+      code of before, on one word. The first version, two words
+      everywhere, was 30% and 37% slower; with this, a RAM's unknown bits
+      behind a pointer and the hot loop inlined again, the medians of
+      fifteen alternating pairs are +1.0% on `cpu-1k` and −1.8% on
+      `counters-1k` (`docs/performance.md`). The two-word path was about a
+      third slower when everything took it, and a circuit takes it only
+      while it holds an unknown bit.
+    - **The parts `unstable` names** are those changing at the limit: the
+      loop, and whatever was still following it, as before. The
+      `unsettled` warning looks at those same parts only. A register that
+      took an `X` from the loop, but was not changing at the limit, holds
+      its `X` without a warning once the loop itself is known again.
+    - **Two settles at a load.** The possible edge for a clock that
+      settles unknown is a second, ordinary settle of the parts concerned.
+      A load or Reset reports the first settle's error if there is one,
+      else the second's.
+    - **A warning from `tick`.** `tick` returns the last tick's warning
+      when no tick failed, and `tick_until` carries it in the field that
+      held only the error.
+    - **A second loop** adds its parts to those the warning watches; it
+      does not replace them.
+    - **In the editor** the status bar reads Unstable for the warning as
+      for the error (Running, while a run goes on past the warning), with its own sentence, and the canvas highlights the
+      parts either names. Without this, the switch positions restored
+      after a load would turn a loop's error into "Settled, 1 warning".
+    - **Clearing changes nothing yet.** Without `Z`, marking already ends
+      at a state that clearing leaves alone. It is kept for step 3,
+      which must test it. Everything evaluated while marking is evaluated again, not
+      only what changed. If clearing ever outlasted its guard, marking
+      would finish the settle, which is certain to end.
+    - **Two rules that looked redundant are not,** and each has a test
+      from review: a known 1 after an unknown clock matters when the data
+      moves in the delta the clock becomes known, and a certain edge
+      while marking matters when a clock first rises on the last delta
+      before the limit.
+    - **Marking by bit and clearing cover for each other today:** marking
+      a whole net would be put right by clearing, and clearing changes
+      nothing while marking is by bit. Step 3 must test each alone.
+    - **A RAM at a certain edge** with `we` or the address unknown uses
+      the snapshot only, since the time of the write is known.
+    - **A seeded test** runs 400 random circuits through both paths,
+      command by command, and compares results and state.
+    - **Not testable yet:** a challenge mismatch with unknown bits. A
+      check refuses at the settle that finds the loop, so no compared
+      output is ever `X`. The field, the report text ("out should be 3 but
+      is X") and its test are there for step 3, when `Z` exists.
+    - **The editor** reads three numbers a waveform change and ignores the
+      third, and ignores `unknown` in a state, until step 4.
+
 ## Alternatives considered
 
 - **An unconnected input reads `Z`,** as `docs/simulation-model.md` once
