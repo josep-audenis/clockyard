@@ -157,7 +157,8 @@ Rules:
   12 (ADR 0034) name a bench instead, a circuit file in
   `challenges/benches/` with one empty slot, and have `runs` in place of
   steps: `sim_core::check::check_on` puts the user's definition in the slot,
-  loads each run's program into the bench's ROM, clocks it, and compares
+  loads a run's program, if it gives one, into the bench's ROM, clocks it,
+  and compares
   LEDs and memory bytes. Definitions with IDs starting `bench-` always come
   from the bench, never from the document. `sim-wasm`'s `check` takes the
   bench as an optional third argument. The editor bundles
