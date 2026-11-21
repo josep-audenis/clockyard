@@ -1421,6 +1421,14 @@ test("the program editor assembles into the ROM, lists errors by line, and the C
   await expect(inspector.getByRole("status")).toHaveText("Assembled 4 words.");
   await expect(listing).toContainText("00  LDI 7");
   await expect(listing).toContainText("01  ADI 2");
+  // Reference CPU 2's instructions assemble too (ADR 0036). This sheet's CPU would run them as NOP, so the status
+  // says how many there are.
+  await source.fill("LDI 5\nCALL f\nHLT\nf: SHL\nRET");
+  await button("Assemble").click();
+  await expect(inspector.getByRole("status")).toHaveText("Assembled 5 words; 3 are instructions only Reference CPU 2 runs (designed, not built yet).");
+  await expect(listing).toContainText("01  CALL 3");
+  await button("Undo").click();
+  await expect(listing).toContainText("01  ADI 2");
   // Undo brings back the old program, in the box as well as in the ROM.
   await button("Undo").click();
   await expect(source).toHaveValue(/LDA 0xFF/);

@@ -238,6 +238,22 @@ What there is to build on:
    4. Catch 2: its rules in the specification, its program, its example,
       its tests and the Playwright target. Then the docs and the roadmap.
 
+   *As built (step 2):*
+   - **`crates/asm`.** `INSTRUCTIONS` holds each instruction's word with
+     operand 0 (it held the opcode), twenty-four in all. `needs_cpu_2`
+     says whether a word is one of the eleven. Disassembly finds the
+     instruction by opcode, and under `0xF` by bits 11–8 as well.
+   - **The status after Assemble** reads "Assembled 5 words; 3 are
+     instructions only Reference CPU 2 runs (designed, not built yet)."
+     The words in brackets go when the circuit exists.
+   - **The model** is `crates/sim-core/tests/cpu2.rs`, written from the
+     two specification pages and apart from the first CPU's model. Eleven
+     tests hold it to results worked out by hand: the page's examples,
+     each instruction and flag, and the stack's corner cases.
+   - **A program whose result relied on `0xD` doing nothing** (item 8):
+     none of the first CPU's tests is changed here, since they run the
+     first CPU. Step 3 chooses which of them the second model takes.
+
 ## Alternatives considered
 
 - **Change the first CPU.** One CPU is simpler to explain. But challenge

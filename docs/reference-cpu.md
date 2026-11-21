@@ -6,10 +6,10 @@ run the same programs on the netlist and on a model written from this page,
 and the results must match after every clock cycle. Change this page first
 to change the instruction set.
 
-A second CPU, [Reference CPU 2](reference-cpu-2.md) (ADR 0036, designed
-and not yet built), is this one with eleven more instructions under the
-opcodes `0xD` and `0xF`, which do nothing here. This CPU and this page
-stay as they are; that page says what differs.
+A second CPU, [Reference CPU 2](reference-cpu-2.md) (ADR 0036, its
+circuit not yet built), is this one with eleven more instructions under
+the opcodes `0xD` and `0xF`, which do nothing here. This CPU stays as it
+is; that page says what differs.
 
 ## Machine
 
@@ -134,6 +134,11 @@ The circuit shows two 1-bit LEDs, which *Run until* uses (ADR 0019):
 
 - One instruction per line: a mnemonic, then its operand if it takes one.
   Mnemonics are case-insensitive.
+- The assembler is shared with Reference CPU 2, so it also takes that
+  CPU's eleven mnemonics (`JNZ`, `AND`, `OR`, `XOR`, `ANI`, `ORI`, `XRI`,
+  `SHL`, `SHR`, `CALL`, `RET`). They assemble to words of opcodes `0xD` and
+  `0xF`, which this CPU executes as `NOP`. The editor says how many a
+  program holds when it assembles one.
 - `name:` at the start of a line defines a label, the address of the next
   instruction. A label may stand on its own line, and may touch its
   instruction (`loop:OUT`). A label after the last instruction of a full

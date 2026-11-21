@@ -101,7 +101,8 @@ export function run(name, words, key, { source, program = words, bytes = true, c
 
 // Challenge 10's programs: source as the assembler reads it, and its words written out by hand.
 // crates/sim-core/tests/challenges.rs fails if `asm::assemble(source)` is not `words`. One program
-// has no source: the assembler has no name for the reserved opcodes.
+// has no source: its words of opcodes 0xD and 0xF, which do nothing on this CPU, are instructions of
+// Reference CPU 2 to the assembler (ADR 0036), and 0xE has no name at all.
 const PROGRAMS = [
   { name: "Load and show", source: "LDI 5\nOUT\nHLT", words: [0x1005, 0xb000, 0xc000] },
   {
