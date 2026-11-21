@@ -372,12 +372,18 @@ What the engine has to work with:
       leaves `tri` out until step 4. The engine loads it; the editor
       refuses a file that holds one.
     - **A circuit with a buffer never takes the two-state path** (item 11's
-      fast path): a disabled buffer's own net is `Z`, so some bit is always
-      unknown. Such a circuit runs about a third slower than the same logic
-      built with multiplexers would. No benchmark has a bus yet.
+      fast path), which has no `Z` to give a buffer that is not enabled.
+      It takes the two-word path, measured about a third slower in step 2.
+      No benchmark has a bus yet, so a bus design itself is not measured.
     - **A loop over a floating bus is `X` without a report.** It reads `X`
       from the first delta and `X` is stable, so no settle fails. Handed a
       known bus it oscillates, and is reported.
+    - **Buffers and buses start at `Z` when a load or a Reset settles**
+      (an addition to item 4, from review). The other nets start at 0,
+      enables among them, so no buffer drives at that moment. Starting a
+      bus at 0 gave the loop above a known value to oscillate on: the same
+      circuit was silent after a switch change and reported after Reset or
+      any edit.
     - **`unstable` on a ring** names the one primitive changing when the
       limit comes, as it always did. When that one is a resolver, the
       report names every buffer on its bus.
@@ -389,9 +395,14 @@ What the engine has to work with:
       settle.
     - **A challenge mismatch with unknown bits** has its test: a buffer's
       output, disabled, where 0 is expected.
-    - **Clearing and marking by bit still cannot be told apart** by any
-      circuit found, with `Z` or without. Both stay as the ADR has them;
-      clearing is a guard.
+    - **Clearing, marking by bit, and leaving an unchanged net alone
+      while marking** each have a test of their own, from circuits found
+      in review: a transient that the limit cuts on its last delta, a
+      loop on one bit beside a bit that holds, and a disabled buffer fed
+      by a loop. The step 2 note that clearing changes nothing was wrong.
+    - **A settle can report `unstable` and leave no `X`,** when the limit
+      cuts a transient that then ends. The message still says a loop
+      oscillates. This was so before four-state signals; it is left.
 
 ## Alternatives considered
 

@@ -604,3 +604,73 @@ fn a_clock_that_first_rises_at_the_delta_limit_leaves_x_where_the_data_differs()
     // The one certain edge fell while marking: 0 against d = 1 is X, not a known 1.
     assert_eq!(bits(&sim, "f", "q"), X);
 }
+
+#[test]
+fn a_loop_on_one_bit_beside_a_bit_that_holds_marks_only_the_bit_that_changes() {
+    // a = OR(b, s), b = XOR(a, t), two bits wide. With t = 01, bit 0 is a NOT ring; bit 1 is a loop that
+    // holds its 0, and would hold an X as well: marking the whole net could never be put right.
+    let description: CircuitDescription = serde_json::from_value(json!({
+        "components": [wide("s", "switch", 2), wide("t", "switch", 2), wide("a", "or", 2), wide("b", "xor", 2)],
+        "connections": wires(&[("b.out", "a.a"), ("s.out", "a.b"), ("a.out", "b.a"), ("t.out", "b.b")]),
+    }))
+    .unwrap();
+    let mut sim = start(&description);
+    assert!(sim.set_input("t", 1).unwrap().is_some_and(|d| d.is_error()));
+    assert_eq!(bits(&sim, "a", "out"), (0b01, 0b01));
+}
+
+#[test]
+fn a_transient_cut_by_the_delta_limit_is_cleared_once_it_has_passed() {
+    // A pulse put into a ring of 40 buffers, which loses one delta of its width each lap (k = AND(r39, d),
+    // d a buffer of r39): it dies by itself after about 880 deltas. The spare switches put the limit on its
+    // last delta. Marking turns what is still changing to X; nothing keeps that X, so clearing finds it known.
+    // The alignment depends on the limit being primitives + 64: if that changes, so must the spares.
+    let mut parts = vec![
+        part("s", "switch"),
+        part("ns", "not"),
+        part("inj", "and"),
+        part("r0", "or"),
+    ];
+    parts.extend([part("d", "or"), part("k", "and")]);
+    let mut list: Vec<(String, String)> = Vec::new();
+    let mut buffer = |parts: &mut Vec<Value>, id: String, from: &str| {
+        parts.push(part(&id, "or"));
+        list.extend([
+            (format!("{from}.out"), format!("{id}.a")),
+            (format!("{from}.out"), format!("{id}.b")),
+        ]);
+        id
+    };
+    // inj = s AND NOT(s, 20 deltas late): a pulse 20 deltas wide when s rises.
+    let late = (0..20).fold("s".to_string(), |from, i| {
+        buffer(&mut parts, format!("dl{i}"), &from)
+    });
+    let ring = (1..40).fold("r0".to_string(), |from, i| {
+        buffer(&mut parts, format!("r{i}"), &from)
+    });
+    list.extend([
+        (format!("{late}.out"), "ns.in".to_string()),
+        ("s.out".to_string(), "inj.a".to_string()),
+        ("ns.out".to_string(), "inj.b".to_string()),
+        ("inj.out".to_string(), "r0.a".to_string()),
+        ("k.out".to_string(), "r0.b".to_string()),
+        (format!("{ring}.out"), "d.a".to_string()),
+        (format!("{ring}.out"), "d.b".to_string()),
+        (format!("{ring}.out"), "k.a".to_string()),
+        ("d.out".to_string(), "k.b".to_string()),
+    ]);
+    parts.extend((0..754).map(|i| part(&format!("zspare{i}"), "switch")));
+    let list: Vec<(&str, &str)> = list.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect();
+    let description: CircuitDescription =
+        serde_json::from_value(json!({ "components": parts, "connections": wires(&list) }))
+            .unwrap();
+    let mut sim = start(&description);
+    let report = sim.set_input("s", 1).unwrap().expect("the limit");
+    assert_eq!(
+        (report.code, report.ids),
+        (Code::Unstable, vec!["d".to_string(), "r39".to_string()])
+    );
+    // The settle is reported, since it reached the limit. But the pulse is gone, and so is every X.
+    assert!(sim.unknown().iter().all(|&u| u == 0));
+    assert_eq!(sim.set_input("s", 0), Ok(None));
+}

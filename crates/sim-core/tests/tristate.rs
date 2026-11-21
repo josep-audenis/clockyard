@@ -543,9 +543,15 @@ fn a_loop_through_a_bus_names_every_buffer_on_it() {
     };
     let mut sim = load(&looped(0));
     // Enabled over a floating bus, the loop never oscillates: it reads X from the start, and X is stable.
-    // Nothing failed to settle, so nothing is reported.
+    // Nothing failed to settle, so nothing is reported. The same at a Reset and at a load that keeps state,
+    // which settle from nets at 0 with every bus floating.
     assert_eq!(sim.set_input("e1", 1), Ok(None));
     assert_eq!(bits(&sim, "l", "in"), X);
+    assert_eq!(sim.reset(), None);
+    assert_eq!(bits(&sim, "l", "in"), X);
+    let (kept, warnings) = Simulator::load_keeping(&looped(0), &sim).expect("valid");
+    assert_eq!(warnings, vec![]);
+    assert_eq!(bits(&kept, "l", "in"), X);
 
     // Handed a known bus, it oscillates between known values. One primitive of the ring changes each delta:
     // the NOT, the buffer, or the bus, and the bus is named by every buffer on it.
@@ -701,4 +707,202 @@ fn a_challenge_counts_a_floating_or_unknown_output_as_a_mismatch() {
         }
         other => panic!("expected a failed step, got {other:?}"),
     }
+}
+
+#[test]
+fn a_bus_takes_any_number_of_buffers_and_a_circuit_any_number_of_buses() {
+    // Bus one: t0, t1, t2 on l1. Bus two: u0, u1 on l2.
+    let mut parts = vec![wide("l1", "led", 4), wide("l2", "led", 4)];
+    let mut list: Vec<(String, String)> = Vec::new();
+    for (t, led) in [
+        ("t0", "l1"),
+        ("t1", "l1"),
+        ("t2", "l1"),
+        ("u0", "l2"),
+        ("u1", "l2"),
+    ] {
+        parts.extend([
+            wide(t, "tri", 4),
+            wide(&format!("d{t}"), "switch", 4),
+            part(&format!("e{t}"), "switch"),
+        ]);
+        list.extend([
+            (format!("d{t}.out"), format!("{t}.in")),
+            (format!("e{t}.out"), format!("{t}.en")),
+            (format!("{t}.out"), format!("{led}.in")),
+        ]);
+    }
+    let list: Vec<(&str, &str)> = list.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect();
+    let description = circuit(parts, &list);
+    let mut sim = load(&description);
+    assert_ne!(sim.port_nets()["l1"]["in"], sim.port_nets()["l2"]["in"]);
+    sim.set_inputs(&[("dt2", 0b1010), ("et2", 1), ("du1", 0b0110), ("eu1", 1)])
+        .unwrap();
+    assert_eq!(
+        [bits(&sim, "l1", "in"), bits(&sim, "l2", "in")],
+        [(0b1010, 0), (0b0110, 0)]
+    );
+    // The third buffer counts as the first two do.
+    sim.set_inputs(&[("dt0", 0b1001), ("et0", 1)]).unwrap();
+    assert_eq!(bits(&sim, "l1", "in"), (0b1011, 0b0011));
+    assert_eq!(bits(&sim, "l2", "in"), (0b0110, 0));
+
+    // A watched bus records its Z, its value and its X; an edit that keeps state keeps the record and the bus.
+    let bus = sim.wire_nets()["w2"];
+    sim.watch_wires(&["w2"]);
+    sim.set_input("et0", 0).unwrap();
+    let (kept, _) = Simulator::load_keeping(&description, &sim).expect("valid");
+    assert_eq!(kept.wire_nets()["w2"], bus);
+    assert_eq!(kept.waves(), [vec![(0, 0b1010, 0)]]);
+    assert_eq!(bits(&kept, "l1", "in"), (0b1010, 0));
+}
+
+#[test]
+fn an_enable_that_floats_is_unknown() {
+    // t's enable comes from another buffer, which is disabled.
+    let mut sim = load(&circuit(
+        vec![
+            part("d", "switch"),
+            part("one", "switch"),
+            part("eo", "switch"),
+            part("o", "tri"),
+            part("t", "tri"),
+        ],
+        &[
+            ("d.out", "t.in"),
+            ("one.out", "o.in"),
+            ("eo.out", "o.en"),
+            ("o.out", "t.en"),
+        ],
+    ));
+    assert_eq!(
+        bits(&sim, "t", "out"),
+        X,
+        "not Z: nobody knows whether it drives"
+    );
+    sim.set_inputs(&[("one", 1), ("eo", 1), ("d", 1)]).unwrap();
+    assert_eq!(bits(&sim, "t", "out"), (1, 0));
+}
+
+#[test]
+fn a_bus_cannot_drive_back_into_a_component_through_a_pin_wired_straight_through() {
+    // p's pin y is its pin d, wired straight through. Outside, t1 feeds d, and y shares a wire with t3.
+    // Flattened, that is t1 and t3 on one net, a bus like any other: only the sheet as drawn shows that t3
+    // would be driving backwards through p's output pin into the wire on its input.
+    let through = json!({
+        "id": "through",
+        "components": [part("d", "switch"), part("y", "led")],
+        "connections": wires(&[("d.out", "y.in")]),
+        "inputs": [{ "name": "d", "component": "d" }],
+        "outputs": [{ "name": "y", "component": "y" }],
+    });
+    let sheet = |feeders: &[&str]| {
+        let mut parts = vec![
+            instance("p", "through"),
+            part("t3", "tri"),
+            part("l", "led"),
+        ];
+        let mut list = vec![("p.y", "l.in"), ("t3.out", "l.in")];
+        for t in feeders {
+            parts.push(part(t, "tri"));
+        }
+        let outs: Vec<String> = feeders.iter().map(|t| format!("{t}.out")).collect();
+        list.extend(outs.iter().map(|out| (out.as_str(), "p.d")));
+        describe(
+            json!({ "components": parts, "connections": wires(&list), "definitions": [through] }),
+        )
+    };
+    for feeders in [&["t1"][..], &["t1", "t2"]] {
+        let found = errors(&sheet(feeders));
+        assert_eq!(found[0].code, Code::MultipleDrivers, "{feeders:?}");
+        assert!(
+            found[0]
+                .message
+                .ends_with("only tri-state outputs may share a wire"),
+            "{found:?}"
+        );
+    }
+    // Without t3 on its output, the component is fine on a bus's input side.
+    let mut alone = sheet(&["t1", "t2"]);
+    alone.connections.retain(|w| w.id != "w1");
+    assert!(Simulator::load(&alone).is_ok());
+}
+
+#[test]
+fn an_output_pin_with_no_driver_inside_is_not_a_bus_pin_and_two_gate_pins_keep_their_message() {
+    // y reaches only a junction inside.
+    let hollow = json!({
+        "id": "hollow",
+        "components": [part("y", "led")],
+        "junctions": [{ "id": "j" }],
+        "connections": wires(&[("j", "y.in")]),
+        "inputs": [],
+        "outputs": [{ "name": "y", "component": "y" }],
+    });
+    let gated = json!({
+        "id": "gated",
+        "components": [part("g", "not"), part("y", "led")],
+        "connections": wires(&[("g.out", "y.in")]),
+        "inputs": [],
+        "outputs": [{ "name": "y", "component": "y" }],
+    });
+    let two = |kind: &str, definition: Value| {
+        describe(json!({
+            "components": [instance("u1", kind), instance("u2", kind), part("l", "led")],
+            "connections": wires(&[("u1.y", "l.in"), ("u2.y", "l.in")]),
+            "definitions": [definition],
+        }))
+    };
+    let found = errors(&two("hollow", hollow));
+    assert_eq!(found[0].code, Code::MultipleDrivers);
+    let found = errors(&two("gated", gated));
+    assert_eq!(
+        found[0].message,
+        "wires w0, w1 connect an input to more than one driver"
+    );
+}
+
+#[test]
+fn a_disabled_buffer_fed_by_a_loop_stays_z_and_leaves_its_bus_alone() {
+    // t1, disabled, is fed by a loop; t2 drives the bus with 0. While the loop is marked, t1 is evaluated
+    // again and again to the same Z, which must stay Z: as X it would reach the latch q through the bus.
+    let mut sim = load(&circuit(
+        vec![
+            part("on", "switch"),
+            part("x", "nand"),
+            part("e1", "switch"),
+            part("t1", "tri"),
+            part("d2", "switch"),
+            part("e2", "switch"),
+            part("t2", "tri"),
+            part("arm", "switch"),
+            part("g", "and"),
+            part("q", "or"),
+            part("l", "led"),
+        ],
+        &[
+            ("on.out", "x.a"),
+            ("x.out", "x.b"),
+            ("x.out", "t1.in"),
+            ("e1.out", "t1.en"),
+            ("d2.out", "t2.in"),
+            ("e2.out", "t2.en"),
+            ("t1.out", "l.in"),
+            ("t2.out", "l.in"),
+            ("t1.out", "g.a"),
+            ("arm.out", "g.b"),
+            ("g.out", "q.a"),
+            ("q.out", "q.b"),
+        ],
+    ));
+    sim.set_input("e2", 1).unwrap();
+    sim.set_input("arm", 1).unwrap();
+    assert!(
+        sim.set_input("on", 1)
+            .unwrap()
+            .is_some_and(|d| d.is_error())
+    );
+    assert_eq!(bits(&sim, "x", "out"), X);
+    assert_eq!(bits(&sim, "l", "in"), (0, 0));
+    assert_eq!(bits(&sim, "q", "out"), (0, 0));
 }

@@ -212,8 +212,8 @@ pub struct Simulator {
     /// Whether any bit may be unknown: on a net, in a flip-flop or RAM, or in the snapshot. While it is false every
     /// evaluation takes the two-state path (ADR 0035 item 11), and `snapshot_unknown` is all zeros.
     murky: bool,
-    /// Whether the circuit has a tri-state buffer. Its output is `Z` whenever it is not enabled, so such a circuit
-    /// is always `murky`.
+    /// Whether the circuit has a tri-state buffer. The two-state path has no `Z` to give for a buffer that is not
+    /// enabled, so such a circuit is always `murky`.
     tristate: bool,
     /// The watched nets and their recorded changes (ADR 0026).
     traces: Vec<Trace>,
@@ -736,6 +736,10 @@ impl Simulator {
             return Err(errors);
         }
 
+        let bus_of: BTreeMap<(usize, usize), u32> = buses
+            .iter()
+            .flat_map(|(bus, drivers)| drivers.iter().map(move |&driver| (driver, *bus)))
+            .collect();
         // Warnings are per part port, so a split's `in` warns once, not once per field.
         let mut warnings = Vec::new();
         let mut port_nets = PortNets::new();
@@ -743,10 +747,7 @@ impl Simulator {
             let mut named = BTreeMap::new();
             for (slot, (port, &net)) in part_ports.iter().zip(&port_net[c]).enumerate() {
                 // A buffer on a bus reports the bus: a port and its wire always agree. Its own net is internal.
-                let net = buses
-                    .iter()
-                    .find(|(_, drivers)| drivers.contains(&(c, slot)))
-                    .map_or(net, |&(bus, _)| bus);
+                let net = bus_of.get(&(c, slot)).copied().unwrap_or(net);
                 if !port.output && net == GROUND {
                     let message =
                         format!("input {}.{} is unconnected and reads 0", ids[c], port.name);
@@ -1028,6 +1029,15 @@ impl Simulator {
     fn settle_fresh(&mut self) -> Option<Diagnostic> {
         let count = self.prims.len() as u32;
         self.sampling = false;
+        // All nets are 0 here, every enable with them: so a buffer drives nothing, and a bus floats. Starting
+        // them at 0 instead would hand a loop through a bus a known value to oscillate on, at a load or a Reset
+        // only.
+        for p in 0..self.prims.len() {
+            if matches!(self.prims[p].op, Op::Tri | Op::Resolve) {
+                let floating = V::FLOATING.mask(self.prims[p].mask);
+                self.put(p + 1, floating);
+            }
+        }
         self.presettle();
         let first = self.settle((0..count).collect());
         self.sampling = true;
