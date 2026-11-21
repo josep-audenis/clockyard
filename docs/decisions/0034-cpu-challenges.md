@@ -378,8 +378,8 @@ Four questions decide the design:
    - **What no program on the bench can see.** `swe` a cycle late, or
      `sptr` loaded at the falling edge: `addr`, `dout` and `sptr` hold
      through the fetch that follows a store, so the same byte lands one
-     edge later, and a `HLT` always has a fetch before it. The text asks
-     for neither, and the check lets both pass.
+     edge later, and a `HLT` always has a fetch before it. The text rules
+     both out, but the check lets both pass.
    - **Playwright.** Challenge 11's starter fails (the CPU never halts on
      an empty ROM); a program that shows the key is written in the ROM's
      editor, assembled, and fails at the second key; the sum passes, 15 of
@@ -390,6 +390,12 @@ Four questions decide the design:
      `bench-` definition of the user's out. A part built from one is then
      refused for an unknown definition. Building from the provided `reg8`
      avoids it.
+
+   *As built (step 5):* the editor's reports and the Playwright target
+   were built with steps 3 and 4, each challenge needing them to be
+   checked in the browser. What was left: a native test that a part built
+   from a definition added under a `bench-` ID is refused, the bench check
+   in `docs/architecture.md`, and the roadmap. All five steps are built.
 
 ## Alternatives considered
 
