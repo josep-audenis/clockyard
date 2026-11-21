@@ -1,6 +1,6 @@
 # 0037. Phase 7: the playground's gaps, computers you can read, and a project others can join
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-21
 - Depends on: ADR 0028 (the Phase 6 plan, now built); ADRs 0029–0036;
   ADR 0009 (local checks instead of hosted CI); brief §2, §12, §13, §16
