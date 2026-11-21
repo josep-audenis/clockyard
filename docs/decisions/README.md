@@ -41,6 +41,7 @@ replacement.
 | [0033](0033-editing-a-running-circuit.md) | Editing a running circuit: state kept across edits, matched by part ID | Accepted |
 | [0034](0034-cpu-challenges.md) | Challenges 10 to 12: a CPU, a program and a screen, checked on a computer bench | Accepted |
 | [0035](0035-four-state-signals.md) | Four-state signals: `X`, `Z`, a tri-state buffer and shared buses | Accepted |
+| [0036](0036-second-reference-cpu.md) | A second reference CPU: bit operations, shifts, and call and return | Proposed |
 
 ## Template
 
