@@ -6,7 +6,8 @@
 //   node scripts/reference-cpu-2.mjs           writes the file
 //   node scripts/reference-cpu-2.mjs --check   fails if the file is not what it would write
 
-import { blocks, chip, CONTROL, control, ones, part, register, wires } from "./cpu-pieces.mjs";
+import { readFileSync } from "node:fs";
+import { blocks, chip, CONTROL, control, ones, part, register, root, wires } from "./cpu-pieces.mjs";
 import { components as first, emit, junctions, pairs as firstPairs } from "./reference-cpu.mjs";
 
 // --- A small assembler --------------------------------------------------------
@@ -355,4 +356,26 @@ const document = {
   definitions: [...blocks, register("reg4", "Register 4", 4)],
 };
 
-if (import.meta.main) emit("reference-cpu-2.mjs", [["reference-cpu-2", document]]);
+// Catch 2 (ADR 0036): the same sheet with scripts/catch2.asm in its ROM.
+const catchSource = readFileSync(root("scripts/catch2.asm"), "utf8").replaceAll("\r\n", "\n");
+const game = {
+  ...document,
+  metadata: {
+    name: "Catch 2",
+    createdAt: "2026-11-21T12:00:00.000Z",
+    modifiedAt: "2026-11-21T12:00:00.000Z",
+    notes:
+      "Catch, drawn in single pixels, on Reference CPU 2 (its program is scripts/catch2.asm).\n\nSet the speed to 10,000, press Run, click the keyboard and hold Left or Right. A block two pixels square falls in any column; the paddle, eight pixels wide, moves one pixel at a time. Catch a block to score on the two hex digits and make the next fall faster. A miss halts the CPU, and Reset plays again.\n\nEvery pixel is drawn by one routine, toggle, which the game calls seven times from four routines. It finds the pixel's screen byte and bit through another routine, locate, and flips the bit with XOR.",
+  },
+  circuit: {
+    ...document.circuit,
+    components: components.map((c) => (c.id === "rom" ? { ...c, props: { ...c.props, data: assemble(catchSource), source: catchSource } } : c)),
+  },
+};
+
+if (import.meta.main) {
+  emit("reference-cpu-2.mjs", [
+    ["reference-cpu-2", document],
+    ["catch-2", game],
+  ]);
+}

@@ -161,3 +161,54 @@ next:   LDA 0           ; Z: is anything left?
         OUT
         HLT
 ```
+
+## Catch 2
+
+The target of ADR 0036: Catch, the first CPU's game, drawn in single
+pixels. Its program, 189 words, is
+[`scripts/catch2.asm`](../scripts/catch2.asm), shipped in the ROM of the
+`catch-2` example. Its native tests run it on the circuit and the model
+together, with keys held by the test. To play: open `catch-2`, set the
+speed to 10,000, Run, click the keyboard and hold Left or Right.
+
+- **Play:** a block, 2 pixels square, falls one pixel row at a time, one
+  block at a time, in any column from 0 to 62. The paddle, 8 pixels wide,
+  sits in row 31. Left (`0x82`) and Right (`0x83`) move it one pixel
+  while held, at most twice for each row the block falls, so it can cross
+  the screen while one falls. It stops at the edges: its left column is 0
+  to 56.
+- **Catch:** a block lands on rows 29 and 30. If the paddle is under both
+  of its columns (the two pixels below it in row 31 are lit), the block
+  is erased, the score goes up by 1 and is shown on `HEX` (in hex), and
+  the next block falls faster.
+- **Miss:** otherwise the block stays where it landed and the program
+  halts. Reset starts a new game.
+- **Columns:** the paddle starts at columns 28 to 35, and the first block
+  falls in column 28, so the first point needs no keys. Each later block
+  falls 23 columns on, modulo 63: 28, 51, 11, 34, 57, 17, and so on
+  through all 63.
+- **Pace:** each row waits in a loop of `DELAY` rounds of 4 instructions:
+  8 × `DELAY` + 4 cycles. The rest of a row is 436 cycles, whatever the
+  block's column: 832 with both paddle moves left, 844 with both right.
+  `DELAY` starts at 60, so a row is 920 cycles and a block takes about
+  2.7 s to fall at the 10,000 setting. Each catch takes 6 off, down to 6
+  after nine catches: about 1.5 s. The score shown wraps at 256.
+- **Drawing:** every pixel is flipped by one routine, `toggle`, called
+  seven times from four routines: drawing the paddle at the start, moving
+  it left, moving it right, and `pair`, which draws or erases a row of
+  the block. It finds the pixel's byte and bit
+  through `locate`, which `test` uses too. `locate` builds the bit from
+  the column's three low bits one at a time, with `NOP`s where a shift is
+  not needed, so it takes the same time in every column.
+
+| RAM | Holds |
+|-----|-------|
+| `0` | the paddle's left column, 0–56 |
+| `1` | the block's column, 0–62 |
+| `2` | the block's top row |
+| `3` | the next block's column |
+| `4` | `DELAY`: wait rounds per row |
+| `5` | the score |
+| `6`, `7` | the wait count, and a loop count |
+| `8`, `9` | the column and row `locate` is given |
+| `10`, `11` | `locate`'s scratch: the row times 8, then the bit |
