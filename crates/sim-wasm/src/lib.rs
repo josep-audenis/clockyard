@@ -33,21 +33,16 @@ struct FieldPorts {
 /// `inputs` and `outputs` are the fixed ports; field ports come from `fieldPorts`.
 #[wasm_bindgen]
 pub fn catalog() -> String {
-    // The tri-state buffer is in the engine (ADR 0035, step 3) and not yet in the editor, whose kinds, layouts and
-    // file format follow this list: it joins it with step 4.
-    let parts = Kind::ALL
-        .into_iter()
-        .filter(|&kind| kind != Kind::Tri)
-        .map(|kind| Part {
-            kind: kind.name(),
-            inputs: kind.inputs(),
-            outputs: kind.outputs(),
-            sized: kind.sized(),
-            field_ports: kind.field_ports().map(|(output, prefix)| FieldPorts {
-                side: if output { "outputs" } else { "inputs" },
-                prefix,
-            }),
-        });
+    let parts = Kind::ALL.into_iter().map(|kind| Part {
+        kind: kind.name(),
+        inputs: kind.inputs(),
+        outputs: kind.outputs(),
+        sized: kind.sized(),
+        field_ports: kind.field_ports().map(|(output, prefix)| FieldPorts {
+            side: if output { "outputs" } else { "inputs" },
+            prefix,
+        }),
+    });
     serde_json::to_string(&parts.collect::<Vec<_>>()).expect("catalog serializes")
 }
 

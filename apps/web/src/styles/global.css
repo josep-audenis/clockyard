@@ -1734,6 +1734,25 @@ pre.memory-words {
   stroke-width: 1;
 }
 
+/* X and Z (ADR 0035): each its own colour and its own dash, as on a wire, since colour is never the only sign. */
+.wave-x,
+.wave-z {
+  fill: none;
+  stroke-width: 2;
+}
+
+.wave-x,
+.wave-unknown {
+  stroke: var(--signal-x);
+  stroke-dasharray: 7 5;
+}
+
+.wave-z {
+  stroke: var(--signal-z);
+  stroke-dasharray: 2 6;
+  stroke-linecap: round;
+}
+
 .wave-text {
   fill: var(--ink);
   font: 500 11px var(--font-mono);

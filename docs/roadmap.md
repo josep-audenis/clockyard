@@ -658,7 +658,11 @@ targets, as in Phase 5.
    3. ✅ The tri-state buffer and nets with several drivers, in the engine:
       a bus resolved by a table, bus pins on components, and a hidden
       resolver for each bus. The editor does not know the part yet.
-   4. ⬜ The editor: `X` and `Z` drawn and written, the part, format 12.
+   4. ✅ The editor: `X` and `Z` drawn and written (wires dashed in their
+      own colours, LEDs lettered, digits in the readout and the waveforms),
+      the *Tri-state buffer* part, format 12, and Make component refusing
+      to split a bus. Playwright: two buffers on a wire read `Z`, then a
+      value, then `X` when they disagree.
    5. ⬜ The *Shared bus* example and the browser target.
 6. ⬜ A second reference CPU: bit operations and call/return, specification
    first.
@@ -712,7 +716,7 @@ Rough edges still open:
 - A component added from another file under a `bench-` ID cannot be used
   in a bench challenge: the check refuses it as unknown (ADR 0034).
 - The about page (`apps/web/about/index.html`) still says nine challenges
-  and lists 01 to 09.
+  and lists 01 to 09, and its list of parts has no tri-state buffer.
 - Routing does not yet avoid label tags (ADR 0015).
 - A component made by Make component can cover parts below it (ADR 0016).
 - Make component is offered only for two or more selected items.

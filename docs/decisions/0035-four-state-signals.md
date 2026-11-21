@@ -404,6 +404,31 @@ What the engine has to work with:
       cuts a transient that then ends. The message still says a loop
       oscillates. This was so before four-state signals; it is left.
 
+    *As built (step 4):* the editor.
+    - **Wires.** X: the X colour, long dashes. Z: the Z colour, dots. Both
+      colours were already in the design tokens. A wire the engine names
+      in an error keeps the error's colour, and its dashes.
+    - **The LED** is a ring in its state's colour with the letter `X` or
+      `Z` in it. A wide LED, switch or register writes its digits.
+    - **Digits.** `hex` and `showValue` take the unknown word: one bit is
+      `X` or `Z`; a wider value is its hex digits alone ("0x5X"), with no
+      decimal beside them. In the readout "unknown" still means the engine
+      has not reported yet.
+    - **Waveforms.** A one-bit X or Z runs along the middle of the lane,
+      dashed as on a wire. A bus band with unknown digits is outlined in
+      the X style and shows them.
+    - **The part** sits with the gates: a buffer's triangle, `en` below
+      `in` on the left, as every part has its inputs. It has no shortcut
+      key.
+    - **Make component** counts a bus's drivers from the port nets: each
+      tri-state buffer's `out`, and each instance's output pins. A
+      selection that takes some and leaves others is refused: "A shared
+      bus would be split: select every tri-state buffer on it, or none of
+      them."
+    - **Not done:** the about page's list of parts (another session's
+      work in progress), and unknown words in the inspector's memory
+      dump, which shows values only.
+
 ## Alternatives considered
 
 - **An unconnected input reads `Z`,** as `docs/simulation-model.md` once

@@ -51,18 +51,18 @@ The UI never computes a signal value. It renders values received from the worker
 
 The editable design. Owned by the frontend, serialized as JSON, versioned.
 
-Format version 11 (ADRs 0010, 0012, 0013, 0014, 0015, 0017, 0018, 0021, 0025, 0027; exact schema fixed in code with
+Format version 12 (ADRs 0010, 0012, 0013, 0014, 0015, 0017, 0018, 0021, 0025, 0027, 0035; exact schema fixed in code with
 validation). Versions 7 to 9 add part kinds and props only: `clock` and `dff` (v7), `rom` and `ram`
 with `addressWidth`, and a ROM's `data` and editor-only `source` (v8), and the devices `seg7`,
 `screen` (a RAM whose words are pixels, with editor-only `columns`) and `keyboard` (v9). Version 10 adds an
 optional `metadata.challenge`, the challenge the document was started from (ADR 0025), and version 11 an
 optional `metadata.notes`, plain text of at most 4,000 characters that the Notes panel shows and edits
-(ADR 0027):
+(ADR 0027). Version 12 adds the part kind `tri`, a tri-state buffer (ADR 0035):
 
 ```json
 {
   "format": "clockyard",
-  "version": 11,
+  "version": 12,
   "metadata": { "name": "AND demo", "createdAt": "2026-11-06T12:00:00Z", "modifiedAt": "2026-11-06T12:00:00Z" },
   "circuit": {
     "components": [
@@ -124,7 +124,8 @@ Rules:
   (v1 → v2 adds an empty `junctions` list, v2 → v3 an empty `definitions`
   list, v3 → v4 renames instance ports from pin labels to pin part IDs, v4 →
   v5 and v5 → v6 change nothing but the version, so an older build refuses a
-  file with widths or net labels instead of silently dropping them). Unknown future versions are
+  file with widths or net labels instead of silently dropping them; the same
+  for every version since, up to v11 → v12 and the tri-state buffer). Unknown future versions are
   rejected with a clear message. Export always writes the current version.
 - Import (`storage/file.ts`) treats the file as untrusted: every field is
   type-checked, unknown fields are dropped, IDs must be unique across parts,
@@ -320,6 +321,15 @@ type Result =
   drawn in chunks of about 64 (by a hash of their IDs), each rebuilt only
   when one of its wires looks different. Other per-object updates follow
   when profiling says so (`docs/performance.md`).
+- **Unknown bits** (ADR 0035). The store keeps the engine's `unknown` word for
+  each net beside its value, and each watched memory's. Nothing in the editor
+  works a value out: `signalState`, `hex` and `showValue`
+  (`editor/document.ts`) only say what the two words are. A wire with any `X`
+  bit is drawn in the X colour with long dashes, otherwise one with any `Z`
+  bit in the Z colour with dots; an LED is lettered `X` or `Z`; a
+  seven-segment display and a screen draw an unknown segment or pixel in the
+  X colour; the readout, the inspector's tags and the waveforms write `X` and
+  `Z` as digits ("0x5X"). Colour is never the only sign (ADR 0008).
 - Hit-testing is pure geometry in grid units (`canvas/geometry.ts`); it decides
   only what the pointer is over, never connectivity.
 - React subscribes to the document store for panels; the canvas subscribes

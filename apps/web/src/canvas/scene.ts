@@ -16,6 +16,7 @@ import {
   litPixels,
   sameEnd,
   screenSize,
+  signalState,
   type Circuit,
   type CircuitComponent,
   type Junction,
@@ -58,6 +59,11 @@ const ANSWER_WAIT_MS = 150;
 /** Pointer travel (px) before a press on a part counts as a drag, not a click. */
 const DRAG_THRESHOLD = 3;
 
+/** A part's value at a port, null while the engine has not reported; `unknown` gives its unknown bits (ADR 0035). */
+type Read = ((port: string) => number | null) & { unknown: (port: string) => number };
+/** The placement preview's: no value anywhere. */
+const NOTHING: Read = Object.assign(() => null, { unknown: () => 0 });
+
 const COLORS = [
   "bench",
   "panel-raised",
@@ -68,6 +74,8 @@ const COLORS = [
   "on-signal-high",
   "signal-low",
   "signal-bus",
+  "signal-x",
+  "signal-z",
   "select",
   "accent",
   "accent-soft",
@@ -305,7 +313,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
 
   function draw() {
     const { circuit, selection, armed, armedLabel } = useEditor.getState();
-    const { loaded, nets, stale, runtime } = useSim.getState();
+    const { loaded, nets, unknown, stale, runtime } = useSim.getState();
     const { color, size } = theme;
     const c = cell();
     tagBoxes.clear();
@@ -318,6 +326,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     const selected = new Set(selection);
     // A value is shown only once the engine has reported on the current document.
     const signal = (net: number | undefined): number | null => (stale || !nets || net === undefined ? null : (nets[net] ?? 0));
+    // Its unknown bits (ADR 0035): X where the value has a 1, Z where it has a 0. The engine sends none while all is known.
+    const unknownOf = (net: number | undefined): number => (stale || net === undefined ? 0 : (unknown[net] ?? 0));
+    // X and Z each have a colour and a dash of their own, since colour is never the only sign (ADR 0008).
+    const STYLE = { x: { tone: color["signal-x"], dash: [7, 5] }, z: { tone: color["signal-z"], dash: [2, 6] } } as const;
     // The engine reports each wire's width (ADR 0014). While an edit waits for it, the last report stands (wire IDs are
     // stable), so buses do not thin for a frame; with no netlist (validation errors) every wire is 1 bit.
     const bitsOf = (wire: string | undefined) => (wire === undefined ? 1 : (loaded?.wireWidths[wire] ?? 1));
@@ -341,11 +353,15 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       const points = paths.get(wire.id)?.map(px);
       if (!points) continue;
       const value = signal(loaded?.wireNets[wire.id]);
+      const hidden = unknownOf(loaded?.wireNets[wire.id]);
       const bits = bitsOf(wire.id);
+      // A wire with any X bit is drawn as X; otherwise one with any Z bit as Z (ADR 0035).
+      const state = value === null ? "known" : signalState(value, hidden);
+      const style = state === "known" ? null : STYLE[state];
       // CanvasKit: a bus has one width and colour whatever it carries; a slash tag gives its width, a hex tag on hover its value.
-      const lit = bits === 1 && value !== null && value !== 0;
+      const lit = bits === 1 && value !== null && value !== 0 && !style;
       const width = bits > 1 ? size["bus-width"] : lit ? size["wire-width-high"] : size["wire-width"];
-      const tone = culprits.has(wire.id) ? color.danger : bits > 1 ? color["signal-bus"] : lit ? color["signal-high"] : color["signal-low"];
+      const tone = culprits.has(wire.id) ? color.danger : style ? style.tone : bits > 1 ? color["signal-bus"] : lit ? color["signal-high"] : color["signal-low"];
       const alpha = value === null ? 0.5 : 1;
       const [a, b] = points;
       // The slash crosses the middle of the first segment, with the width just past it.
@@ -355,10 +371,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       groups.set(n, group);
       // Everything the drawing below reads is in this look (theme values are in `themeVersion`): a value left out would
       // leave the chunk stale.
-      const look = `${points.map((p) => `${p.x},${p.y}`).join(" ")}|${width}|${tone}|${alpha}|${bits}`;
+      const look = `${points.map((p) => `${p.x},${p.y}`).join(" ")}|${width}|${tone}|${alpha}|${bits}|${state}`;
       group.looks.push(look);
       const drawWire = (g: Graphics) => {
-        polyline(g, points).stroke({ width, color: tone, alpha, cap: "round", join: "round" });
+        (style ? dashed(g, points, style.dash) : polyline(g, points)).stroke({ width, color: tone, alpha, cap: "round", join: "round" });
         if (m && a && b) {
           const across = a.y === b.y ? { x: 4, y: -8 } : { x: 8, y: -4 };
           g.moveTo(m.x - across.x, m.y - across.y)
@@ -378,7 +394,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
         put(`${wire.id}:bits`, String(bits), m.x + 6, m.y - 6, { x: 0, y: 1 }, color["signal-bus"]);
         if (hovered === wire.id && value !== null) {
           tags.push(() => {
-            const tag = put(`${wire.id}:value`, hex(value, bits), m.x + 10, m.y + 10, { x: 0, y: 0 }, color["signal-bus"]);
+            const tag = put(`${wire.id}:value`, hex(value, bits, hidden), m.x + 10, m.y + 10, { x: 0, y: 0 }, color["signal-bus"]);
             wires
               .roundRect(m.x + 6, m.y + 7, tag.width + 8, tag.height + 6, size["radius-sm"])
               .fill({ color: color.bench })
@@ -460,9 +476,11 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     const wireAt = new Map(live.flatMap((w) => [endOwner(w.from), endOwner(w.to)].map((owner) => [owner, w.id])));
     for (const junction of circuit.junctions) {
       const attached = wireAt.get(junction.id);
-      const value = signal(attached === undefined ? undefined : loaded?.wireNets[attached]);
+      const net = attached === undefined ? undefined : loaded?.wireNets[attached];
+      const value = signal(net);
+      const state = value === null ? "known" : signalState(value, unknownOf(net));
       const lit = value !== null && value !== 0;
-      const tone = bitsOf(attached) > 1 ? color["signal-bus"] : lit ? color["signal-high"] : color["signal-low"];
+      const tone = state !== "known" ? STYLE[state].tone : bitsOf(attached) > 1 ? color["signal-bus"] : lit ? color["signal-high"] : color["signal-low"];
       const { x, y } = px(junction.position);
       if (selected.has(junction.id)) wires.circle(x, y, 8).stroke({ width: size["select-width"], color: color.select });
       wires.circle(x, y, junction.name ? 3 : 4).fill({ color: tone, alpha: value === null ? 0.5 : 1 });
@@ -471,15 +489,24 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
 
     for (const component of circuit.components) {
       const ports = loaded?.portNets[component.id];
-      const value = (port: string) => signal(ports?.[port]);
+      const value: Read = Object.assign((port: string) => signal(ports?.[port]), { unknown: (port: string) => unknownOf(ports?.[port]) });
       drawBody(component, culprits.has(component.id), value);
       const bits = widthOf(component);
+      if (component.kind === "led" && bits === 1) {
+        // A one-bit LED that is not known says which: lettered, as its wire is dashed (ADR 0035).
+        const state = signalState(value("in") ?? 0, value.unknown("in"));
+        if (state !== "known") {
+          const centre = px({ x: component.position.x + 1, y: component.position.y + 1 });
+          put(`${component.id}:value`, state.toUpperCase(), centre.x, centre.y, { x: 0.5, y: 0.5 }, STYLE[state].tone);
+        }
+      }
       if (component.kind === "keyboard" || ((component.kind === "switch" || component.kind === "led" || component.kind === "dff") && bits > 1)) {
         // A wide switch, LED or register, or a keyboard, shows its value in hex, upright whatever its rotation.
-        const shown = value(component.kind === "switch" || component.kind === "keyboard" ? "out" : component.kind === "dff" ? "q" : "in");
+        const port = component.kind === "switch" || component.kind === "keyboard" ? "out" : component.kind === "dff" ? "q" : "in";
+        const shown = value(port);
         const { width, height } = layoutOf(component);
         const centre = px({ x: component.position.x + width / 2, y: component.position.y + height / 2 });
-        const text = shown === null ? "--" : hex(shown, bits);
+        const text = shown === null ? "--" : hex(shown, bits, value.unknown(port));
         // Along the body: a wide part turned upright is too narrow for 8 hex digits across it.
         const along = component.rotation % 180 === 0 ? 0 : -90;
         put(`${component.id}:value`, text, centre.x, centre.y, { x: 0.5, y: 0.5 }, color["signal-bus"]).angle = along;
@@ -525,7 +552,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       const shape = { kind: armed, rotation, definition, props: armedProps(armed, useEditor.getState().armedWidth) };
       const ghost = { id: GHOST, ...shape, position: placement(shape, toWorld(pointer)) };
       // Outlined in the danger colour where a click would be refused.
-      drawBody(ghost, placementStacks(circuit, ghost), () => null);
+      drawBody(ghost, placementStacks(circuit, ghost), NOTHING);
       present.add(GHOST);
     }
     for (const [id, shape] of shapes) {
@@ -664,7 +691,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   }
 
   /** A screen's pixels, lit in the signal colour on the bench (ADR 0021); all dark until its words arrive. */
-  function drawPicture(g: Graphics, props: Props, words: Uint32Array | undefined) {
+  function drawPicture(g: Graphics, props: Props, words: Uint32Array | undefined, hidden: Uint32Array | undefined) {
     const { color } = theme;
     const c = cell();
     const { columns, rows } = screenSize(props);
@@ -674,6 +701,36 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     const lit = words ? litPixels(words, props) : [];
     for (const n of lit) g.rect(x0 + (n % columns) * p, y0 + Math.floor(n / columns) * p, p, p);
     if (lit.length) g.fill({ color: color["signal-high"] });
+    // Pixels whose bit is unknown, over the others (ADR 0035).
+    const unknown = hidden?.length ? litPixels(hidden, props) : [];
+    for (const n of unknown) g.rect(x0 + (n % columns) * p, y0 + Math.floor(n / columns) * p, p, p);
+    if (unknown.length) g.fill({ color: color["signal-x"] });
+  }
+
+  /** `points` as dashes of `on` pixels with `off` between, carried round the corners. */
+  function dashed(g: Graphics, points: Point[], [on, off]: readonly [number, number]) {
+    let left = on;
+    let drawing = true;
+    for (let i = 1; i < points.length; i++) {
+      const [from, to] = [points[i - 1], points[i]];
+      if (!from || !to) continue;
+      const length = Math.hypot(to.x - from.x, to.y - from.y);
+      const [ux, uy] = length ? [(to.x - from.x) / length, (to.y - from.y) / length] : [0, 0];
+      g.moveTo(from.x, from.y);
+      for (let done = 0; done < length; ) {
+        const step = Math.min(left, length - done);
+        done += step;
+        left -= step;
+        const [x, y] = [from.x + ux * done, from.y + uy * done];
+        if (drawing) g.lineTo(x, y);
+        else g.moveTo(x, y);
+        if (left === 0) {
+          drawing = !drawing;
+          left = drawing ? on : off;
+        }
+      }
+    }
+    return g;
   }
 
   function polyline(g: Graphics, points: Point[]) {
@@ -702,22 +759,23 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   const retired: Graphics[] = [];
 
   /** The signal a part's shape shows, if any: gates show none, so a change of their values redraws nothing. */
-  function shownValue(component: CircuitComponent, width: number, value: (port: string) => number | null) {
+  function shownValue(component: CircuitComponent, width: number, value: Read) {
     switch (component.kind) {
       case "led":
-        return width <= 2 && value("in") === 1 ? 1 : 0;
+        // Dark, lit, X or Z.
+        return width > 2 ? 0 : value.unknown("in") ? (value("in") ? 2 : 3) : value("in") === 1 ? 1 : 0;
       case "switch":
         return width <= 2 && value("out") === 1 ? 1 : 0;
       case "clock":
         return value("out") === 1 ? 1 : 0;
       case "seg7":
-        return (value("seg") ?? 0) & 255;
+        return ((value("seg") ?? 0) & 255) | ((value.unknown("seg") & 255) << 8);
       default:
         return 0;
     }
   }
 
-  function drawBody(component: CircuitComponent, culprit: boolean, value: (port: string) => number | null) {
+  function drawBody(component: CircuitComponent, culprit: boolean, value: Read) {
     const c = cell();
     // Drawn in the part's own unrotated frame, then turned about its centre into the placed box.
     const local = layoutOf({ ...component, rotation: 0 });
@@ -726,7 +784,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     const screen = component.kind === "screen";
     // A screen's picture is its words: each reply is a new array (ADR 0021).
     const words = screen ? useSim.getState().memory[component.id] : undefined;
-    const picture = screen ? `${pictureVersion(words)}:${component.props.width}:${component.props.columns}` : "";
+    const hidden = screen ? useSim.getState().memoryUnknown[component.id] : undefined;
+    const picture = screen ? `${pictureVersion(words)}:${pictureVersion(hidden)}:${component.props.width}:${component.props.columns}` : "";
     const focus = component.kind === "keyboard" && useCanvasHints.getState().keyboard === component.id;
     // Everything `paintBody` reads, since parts with the same look share what it paints.
     const look = `${component.kind}|${layoutId(local)}|${shownValue(component, local.width, value)}|${picture}|${focus}|${culprit}|${themeVersion}`;
@@ -775,7 +834,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     component: CircuitComponent,
     local: ReturnType<typeof layoutOf>,
     culprit: boolean,
-    value: (port: string) => number | null,
+    value: Read,
     words: Uint32Array | undefined,
   ) {
     const { color, size } = theme;
@@ -803,7 +862,11 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
           const cx = x + c;
           const cy = y + c;
           lead(x, cx - 10, cy);
-          if (value("in") === 1) {
+          const unknown = value.unknown("in") ? (value("in") ? "signal-x" : "signal-z") : null;
+          if (unknown) {
+            // Not lit and not dark: a ring in its state's colour, lettered X or Z by `draw` (ADR 0035).
+            g.circle(cx, cy, 10).fill(body).stroke({ width: 2, color: culprit ? color.danger : color[unknown] });
+          } else if (value("in") === 1) {
             g.circle(cx, cy, 18).fill({ color: color["signal-high-soft"] });
             g.circle(cx, cy, 11).fill({ color: color["signal-high"] });
           } else {
@@ -841,7 +904,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
         // A memory (ADR 0018): a box, its size and port names as labels, a RAM's clock input marked.
         g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(outline);
         if (component.kind !== "rom") g.moveTo(x, y + 7 * c - 6).lineTo(x + 8, y + 7 * c).lineTo(x, y + 7 * c + 6).stroke(outline);
-        if (component.kind === "screen") drawPicture(g, component.props, words);
+        if (component.kind === "screen") drawPicture(g, component.props, words, useSim.getState().memoryUnknown[component.id]);
         break;
       case "seg7": {
         // A digit (ADR 0021): segment a (bit 0) at the top, then clockwise, g (bit 6) in the middle, dp (bit 7).
@@ -857,8 +920,14 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
           [l, t, l, m], // f
           [l, m, r, m], // g
         ];
+        // A segment whose bit is unknown is drawn in the X colour, lit or not (ADR 0035).
+        const hidden = value.unknown("seg");
         const tone = (bit: number) =>
-          bits !== null && (bits >> bit) & 1 ? { color: color["signal-high"] } : { color: color["signal-low"], alpha: 0.25 };
+          (hidden >> bit) & 1
+            ? { color: color["signal-x"] }
+            : bits !== null && (bits >> bit) & 1
+              ? { color: color["signal-high"] }
+              : { color: color["signal-low"], alpha: 0.25 };
         segments.forEach(([x1, y1, x2, y2], bit) => {
           const inset = 3;
           const [dx, dy] = x1 === x2 ? [0, inset] : [inset, 0];
@@ -894,6 +963,14 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       case "not":
         g.moveTo(x, y).lineTo(x + 2.5 * c, y + c).lineTo(x, y + 2 * c).closePath().fill(body).stroke(outline);
         bubble(x + 2.75 * c, y + c);
+        break;
+      case "tri":
+        // A buffer's triangle, its tip reaching `out`, and the enable coming up into its lower edge (ADR 0035).
+        g.moveTo(x, y + 3 * c)
+          .lineTo(x + 1.5 * c, y + 3 * c)
+          .lineTo(x + 1.5 * c, y + 1.5 * c)
+          .stroke(outline);
+        g.moveTo(x, y).lineTo(x + 3 * c, y + c).lineTo(x, y + 2 * c).closePath().fill(body).stroke(outline);
         break;
       case "and":
       case "nand": {

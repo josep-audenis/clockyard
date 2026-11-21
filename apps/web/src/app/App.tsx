@@ -97,6 +97,8 @@ const LIBRARY: { title: string; parts: Part[] }[] = [
       { kind: "nor", name: "NOR" },
       { kind: "xnor", name: "XNOR" },
       { kind: "not", name: "NOT", key: "N" },
+      // ADR 0035: drives its output only while enabled, so several can share one wire.
+      { kind: "tri", name: "Tri-state buffer" },
     ],
   },
   {
@@ -983,9 +985,9 @@ function changeAt(trace: Float64Array, tick: number): number {
 }
 
 /** What a trace held at `tick`; nothing before its record began. */
-function valueAt(trace: Float64Array, tick: number): number | undefined {
+function valueAt(trace: Float64Array, tick: number): { value: number; unknown: number } | undefined {
   const i = changeAt(trace, tick);
-  return i < 0 ? undefined : trace[WAVE_STRIDE * i + 1];
+  return i < 0 ? undefined : { value: trace[WAVE_STRIDE * i + 1] ?? 0, unknown: trace[WAVE_STRIDE * i + 2] ?? 0 };
 }
 
 /** A trace's name: its net label, else the part driving it with the port unless that is `out`, else the wire's ID. */
@@ -1001,40 +1003,52 @@ function traceName(circuit: Circuit, loaded: Loaded, net: number, wire: string):
   return port && port !== "out" ? `${name} ${port}` : name;
 }
 
-/** One lane: a 1-bit trace as a high and low line, a wider one as a band with each value's hex digits where they fit. */
+/**
+ * One lane: a 1-bit trace as a high and low line, a wider one as a band with each value's hex digits where they fit.
+ * An X or a Z runs along the middle, dashed in its own colour; a band with unknown digits is outlined so (ADR 0035).
+ */
 function Lane({ trace, width, start, end }: { trace: Float64Array; width: number; start: number; end: number }) {
   // From the change in force at `start`: keyed by the tick each began, so a band keeps its element as time scrolls.
-  const segments: { tick: number; x0: number; x1: number; value: number; cutLeft: boolean; cutRight: boolean }[] = [];
+  const segments: { tick: number; x0: number; x1: number; value: number; unknown: number; cutLeft: boolean; cutRight: boolean }[] = [];
   for (let i = Math.max(0, changeAt(trace, start)); WAVE_STRIDE * i < trace.length; i++) {
     const at = WAVE_STRIDE * i;
-    const [tick = 0, value = 0] = [trace[at], trace[at + 1]];
+    const [tick = 0, value = 0, unknown = 0] = [trace[at], trace[at + 1], trace[at + 2]];
     if (tick > end) break;
     const to = Math.min(trace[at + WAVE_STRIDE] ?? end + 1, end + 1);
     const from = Math.max(tick, start);
     // A value running past the window's edge has no end to draw there.
     const cutRight = (trace[at + WAVE_STRIDE] ?? Infinity) > end;
-    if (to > from) segments.push({ tick, x0: (from - start) * TICK_PX, x1: (to - start) * TICK_PX, value, cutLeft: tick < start, cutRight });
+    if (to > from) segments.push({ tick, x0: (from - start) * TICK_PX, x1: (to - start) * TICK_PX, value, unknown, cutLeft: tick < start, cutRight });
   }
   const [top, bottom, middle] = [4, LANE_HEIGHT - 4, LANE_HEIGHT / 2];
   if (width === 1) {
-    const d = segments.map(({ x0, x1, value }, i) => `${i ? "V" : `M${x0} `}${value ? top : bottom}H${x1}`).join("");
+    // The steps between levels; an unknown stretch leaves a gap in this line and is drawn on its own below.
+    const d = segments
+      .map(({ x0, x1, value, unknown }, i) => {
+        const level = unknown ? middle : value ? top : bottom;
+        return `${i && !unknown && !segments[i - 1]?.unknown ? "V" : `M${x0} `}${level}${unknown ? "" : `H${x1}`}`;
+      })
+      .join("");
     // Amber only where the signal is 1, as on a wire (ADR 0008).
-    const high = segments.flatMap(({ x0, x1, value }) => (value ? [`M${x0} ${top}H${x1}`] : [])).join("");
+    const high = segments.flatMap(({ x0, x1, value, unknown }) => (value && !unknown ? [`M${x0} ${top}H${x1}`] : [])).join("");
+    const along = (x: boolean) => segments.flatMap(({ x0, x1, value, unknown }) => (unknown && Boolean(value) === x ? [`M${x0} ${middle}H${x1}`] : [])).join("");
     return (
       <>
         <path className="wave-bit" d={d} />
         <path className="wave-high" d={high} />
+        <path className="wave-x" d={along(true)} />
+        <path className="wave-z" d={along(false)} />
       </>
     );
   }
-  return segments.map(({ tick, x0, x1, value, cutLeft, cutRight }) => {
+  return segments.map(({ tick, x0, x1, value, unknown, cutLeft, cutRight }) => {
     if (x1 - x0 < 8) return null;
     // Without `0x`, so an 8-bit value fits in one cycle; the value column has it in full.
-    const text = hex(value, width).slice(2);
+    const text = hex(value, width, unknown).slice(2);
     return (
       <g key={tick}>
         <polygon
-          className="wave-bus"
+          className={unknown ? "wave-bus wave-unknown" : "wave-bus"}
           points={[
             ...(cutLeft ? [[x0, bottom], [x0, top]] : [[x0 + 2, middle], [x0 + 4, top]]),
             ...(cutRight ? [[x1, top], [x1, bottom]] : [[x1 - 4, top], [x1 - 2, middle], [x1 - 4, bottom]]),
@@ -1118,8 +1132,8 @@ function WavePanel({ height: chosen, setHeight }: { height: number | null; setHe
     setCursor(tick);
     const held = rows.map(({ wires, net, width }) => {
       const t = trace(net);
-      const value = t && valueAt(t, tick);
-      return `${loaded ? traceName(circuit, loaded, net, wires[0] ?? "") : ""} ${value === undefined ? "unknown" : showValue(value, width)}`;
+      const held = t && valueAt(t, tick);
+      return `${loaded ? traceName(circuit, loaded, net, wires[0] ?? "") : ""} ${held === undefined ? "unknown" : showValue(held.value, width, held.unknown)}`;
     });
     announce(held.join(", "));
   };
@@ -1182,11 +1196,11 @@ function WavePanel({ height: chosen, setHeight }: { height: number | null; setHe
           {rows.map(({ wires, net, width }) => {
             const name = loaded ? traceName(circuit, loaded, net, wires[0] ?? "") : (wires[0] ?? "");
             const t = trace(net);
-            const value = t && valueAt(t, at ?? time);
+            const held = t && valueAt(t, at ?? time);
             return (
               <li key={net} className="waves-row">
                 <span className="type-label waves-name">{name}</span>
-                <span className="type-value waves-value">{value === undefined ? "unknown" : showValue(value, width)}</span>
+                <span className="type-value waves-value">{held === undefined ? "unknown" : showValue(held.value, width, held.unknown)}</span>
                 <button
                   type="button"
                   className="button button-quiet waves-remove"
@@ -2453,11 +2467,13 @@ function Readout() {
   const names = partNames(components);
   const loaded = useSim((s) => s.loaded);
   const nets = useSim((s) => s.nets);
+  // A bit the engine does not know reads X or Z (ADR 0035); "unknown" below means the engine has not reported yet.
+  const hidden = useSim((s) => s.unknown);
   const stale = useSim((s) => s.stale);
   const value = (part: CircuitComponent, port: string) => {
     const net = loaded?.portNets[part.id]?.[port];
     const bits = net === undefined ? undefined : nets?.[net];
-    return stale || bits === undefined ? "unknown" : showValue(bits, widthOf(part));
+    return stale || net === undefined || bits === undefined ? "unknown" : showValue(bits, widthOf(part), hidden[net] ?? 0);
   };
   // Inputs first, then outputs (ADR 0021: a keyboard is read as a switch, a seven-segment display as an LED), then what
   // holds state.
@@ -2489,7 +2505,7 @@ function Readout() {
   const pinValue = (part: CircuitComponent, pin: CircuitComponent) => {
     const net = loaded?.portNets[part.id]?.[pin.id];
     const bits = net === undefined ? undefined : nets?.[net];
-    return stale || bits === undefined ? "unknown" : showValue(bits, widthOf(pin));
+    return stale || net === undefined || bits === undefined ? "unknown" : showValue(bits, widthOf(pin), hidden[net] ?? 0);
   };
   return (
     // The role is said outright: Safari stops calling a list without markers one.
@@ -2726,6 +2742,7 @@ function StatusBar() {
   const bits = hovered === null || stale ? 1 : (loaded?.wireWidths[hovered] ?? 1);
   const net = hovered === null ? undefined : loaded?.wireNets[hovered];
   const probed = bits > 1 && net !== undefined ? nets?.[net] : undefined;
+  const probedUnknown = useSim((s) => (net === undefined ? 0 : (s.unknown[net] ?? 0)));
   // While a part is armed, how to place it.
   // A keyboard part with the keys says so, and how to give them back (ADR 0021).
   const keyboard = useCanvasHints((s) => s.keyboard);
@@ -2836,7 +2853,7 @@ function StatusBar() {
         {said}
       </p>
       {/* Follows the pointer, so it stays out of the status region. */}
-      {probed !== undefined && <span className="status-probe">{`${bits} bits: ${probed}, ${hex(probed, bits)}`}</span>}
+      {probed !== undefined && <span className="status-probe">{probedUnknown ? `${bits} bits: ${hex(probed, bits, probedUnknown)}` : `${bits} bits: ${probed}, ${hex(probed, bits)}`}</span>}
       <SaveStatus />
       {/* Also when there is one: a narrow bar cuts the message short. */}
       {diagnostics.length > 0 && (

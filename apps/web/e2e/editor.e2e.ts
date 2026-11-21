@@ -352,6 +352,60 @@ test("a broken file is refused and the circuit is kept", async ({ page }) => {
   await expect(readout(page, "LED 1")).toHaveText("LED 1: off");
 });
 
+test("tri-state buffers share a bus: it reads Z with none enabled, a value with one, and X when two disagree (ADR 0035)", async ({ page }) => {
+  // Two one-bit sources A and B behind buffers enabled by EA and EB, on one wire to the LED Bus.
+  const part = (id: string, kind: string, x: number, y: number, label?: string) => ({ id, kind, position: { x, y }, rotation: 0, props: label ? { label } : {} });
+  const wire = (id: string, from: [string, string], to: [string, string]) => ({ id, from: { component: from[0], port: from[1] }, to: { component: to[0], port: to[1] } });
+  const bus = {
+    format: "clockyard",
+    version: 12,
+    metadata: { name: "A bus", createdAt: "2026-11-21T10:00:00Z", modifiedAt: "2026-11-21T10:00:00Z" },
+    circuit: {
+      components: [
+        part("a", "switch", 0, 0, "A"),
+        part("ea", "switch", 0, 4, "EA"),
+        part("ta", "tri", 8, 0),
+        part("b", "switch", 0, 10, "B"),
+        part("eb", "switch", 0, 14, "EB"),
+        part("tb", "tri", 8, 10),
+        part("l", "led", 20, 4, "Bus"),
+      ],
+      junctions: [],
+      wires: [
+        wire("w1", ["a", "out"], ["ta", "in"]),
+        wire("w2", ["ea", "out"], ["ta", "en"]),
+        wire("w3", ["b", "out"], ["tb", "in"]),
+        wire("w4", ["eb", "out"], ["tb", "en"]),
+        wire("w5", ["ta", "out"], ["l", "in"]),
+        wire("w6", ["tb", "out"], ["l", "in"]),
+      ],
+    },
+    definitions: [],
+  };
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Tri-state buffer", exact: true })).toBeVisible();
+  await page.locator('[data-testid="import-file"]').setInputFiles({ name: "bus.clockyard.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(bus)) });
+  await expect(page.getByLabel("Project name")).toHaveValue("A bus");
+  // Two outputs on one wire, and no error: they are tri-state buffers. Nothing drives the bus yet.
+  await expect(status(page)).toContainText("Settled");
+  await expect(readout(page, "LED Bus")).toHaveText("LED Bus: Z");
+  const at = await grid(page);
+  await click(page, at(1, 5)); // EA
+  await expect(readout(page, "LED Bus")).toHaveText("LED Bus: off");
+  await click(page, at(1, 1)); // A
+  await expect(readout(page, "LED Bus")).toHaveText("LED Bus: on");
+  // B's buffer too: 1 against 0.
+  await click(page, at(1, 15)); // EB
+  await expect(readout(page, "LED Bus")).toHaveText("LED Bus: X");
+  await expect(status(page)).toContainText("Settled");
+  // Two drivers that agree are no conflict.
+  await click(page, at(1, 11)); // B
+  await expect(readout(page, "LED Bus")).toHaveText("LED Bus: on");
+  await click(page, at(1, 5));
+  await click(page, at(1, 15));
+  await expect(readout(page, "LED Bus")).toHaveText("LED Bus: Z");
+});
+
 test("invalid and unstable circuits are reported and recover", async ({ page }) => {
   await page.goto("/");
   const at = await grid(page);

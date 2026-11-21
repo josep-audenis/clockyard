@@ -81,6 +81,15 @@ test("watched memories are read once a frame however many states arrive, a newly
   expect(useSim.getState().memory.s).toBe(first);
   worker.reply({ type: "memory", component: "s", words: new Uint32Array([1, 3]), unknown: new Uint32Array() });
   expect([...(useSim.getState().memory.s ?? [])]).toEqual([1, 3]);
+  // Unknown bits arrive beside the words, and change apart from them (ADR 0035).
+  const words = useSim.getState().memory.s;
+  worker.reply({ type: "memory", component: "s", words: new Uint32Array([1, 3]), unknown: new Uint32Array([0, 1]) });
+  expect(useSim.getState().memory.s).toBe(words);
+  expect([...(useSim.getState().memoryUnknown.s ?? [])]).toEqual([0, 1]);
+  // A state's unknown bits are kept beside its nets.
+  worker.reply({ type: "state", nets: new Uint32Array([0, 1]), unknown: new Uint32Array([0, 1]), diagnostics: [], time: 1, running: true });
+  vi.advanceTimersByTime(0);
+  expect([...useSim.getState().unknown]).toEqual([0, 1]);
   stop();
   vi.useRealTimers();
 });

@@ -199,7 +199,29 @@ export type NetView = {
   wireNets: Record<string, number>;
   wireWidths: Record<string, number>;
   netDrivers: (string | null)[];
+  /** Part ID → port → net: where each tri-state buffer and each instance's output pin drives (ADR 0035). */
+  portNets?: Record<string, Record<string, number>>;
 };
+
+/**
+ * Whether making a component of `inside` would split a bus (ADR 0035 item 7): a net with several drivers, some of
+ * them inside and some left out. Such a bus would have to cross the component's edge in both directions, and pins
+ * have one. A bus's drivers are tri-state buffers and instances' output pins; an instance reports only those.
+ */
+function splitsBus(circuit: Circuit, inside: Set<string>, nets: NetView): boolean {
+  const drivers = new Map<number, { in: number; out: number }>();
+  for (const part of circuit.components) {
+    const ports = nets.portNets?.[part.id];
+    const driven = part.kind === "tri" ? [ports?.out] : part.kind === "custom" ? Object.values(ports ?? {}) : [];
+    for (const net of driven) {
+      if (net === undefined) continue;
+      const count = drivers.get(net) ?? { in: 0, out: 0 };
+      count[inside.has(part.id) ? "in" : "out"]++;
+      drivers.set(net, count);
+    }
+  }
+  return [...drivers.values()].some((count) => count.in > 0 && count.out > 0);
+}
 /** The engine's state for Make component: `nets` is null when the circuit did not load (it has errors). */
 export type EngineView = { stale: boolean; nets: NetView | null };
 
@@ -522,6 +544,9 @@ export const useEditor = create<EditorState>()((set, get) => ({
     if (new Set(names).size !== names.length) return "Two pins share a name: give each switch and LED its own label.";
     if (crossing.length > 0 && engine.stale) return "Wait for the simulation to catch up, then try again.";
     if (crossing.length > 0 && !engine.nets) return "Fix the circuit's errors first: wires crossing the selection need a working circuit.";
+    if (engine.nets && splitsBus(circuit, inside, engine.nets)) {
+      return "A shared bus would be split: select every tri-state buffer on it, or none of them.";
+    }
     const added = crossingPins(circuit, inside, crossing, engine.nets, new Set(names));
     if (pins.length === 0 && added.pins.length === 0) return "A component needs pins: labelled switches (inputs) and LEDs (outputs).";
     // The definition starts at its own origin, new pins included. The instance takes the selection's top-left

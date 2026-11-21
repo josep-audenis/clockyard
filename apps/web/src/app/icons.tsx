@@ -94,6 +94,12 @@ const GLYPHS: Record<string, ReactNode> = {
       {bubble(17.2)}
     </>
   ),
+  "Tri-state buffer": (
+    <>
+      <path d="M7 2.5v9L16 7z" />
+      <path d="M2 7h5M16 7h6M2 15h9.5V9.3" />
+    </>
+  ),
   AND: <path d={`${body.and}M2 6h5M2 12h5M17.5 9H22`} />,
   NAND: (
     <>

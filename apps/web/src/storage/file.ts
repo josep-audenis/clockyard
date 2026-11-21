@@ -33,7 +33,7 @@ import {
   type Wire,
 } from "../editor/document";
 
-export const FORMAT_VERSION = 11;
+export const FORMAT_VERSION = 12;
 
 /** How a part of fixed width is named when a file gives it a width. */
 const FIXED_NAMES: Partial<Record<PartKind, string>> = { clock: "clock", seg7: "seven-segment display", keyboard: "keyboard" };
@@ -181,7 +181,7 @@ function readDocument(data: unknown): CircuitDocument {
   if (version > FORMAT_VERSION) {
     throw new Error(`This file uses format version ${version}, from a newer Clockyard. This version reads up to ${FORMAT_VERSION}.`);
   }
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
   // Version 4 → 5 (ADR 0014): widths arrive as props; nothing to change.
   // Version 5 → 6 (ADR 0015): junctions may carry a net label's name; nothing to change.
   // Version 6 → 7 (ADR 0017): clock and dff kinds; nothing to change.
@@ -189,6 +189,7 @@ function readDocument(data: unknown): CircuitDocument {
   // Version 8 → 9 (ADR 0021): seg7, screen and keyboard kinds, and a screen's columns; nothing to change.
   // Version 9 → 10 (ADR 0025): metadata may name the challenge the document was started from; nothing to change.
   // Version 10 → 11 (ADR 0027): metadata may carry notes; nothing to change.
+  // Version 11 → 12 (ADR 0035): the tri kind; nothing to change.
 
   const metadata = object(data.metadata, "metadata");
   const circuit = object(data.circuit, "circuit");

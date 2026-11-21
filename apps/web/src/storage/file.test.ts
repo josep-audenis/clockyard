@@ -5,7 +5,7 @@ import { MAX_DOCUMENT_BYTES, parseDocument, serializeDocument } from "./file";
 
 const document: CircuitDocument = {
   format: "clockyard",
-  version: 11,
+  version: 12,
   metadata: { name: "AND demo", createdAt: "2026-11-06T12:00:00Z", modifiedAt: "2026-11-06T12:30:00Z" },
   circuit: {
     components: [
@@ -77,7 +77,7 @@ test("definition names are normalized like the editor does, and a blank one beco
 test.each([
   ["not JSON", () => parseDocument("{"), "not valid JSON"],
   ["another format", () => broken((doc) => Object.assign(doc, { format: "other" })), "not a Clockyard file"],
-  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 12 })), "newer Clockyard"],
+  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 13 })), "newer Clockyard"],
   ["an instance of a missing definition", () => broken((doc) => Object.assign(doc.circuit.components[2] ?? {}, { definition: "gone" })), "missing definition gone"],
   ["an ID with a slash", () => broken((_, c) => (c.id = "a/b")), 'must not contain "/"'],
   ["a definition ID used twice", () => broken((doc) => doc.definitions.push({ ...(doc.definitions[0] as Definition) })), "ID inv is used more than once"],
@@ -326,4 +326,12 @@ test.each([
   ["source on a RAM", { kind: "ram", props: { source: "HLT" } }, "only ROMs keep"],
 ])("refuses %s", (_, part, message) => {
   expect(broken((__, c) => Object.assign(c, part))).toMatchObject({ ok: false, error: expect.stringContaining(message) });
+});
+
+test("a version 11 file is migrated: only the version changes; a tri-state buffer round-trips in 12 (ADR 0035)", () => {
+  const v11 = { ...document, version: 11 };
+  expect(parseDocument(JSON.stringify(v11))).toEqual({ ok: true, document });
+  const buffer: CircuitComponent = { id: "t", kind: "tri", position: { x: 12, y: 0 }, rotation: 0, props: { width: 8 } };
+  const bused = { ...document, circuit: { ...document.circuit, components: [...document.circuit.components, buffer] } };
+  expect(parseDocument(serializeDocument(bused))).toEqual({ ok: true, document: bused });
 });

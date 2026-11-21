@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { fieldRanges, fieldsProblem, hex, litPixels, parseValue, project, screenSize, showValue, withoutDeletedPins, type Circuit } from "./document";
+import { fieldRanges, fieldsProblem, hex, litPixels, parseValue, project, screenSize, showValue, signalState, withoutDeletedPins, type Circuit } from "./document";
 
 test("projection keeps connectivity and widths, junctions included, and drops geometry and labels", () => {
   const circuit: Circuit = {
@@ -141,4 +141,16 @@ test("a screen's lit pixels: most significant bit leftmost, rows filled in order
   expect(litPixels([1], { width: 8, columns: 4 })).toEqual([7]);
   // One column of 32-bit words: 256 rows shown, so word 8 is past the picture.
   expect(litPixels(Array<number>(9).fill(0xffffffff), { width: 32, addressWidth: 16, columns: 1 })).toHaveLength(256);
+});
+
+test("unknown bits are written as X and Z, a hex digit Z only if all its bits are (ADR 0035)", () => {
+  expect([signalState(5, 0), signalState(0, 0xf), signalState(8, 0xf)]).toEqual(["known", "z", "x"]);
+  expect([showValue(1, 1, 1), showValue(0, 1, 1)]).toEqual(["X", "Z"]);
+  // 0x5F with the low nibble's bits 0 and 2 unknown: the digit is X; the high digit is known.
+  expect(hex(0x5f, 8, 0x05)).toBe("0x5X");
+  expect(hex(0x00, 8, 0xff)).toBe("0xZZ");
+  expect(hex(0x0f, 8, 0x0f)).toBe("0x0X");
+  // A 6-bit value's top digit has two bits: Z when both are.
+  expect([hex(0b000101, 6, 0b110000), hex(0b100101, 6, 0b110000), hex(0b000101, 6, 0b010000)]).toEqual(["0xZ5", "0xX5", "0xX5"]);
+  expect(showValue(0x5f, 8, 0x05)).toBe("0x5X");
 });

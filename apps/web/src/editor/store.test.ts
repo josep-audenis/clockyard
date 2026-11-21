@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 import { endOwner, sameEnd, type Circuit } from "./document";
 import { contains } from "./document";
-import { liveDefinitions, liveWatches, mainCircuit, MAX_WATCHES, useEditor } from "./store";
+import { liveDefinitions, liveWatches, mainCircuit, MAX_WATCHES, useEditor, type NetView } from "./store";
 import { layoutOf, pinLabel } from "../canvas/layout";
 
 const initial = useEditor.getState();
@@ -70,7 +70,7 @@ test("load replaces the document and clears transient state", () => {
   toggle(add("switch", { x: 0, y: 0 }));
   const metadata = { name: "Loaded", createdAt: "2026-01-01T00:00:00Z", modifiedAt: "2026-01-02T00:00:00Z" };
   const circuit = { components: [], junctions: [], wires: [] };
-  load({ format: "clockyard", version: 11, metadata, circuit, definitions: [] });
+  load({ format: "clockyard", version: 12, metadata, circuit, definitions: [] });
   const state = useEditor.getState();
   expect([state.metadata, state.circuit, state.selection, state.inputs]).toEqual([metadata, circuit, [], {}]);
 });
@@ -129,7 +129,7 @@ test("loading a document clears history", () => {
   const { add, load, undo } = useEditor.getState();
   add("switch", { x: 0, y: 0 });
   const metadata = { name: "x", createdAt: "", modifiedAt: "" };
-  load({ format: "clockyard", version: 11, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  load({ format: "clockyard", version: 12, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
   undo();
   expect(ids()).toEqual([]);
 });
@@ -730,7 +730,7 @@ test("opens counts the sheets and documents swapped in, not the edits", () => {
   useEditor.getState().closeSheet();
   expect(opens()).toBe(start + 2);
   const { metadata } = useEditor.getState();
-  useEditor.getState().load({ format: "clockyard", version: 11, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  useEditor.getState().load({ format: "clockyard", version: 12, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
   expect(opens()).toBe(start + 3);
 });
 
@@ -793,7 +793,7 @@ test("paste refuses an instance that would make a definition contain itself; ope
   expect(useEditor.getState().circuit.components.filter((c) => c.kind === "custom")).toHaveLength(2);
   // Another file has none of these definitions: nothing is left to paste.
   const metadata = { name: "Other", createdAt: "2026-11-07T00:00:00Z", modifiedAt: "2026-11-07T00:00:00Z" };
-  useEditor.getState().load({ format: "clockyard", version: 11, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  useEditor.getState().load({ format: "clockyard", version: 12, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
   useEditor.getState().paste();
   expect(useEditor.getState().clipboard).toBeNull();
   expect(useEditor.getState().circuit.components).toEqual([]);
@@ -1290,7 +1290,7 @@ test("watching keeps wires in order, at most MAX_WATCHES live ones, and a new sh
   useEditor.getState().closeSheet();
   expect(useEditor.getState().watches).toEqual([]);
   useEditor.setState({ watches: ["z"] });
-  useEditor.getState().load({ format: "clockyard", version: 11, metadata: initial.metadata, circuit: initial.circuit, definitions: [] });
+  useEditor.getState().load({ format: "clockyard", version: 12, metadata: initial.metadata, circuit: initial.circuit, definitions: [] });
   expect(useEditor.getState().watches).toEqual([]);
 });
 
@@ -1304,4 +1304,26 @@ test("notes are the document's, outside undo, cut to MAX_NOTES characters, and e
   expect([...(useEditor.getState().metadata.notes ?? "")]).toHaveLength(4000);
   setNotes("");
   expect(useEditor.getState().metadata.notes).toBeUndefined();
+});
+
+test("make component refuses to split a bus: its tri-state buffers go in together or stay out (ADR 0035)", () => {
+  const { add, connect, select, makeComponent } = useEditor.getState();
+  const [a, b, led] = [add("tri", { x: 0, y: 0 }), add("tri", { x: 0, y: 6 }), add("led", { x: 10, y: 0 })];
+  const wa = connect(port(a, "out"), port(led, "in")) ?? "";
+  const wb = connect(port(b, "out"), port(led, "in")) ?? "";
+  // The engine's view: both buffers' `out` and both wires are the bus, net 3, named by its first buffer.
+  const nets: NetView = {
+    wireNets: { [wa]: 3, [wb]: 3 },
+    wireWidths: { [wa]: 1, [wb]: 1 },
+    netDrivers: [null, a, b, a],
+    portNets: { [a]: { in: 0, en: 0, out: 3 }, [b]: { in: 0, en: 0, out: 3 }, [led]: { in: 3 } },
+  };
+  select([a]);
+  expect(makeComponent("Half", { stale: false, nets })).toBe("A shared bus would be split: select every tri-state buffer on it, or none of them.");
+  expect(useEditor.getState().definitions).toEqual([]);
+  // Both buffers together: the bus leaves through one output pin.
+  select([a, b]);
+  expect(makeComponent("Both", { stale: false, nets })).toBeNull();
+  const [definition] = useEditor.getState().definitions;
+  expect(definition?.circuit.components.map((c) => c.kind)).toEqual(["tri", "tri", "led"]);
 });
