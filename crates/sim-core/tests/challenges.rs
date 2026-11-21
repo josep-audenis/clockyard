@@ -933,6 +933,12 @@ fn a_display_with_one_wrong_wire_fails_the_challenge() {
         (("r", "d"), ("addr", "out")),
         // Bit 0 ignored when drawing: 0xFC draws too.
         (("isfd", "b"), ("n1", "out")),
+        // Bit 6 ignored by both: no store but one to 0xBE or 0xBD shows it.
+        (("h1", "b"), ("bits", "f7")),
+        // Bit 1 ignored when drawing: 0xFF draws too.
+        (("isfd", "a"), ("bits", "f0")),
+        // The pointer loaded whenever the address is 0xFE, store or not.
+        (("sptren", "a"), ("high", "out")),
     ];
     for ((to, to_port), (from, from_port)) in mutants {
         let mut wrong = solution("12-display");

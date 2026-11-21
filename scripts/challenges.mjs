@@ -563,9 +563,9 @@ const benchChallenges = [
     // The reference: the sum, by a loop that counts the key down.
     reference: program(SUM.words, SUM.source),
     text:
-      "Write a program for the CPU. It reads a number from 1 to 22 at address 0xFF, adds up 1 + 2 + ... up to it, shows the sum with OUT, and halts: 5 gives 15. " +
+      "Write a program for the CPU. It reads a number from 1 to 22 at address 0xFF, adds up 1 + 2 + ... up to it, shows the sum with OUT, and halts within 900 clock cycles: 5 gives 15. " +
       "Open Program, select its ROM, write the program in assembly, and press Assemble. " +
-      `The instructions: ${INSTRUCTIONS}. n is a number, such as 16 or 0xFF. RAM[n] is a byte of memory you can use, for n from 0 to 0xEF. ` +
+      `The instructions: ${INSTRUCTIONS}. n is a number, such as 16 or 0xFF. RAM[n] is a byte of memory you can use, for n from 0 to 0xEF; every byte starts at 0, and so does A. ` +
       "Z is set when A becomes 0, and C by an addition that carries or a subtraction that borrows nothing. " +
       "The main sheet is the computer: set Key, then step the Clock switch or wire a clock in to watch your program run.",
     parts: ["rom"],
@@ -579,7 +579,7 @@ const benchChallenges = [
       "Connect the screen to the CPU. The CPU puts an address on addr and a byte on dout, with we at 1 through the clock cycle of a store. " +
       "sptr is the screen pointer, 8 bits: a store to address 0xFE sets it to dout at the rising clk, and nothing else changes it. " +
       "swe is 1 while a store to address 0xFD is under way, and 0 at any other time: the screen then takes dout at the byte sptr points to. " +
-      "A register is provided. The main sheet is the computer, with the screen on it.",
+      "A register is provided. The main sheet is the computer, with the screen on it: write a program that draws in Program's ROM to try yours.",
     parts: [...GATES, "dff", "split", "merge"],
     runs: displayRuns,
   },

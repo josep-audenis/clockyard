@@ -239,8 +239,8 @@ Four questions decide the design:
 7. **Solutions, starters and tests**, as ADR 0025 item 4:
    - **The solutions:**
      - 10: the generated `cpu`;
-     - 11: a program, in `scripts/challenges.mjs` as source, assembled
-       into `program`'s ROM;
+     - 11: a program, in `scripts/cpu-runs.mjs` as source beside its
+       words, in `program`'s ROM;
      - 12: the reference CPU's screen interface, as `display`.
    - **The starters:**
      - 10: the pins and the provided building blocks.
@@ -368,12 +368,18 @@ Four questions decide the design:
      is allowed in `program`. The solution's words are held to its source
      by a native test, and another program for the same sums passes.
    - **12, the display.** Three runs: one byte; two bytes with the pointer
-     moved and read back; and stores to addresses that share bits with
-     `0xFE` and `0xFD`, then additions that read those two addresses. The
+     moved and read back; and stores to every address one bit away from
+     `0xFE` or `0xFD`, before and after the one real draw, then additions
+     that read those two addresses and a last read of the pointer. The
      additions matter: `addr` stays through the next cycle while A
-     changes, so a display that ignores `we` draws the sum. A load there
-     hid it, the byte written being the byte just read. Five miswired
-     displays fail.
+     changes, so a display that ignores `we` draws the sum or moves the
+     pointer. A load there hid it, the byte written being the byte just
+     read. Eight miswired displays fail.
+   - **What no program on the bench can see.** `swe` a cycle late, or
+     `sptr` loaded at the falling edge: `addr`, `dout` and `sptr` hold
+     through the fetch that follows a store, so the same byte lands one
+     edge later, and a `HLT` always has a fetch before it. The text asks
+     for neither, and the check lets both pass.
    - **Playwright.** Challenge 11's starter fails (the CPU never halts on
      an empty ROM); a program that shows the key is written in the ROM's
      editor, assembled, and fails at the second key; the sum passes, 15 of

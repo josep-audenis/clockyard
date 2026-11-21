@@ -20,8 +20,9 @@ these files by hand: `node scripts/challenges.mjs` writes them, and
   owns have IDs starting `bench-`.
 - `solutions/10-cpu`, `11-program` and `12-display` are those benches with
   the reference part in the slot: the reference CPU cut along its memory
-  boundary, a program that sums 1 to the key, and the screen interface. A bench challenge's starter is its bench with the
-  slot empty and the parts it provides.
+  boundary, a program that sums 1 to the key, and the screen interface. A
+  bench challenge's starter is its bench with the slot empty and the parts
+  it provides.
 - A bench challenge (`"bench": "cpu"`) has `runs` in place of steps: each a
   program (`words`, beside the `source` they were assembled from by hand)
   run on a fresh bench, and steps that set bench switches, run `cycles`
