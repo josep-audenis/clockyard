@@ -575,3 +575,137 @@ fn catch_speeds_up_down_to_a_delay_of_20() {
     }
     assert_eq!(delays, [100, 92, 84, 76, 68, 60, 52, 44, 36, 28, 20, 20]);
 }
+
+// --- The cut CPU on its bench (ADR 0034) ------------------------------------------------
+
+/// A bench document of `challenges/` (a solution: the bench sheet with its reference part) with
+/// `program` in its ROM, loaded without warnings.
+fn bench(file: &str, program: &[u16]) -> Simulator {
+    let path = format!(
+        "{}/../../challenges/solutions/{file}.clockyard.json",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
+    let sim = cpu(&text, program);
+    assert!(sim.port_nets().contains_key("cpu"), "the bench has a CPU");
+    sim
+}
+
+/// What a bench holds: the CPU's registers inside the `cpu` instance, the bench's LEDs on its
+/// outputs, and the memories and device registers on the bench sheet. `sptr` names the flip-flop of
+/// the screen pointer: the bench's own register, or the one inside `display`.
+fn read_bench(sim: &Simulator, sptr: &str) -> State {
+    let q = |id: &str| value(sim, id, "q");
+    let led = |id: &str| value(sim, id, "in");
+    let t = q("cpu/t/r") == 1;
+    let h = led("halt") == 1;
+    assert_eq!(h, q("cpu/h/r") == 1, "the halt pin shows H");
+    assert_eq!(led("fetch") == 1, !t && !h, "Fetch = ¬T ∧ ¬H");
+    let bytes = |id: &str| -> Vec<u8> {
+        let words = sim
+            .memory(id)
+            .unwrap_or_else(|| panic!("the bench has {id}"));
+        words.iter().map(|&w| w as u8).collect()
+    };
+    State {
+        pc: q("cpu/pcr/r") as u8,
+        ir: (q("cpu/irh/r") << 8 | q("cpu/irl/r")) as u16,
+        a: q("cpu/a/r") as u8,
+        out: led("out") as u8,
+        z: q("cpu/z/r") == 1,
+        c: q("cpu/c/r") == 1,
+        t,
+        h,
+        ram: bytes("ram"),
+        sptr: q(sptr) as u8,
+        hex: q("hex/r") as u8,
+        screen: bytes("screen"),
+    }
+}
+
+/// As `check_keys`, on a bench: the clock is a switch, so a cycle is `clk` set to 1, then to 0,
+/// with the key set while it is low, as a challenge's steps do it.
+fn check_bench(file: &str, sptr: &str, program: &[u16], limit: usize, keys: impl Fn(usize) -> u8) {
+    let mut sim = bench(file, program);
+    let mut model = Model::new(program);
+    assert_eq!(read_bench(&sim, sptr), model.state, "after reset");
+    let mut after_halt = 0;
+    for cycle in 1..=2 * limit {
+        model.key = keys(cycle);
+        let set = |sim: &mut Simulator, id: &str, value: u32| {
+            assert_eq!(sim.set_input(id, value).expect("a switch"), None, "settles");
+        };
+        set(&mut sim, "key", u32::from(model.key));
+        set(&mut sim, "clk", 1);
+        set(&mut sim, "clk", 0);
+        model.cycle();
+        assert_eq!(
+            read_bench(&sim, sptr),
+            model.state,
+            "{file}, after cycle {cycle} of {program:04X?}"
+        );
+        if model.state.h {
+            after_halt += 1;
+            if after_halt > 3 {
+                break;
+            }
+        }
+    }
+}
+
+#[test]
+fn the_cut_cpu_and_the_display_on_their_benches_run_as_specified() {
+    // The same model as the example sheet's: the CPU cut along its memory boundary, with the
+    // bench's RAM, key, decoding and screen round it; then with `display` driving the screen.
+    for (file, sptr) in [("10-cpu", "sptr/r"), ("12-display", "display/r/r")] {
+        let programs = [
+            "LDI 5\nADI 3\nOUT\nHLT",
+            "LDI 0\nLDI 7\nSTA 3\nLDI 0\nLDA 3\nSTA 255\nLDA 4\nOUT\nHLT",
+            "LDI 200\nADI 55\nADI 1\nLDI 3\nADI 4\nSTA 0\nADD 0\nLDI 250\nSTA 1\nADD 1\nOUT\nHLT",
+            "LDI 5\nSBI 5\nSBI 1\nLDI 9\nSTA 2\nLDI 4\nSUB 2\nLDI 20\nSUB 2\nOUT\nHLT",
+            "LDI 1\nJZ 9\nSBI 1\nJZ 5\nHLT\nJC 7\nHLT\nJMP 8\nHLT\nNOP\nOUT\nHLT",
+            "LDI 0x2A\nSTA 0xFC\nLDI 7\nSTA 0xFE\nLDI 0x81\nSTA 0xFD\nLDI 0\nLDA 0xFC\nOUT\nLDA 0xFE\nOUT\nLDA 0xFD\nOUT\nADD 0xFD\nSUB 0xFC\nOUT\nHLT",
+            "LDI 255\nSTA 0xFE\nSTA 0xFD\nLDI 0\nSTA 0xFE\nLDI 1\nSTA 0xFD\nLDI 255\nSTA 0xFE\nLDA 0xFD\nOUT\nHLT",
+            "LDI 9\nSTA 0xFF\nSTA 0xF0\nSTA 0xFB\nSTA 0xEF\nLDA 0xF0\nOUT\nLDA 0xFB\nADD 0xEF\nOUT\nHLT",
+        ];
+        for source in programs {
+            check_bench(file, sptr, &assemble(source), 64, |_| 0);
+        }
+        // Random words, reserved opcodes and bits included, with a key that changes every few cycles.
+        let mut seed: u64 = 0x2545_F491_4F6C_DD1D;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for i in 0..60u64 {
+            let window = if i % 2 == 0 { 0xFFFF } else { 0xF00F };
+            let io = if i % 4 == 3 { 0x00F0 } else { 0 };
+            let program: Vec<u16> = (0..256).map(|_| (next() as u16 & window) | io).collect();
+            let keys =
+                move |cycle: usize| ((cycle as u64 / 3 + i).wrapping_mul(0x9E37_79B9) >> 8) as u8;
+            check_bench(file, sptr, &program, 64, keys);
+        }
+    }
+}
+
+#[test]
+fn every_bench_file_is_a_circuit_that_loads_with_its_slot_empty() {
+    for slot in ["cpu", "program", "display"] {
+        let path = format!(
+            "{}/../../challenges/benches/{slot}.clockyard.json",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
+        let (sim, _) = Simulator::load(&description(&text))
+            .unwrap_or_else(|errors| panic!("the {slot} bench loads: {errors:?}"));
+        // The parts a challenge's steps name.
+        for memory in ["ram", "screen"] {
+            assert!(sim.memory(memory).is_some(), "{slot} has {memory}");
+        }
+        for part in ["clk", "key", "out", "halt", "fetch"] {
+            assert!(sim.port_nets().contains_key(part), "{slot} has {part}");
+        }
+    }
+}

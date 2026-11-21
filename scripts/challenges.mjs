@@ -10,6 +10,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { computers } from "./computer.mjs";
 
 const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 
@@ -504,6 +505,27 @@ const document = (name, challenge, definitions) => ({
 });
 
 const files = [];
+
+// The benches of ADR 0034, one per slot, and the reference parts on them: each a whole computer.
+// The bench holds its slot empty; the solution is the same sheet with the reference part in it.
+const computer = (name, sheet, definitions) => ({
+  format: "clockyard",
+  version: 11,
+  metadata: { name, createdAt: "2026-11-21T12:00:00.000Z", modifiedAt: "2026-11-21T12:00:00.000Z" },
+  circuit: sheet,
+  definitions,
+});
+for (const [slot, c] of Object.entries(computers)) {
+  files.push([`challenges/benches/${slot}.clockyard.json`, computer(`Bench: ${slot}`, c.sheet, [c.empty, ...c.owned])]);
+}
+files.push(
+  ["challenges/solutions/10-cpu.clockyard.json", computer("CPU: solution", computers.cpu.sheet, [computers.cpu.reference, ...computers.cpu.given, ...computers.cpu.owned])],
+  [
+    "challenges/solutions/12-display.clockyard.json",
+    computer("Display: solution", computers.display.sheet, [computers.display.reference, ...computers.display.given, ...computers.display.owned]),
+  ],
+);
+
 for (const c of challenges) {
   const { id, circuit } = c.definition;
   const kinds = (kind) => circuit.components.filter((p) => p.kind === kind);

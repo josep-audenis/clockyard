@@ -278,6 +278,23 @@ Four questions decide the design:
    When this ADR is accepted, ADRs 0028 and 0025 are marked amended by it
    in their status lines and in `docs/decisions/README.md`.
 
+   *As built (step 1):* `scripts/cpu-pieces.mjs` holds the shared pieces
+   and `scripts/computer.mjs` the cut `cpu`, `display`, `program` and the
+   bench sheet; `scripts/challenges.mjs` writes `challenges/benches/` and
+   the solutions of 10 and 12 (the benches with the reference part in the
+   slot). The examples regenerate unchanged.
+   - All three benches are the same computer: each has the `HEX` register
+     and a screen, and the `cpu` and `program` benches have a screen
+     pointer register of their own, so `cpu.rs`'s whole model applies.
+     The digits' decoders and seven-segment displays are left off.
+   - A bench file holds its slot's definition empty (the pins; an empty
+     ROM for `program`), so it is a circuit that loads.
+   - Inside `cpu`, the `PC` register is `pcr`, and the `we` and `fetch`
+     gates are `weg` and `fetchg`, since pins take those names.
+   - `cpu.rs` runs its model against both solutions, cycle by cycle, with
+     the clock as a switch: the instruction and device programs, and 60
+     random programs with changing keys.
+
 ## Alternatives considered
 
 - **Benches built in code.** That is how challenges 1 to 9 are built, and
