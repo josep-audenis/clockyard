@@ -1146,6 +1146,14 @@ impl Simulator {
         &self.port_nets
     }
 
+    /// The nets with several drivers, each a bus resolved from its tri-state
+    /// buffers (ADR 0035), in ascending order.
+    pub fn buses(&self) -> Vec<u32> {
+        let resolver =
+            |(p, prim): (usize, &Prim)| matches!(prim.op, Op::Resolve).then_some(p as u32 + 1);
+        self.prims.iter().enumerate().filter_map(resolver).collect()
+    }
+
     /// Net index → the top-level part that drives it, `None` for ground.
     /// Primitive `p` drives net `p + 1`; a part inside an instance is reported
     /// as the instance (ADR 0016), and a bus as its buffer with the lowest ID

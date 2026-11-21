@@ -201,20 +201,24 @@ export type NetView = {
   netDrivers: (string | null)[];
   /** Part ID → port → net: where each tri-state buffer and each instance's output pin drives (ADR 0035). */
   portNets?: Record<string, Record<string, number>>;
+  /** The nets several tri-state buffers share (ADR 0035). */
+  buses?: number[];
 };
 
 /**
- * Whether making a component of `inside` would split a bus (ADR 0035 item 7): a net with several drivers, some of
- * them inside and some left out. Such a bus would have to cross the component's edge in both directions, and pins
- * have one. A bus's drivers are tri-state buffers and instances' output pins; an instance reports only those.
+ * Whether making a component of `inside` would split a bus (ADR 0035 item 7): some of its drivers inside and some
+ * left out. Such a bus would have to cross the component's edge in both directions, and pins have one. The engine
+ * says which nets are buses. On one, the drivers are the tri-state buffers and the instances' output pins (bus pins,
+ * or the net would not have loaded); an instance reports only its output pins.
  */
 function splitsBus(circuit: Circuit, inside: Set<string>, nets: NetView): boolean {
+  const buses = new Set(nets.buses);
   const drivers = new Map<number, { in: number; out: number }>();
   for (const part of circuit.components) {
     const ports = nets.portNets?.[part.id];
     const driven = part.kind === "tri" ? [ports?.out] : part.kind === "custom" ? Object.values(ports ?? {}) : [];
     for (const net of driven) {
-      if (net === undefined) continue;
+      if (net === undefined || !buses.has(net)) continue;
       const count = drivers.get(net) ?? { in: 0, out: 0 };
       count[inside.has(part.id) ? "in" : "out"]++;
       drivers.set(net, count);
@@ -544,6 +548,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
     if (new Set(names).size !== names.length) return "Two pins share a name: give each switch and LED its own label.";
     if (crossing.length > 0 && engine.stale) return "Wait for the simulation to catch up, then try again.";
     if (crossing.length > 0 && !engine.nets) return "Fix the circuit's errors first: wires crossing the selection need a working circuit.";
+    // A bus joined by labels crosses no wire, so the engine's word is waited for here too.
+    if (engine.stale && circuit.components.some((c) => c.kind === "tri")) return "Wait for the simulation to catch up, then try again.";
     if (engine.nets && splitsBus(circuit, inside, engine.nets)) {
       return "A shared bus would be split: select every tri-state buffer on it, or none of them.";
     }

@@ -1317,7 +1317,11 @@ test("make component refuses to split a bus: its tri-state buffers go in togethe
     wireWidths: { [wa]: 1, [wb]: 1 },
     netDrivers: [null, a, b, a],
     portNets: { [a]: { in: 0, en: 0, out: 3 }, [b]: { in: 0, en: 0, out: 3 }, [led]: { in: 3 } },
+    buses: [3],
   };
+  // While the engine has not caught up, its word on buses is waited for, crossing wires or not.
+  select([a]);
+  expect(makeComponent("Later", { stale: true, nets })).toMatch(/Wait for the simulation/);
   select([a]);
   expect(makeComponent("Half", { stale: false, nets })).toBe("A shared bus would be split: select every tri-state buffer on it, or none of them.");
   expect(useEditor.getState().definitions).toEqual([]);
@@ -1326,4 +1330,26 @@ test("make component refuses to split a bus: its tri-state buffers go in togethe
   expect(makeComponent("Both", { stale: false, nets })).toBeNull();
   const [definition] = useEditor.getState().definitions;
   expect(definition?.circuit.components.map((c) => c.kind)).toEqual(["tri", "tri", "led"]);
+});
+
+test("make component takes parts whose nets only look shared: without a bus there is nothing to split (ADR 0035)", () => {
+  const { add, connect, select, makeComponent } = useEditor.getState();
+  // As the engine reports two instances whose output pins are on one net that is no bus (both undriven, on ground;
+  // or both wired straight through from one switch), and a buffer alone on its net.
+  const [t, l1, l2] = [add("tri", { x: 0, y: 0 }), add("led", { x: 10, y: 0 }), add("led", { x: 10, y: 6 })];
+  const wire = connect(port(t, "out"), port(l1, "in")) ?? "";
+  for (const shared of [0, 2]) {
+    useEditor.setState({ selection: [] });
+    const nets: NetView = {
+      wireNets: { [wire]: 1 },
+      wireWidths: { [wire]: 1 },
+      netDrivers: [null, t, t],
+      // `u1` and `u2` stand for instances elsewhere on the sheet: only their port nets matter here.
+      portNets: { [t]: { in: 0, en: 0, out: 1 }, u1: { y: shared }, u2: { y: shared }, [l1]: { in: 1 }, [l2]: { in: 0 } },
+      buses: [],
+    };
+    select([t]);
+    expect(makeComponent(`Alone ${shared}`, { stale: false, nets })).toBeNull();
+    useEditor.getState().undo();
+  }
 });

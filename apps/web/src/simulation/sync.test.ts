@@ -86,6 +86,10 @@ test("watched memories are read once a frame however many states arrive, a newly
   worker.reply({ type: "memory", component: "s", words: new Uint32Array([1, 3]), unknown: new Uint32Array([0, 1]) });
   expect(useSim.getState().memory.s).toBe(words);
   expect([...(useSim.getState().memoryUnknown.s ?? [])]).toEqual([0, 1]);
+  // Equal unknown bits keep their array too, so a screen is not drawn again.
+  const hidden = useSim.getState().memoryUnknown.s;
+  worker.reply({ type: "memory", component: "s", words: new Uint32Array([1, 3]), unknown: new Uint32Array([0, 1]) });
+  expect(useSim.getState().memoryUnknown.s).toBe(hidden);
   // A state's unknown bits are kept beside its nets.
   worker.reply({ type: "state", nets: new Uint32Array([0, 1]), unknown: new Uint32Array([0, 1]), diagnostics: [], time: 1, running: true });
   vi.advanceTimersByTime(0);

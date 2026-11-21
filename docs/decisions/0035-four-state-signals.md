@@ -420,14 +420,24 @@ What the engine has to work with:
     - **The part** sits with the gates: a buffer's triangle, `en` below
       `in` on the left, as every part has its inputs. It has no shortcut
       key.
-    - **Make component** counts a bus's drivers from the port nets: each
-      tri-state buffer's `out`, and each instance's output pins. A
-      selection that takes some and leaves others is refused: "A shared
+    - **Make component.** The engine's `loaded` reply lists the nets that
+      are buses (`buses`), since port nets alone cannot tell: two
+      instances' output pins share a net with no bus whenever both are
+      undriven or wired through from one source. On a bus, the drivers
+      are each tri-state buffer's `out` and each instance's output pins.
+      A selection that takes some and leaves others is refused: "A shared
       bus would be split: select every tri-state buffer on it, or none of
-      them."
+      them." While the engine has not caught up with a sheet that has a
+      buffer, it asks to wait, since a bus joined by labels crosses no
+      wire.
+    - **The inspector's memory dump** writes unknown words with their
+      digits.
+    - **A seven-segment display and a screen** show an unknown segment or
+      pixel by colour alone, as item 10 has it, with `X` and `Z` alike.
     - **Not done:** the about page's list of parts (another session's
-      work in progress), and unknown words in the inspector's memory
-      dump, which shows values only.
+      work in progress). A challenge mismatch is written without its
+      width, so an all-`Z` top digit of fewer than four bits reads `X`
+      there; no challenge allows a buffer.
 
 ## Alternatives considered
 

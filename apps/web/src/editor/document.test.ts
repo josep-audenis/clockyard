@@ -145,6 +145,9 @@ test("a screen's lit pixels: most significant bit leftmost, rows filled in order
 
 test("unknown bits are written as X and Z, a hex digit Z only if all its bits are (ADR 0035)", () => {
   expect([signalState(5, 0), signalState(0, 0xf), signalState(8, 0xf)]).toEqual(["known", "z", "x"]);
+  // Half driven, half floating: no bit is X.
+  expect(signalState(0x0f, 0xf0)).toBe("z");
+  expect(hex(0x80000000, 32, 0x80000000)).toBe("0xX0000000");
   expect([showValue(1, 1, 1), showValue(0, 1, 1)]).toEqual(["X", "Z"]);
   // 0x5F with the low nibble's bits 0 and 2 unknown: the digit is X; the high digit is known.
   expect(hex(0x5f, 8, 0x05)).toBe("0x5X");

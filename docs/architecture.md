@@ -271,6 +271,7 @@ type Result =
       wireWidths: Record<string, number>; // per wire: undriven nets all share net 0
       portNets: Record<string, Record<string, number>>; // part → port → net; an instance's output pins by name (ADR 0033)
       netDrivers: (string | null)[];      // net → top-level part driving it, null for net 0
+      buses: number[];                    // the nets several tri-state buffers share (ADR 0035)
       diagnostics: Diagnostic[] }
   | { type: "state"; nets: Uint32Array; unknown: Uint32Array; diagnostics: Diagnostic[]; // nets each cut to its width;
       time: number; running: boolean }   // unknown bits beside them, empty while none (ADR 0035); ticks; whether a run is under way
@@ -326,10 +327,15 @@ type Result =
   works a value out: `signalState`, `hex` and `showValue`
   (`editor/document.ts`) only say what the two words are. A wire with any `X`
   bit is drawn in the X colour with long dashes, otherwise one with any `Z`
-  bit in the Z colour with dots; an LED is lettered `X` or `Z`; a
+  bit in the Z colour with dots; an LED is lettered `X` or `Z`; the
+  readout, the bus tag under the pointer, the status bar's probe, the
+  inspector's memory dump and the waveforms write `X` and `Z` as digits
+  ("0x5X"). On those, colour is never the only sign (ADR 0008). A
   seven-segment display and a screen draw an unknown segment or pixel in the
-  X colour; the readout, the inspector's tags and the waveforms write `X` and
-  `Z` as digits ("0x5X"). Colour is never the only sign (ADR 0008).
+  X colour and nothing more: there the colour is the only sign, and `X` and
+  `Z` look alike; the readout says which. A wire is judged whole and a digit
+  by its own bits, so a 4-bit wire with one `Z` bit is dotted as `Z` while
+  its digit reads `X`.
 - Hit-testing is pure geometry in grid units (`canvas/geometry.ts`); it decides
   only what the pointer is over, never connectivity.
 - React subscribes to the document store for panels; the canvas subscribes

@@ -329,7 +329,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     // Its unknown bits (ADR 0035): X where the value has a 1, Z where it has a 0. The engine sends none while all is known.
     const unknownOf = (net: number | undefined): number => (stale || net === undefined ? 0 : (unknown[net] ?? 0));
     // X and Z each have a colour and a dash of their own, since colour is never the only sign (ADR 0008).
-    const STYLE = { x: { tone: color["signal-x"], dash: [7, 5] }, z: { tone: color["signal-z"], dash: [2, 6] } } as const;
+    const unknownStyle = { x: { tone: color["signal-x"], dash: [7, 5] }, z: { tone: color["signal-z"], dash: [2, 6] } } as const;
     // The engine reports each wire's width (ADR 0014). While an edit waits for it, the last report stands (wire IDs are
     // stable), so buses do not thin for a frame; with no netlist (validation errors) every wire is 1 bit.
     const bitsOf = (wire: string | undefined) => (wire === undefined ? 1 : (loaded?.wireWidths[wire] ?? 1));
@@ -357,7 +357,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       const bits = bitsOf(wire.id);
       // A wire with any X bit is drawn as X; otherwise one with any Z bit as Z (ADR 0035).
       const state = value === null ? "known" : signalState(value, hidden);
-      const style = state === "known" ? null : STYLE[state];
+      const style = state === "known" ? null : unknownStyle[state];
       // CanvasKit: a bus has one width and colour whatever it carries; a slash tag gives its width, a hex tag on hover its value.
       const lit = bits === 1 && value !== null && value !== 0 && !style;
       const width = bits > 1 ? size["bus-width"] : lit ? size["wire-width-high"] : size["wire-width"];
@@ -480,7 +480,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       const value = signal(net);
       const state = value === null ? "known" : signalState(value, unknownOf(net));
       const lit = value !== null && value !== 0;
-      const tone = state !== "known" ? STYLE[state].tone : bitsOf(attached) > 1 ? color["signal-bus"] : lit ? color["signal-high"] : color["signal-low"];
+      const tone = state !== "known" ? unknownStyle[state].tone : bitsOf(attached) > 1 ? color["signal-bus"] : lit ? color["signal-high"] : color["signal-low"];
       const { x, y } = px(junction.position);
       if (selected.has(junction.id)) wires.circle(x, y, 8).stroke({ width: size["select-width"], color: color.select });
       wires.circle(x, y, junction.name ? 3 : 4).fill({ color: tone, alpha: value === null ? 0.5 : 1 });
@@ -497,7 +497,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
         const state = signalState(value("in") ?? 0, value.unknown("in"));
         if (state !== "known") {
           const centre = px({ x: component.position.x + 1, y: component.position.y + 1 });
-          put(`${component.id}:value`, state.toUpperCase(), centre.x, centre.y, { x: 0.5, y: 0.5 }, STYLE[state].tone);
+          // Keyed by state: a label keeps the colour it was made with.
+          put(`${component.id}:value:${state}`, state.toUpperCase(), centre.x, centre.y, { x: 0.5, y: 0.5 }, unknownStyle[state].tone);
         }
       }
       if (component.kind === "keyboard" || ((component.kind === "switch" || component.kind === "led" || component.kind === "dff") && bits > 1)) {
@@ -716,7 +717,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       if (!from || !to) continue;
       const length = Math.hypot(to.x - from.x, to.y - from.y);
       const [ux, uy] = length ? [(to.x - from.x) / length, (to.y - from.y) / length] : [0, 0];
-      g.moveTo(from.x, from.y);
+      // A dash under way runs on round the corner, joined.
+      if (i === 1 || !drawing) g.moveTo(from.x, from.y);
       for (let done = 0; done < length; ) {
         const step = Math.min(left, length - done);
         done += step;
@@ -804,7 +806,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       template = templates.get(key);
       if (!template) {
         template = new Graphics();
-        paintBody(template, component, local, culprit, value, words);
+        paintBody(template, component, local, culprit, value, words, hidden);
         templates.set(key, template);
       }
     }
@@ -824,7 +826,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       g.context = template.context;
     } else {
       g.clear();
-      paintBody(g, component, local, culprit, value, words);
+      paintBody(g, component, local, culprit, value, words, hidden);
     }
   }
 
@@ -836,6 +838,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     culprit: boolean,
     value: Read,
     words: Uint32Array | undefined,
+    hidden: Uint32Array | undefined,
   ) {
     const { color, size } = theme;
     const c = cell();
@@ -904,7 +907,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
         // A memory (ADR 0018): a box, its size and port names as labels, a RAM's clock input marked.
         g.roundRect(x, y, local.width * c, local.height * c, size["radius-sm"]).fill(body).stroke(outline);
         if (component.kind !== "rom") g.moveTo(x, y + 7 * c - 6).lineTo(x + 8, y + 7 * c).lineTo(x, y + 7 * c + 6).stroke(outline);
-        if (component.kind === "screen") drawPicture(g, component.props, words, useSim.getState().memoryUnknown[component.id]);
+        if (component.kind === "screen") drawPicture(g, component.props, words, hidden);
         break;
       case "seg7": {
         // A digit (ADR 0021): segment a (bit 0) at the top, then clockwise, g (bit 6) in the middle, dp (bit 7).

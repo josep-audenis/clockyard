@@ -131,6 +131,8 @@ struct Loaded<'a> {
     port_nets: &'a PortNets,
     /// Net index → the top-level part driving it, `null` for ground (ADR 0016).
     net_drivers: Vec<Option<&'a str>>,
+    /// The nets several tri-state buffers share (ADR 0035): Make component may not split one.
+    buses: Vec<u32>,
     /// Validation results: errors, or warnings such as unconnected inputs.
     diagnostics: &'a [Diagnostic],
     /// Result of the initial settle (an unstable loop), superseded by later settles.
@@ -205,6 +207,7 @@ impl Engine {
             wire_widths: sim.map_or(&empty.0, Simulator::wire_widths),
             port_nets: sim.map_or(&empty.1, Simulator::port_nets),
             net_drivers: sim.map_or_else(Vec::new, Simulator::net_drivers),
+            buses: sim.map_or_else(Vec::new, Simulator::buses),
             diagnostics: &diagnostics,
             runtime: &runtime,
         };

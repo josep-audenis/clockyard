@@ -64,6 +64,8 @@ const named = (name: string) => {
 /**
  * A value with unknown bits in words (ADR 0035): one bit as `X` or `Z`; a wider one in hex, a digit `Z` if all its
  * bits are Z, `X` if any other is unknown. A known value is its number.
+ * shortcut: a mismatch carries no width, so a top digit of fewer than four bits that is all Z reads X here, where
+ * `hex` in editor/document.ts would say Z. No challenge allows a tri-state buffer; give mismatches a width when one does.
  */
 export function showUnknown(value: number, unknown = 0): string {
   if (unknown === 0) return String(value);

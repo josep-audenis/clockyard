@@ -339,3 +339,57 @@ test("a loop that does not settle crosses as unknown bits, and nothing unknown c
   expect(later.map((d) => [d.severity, d.code])).toEqual([["warning", "unsettled"]]);
   expect(engine.time()).toBe(4);
 });
+
+test("the engine names the nets that are buses, and only those (ADR 0035)", () => {
+  const load = (circuit: object) => JSON.parse(new Engine().load(JSON.stringify(circuit), false)) as Loaded;
+  // Two buffers on one wire: a bus, which both buffers and the LED report.
+  const bus = load({
+    components: [
+      { id: "ta", kind: "tri" },
+      { id: "tb", kind: "tri" },
+      { id: "l", kind: "led" },
+    ],
+    connections: [wire("w1", "ta.out", "l.in"), wire("w2", "tb.out", "l.in")],
+  });
+  expect(bus.buses).toEqual([bus.portNets.l?.in]);
+  expect([bus.portNets.ta?.out, bus.portNets.tb?.out]).toEqual([bus.buses[0], bus.buses[0]]);
+
+  // Nets that only look shared from their port nets, and are not buses. `through` wires its input pin to its
+  // output pin; `hollow` drives its output pin with nothing.
+  const pin = (name: string, component: string) => ({ name, component });
+  const through = {
+    id: "through",
+    components: [
+      { id: "d", kind: "switch" },
+      { id: "y", kind: "led" },
+    ],
+    connections: [wire("w", "d.out", "y.in")],
+    inputs: [pin("d", "d")],
+    outputs: [pin("y", "y")],
+  };
+  const hollow = { id: "hollow", components: [{ id: "y", kind: "led" }], connections: [], inputs: [], outputs: [pin("y", "y")] };
+  const instance = (id: string, definition: string) => ({ id, kind: "custom", definition });
+  // Two pass-throughs fed by one switch: both output pins are on the switch's net.
+  const fanned = load({
+    components: [{ id: "s", kind: "switch" }, instance("p1", "through"), instance("p2", "through"), { id: "l1", kind: "led" }, { id: "l2", kind: "led" }],
+    connections: [wire("w1", "s.out", "p1.d"), wire("w2", "s.out", "p2.d"), wire("w3", "p1.y", "l1.in"), wire("w4", "p2.y", "l2.in")],
+    definitions: [through],
+  });
+  expect(fanned.portNets.p1?.y).toBe(fanned.portNets.p2?.y);
+  expect(fanned.buses).toEqual([]);
+  // Two output pins nothing drives: both on ground.
+  const undriven = load({
+    components: [instance("h1", "hollow"), instance("h2", "hollow"), { id: "l1", kind: "led" }, { id: "l2", kind: "led" }],
+    connections: [wire("w1", "h1.y", "l1.in"), wire("w2", "h2.y", "l2.in")],
+    definitions: [hollow],
+  });
+  expect([undriven.portNets.h1?.y, undriven.portNets.h2?.y]).toEqual([0, 0]);
+  expect(undriven.buses).toEqual([]);
+  // One buffer alone, through a pass-through: one driver, no bus.
+  const alone = load({
+    components: [{ id: "t", kind: "tri" }, instance("p", "through"), { id: "l", kind: "led" }],
+    connections: [wire("w1", "t.out", "p.d"), wire("w2", "p.y", "l.in")],
+    definitions: [through],
+  });
+  expect(alone.buses).toEqual([]);
+});

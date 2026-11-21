@@ -2091,12 +2091,12 @@ function PartProperties({ part }: { part: CircuitComponent }) {
 const wholeNumber = (max: number) => (value: string) =>
   /^\s*\d+\s*$/.test(value) && Number(value) >= 1 && Number(value) <= max ? null : `Enter a whole number from 1 to ${max}.`;
 
-/** Words as the inspector shows them: hex, eight to a line. */
-const wordLines = (words: readonly number[], width: number) =>
+/** Words as the inspector shows them: hex, eight to a line, with X and Z digits where `unknown` has bits (ADR 0035). */
+const wordLines = (words: readonly number[], width: number, unknown?: ArrayLike<number>) =>
   Array.from({ length: Math.ceil(words.length / 8) }, (_, row) =>
     words
       .slice(8 * row, 8 * row + 8)
-      .map((w) => hex(w, width))
+      .map((w, i) => hex(w, width, unknown?.[8 * row + i] ?? 0))
       .join(" "),
   ).join("\n");
 
@@ -2271,6 +2271,7 @@ function RamDump({ part }: { part: CircuitComponent }) {
   const total = 2 ** (part.props.addressWidth ?? DEFAULT_ADDRESS);
   const nets = useSim((s) => s.nets);
   const own = useSim((s) => s.memory[part.id]);
+  const hidden = useSim((s) => s.memoryUnknown[part.id]);
   const id = useId();
   // On any sheet the open sheet is what is simulated, so the part's own ID names it.
   // Only the words shown cross from the worker, however large the RAM.
@@ -2285,7 +2286,7 @@ function RamDump({ part }: { part: CircuitComponent }) {
       </p>
       {/* Focusable, so the list can be scrolled from the keyboard; named for screen readers. */}
       <pre className="memory-words" role="region" tabIndex={0} aria-label={part.kind === "screen" ? "Screen contents" : "RAM contents"}>
-        {words === null ? "…" : words.length === 0 ? "Not simulated: the circuit has errors." : wordLines(words, width)}
+        {words === null ? "…" : words.length === 0 ? "Not simulated: the circuit has errors." : wordLines(words, width, hidden)}
       </pre>
       <p className="field-hint">
         {total > DUMP_WORDS ? `The first ${DUMP_WORDS} of ${total} words. ` : ""}Written while the circuit runs; kept when you edit it; cleared by Reset and when something is opened.
