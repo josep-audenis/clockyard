@@ -1,19 +1,21 @@
 # Reference CPU 2: specification
 
 Status: **designed, not built** (ADR 0036, accepted). Nothing on this page
-runs yet: the assembler, the model and the circuit follow, in that order.
+runs yet: the assembler and the model follow, then the circuit.
 Change this page first to change the instruction set.
 
 Reference CPU 2 is the [reference CPU](reference-cpu.md) with eleven more
 instructions and a return stack. **Everything on that page holds here**:
 the machine, the instruction word, its thirteen instructions and their
-flags, the I/O, the timing, the status outputs and the assembly language.
+flags, the I/O, the timing, the status outputs and the assembly language
+(its Catch section is about the first CPU's own example).
 This page gives only what is added, and the one thing that differs.
 
 **What differs.** On the reference CPU, opcodes `0xD` and `0xF` do nothing.
 Here they are the new instructions. So a program for the reference CPU
 runs the same here unless it holds a word with one of those opcodes, which
-the assembler never wrote for it.
+the assembler never wrote for it. It also means Reference CPU 2 is not a
+solution to challenge 10, which checks that those opcodes do nothing.
 
 ## Machine
 
@@ -60,15 +62,20 @@ reference CPU. "Set", "–" and the flags mean what they mean there.
 | `0xF700` | `SHR` | `A ← A` shifted right one bit; bit 7 becomes 0 | set | the old bit 0 |
 | `0xF8nn` | `CALL n` | `STACK[SP] ← PC`, `SP ← SP + 1`, `PC ← n` | – | – |
 | `0xF900` | `RET` | `SP ← SP − 1`, `PC ← STACK[SP]` | – | – |
-| `0xE`, `0xFA`–`0xFF` | (reserved) | nothing, as `NOP` | – | – |
+| `0xEnnn`, `0xFAnn`–`0xFFnn` | (reserved) | nothing, as `NOP`, whatever the other bits | – | – |
+
+Where a row gives several steps, they happen in that order: `RET` reads
+`STACK` at the new `SP`, and `CALL` writes it at the old one.
 
 - **`and`, `or`, `xor`** work on each of the eight bits. `AND`, `OR` and
   `XOR` read a device at `0xF0`–`0xFF` as `ADD` does: `XOR 0xFD` combines
-  `A` with the screen byte at `SPTR`.
+  `A` with the screen byte at `SPTR`. `ANI`, `ORI` and `XRI` use `n`
+  itself and read nothing.
 - **Shifts** move one bit. To shift further, shift again: `SHL` three
   times multiplies by 8.
 - **`SHL`, `SHR` and `RET` take no operand.** The assembler writes 0 in
-  bits 7–0, and the CPU ignores them, as it does for `OUT`.
+  bits 7–0, and the CPU ignores them: `0xF6nn`, `0xF7nn` and `0xF9nn` do
+  what `0xF600`, `0xF700` and `0xF900` do, for any `nn`.
 - **`Z` after reset** is 0, though `A` is 0: no instruction has set it. A
   `JNZ` that comes first is taken.
 
@@ -88,8 +95,8 @@ reference CPU. "Set", "–" and the flags mean what they mean there.
     address, so the outermost `RET` goes to the wrong place;
   - a `RET` with nothing stored leaves `SP` at 15 and jumps to what
     `STACK[15]` holds, which is 0 after reset;
-  - `here: CALL here` runs for ever, filling the stack with its own
-    address.
+  - `here: CALL here` runs for ever, filling the stack with the address
+    after it.
 
 ## Timing
 

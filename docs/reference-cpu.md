@@ -8,8 +8,8 @@ to change the instruction set.
 
 A second CPU, [Reference CPU 2](reference-cpu-2.md) (ADR 0036, designed
 and not yet built), is this one with eleven more instructions under the
-opcodes `0xD` and `0xF`, which do nothing here. Nothing on this page
-changes for it.
+opcodes `0xD` and `0xF`, which do nothing here. This CPU and this page
+stay as they are; that page says what differs.
 
 ## Machine
 
