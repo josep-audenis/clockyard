@@ -1,6 +1,6 @@
 # 0028. Phase 6: what comes after the Phase 5 plan
 
-- Status: Accepted; increment 4's target amended by ADR 0034
+- Status: Accepted; increment 4's target amended by ADR 0034, and where increment 6's specification is written by ADR 0036
 - Date: 2026-11-16
 - Depends on: ADR 0020 (the Phase 5 plan, now built); ADRs 0021–0027
 

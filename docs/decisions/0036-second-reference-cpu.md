@@ -1,6 +1,6 @@
 # 0036. A second reference CPU: bit operations, shifts, a jump, and call and return
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-21
 - Depends on: ADR 0028 (Phase 6 plan, increment 6); ADR 0019 (the
   reference CPU and its assembler); ADR 0022 (memory-mapped I/O); ADR 0023
