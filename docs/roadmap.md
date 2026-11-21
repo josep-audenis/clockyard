@@ -671,7 +671,9 @@ targets, as in Phase 5.
    call/return, specification first.
    1. ✅ The specification, `docs/reference-cpu-2.md`: eleven instructions
       and a return stack added to the first CPU's, marked as designed.
-   2. ⬜ The assembler and the model.
+   2. ✅ The assembler and the model: one assembler for both CPUs, the
+      editor's status counting the words only the second runs, and a
+      model of Reference CPU 2 held to hand-worked results.
    3. ⬜ The circuit and its example.
    4. ⬜ Catch 2, with single pixels and shared drawing code.
 

@@ -136,13 +136,16 @@ function ask(command: (request: number) => Command): Promise<Result> {
   });
 }
 
-/** Assembles reference-CPU source in the worker (ADR 0019): the ROM words, or every error with its line. */
-export async function assemble(source: string): Promise<{ words: number[]; errors: AsmError[] }> {
+/**
+ * Assembles reference-CPU source in the worker (ADRs 0019, 0036): the ROM words and how many of them only Reference
+ * CPU 2 runs, or every error with its line.
+ */
+export async function assemble(source: string): Promise<{ words: number[]; errors: AsmError[]; second: number }> {
   const result = await ask((request) => ({ type: "assemble", request, source }));
   // A failure is an error with no line, so nothing is ever written from it.
   if (result.type === "assembled") return result;
   const message = result.type === "error" ? result.message : "no answer from the engine";
-  return { words: [], errors: [{ line: 0, message: `Could not assemble: ${message}.` }] };
+  return { words: [], errors: [{ line: 0, message: `Could not assemble: ${message}.` }], second: 0 };
 }
 
 /** ROM words as reference-CPU assembly, one line each; null if the engine cannot answer. */

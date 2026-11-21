@@ -35,8 +35,8 @@ test("assembler requests resolve from the replies carrying their request numbers
   const [first, second] = worker.sent as { request: number }[];
   // Answered out of order: each promise still gets its own reply.
   worker.reply({ type: "disassembled", request: second?.request ?? -1, lines: ["LDI 5"] });
-  worker.reply({ type: "assembled", request: first?.request ?? -1, words: [0x1005], errors: [] });
-  await expect(words).resolves.toEqual({ type: "assembled", request: first?.request, words: [0x1005], errors: [] });
+  worker.reply({ type: "assembled", request: first?.request ?? -1, words: [0x1005], errors: [], second: 0 });
+  await expect(words).resolves.toEqual({ type: "assembled", request: first?.request, words: [0x1005], errors: [], second: 0 });
   await expect(lines).resolves.toEqual(["LDI 5"]);
   stop();
 });
@@ -44,7 +44,7 @@ test("assembler requests resolve from the replies carrying their request numbers
 test("an assembler request never waits forever: no engine, a failed request, or the engine stopping", async () => {
   const { assemble, disassemble } = await import("./sync");
   // Before the engine starts: answered at once, as an error with no line.
-  await expect(assemble("NOP")).resolves.toEqual({ words: [], errors: [{ line: 0, message: "Could not assemble: the engine is not running." }] });
+  await expect(assemble("NOP")).resolves.toEqual({ words: [], errors: [{ line: 0, message: "Could not assemble: the engine is not running." }], second: 0 });
   const stop = connectEngine();
   worker.sent.length = 0;
   const failed = disassemble([1]);

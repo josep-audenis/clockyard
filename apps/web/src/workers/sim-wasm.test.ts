@@ -184,15 +184,19 @@ test("a memory's words cross the boundary; anything else has none (ADR 0018)", (
 });
 
 test("the assembler crosses the boundary: words, or every error with its line (ADR 0019)", () => {
-  expect(JSON.parse(assemble("LDI 5\nADI 3\nOUT\nHLT"))).toEqual({ words: [0x1005, 0x6003, 0xb000, 0xc000], errors: [] });
+  expect(JSON.parse(assemble("LDI 5\nADI 3\nOUT\nHLT"))).toEqual({ words: [0x1005, 0x6003, 0xb000, 0xc000], errors: [], second: 0 });
   expect(JSON.parse(assemble("LDI\nJMP away"))).toEqual({
     words: [],
     errors: [
       { line: 1, message: "LDI needs an operand" },
       { line: 2, message: "unknown label away" },
     ],
+    second: 0,
   });
   expect(disassemble(0x9005)).toBe("JZ 5");
+  // Reference CPU 2's instructions (ADR 0036) assemble too, counted apart: the first CPU ignores them.
+  expect(JSON.parse(assemble("LDI 5\nCALL f\nHLT\nf: SHL\nRET"))).toEqual({ words: [0x1005, 0xf803, 0xc000, 0xf600, 0xf900], errors: [], second: 3 });
+  expect([disassemble(0xf803), disassemble(0xd005), disassemble(0xe000)]).toEqual(["CALL 3", "JNZ 5", "NOP ; 0xE000"]);
   // Not a 16-bit word: refused rather than wrapped.
   for (const bad of [0x10005, -1, 1.5]) expect(() => disassemble(bad), String(bad)).toThrow("not a 16-bit ROM word");
 });

@@ -2198,7 +2198,13 @@ function ProgramEditor({ part }: { part: CircuitComponent }) {
     setErrors(problems);
     if (problems.length > 0) return;
     useEditor.getState().setData(part.id, result.words, draft);
-    setStatus({ text: `Assembled ${result.words.length} ${result.words.length === 1 ? "word" : "words"}.`, words: result.words.join(), source: draft });
+    // The editor cannot know which CPU a ROM feeds, so it says when a program needs the second (ADR 0036): the first
+    // would run those words as NOP, with nothing to show why.
+    const second =
+      result.second > 0
+        ? `; ${result.second} ${result.second === 1 ? "is an instruction" : "are instructions"} only Reference CPU 2 runs (designed, not built yet)`
+        : "";
+    setStatus({ text: `Assembled ${result.words.length} ${result.words.length === 1 ? "word" : "words"}${second}.`, words: result.words.join(), source: draft });
   };
   const note =
     (status?.words === (data ?? []).join() && status.source === saved && status.text) ||
@@ -2206,7 +2212,7 @@ function ProgramEditor({ part }: { part: CircuitComponent }) {
       ? "The words no longer match this source: they were edited directly. Assemble to write them again."
       : check === "broken"
         ? "This source no longer assembles; the words are as they were. Fix it and Assemble."
-        : "Reference-CPU assembly (docs/reference-cpu.md). Assemble writes the program and resets the circuit.");
+        : "Reference-CPU assembly (docs/reference-cpu.md, docs/reference-cpu-2.md). Assemble writes the program and resets the circuit.");
   const digits = Math.ceil(address / 4);
   const total = data?.length ?? 0;
   return (

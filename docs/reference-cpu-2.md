@@ -1,7 +1,9 @@
 # Reference CPU 2: specification
 
-Status: **designed, not built** (ADR 0036, accepted). Nothing on this page
-runs yet: the assembler and the model follow, then the circuit.
+Status: **the assembler and the model are built; the circuit is not**
+(ADR 0036, accepted). The assembler knows the eleven instructions, and a
+model written from this page is held to results worked out by hand
+(`crates/sim-core/tests/cpu2.rs`). No circuit runs them yet.
 Change this page first to change the instruction set.
 
 Reference CPU 2 is the [reference CPU](reference-cpu.md) with eleven more

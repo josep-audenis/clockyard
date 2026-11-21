@@ -58,6 +58,7 @@ pub fn max_width() -> u32 {
 struct Assembled {
     words: Vec<u16>,
     errors: Vec<AsmError>,
+    second: usize,
 }
 
 #[derive(Serialize)]
@@ -66,16 +67,20 @@ struct AsmError {
     message: String,
 }
 
-/// Assembles reference-CPU source (ADR 0019) as JSON `{ words, errors }`:
-/// the ROM words when it assembles, else every error with its 1-based line.
+/// Assembles reference-CPU source (ADRs 0019, 0036) as JSON `{ words, errors,
+/// second }`: the ROM words when it assembles, else every error with its
+/// 1-based line. `second` counts the words only Reference CPU 2 runs, which
+/// the first reference CPU ignores.
 #[wasm_bindgen]
 pub fn assemble(source: &str) -> String {
     let assembled = match asm::assemble(source) {
         Ok(words) => Assembled {
+            second: words.iter().filter(|&&w| asm::needs_cpu_2(w)).count(),
             words,
             errors: Vec::new(),
         },
         Err(errors) => Assembled {
+            second: 0,
             words: Vec::new(),
             errors: errors
                 .into_iter()

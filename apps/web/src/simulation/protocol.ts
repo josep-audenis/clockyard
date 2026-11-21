@@ -149,8 +149,11 @@ export type Result =
    * Step or Reset; never for a pause.
    */
   | { type: "state"; nets: Uint32Array; unknown: Uint32Array; diagnostics: Diagnostic[]; time: number; running: boolean; stopped?: Stopped }
-  /** `errors` empty: the source assembled to `words` (empty for an empty program). */
-  | { type: "assembled"; request: number; words: number[]; errors: AsmError[] }
+  /**
+   * `errors` empty: the source assembled to `words` (empty for an empty program). `second`: how many of them only
+   * Reference CPU 2 runs, which the first reference CPU ignores (ADR 0036).
+   */
+  | { type: "assembled"; request: number; words: number[]; errors: AsmError[]; second: number }
   | { type: "disassembled"; request: number; lines: string[] }
   | { type: "checked"; request: number; report: Report }
   /**

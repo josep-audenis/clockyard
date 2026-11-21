@@ -1,6 +1,8 @@
-//! Assembler and disassembler for the reference CPU, as specified in
-//! `docs/reference-cpu.md` (ADR 0019). It turns text into ROM words and back;
-//! it simulates nothing.
+//! Assembler and disassembler for the reference CPUs, as specified in
+//! `docs/reference-cpu.md` (ADR 0019) and `docs/reference-cpu-2.md` (ADR
+//! 0036). One language serves both: Reference CPU 2 runs every instruction
+//! here, and the first runs the first thirteen and ignores the rest. It
+//! turns text into ROM words and back; it simulates nothing.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -8,23 +10,58 @@ use std::fmt;
 /// Words a program may hold: the program ROM's size.
 pub const MAX_WORDS: usize = 256;
 
-/// Each instruction's mnemonic, opcode and whether it takes an operand, in
-/// opcode order. Opcodes 0xD to 0xF are reserved and execute as `NOP`.
-pub const INSTRUCTIONS: [(&str, u16, bool); 13] = [
-    ("NOP", 0x0, false),
-    ("LDI", 0x1, true),
-    ("LDA", 0x2, true),
-    ("STA", 0x3, true),
-    ("ADD", 0x4, true),
-    ("SUB", 0x5, true),
-    ("ADI", 0x6, true),
-    ("SBI", 0x7, true),
-    ("JMP", 0x8, true),
-    ("JZ", 0x9, true),
-    ("JC", 0xA, true),
-    ("OUT", 0xB, false),
-    ("HLT", 0xC, false),
+/// Each instruction's mnemonic, its word with operand 0, and whether it
+/// takes an operand, in word order. The first thirteen are the reference
+/// CPU's, an opcode each in bits 15-12. The rest are Reference CPU 2's:
+/// `JNZ` on opcode 0xD, and ten under opcode 0xF, told apart by bits 11-8.
+/// Opcode 0xE and 0xFA to 0xFF are reserved and execute as `NOP`.
+pub const INSTRUCTIONS: [(&str, u16, bool); 24] = [
+    ("NOP", 0x0000, false),
+    ("LDI", 0x1000, true),
+    ("LDA", 0x2000, true),
+    ("STA", 0x3000, true),
+    ("ADD", 0x4000, true),
+    ("SUB", 0x5000, true),
+    ("ADI", 0x6000, true),
+    ("SBI", 0x7000, true),
+    ("JMP", 0x8000, true),
+    ("JZ", 0x9000, true),
+    ("JC", 0xA000, true),
+    ("OUT", 0xB000, false),
+    ("HLT", 0xC000, false),
+    ("JNZ", 0xD000, true),
+    ("AND", 0xF000, true),
+    ("OR", 0xF100, true),
+    ("XOR", 0xF200, true),
+    ("ANI", 0xF300, true),
+    ("ORI", 0xF400, true),
+    ("XRI", 0xF500, true),
+    ("SHL", 0xF600, false),
+    ("SHR", 0xF700, false),
+    ("CALL", 0xF800, true),
+    ("RET", 0xF900, false),
 ];
+
+/// The named instruction a word is on Reference CPU 2, if any (a reserved
+/// word has none, and executes as `NOP`): by its opcode, and under opcode 0xF
+/// by bits 11-8 as well.
+fn instruction(word: u16) -> Option<(&'static str, u16, bool)> {
+    let key = if word >> 12 == 0xF {
+        word & 0xFF00
+    } else {
+        word & 0xF000
+    };
+    INSTRUCTIONS
+        .iter()
+        .copied()
+        .find(|&(_, base, _)| base == key)
+}
+
+/// Whether only Reference CPU 2 runs this word: the first reference CPU
+/// executes it as `NOP` (ADR 0036).
+pub fn needs_cpu_2(word: u16) -> bool {
+    instruction(word).is_some_and(|(_, base, _)| base >= 0xD000)
+}
 
 /// A problem in the source, on a 1-based line.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -133,7 +170,7 @@ pub fn assemble(source: &str) -> Result<Vec<u16>, Vec<Error>> {
             message,
         };
         let name = line.mnemonic.to_ascii_uppercase();
-        let Some(&(name, opcode, takes)) = INSTRUCTIONS.iter().find(|(n, _, _)| *n == name) else {
+        let Some(&(name, base, takes)) = INSTRUCTIONS.iter().find(|(n, _, _)| *n == name) else {
             errors.push(error(format!("unknown instruction {}", line.mnemonic)));
             continue;
         };
@@ -177,7 +214,7 @@ pub fn assemble(source: &str) -> Result<Vec<u16>, Vec<Error>> {
                 }
             },
         };
-        words.push(opcode << 12 | operand);
+        words.push(base | operand);
     }
     if errors.is_empty() {
         Ok(words)
@@ -187,25 +224,23 @@ pub fn assemble(source: &str) -> Result<Vec<u16>, Vec<Error>> {
     }
 }
 
-/// One ROM word as assembly. A word the assembler would not write (a reserved
-/// opcode, reserved bits set, or an operand on an instruction without one)
-/// shows what it executes as, with the raw word in a comment, so the text
-/// assembles to a program that behaves the same.
+/// One ROM word as assembly: the instruction Reference CPU 2 executes it as,
+/// whichever CPU the ROM feeds. A word the assembler would not write (a
+/// reserved opcode, reserved bits set, or an operand on an instruction without
+/// one) has the raw word in a comment. The text assembles to a program that
+/// behaves the same on either CPU.
 pub fn disassemble(word: u16) -> String {
-    let opcode = word >> 12;
     let operand = word & 0xFF;
-    let (name, _, takes) = INSTRUCTIONS
-        .iter()
-        .copied()
-        .find(|&(_, code, _)| code == opcode)
-        .unwrap_or(("NOP", opcode, false));
+    let Some((name, base, takes)) = instruction(word) else {
+        return format!("NOP ; 0x{word:04X}");
+    };
     let text = if takes {
         format!("{name} {operand}")
     } else {
         name.to_string()
     };
-    let exact = opcode <= 0xC && word & 0x0F00 == 0 && (takes || operand == 0);
-    if exact {
+    // What the assembler writes for this text.
+    if base | if takes { operand } else { 0 } == word {
         text
     } else {
         format!("{text} ; 0x{word:04X}")
@@ -237,19 +272,66 @@ mod tests {
 
     #[test]
     fn every_instruction_encodes_its_opcode_and_operand() {
-        for (name, opcode, takes) in INSTRUCTIONS {
+        for (name, base, takes) in INSTRUCTIONS {
             let source = if takes {
                 format!("{name} 0xAB")
             } else {
                 name.to_string()
             };
             let operand = if takes { 0xAB } else { 0 };
-            assert_eq!(
-                assemble(&source),
-                Ok(vec![opcode << 12 | operand]),
-                "{name}"
-            );
+            assert_eq!(assemble(&source), Ok(vec![base | operand]), "{name}");
         }
+        // The first thirteen are an opcode each, in order; the rest are Reference CPU 2's alone.
+        for (i, (name, base, _)) in INSTRUCTIONS.into_iter().enumerate() {
+            assert_eq!(needs_cpu_2(base), i >= 13, "{name}");
+            if i < 13 {
+                assert_eq!(usize::from(base), i << 12, "{name}");
+            }
+        }
+        assert!(
+            !needs_cpu_2(0xE000) && !needs_cpu_2(0xFA00),
+            "reserved on both"
+        );
+        assert!(
+            needs_cpu_2(0xD712) && needs_cpu_2(0xF9FF),
+            "whatever the ignored bits hold"
+        );
+    }
+
+    #[test]
+    fn the_second_cpus_words_are_as_its_page_gives_them() {
+        // docs/reference-cpu-2.md's table, word for word.
+        assert_eq!(
+            assemble("JNZ 1\nAND 1\nOR 1\nXOR 1\nANI 1\nORI 1\nXRI 1\nSHL\nSHR\nCALL 1\nRET"),
+            Ok(vec![
+                0xD001, 0xF001, 0xF101, 0xF201, 0xF301, 0xF401, 0xF501, 0xF600, 0xF700, 0xF801,
+                0xF900
+            ])
+        );
+    }
+
+    #[test]
+    fn the_second_cpus_examples_assemble() {
+        // docs/reference-cpu-2.md: a routine that doubles A, called twice.
+        let twice = "        LDI 5\n        CALL twice\n        CALL twice\n        OUT\n        HLT\ntwice:  SHL\n        RET\n";
+        assert_eq!(
+            assemble(twice),
+            Ok(vec![0x1005, 0xF805, 0xF805, 0xB000, 0xC000, 0xF600, 0xF900])
+        );
+        let pixel = "LDI 25\nSTA 0xFE\nLDA 0xFD\nORI 0b00100000\nSTA 0xFD\nHLT";
+        assert_eq!(
+            assemble(pixel),
+            Ok(vec![0x1019, 0x30FE, 0x20FD, 0xF420, 0x30FD, 0xC000])
+        );
+        assert_eq!(
+            errors("SHL 3\nRET 1\nCALL\nJNZ"),
+            [
+                (1, "SHL takes no operand".to_string()),
+                (2, "RET takes no operand".to_string()),
+                (3, "CALL needs an operand".to_string()),
+                (4, "JNZ needs an operand".to_string()),
+            ]
+        );
     }
 
     #[test]
@@ -348,26 +430,43 @@ mod tests {
     fn disassembly_assembles_back_to_the_same_behaviour() {
         assert_eq!(disassemble(0x1005), "LDI 5");
         assert_eq!(disassemble(0xB000), "OUT");
+        // Reference CPU 2's words read as its instructions (ADR 0036), on whichever CPU the ROM is.
+        assert_eq!(disassemble(0xD012), "JNZ 18");
+        assert_eq!(disassemble(0xF420), "ORI 32");
+        assert_eq!(disassemble(0xF600), "SHL");
         // Not what the assembler writes: the raw word goes in a comment.
-        assert_eq!(disassemble(0xD012), "NOP ; 0xD012");
+        assert_eq!(disassemble(0xD123), "JNZ 35 ; 0xD123");
+        assert_eq!(disassemble(0xF612), "SHL ; 0xF612");
+        assert_eq!(disassemble(0xE012), "NOP ; 0xE012");
+        assert_eq!(disassemble(0xFA00), "NOP ; 0xFA00");
         assert_eq!(disassemble(0x1305), "LDI 5 ; 0x1305");
         assert_eq!(disassemble(0xB007), "OUT ; 0xB007");
-        // Every word disassembles to text that assembles to one word with the same effect: its opcode (a
-        // reserved one runs as NOP) and, where the instruction takes one, its operand. Bits 11-8 are ignored.
+        // Every word disassembles to text that assembles to one word with the same effect on either CPU: its
+        // instruction (a reserved word runs as NOP) and, where that takes one, its operand. The bits an
+        // instruction ignores (11-8 outside opcode 0xF, 7-0 where there is no operand) come back as 0.
         for word in 0..=u16::MAX {
-            let op = word >> 12;
-            let expected = if op > 0xC {
-                0
-            } else if INSTRUCTIONS[usize::from(op)].2 {
-                op << 12 | word & 0xFF
-            } else {
-                op << 12
+            // From the two pages, not from this crate's table: which bits each word's instruction uses.
+            let expected = match word >> 12 {
+                // NOP, OUT, HLT: no operand.
+                0x0 | 0xB | 0xC => word & 0xF000,
+                // Reserved on both CPUs.
+                0xE => 0,
+                0xF => match (word >> 8) & 0xF {
+                    // AND, OR, XOR, ANI, ORI, XRI, CALL: the operand.
+                    0x0..=0x5 | 0x8 => word,
+                    // SHL, SHR, RET: no operand.
+                    0x6 | 0x7 | 0x9 => word & 0xFF00,
+                    _ => 0,
+                },
+                // Every other opcode takes an operand, and ignores bits 11-8.
+                _ => word & 0xF0FF,
             };
             assert_eq!(
                 assemble(&disassemble(word)),
                 Ok(vec![expected]),
                 "{word:04X}"
             );
+            assert_eq!(needs_cpu_2(word), needs_cpu_2(expected), "{word:04X}");
         }
     }
 }
