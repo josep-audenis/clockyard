@@ -115,13 +115,14 @@ What there is to build on:
      key-down to their up (repeats ignored), let go on blur.
    - **A short press.** The worker, which applies input changes between
      its slices of ticks, notes the tick at which a button went to 1. If
-     it goes back to 0 at the same tick while the simulation runs, the
-     worker reports the button's ID, and the editor's status line says:
-     "Button 1 was let go before a tick: parts that change on a clock
-     edge did not see it." An edit's reload that sends a held button's
-     1 again keeps its noted tick; Reset sets it to 0, as time goes back
-     to 0. Combinational parts did see it, and the canvas
-     lit it. Nothing stretches a press: what the circuit sees is what was
+     it goes back to 0 at the same tick while a run is going (Run or Run
+     until), the worker reports the button's ID, and the editor's status
+     line says: "Button 1 was let go before a tick: parts clocked by the
+     clock did not see it." (Amended in step 1: a part whose `clk` the
+     button itself drives does see the press, as a rising edge between
+     ticks.) An edit's reload that sends a held button's 1 again keeps
+     its noted tick; Reset sets it to 0, as time goes back to 0.
+     Combinational parts did see it, and the canvas lit it. Nothing stretches a press: what the circuit sees is what was
      held. `docs/simulation-model.md` says that a clocked part sees a
      press only if its clock's rising edge falls inside it.
    - **Not saved, and kept as a switch is:** every button is let go when
