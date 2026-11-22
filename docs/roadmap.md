@@ -755,7 +755,9 @@ with a note beside it, saved and opened again. Increment 2, computers
 you can read, is designed in ADR 0039 (accepted). Step 1 is done:
 label tags are routing obstacles for every net, their side worked out
 from where their wires go, and a renamed or turned tag reroutes the kept
-routes near it.
+routes near it. Step 2 is done: the Notes panel lists the sheet's notes,
+and choosing one shows it at 100% one cell in from the top left, the
+selection left as it is.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is

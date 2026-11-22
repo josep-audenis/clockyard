@@ -28,6 +28,7 @@ import {
   noteSize,
   maxValue,
   normalizeNotes,
+  notesInOrder,
   parseValue,
   pinsOf,
   project,
@@ -1691,6 +1692,8 @@ function ExampleList() {
 /** The document's notes (ADR 0027): plain text that travels with the file and its link, edited in place, outside undo. */
 function NotesPanel() {
   const notes = useEditor((s) => s.metadata.notes ?? "");
+  // ADR 0039: the open sheet's notes, each a button that shows it at 100%, the selection left as it is.
+  const onSheet = notesInOrder(useEditor((s) => s.circuit.notes));
   const id = useId();
   // Open on a wide window; on a narrow one the canvas needs the height more, until asked.
   const [open, setOpen] = useState(() => !window.matchMedia("(max-width: 900px)").matches);
@@ -1715,6 +1718,29 @@ function NotesPanel() {
         <p id={`${id}-hint`} className="field-hint">
           {`Plain text, saved with the file and in links, up to ${MAX_NOTES.toLocaleString("en")} characters. A blank line starts a new paragraph.`}
         </p>
+        {onSheet.length > 0 && (
+          <>
+            <p className="field-label" id={`${id}-sheet`}>
+              On this sheet
+            </p>
+            <ul className="sheet-notes" aria-labelledby={`${id}-sheet`}>
+              {onSheet.map(({ note, title }) => (
+                <li key={note.id}>
+                  <button
+                    type="button"
+                    className="button button-quiet type-label"
+                    onClick={() => {
+                      viewControls.show?.(note.position);
+                      announce(`Showing ${title}.`);
+                    }}
+                  >
+                    {title}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </div>
     </section>
   );

@@ -35,6 +35,7 @@ import {
   hitTest,
   itemsInBox,
   labelTags,
+  viewShowing,
   nearestOnRoute,
   occupied,
   places,
@@ -115,7 +116,8 @@ export const useCanvasHints = create<{
 }));
 
 /** The zoom controls' commands, bound while a canvas is mounted. */
-export const viewControls: { zoomBy?: (factor: number) => void; fit?: () => void } = {};
+export const viewControls: { zoomBy?: (factor: number) => void; fit?: () => void; show?: (p: Point) => void } = {};
+
 
 type Theme = { color: Record<(typeof COLORS)[number], string>; size: Record<(typeof SIZES)[number], number>; mono: string };
 
@@ -1399,6 +1401,12 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     Object.assign(view, { x: 48, y: 48, zoom: 1 });
     useCanvasHints.setState({ zoom: 1 });
   };
+  /** Shows grid point `p` one cell in from the top left at 100%: a note's region at a readable size (ADR 0039). */
+  const show = (p: Point) => {
+    Object.assign(view, viewShowing(p, cell()));
+    useCanvasHints.setState({ zoom: 1 });
+    schedule();
+  };
   /** Frames `e` in the canvas, zoomed at most to `most`. */
   const frameExtent = (e: NonNullable<ReturnType<typeof extent>>, most: number) => {
     const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(most, host.clientWidth / (e.w * cell()), host.clientHeight / (e.h * cell()))));
@@ -1690,7 +1698,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   frameOpenedSafely();
   schedule();
 
-  const bind = () => Object.assign(viewControls, { fit, zoomBy });
+  const bind = () => Object.assign(viewControls, { fit, zoomBy, show });
   const stop = () => {
     stopped = true;
     unsubscribe.forEach((stop) => stop());
@@ -1698,6 +1706,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     if (viewControls.fit === fit) {
       delete viewControls.fit;
       delete viewControls.zoomBy;
+      delete viewControls.show;
     }
     cancelAnimationFrame(frame);
     resize.disconnect();

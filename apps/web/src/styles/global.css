@@ -1376,6 +1376,23 @@ select.input {
   display: block;
 }
 
+/* ADR 0039: the sheet's notes, one button each, that show a region at 100%. */
+.sheet-notes {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sheet-notes .button {
+  justify-content: flex-start;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .inspector-empty {
   margin: 0;
   color: var(--ink-muted);
