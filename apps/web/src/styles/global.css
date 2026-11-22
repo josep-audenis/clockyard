@@ -1543,6 +1543,10 @@ pre.memory-words,
 }
 
 /* ADR 0039: the listing's row at the ROM's address now. */
+.memory-words.listing {
+  position: relative;
+}
+
 .listing .is-marked {
   background: var(--accent-soft);
   box-shadow: inset 2px 0 0 var(--accent);

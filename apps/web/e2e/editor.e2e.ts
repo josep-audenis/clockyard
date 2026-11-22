@@ -2262,6 +2262,16 @@ test("the program editor marks the word at the ROM's address, which moves on aft
     await page.getByRole("button", { name: "Step", exact: true }).click();
     await expect(counter(page)).toHaveText(`Cycle ${cycle}, clock low`);
     await expect(marked).toHaveText(row);
-    await expect(marked).toBeInViewport();
   }
+  // A jump far down the listing: the box scrolls to the marked row; the inspector around it does not.
+  await inspector.getByLabel("Assembly", { exact: true }).fill(["JMP 40", ...Array<string>(39).fill("NOP"), "HLT"].join("\n"));
+  await page.getByRole("button", { name: "Assemble", exact: true }).click();
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  const listing = inspector.getByRole("region", { name: "Disassembly" });
+  const inspectorTop = await inspector.evaluate((e) => e.scrollTop);
+  for (let i = 0; i < 2; i++) await page.getByRole("button", { name: "Step", exact: true }).click();
+  await expect(marked).toHaveText(/^28 {2}HLT$/);
+  await expect.poll(() => listing.evaluate((e) => e.scrollTop)).toBeGreaterThan(0);
+  expect(await inspector.evaluate((e) => e.scrollTop)).toBe(inspectorTop);
 });

@@ -132,7 +132,7 @@ What there is:
      now is marked: highlighted, with `aria-current`. The address comes
      from a selector that reads only that net from the engine's state; while
      the state is stale, `addr` has unknown bits, or the address is past the
-     listing's 256 words, nothing is marked.
+     words listed (those stored, up to 256), nothing is marked.
    - The marked row is scrolled into view when the clock is paused, after a
      Step or a Reset, never while running, so a run does not fight the
      reader's own scrolling.

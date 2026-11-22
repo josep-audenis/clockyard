@@ -2351,10 +2351,14 @@ function ProgramEditor({ part }: { part: CircuitComponent }) {
   });
   const running = useSim((s) => s.running);
   const marked = useRef<HTMLDivElement>(null);
-  // Brought into view when the clock stands still (a Step, a Reset, a pause), never while running: a run would fight
-  // the reader's own scrolling.
+  const box = useRef<HTMLDivElement>(null);
+  // Brought into view inside the listing when the clock stands still (a Step, a Reset, a pause), never while running:
+  // a run would fight the reader's own scrolling. Only the listing scrolls, never the inspector around it.
   useEffect(() => {
-    if (!running) marked.current?.scrollIntoView({ block: "nearest" });
+    const [row, list] = [marked.current, box.current];
+    if (running || !row || !list) return;
+    if (row.offsetTop < list.scrollTop) list.scrollTop = row.offsetTop;
+    else if (row.offsetTop + row.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = row.offsetTop + row.offsetHeight - list.clientHeight;
   }, [mark, running]);
   return (
     <div className="field">
@@ -2394,7 +2398,7 @@ function ProgramEditor({ part }: { part: CircuitComponent }) {
       <p className="field-label" id={`${id}-listing`}>
         Disassembly
       </p>
-      <div className="memory-words listing" role="region" tabIndex={0} aria-labelledby={`${id}-listing`} aria-describedby={`${id}-mark`}>
+      <div ref={box} className="memory-words listing" role="region" tabIndex={0} aria-labelledby={`${id}-listing`} aria-describedby={`${id}-mark`}>
         {listing === null
           ? "…"
           : listing === "unavailable"
@@ -2409,7 +2413,7 @@ function ProgramEditor({ part }: { part: CircuitComponent }) {
         {Array.isArray(listing) && total > DUMP_WORDS && <div>{`… ${total - DUMP_WORDS} more words`}</div>}
       </div>
       <p id={`${id}-mark`} className="field-hint">
-        Marked: the word at the ROM&apos;s address now: in a CPU fetching from this ROM, the next instruction to run, once its
+        Marked: the word at the ROM&apos;s address now, which in a CPU fetching from this ROM is the next instruction once its
         fetch has begun.
       </p>
     </div>

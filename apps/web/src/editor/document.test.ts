@@ -188,5 +188,6 @@ test("the listing marks the ROM's address, unless stale, unknown or past its row
   expect(markedRow(3, 0, true, 256)).toBeNull();
   expect(markedRow(3, 1, false, 256)).toBeNull();
   expect(markedRow(undefined, 0, false, 256)).toBeNull();
+  expect(markedRow(255, 0, false, 256)).toBe(255);
   expect(markedRow(256, 0, false, 256)).toBeNull();
 });
