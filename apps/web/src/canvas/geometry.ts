@@ -22,6 +22,59 @@ export const places = (circuit: Circuit): Places => ({
   junctions: new Map(circuit.junctions.map((j) => [j.id, j])),
 });
 
+export type TagSide = "right" | "left" | "below" | "above";
+const SIDES: readonly TagSide[] = ["right", "left", "below", "above"];
+/** Grid points a tag keeps routes off, corners included; null when its label has no side free. */
+export type TagBox = { x0: number; y0: number; x1: number; y1: number } | null;
+
+/**
+ * Each net label's tag (ADR 0039): its side, the first of right, left, below and above that none of its wires goes
+ * towards (a far end both right and below takes both), and the grid points it covers, reckoned from its name at half a
+ * cell a character, more than the drawn text takes. Worked out from where wires go, not from their routes, so the router
+ * and the canvas agree before routing. A label with every side taken draws its tag on the right and blocks nothing.
+ */
+export function labelTags(circuit: Circuit, at: Places = places(circuit)): Map<string, { side: TagSide; box: TagBox }> {
+  const taken = new Map<string, Set<TagSide>>();
+  for (const w of circuit.wires) {
+    for (const [end, other] of [
+      [w.from, w.to],
+      [w.to, w.from],
+    ] as const) {
+      if (!isJunction(end)) continue;
+      const dot = at.junctions.get(end.junction);
+      const far = dot?.name ? endAt(at, other) : undefined;
+      if (!dot || !far) continue;
+      const sides = taken.get(dot.id) ?? new Set<TagSide>();
+      if (far.x > dot.position.x) sides.add("right");
+      if (far.x < dot.position.x) sides.add("left");
+      if (far.y > dot.position.y) sides.add("below");
+      if (far.y < dot.position.y) sides.add("above");
+      taken.set(dot.id, sides);
+    }
+  }
+  const tags = new Map<string, { side: TagSide; box: TagBox }>();
+  for (const { id, name, position } of circuit.junctions) {
+    if (!name) continue;
+    const side = SIDES.find((s) => !taken.get(id)?.has(s));
+    const { x, y } = position;
+    // The gap to the dot, then the name.
+    const long = Math.ceil([...name].length / 2) + 1;
+    const half = Math.ceil(long / 2);
+    const box =
+      side === "right"
+        ? { x0: x + 1, y0: y, x1: x + long, y1: y }
+        : side === "left"
+          ? { x0: x - long, y0: y, x1: x - 1, y1: y }
+          : side === "below"
+            ? { x0: x - half, y0: y + 1, x1: x + half, y1: y + 1 }
+            : side === "above"
+              ? { x0: x - half, y0: y - 1, x1: x + half, y1: y - 1 }
+              : null;
+    tags.set(id, { side: side ?? "right", box });
+  }
+  return tags;
+}
+
 export function portAt(component: CircuitComponent, port: string): Point | undefined {
   const layout = layoutOf(component);
   const offset = layout.inputs[port] ?? layout.outputs[port];

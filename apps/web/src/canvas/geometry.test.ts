@@ -5,6 +5,7 @@ import {
   exitOf,
   hitTest,
   itemsInBox,
+  labelTags,
   nearestOnRoute,
   occupied,
   orthogonal,
@@ -253,4 +254,25 @@ test("a note is picked by its text's box under everything else, and boxed when w
   expect(hitTest(circuit, { x: 4.5, y: 1.5 }, 0.2, new Map())).toBeNull();
   expect(itemsInBox(circuit, { x: -1, y: -1 }, { x: 4, y: 2 })).toEqual(["n"]);
   expect(itemsInBox(circuit, { x: -1, y: -1 }, { x: 3, y: 2 })).toEqual([]);
+});
+
+test("a label's tag takes the first side none of its wires goes towards, and covers half a cell a character (ADR 0039)", () => {
+  const sheet = (fars: { x: number; y: number }[]): Circuit => ({
+    components: fars.map((p, i) => ({ id: `s${i}`, kind: "switch", position: { x: p.x - 2, y: p.y - 1 }, rotation: 0, props: {} })),
+    junctions: [{ id: "j", position: { x: 10, y: 10 }, name: "PC" }, { id: "k", position: { x: 0, y: 30 } }],
+    wires: fars.map((_, i) => ({ id: `w${i}`, from: { component: `s${i}`, port: "out" }, to: { junction: "j" } })),
+    notes: [],
+  });
+  // A switch's `out` is at its right edge: (p.x, p.y). From the right, the tag goes left: "PC" is 1 cell, and a gap.
+  expect(labelTags(sheet([{ x: 20, y: 10 }])).get("j")).toEqual({ side: "left", box: { x0: 8, y0: 10, x1: 9, y1: 10 } });
+  // No wires: right.
+  expect(labelTags(sheet([])).get("j")).toEqual({ side: "right", box: { x0: 11, y0: 10, x1: 12, y1: 10 } });
+  // A far end right and below takes both: left.
+  expect(labelTags(sheet([{ x: 20, y: 20 }])).get("j")?.side).toBe("left");
+  // Right and left taken: below, centred under the dot.
+  expect(labelTags(sheet([{ x: 20, y: 10 }, { x: 0, y: 10 }])).get("j")).toEqual({ side: "below", box: { x0: 9, y0: 11, x1: 11, y1: 11 } });
+  // Every side taken: drawn on the right, blocking nothing. An unnamed junction has no tag.
+  const all = labelTags(sheet([{ x: 20, y: 5 }, { x: 0, y: 15 }]));
+  expect(all.get("j")).toEqual({ side: "right", box: null });
+  expect(all.has("k")).toBe(false);
 });

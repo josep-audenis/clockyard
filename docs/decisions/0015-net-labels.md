@@ -108,7 +108,9 @@ Constraints from earlier records:
    that one warning. A warning from inside a definition names the instance,
    so its tag shows the outline only when the definition is opened on its
    own sheet. Routing (ADR 0011) does not yet treat
-   tags as obstacles; a wire may pass under one.
+   tags as obstacles; a wire may pass under one. (Amended by ADR 0039:
+   tags are obstacles, and a tag's side comes from where its wires go,
+   not from their routes.)
 8. **Editing.**
    - The parts panel gains **Label**, which places a named junction. It
      gets the first unused name of the form `n1`, `n2`, … on that sheet,

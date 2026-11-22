@@ -2,7 +2,7 @@
 // part bodies and other nets. Geometry only; connectivity comes from wire ends.
 import { endOwner, isJunction, type Circuit } from "../editor/document";
 import type { Endpoint } from "../simulation/protocol";
-import { DIRS, endAt, exitOf, orthogonal, places, simplify, wirePoints, type Point } from "./geometry";
+import { DIRS, endAt, exitOf, labelTags, orthogonal, places, simplify, wirePoints, type Point } from "./geometry";
 import { layoutOf, layoutsVersion } from "./layout";
 
 /** Extra cost of a bend. */
@@ -142,6 +142,8 @@ function obstaclesOf(circuit: Circuit, size: number): Obstacles {
     bodies.add(body, body.x0, body.y0, body.x1, body.y1);
   }
   for (const { position: p } of circuit.junctions) bodies.add({ x0: p.x, y0: p.y, x1: p.x, y1: p.y }, p.x, p.y, p.x, p.y);
+  // ADR 0039: label tags too, for every net, so no wire hides a name.
+  for (const { box } of labelTags(circuit).values()) if (box) bodies.add(box, box.x0, box.y0, box.x1, box.y1);
   return { bodies, routes: new RouteTiles(size), long: [] };
 }
 
@@ -514,6 +516,9 @@ function unaffected(
   const wires = new Map(prev.wires.map((w) => [w.id, w]));
   const nextParts = new Map(next.components.map((c) => [c.id, c]));
   const nextDots = new Map(next.junctions.map((j) => [j.id, j.position]));
+  // A label whose tag moved, grew or changed side counts as moved (ADR 0039).
+  const [tagsBefore, tagsNow] = [labelTags(prev), labelTags(next)];
+  const sameTag = (id: string) => JSON.stringify(tagsBefore.get(id)?.box) === JSON.stringify(tagsNow.get(id)?.box);
   const stays = (id: string) => {
     const [old, now] = [parts.get(id), nextParts.get(id)];
     if (old || now) {
@@ -530,12 +535,16 @@ function unaffected(
       );
     }
     const [was, is] = [dots.get(id), nextDots.get(id)];
-    return !!was && !!is && samePoint(was, is);
+    return !!was && !!is && samePoint(was, is) && sameTag(id);
   };
   // Boxes of parts and junctions that moved, turned or appeared: a kept route must not run into one.
   const obstacles = [
     ...next.components.filter((c) => !stays(c.id)).map((c) => ({ ...c.position, ...size(c) })),
     ...next.junctions.filter((j) => !stays(j.id)).map((j) => ({ ...j.position, width: 0, height: 0 })),
+    ...next.junctions.flatMap((j) => {
+      const box = stays(j.id) ? null : tagsNow.get(j.id)?.box;
+      return box ? [{ x: box.x0, y: box.y0, width: box.x1 - box.x0, height: box.y1 - box.y0 }] : [];
+    }),
   ];
   // A shaped wire whose route changed is laid as given, avoiding nothing, so kept routes must not touch it either.
   const at = places(next);

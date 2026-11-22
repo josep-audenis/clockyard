@@ -481,3 +481,24 @@ test("a sheet large enough for the bend count still keeps its nets apart", () =>
     }
   }
 });
+
+test("routes keep clear of label tags, and a renamed label's longer tag moves kept routes off it (ADR 0039)", () => {
+  // A label fed from the left, so its tag is on the right, at row 6; a wire of another net runs down past it.
+  const sheet = (name: string): Circuit => ({
+    components: [part("a", "switch", 0, 5), part("s", "switch", 9, 0), part("l", "led", 12, 12)],
+    junctions: [{ id: "j", position: { x: 8, y: 6 }, name }],
+    wires: [
+      { id: "in", from: { component: "a", port: "out" }, to: { junction: "j" } },
+      { id: "down", from: { component: "s", port: "out" }, to: { component: "l", port: "in" } },
+    ],
+    notes: [],
+  });
+  const clear = (points: Point[] | undefined, x0: number, x1: number) => (points ?? []).every((p) => p.y !== 6 || p.x < x0 || p.x > x1);
+  const short = routes(sheet("A"));
+  // "A": a cell and the gap, x 9 to 10.
+  expect(clear(cells(short.get("down") ?? []), 9, 10)).toBe(true);
+  const long = routes(sheet("ADDRESS"));
+  // "ADDRESS": x 9 to 13, and the route that kept off "A" is laid again to keep off this.
+  expect(clear(cells(long.get("down") ?? []), 9, 13)).toBe(true);
+  expect(long.get("in")).not.toBe(short.get("in"));
+});
