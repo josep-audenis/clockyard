@@ -3,10 +3,10 @@
 - Status: Proposed
 - Date: 2026-11-22
 - Depends on: ADR 0037 (Phase 7 plan, increment 2); ADR 0038 (notes on the
-  canvas); ADR 0015 (net labels and their tags); ADR 0011 (routing); ADR
-  0017 (the open sheet is what runs); ADR 0019 and ADR 0036 (the reference
-  CPUs and the program editor); ADR 0020 to 0023 (the examples built on
-  them)
+  canvas); ADR 0015 (net labels and their tags); ADR 0011 and ADR 0033
+  (routing, kept routes, opening framed); ADR 0017 (the open sheet is what
+  runs); ADR 0019 and ADR 0036 (the reference CPUs and the program
+  editor); ADR 0024 (links); ADR 0030 (benchmarks); ADR 0034 (the cut CPU)
 
 ## Context
 
@@ -21,136 +21,198 @@ mark to the next.
 
 What there is:
 
-- **The sheets.** `scripts/reference-cpu.mjs` places every part by hand
-  on one sheet: 81 parts, 174 wires, 6 net labels, spread over 152 × 82
-  cells. `scripts/reference-cpu-2.mjs` starts from those parts and adds
-  its own: 117 parts, 271 wires, 160 × 124 cells. The same scripts write
-  Catch and Catch 2 (the same circuits with a game in the ROM) and check
-  the committed files (`--check`, run by `pnpm verify`). The Rust tests
-  (`crates/sim-core/tests/cpu.rs`, `cpu2.rs`) run the circuits against
-  independent models; they do not care where parts are. Some Playwright
-  tests click parts at grid points (the keyboard, the screen).
+- **The sheets.** `scripts/reference-cpu.mjs` places every part by hand:
+  81 parts, 174 wires, 6 net labels over 152 × 82 cells, written as format
+  version 11. `scripts/reference-cpu-2.mjs` imports those parts and wire
+  pairs, rewrites some pairs by their `"from>to"` text (throwing if one is
+  missing), checks that its own parts do not overlap them, and adds its
+  own: 117 parts, 271 wires, 160 × 124 cells. The same scripts write Catch
+  and Catch 2, and `--check` (in `pnpm verify`) fails if a committed file
+  is not what they would write.
+- **What else follows those files:**
+  - `scripts/computer.mjs`, the cut CPU of challenge 11's bench (ADR
+    0034), keeps its own copy of the positions;
+  - `scripts/benchmarks.mjs` builds `benchmarks/cpu-1k.clockyard.json`
+    from the example, and its `--check` is in `pnpm verify`;
+  - `apps/web/src/canvas/routing.test.ts` pins route hashes for Catch, the
+    reference CPU and the devices example;
+  - `apps/web/src/storage/link.test.ts` requires Catch's link to stay
+    under 8,000 characters; it is about 7,300 now;
+  - Playwright clicks the program ROM at (22, 14), and the test of opening
+    framed (ADR 0033) names its position; `apps/web/scripts/landing-shots.mjs`
+    clicks parts and crops Catch's devices by pixel for the about page.
+- **The tests of behaviour** (`crates/sim-core/tests/cpu.rs`, `cpu2.rs`)
+  run the circuits against independent models and do not care where parts
+  are.
+- **Names.** `docs/reference-cpu.md` names the architectural registers and
+  ports (`PC`, `IR`, `A`, `Z`, `C`, `T`, `H`, `OUT`, `KEY`, `SPTR`,
+  `SDATA`, `HEX`). The control lines are named only in
+  `scripts/cpu-pieces.mjs` (`aLoad` and the rest); nothing names the ALU's
+  output.
 - **Everything runs on the open sheet** (ADR 0017), so the regions stay
-  on the main sheet: no part moves into a component.
-- **Label tags** (ADR 0015 item 7) are drawn beside a named junction on a
-  side its wires do not take, sized by the name's text. The side is found
-  from the *routes*, after routing, and routing treats only part bodies
-  and junction dots as obstacles: a wire may run under a tag. On a sheet
-  that leans on labels, wires through tags hide names.
+  on the main sheet.
+- **Label tags** (ADR 0015 item 7) are drawn beside a named junction, in
+  11 px bitmap mono, on the first side, of right, left, below and above,
+  that no *route* leaves by. Routing treats only part bodies and junction
+  dots as obstacles (`obstaclesOf`): a wire may run under a tag. An edit
+  reroutes only wires near parts or junctions that moved (`unaffected`).
 - **Notes** (ADR 0038) are plain text at a grid point, one size, under
-  wires and parts. ADR 0038 left to this ADR whether a note gets a size.
-- **The canvas** at 1280×800 with the left panel (232 px) and the
-  inspector (280 px) open is 768 × 728 px: 48 × 45 cells at 100% (a cell
-  is 16 px), less the zoom controls in the bottom corner.
-- **The program editor** shows a ROM's listing, disassembled from its
-  words, and knows nothing of the running circuit.
+  wires and parts, which do not avoid them. ADR 0038 left to this ADR
+  whether a note gets a size.
+- **The canvas** in a 1280×800 viewport, with the left panel (232 px) and
+  the inspector (280 px) open, is 768 × 728 px: 48 × 45 cells at 100% (a
+  cell is 16 px); the zoom controls take the bottom right corner. A
+  document opens framed, never below 25% (ADR 0033).
+- **The program editor** renders for the selected 16-bit ROM, and shows
+  its listing as one block of text, disassembled from the first 256 words.
 - **The reference CPUs take two cycles an instruction**: fetch, then
-  execute. `PC` is the address of the next instruction to fetch, and it is
-  what drives the program ROM's `addr`.
-- **The about page** (`apps/web/about/`) shows shots of the reference CPU
-  and its program, made by `apps/web/scripts/landing-shots.mjs`, and text
-  written before the tri-state buffer, Reference CPU 2 and challenges past
-  the first few.
+  execute. `PC` drives the program ROM's `addr`; the fetch cycle ends with
+  `PC` already moved on, so the word at `addr` after it is the next
+  instruction's. The `Fetch` LED is lit during fetch cycles.
+- **The about page** (`apps/web/about/index.html`) shows the reference CPU
+  with 13 block outlines placed by hand in percentages over its shot
+  (Fig. 5), refers to blocks by number ("the ALU is block 7"), plays a
+  recording of the CPU stepping and a hero loop cropped from Catch, and
+  embeds two Catch links. Its text predates the tri-state buffer and
+  counts nine challenges.
+- **Rough edges this increment closes:** routing over label tags; the
+  reference CPU's dense sheet opening at about 30%; the about page out of
+  date.
 
 ## Decision
 
 1. **Label tags are obstacles, and their side is known before routing.**
-   - A tag's side is chosen from where its wires *go*, not from their
-     routes: each wire's far end (a port or junction position) gives a
-     direction from the dot, and the tag takes the first side, in the
-     order right, left, below, above, that no wire's far end lies towards.
-     So routing and drawing agree, and the side does not change when a
-     route does.
-   - A tag's box in grid cells is reckoned from its name as a note's is
-     (half a cell a character, one cell high, plus the gap to the dot), in
-     one function the canvas and the router share.
-   - The router blocks the cells under every tag for wires of *other*
-     nets; a wire of the label's own net may still cross it, since it joins
-     there anyway. Where no route clear of tags exists, the router's
-     fallback (ADR 0011), a plain orthogonal path, still lays one, as it
-     does when bodies leave no way.
-   - The cost is measured on the ADR 0030 benchmarks, which have few
-     labels; a sheet with many is measured too (the new reference CPU).
-   - This closes the rough edge "Routing does not yet avoid label tags".
+   - **Side.** From each of the label's wires, the direction from the dot
+     to the wire's far end (a port's or a junction's position): right if
+     the far end is further right, left if further left, below and above
+     the same way, so a diagonal far end takes two sides. The tag takes
+     the first side, of right, left, below and above, that no wire takes.
+     If all four are taken, it is drawn on the right as today and is no
+     obstacle.
+   - **Box.** The grid points the tag covers, reckoned from its name by
+     one function the router and the canvas share: half a cell a character
+     (generous for 11 px mono, about 0.4 of a cell), one row, starting one
+     point from the dot on its side, or centred on the dot's column above
+     or below. The canvas draws the tag where it draws it now; picking it
+     (`tagAt`) uses the same box.
+   - **Routing.** Tag boxes go into `obstaclesOf` as bodies: every net's
+     routes keep clear of them, the label's own included, so no wire hides
+     its own name. The dot stays a reachable goal. Where nothing clear
+     exists, the plain orthogonal fallback (ADR 0011) is laid, as it is
+     when bodies leave no way.
+   - **Kept routes.** A label whose box changed (renamed, or its side
+     flipped because a far end moved) counts as moved for `unaffected`, so
+     routes near it are laid again.
+   - The route hashes in `routing.test.ts` change, on purpose, in the same
+     pull request; the benchmarks are measured before and after.
 
-2. **Notes stay one size.** A region's title is a note, its first line the
-   title; nothing is added to the format. A frame or larger type can come
-   later if titles prove too quiet.
+2. **Notes stay one size.** A region is titled by one note: its first line
+   is the title, and the lines after it say what the region does. Nothing
+   is added to the format. Frames or larger type can come later if titles
+   prove too quiet.
 
 3. **Jumping to a note.** The inspector's Notes section, which holds the
-   project's notes (ADR 0027), gains a list of the open sheet's notes, by
-   their first line, top to bottom then left to right. Choosing one sets
+   project's notes (ADR 0027), gains a list of the open sheet's notes by
+   their first line, top to bottom, then left to right. Choosing one sets
    the zoom to 100% and puts the note one cell in from the canvas's top
-   left corner, and selects it. The list is keyboard reachable, and the
-   view change is announced ("Showing Fetch.").
+   left corner. It does not change the selection, so the program editor
+   stays open beside a region. The list is reachable by keyboard, and the
+   jump is announced ("Showing Fetch.").
 
-4. **The program followed.** The program editor's listing marks the word
-   at the ROM's `addr` now, read from the engine's nets as the readout
-   reads them: the row is highlighted, scrolled into view, and given
-   `aria-current`. When `addr` is unknown, or the ROM is not on the open
-   sheet's circuit as loaded, nothing is marked. A line under the listing
-   says what the mark is: "Marked: the word at the ROM's address now. In a
-   CPU that fetches from this ROM, the next instruction to run." It knows
-   nothing of CPUs.
+4. **The program followed.**
+   - The listing becomes one row per word, and the row at the ROM's `addr`
+     now is marked: highlighted, with `aria-current`. The address comes
+     from a selector that reads only that net from the engine's state; while
+     the state is stale, `addr` has unknown bits, or the address is past the
+     listing's 256 words, nothing is marked.
+   - The marked row is scrolled into view when the clock is paused, after a
+     Step or a Reset, never while running, so a run does not fight the
+     reader's own scrolling.
+   - A line under the listing says what the mark is: "Marked: the word at
+     the ROM's address now: in a CPU fetching from this ROM, the next
+     instruction to run, once its fetch has begun." It knows nothing of
+     CPUs, so it works for any circuit that fetches from a ROM on the open
+     sheet. A ROM inside a component cannot be followed, as nothing inside
+     a component is shown (ADR 0017).
 
 5. **The reference CPUs laid out in regions.**
-   - **Regions** are rectangles of at most 44 × 40 cells, each with a
-     title note at its top left, laid on the sheet in a grid with a gap
-     between them. The first CPU: Clock and phase; Fetch (PC, the program
-     ROM, IR); Control; Registers; ALU; Memory and I/O (RAM and the
-     devices' decoding); Devices (keyboard, screen, digits). Reference CPU
-     2 adds the Logic unit and the Stack, and may split a region that
-     outgrows its rectangle. Each region holds a few lines of note text
-     beside its title saying what it does, in the words of
-     `docs/reference-cpu.md`.
-   - **Between regions, net labels** in place of long wires: a signal that
-     crosses regions leaves its region through a label named as the
-     specification names it (`PC`, `IR`, `ALUOUT`, the control lines).
-   - **The generator checks the layout:** every part, junction and wire
-     bend lies wholly inside one region's rectangle, and no two regions
-     overlap; otherwise the script fails, so `--check` keeps it so.
-   - **Connectivity does not change.** A test (Node, beside the
-     generators' check) loads the circuit before and after the relayout
-     into the engine and compares, port by port, which ports share a net.
-     The models, the Rust tests and what they check do not change; the
-     Playwright tests that click parts at grid points do.
-   - Catch and Catch 2 follow, since the same scripts write them.
+   - **Regions** are rectangles of at most 44 × 40 cells, in a grid of at
+     most three columns with 4 cells between them, so a sheet still opens
+     framed at 25% or more. The first CPU: Clock and phase; Fetch (`PC`,
+     the program ROM, `IR`); Control; Registers; ALU; Memory and I/O (RAM
+     and the decoding of the devices' addresses); Devices (keyboard,
+     screen, digits). Reference CPU 2 adds the Logic unit and the Stack,
+     and may split a region its additions outgrow. CPU 1's regions leave
+     room for what CPU 2 adds beside them.
+   - **Titles and text.** Each region's note: a title, and a few lines in
+     the words of `docs/reference-cpu.md` where it describes the region,
+     and of the generator's own comments where it does not (control, the
+     decoding).
+   - **Net labels between regions,** in place of long wires, named as the
+     specification names the signal where it does (`PC`, `IR`, `A`, `Z`,
+     `C`, `KEY`, …), and otherwise as `cpu-pieces.mjs` does (`aLoad`, …);
+     the ALU's output is named `ALU` here and in its region's note.
+   - **The generators** write format 13 (the version with notes). They
+     keep `--check`, and check what they can see: every wire's two ends lie
+     in one region, or it goes through a label; no two regions overlap;
+     every part lies inside one region. They export the region rectangles,
+     so tests read the same ones.
+   - **The layout check** is a Vitest test over each example file, routed
+     by the editor's own router: every part, tag and route lies inside its
+     region; no route crosses a note; no wire falls back to the plain
+     path.
+   - **Connectivity does not change.** A committed fixture records, for
+     each example, which ports share a net today, computed by union-find
+     over its wires and label names. A test computes the same for the new
+     files and compares partitions (junction and wire IDs may change;
+     ports may not), and checks that the engine reports no diagnostic it
+     did not report before (no `unmatchedLabel`, say).
+   - **What follows,** in the same pull request: Catch, Catch 2, the cut
+     CPU (`scripts/computer.mjs`, laid out the same way), `cpu-1k` and its
+     check, the route hashes, and the Playwright tests that click parts.
+     Catch's link stays under 8,000 characters; if region text pushes it
+     over, Catch keeps only the titles.
 
-6. **The about page** gets new shots of the reference CPU (a region at
-   100%, and the program editor with its mark) from
-   `landing-shots.mjs`, and its text brought up to date: twelve
-   challenges, the tri-state buffer, two reference CPUs, the push button
-   and notes. (Its list of challenges grows in increment 4.)
+6. **The about page:** Fig. 5 shows a region-laid CPU, its outlines
+   placed by region instead of 13 hand-placed blocks, and the text refers
+   to regions by name; the shots, the CPU recording and the hero loop's
+   crops are made again by `landing-shots.mjs`; the two Catch links are
+   made again; the text says twelve challenges, the tri-state buffer, two
+   reference CPUs, the push button and notes. (Its list of challenges
+   grows in increment 4.)
 
 7. **Steps,** one pull request each:
-   1. **Routing clear of label tags,** with the tag's side from wire ends.
-      Vitest: a route around a tag of another net, one through its own
-      net's tag allowed, the side unchanged when a route changes.
-      Benchmarks before and after.
+   1. **Routing clear of label tags,** with the side from wire ends, the
+      shared box, and kept routes near a changed tag laid again. Vitest: a
+      route around a tag, a diagonal far end taking two sides, a full dot
+      with no obstacle, a rename rerouting what its tag now covers. The
+      route hashes updated; benchmarks before and after, and a sheet of
+      many labels (the reference CPU) measured in step 4.
    2. **Jumping to a note,** with Vitest for the list's order and the view
-      it sets.
-   3. **The program followed,** with Vitest for the marked row, and
-      Playwright stepping the reference CPU: two Steps move the mark to
-      the next instruction.
-   4. **Reference CPU in regions** (and Catch): the generator, its layout
-      check, the connectivity test, the Playwright tests that click its
-      parts, and the target: at 1280×800 with both panels open, jumping to
-      each region's title gives 100%, and the region's rectangle lies
-      inside the canvas.
-   5. **Reference CPU 2 in regions** (and Catch 2), the same way.
-   6. **The about page:** shots and text. The roadmap marks increment 2
-      done.
+      it sets, and that the selection stays.
+   3. **The program followed,** with Vitest for the marked row (stale,
+      unknown, past 256), and Playwright: on the reference CPU, Run until
+      `Fetch` lights; at each cycle of an instruction that is not a jump,
+      the mark is where the specification says `PC` is.
+   4. **The reference CPUs in regions,** both at once, since the second
+      is built from the first: the generators, the connectivity fixture
+      and test, the layout test, everything that follows (item 5), and the
+      target: in a 1280×800 viewport with both panels open, jumping to
+      each region's note gives 100% with the region's rectangle inside the
+      canvas, and the sheet opens framed at 25% or more.
+   5. **The about page,** and the roadmap marks increment 2 done and the
+      three rough edges closed.
 
 ## Consequences
 
 - A visitor can open the reference CPU, jump region by region at a
   readable size, and watch the program's mark move as it steps.
 - Routing does a little more work on sheets with labels, and wires around
-  tags are longer; names are never hidden under wires of other nets.
+  tags are longer; names are never hidden under wires.
 - The CPUs' sheets look new: anyone who learned the old layout, or wrote
   coordinates against it, has to look again. Their behaviour does not
   change, and a test says so.
+- Step 4 is a large pull request: the two CPUs cannot be laid out apart.
 - Region titles are as quiet as any note; that may need revisiting.
 - **Left out:** frames around regions, note sizes, collapsing regions, a
-  minimap, and following the program anywhere but the listing (no mark on
-  the canvas).
+  minimap, a mark on the canvas, and following a ROM inside a component.
