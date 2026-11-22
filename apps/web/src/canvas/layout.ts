@@ -78,7 +78,7 @@ const WIDE: Partial<Record<ComponentKind, Layout>> = {
 };
 
 /**
- * A gate with `count` inputs (ADR 0038): 4 wide and 2 cells a input high, inputs `a`, `b`, … at rows 1, 3, …
+ * A gate with `count` inputs (ADR 0038): 4 wide and 2 cells high for each input, inputs `a`, `b`, … at rows 1, 3, …
  * and `out` at the middle, so 2 inputs are the gate as it always was.
  */
 function gateLayout(count: number): Layout {
@@ -179,7 +179,7 @@ export function layoutOf({
   const wide = kind !== "custom" && (props?.width ?? 1) > 1 ? WIDE[kind] : undefined;
   const fields = (props?.fields ?? DEFAULT_FIELDS).length;
   const screen = kind === "screen" ? screenSize(props ?? {}) : undefined;
-  const count = kind !== "custom" && takesInputs(kind) ? (props?.inputCount ?? DEFAULT_INPUTS) : DEFAULT_INPUTS;
+  const count = takesInputs(kind) ? (props?.inputCount ?? DEFAULT_INPUTS) : DEFAULT_INPUTS;
   const key =
     kind === "custom"
       ? `custom:${definition}:${rotation}`

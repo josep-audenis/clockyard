@@ -1418,3 +1418,59 @@ test("a new size that puts a port on a junction is refused and says why, until t
   add("led", { x: 10, y: 10 });
   expect(useEditor.getState().refusal).toBeNull();
 });
+
+test("a refusal goes with undo, a drag, another document or sheet, and comes through any size field", () => {
+  const refuse = () => {
+    useEditor.setState(initial, true);
+    const { add, addLabel, setInputCount } = useEditor.getState();
+    const g = add("and", { x: 0, y: 0 });
+    addLabel({ x: 0, y: 5 });
+    setInputCount(g, 3);
+    expect(useEditor.getState().refusal).not.toBeNull();
+    return g;
+  };
+  refuse();
+  useEditor.getState().undo();
+  expect(useEditor.getState().refusal).toBeNull();
+  const g = refuse();
+  useEditor.getState().record();
+  useEditor.getState().move({ [g]: { x: 10, y: 0 } });
+  expect(useEditor.getState().refusal).toBeNull();
+  refuse();
+  const { metadata, circuit, definitions } = useEditor.getState();
+  useEditor.getState().load({ format: "clockyard", version: 13, metadata, circuit, definitions });
+  expect(useEditor.getState().refusal).toBeNull();
+  // A wide switch is 5 cells long: its port would land on the junction at (5, 1).
+  useEditor.setState(initial, true);
+  const { add, addLabel, setWidth } = useEditor.getState();
+  const s = add("switch", { x: 0, y: 0 });
+  addLabel({ x: 5, y: 1 });
+  setWidth(s, 8);
+  expect(useEditor.getState().circuit.components[0]?.props).toEqual({});
+  expect(useEditor.getState().refusal).toMatch(/junction/);
+});
+
+test("growing a gate strips the bends of a wire to `out`, keeps those to inputs, and shrinking drops an emptied junction", () => {
+  const { add, connect, connectToWire, setInputCount, shape } = useEditor.getState();
+  const g = add("xor", { x: 0, y: 0 });
+  const s = add("switch", { x: -8, y: 0 });
+  const l = add("led", { x: 10, y: 0 });
+  const toA = connect(port(s, "out"), port(g, "a")) ?? "";
+  const toOut = connect(port(g, "out"), port(l, "in")) ?? "";
+  shape(toA, [{ x: -4, y: 1 }]);
+  shape(toOut, [{ x: 6, y: 2 }, { x: 6, y: 1 }]);
+  setInputCount(g, 4);
+  const wire = (id: string) => useEditor.getState().circuit.wires.find((w) => w.id === id);
+  expect(wire(toA)?.bends).toEqual([{ x: -4, y: 1 }]);
+  expect(wire(toOut)?.bends).toBeUndefined();
+  // `out` moved from row 2 to row 4.
+  const part = useEditor.getState().circuit.components.find((c) => c.id === g);
+  expect(part && layoutOf(part).outputs.out).toEqual({ x: 4, y: 4 });
+  // A junction whose only wires reach c, d and e goes when they do.
+  setInputCount(g, 5);
+  const cd = connect(port(g, "c"), port(g, "d")) ?? "";
+  connectToWire(port(g, "e"), cd, { x: -2, y: 6 });
+  expect(useEditor.getState().circuit.junctions).toHaveLength(1);
+  setInputCount(g, 2);
+  expect(useEditor.getState().circuit.junctions).toHaveLength(0);
+});

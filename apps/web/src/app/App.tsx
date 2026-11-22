@@ -2051,7 +2051,7 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           onCommit={(value) => /^\s*\d+\s*$/.test(value) && useEditor.getState().setWidth(part.id, Number(value))}
         />
       )}
-      {part.kind !== "custom" && takesInputs(part.kind) && (
+      {takesInputs(part.kind) && (
         <CommitField
           key={`inputs:${part.props.inputCount ?? DEFAULT_INPUTS}`}
           label="Inputs"

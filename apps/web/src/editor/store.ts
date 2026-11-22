@@ -370,6 +370,8 @@ function withCircuit(state: EditorState, circuit: Circuit) {
   const width = new Map(circuit.components.map((c) => [c.id, widthOf(c)]));
   return {
     circuit,
+    // A refused size is about the circuit before this one.
+    refusal: null,
     selection: state.selection.filter((id) => kept.has(id)),
     inputs: Object.fromEntries(
       Object.entries(state.inputs).flatMap(([id, value]) => {
@@ -462,7 +464,7 @@ function canConnect(circuit: Circuit, from: Endpoint, to: Endpoint) {
 }
 
 /** What a sheet starts with: nothing selected, armed or switched on. */
-const fresh = { selection: [], inputs: {}, armed: null, armedDefinition: null, armedLabel: false, watches: [] };
+const fresh = { selection: [], refusal: null, inputs: {}, armed: null, armedDefinition: null, armedLabel: false, watches: [] };
 
 /** Traces the waveform panel shows at most (ADR 0026). */
 export const MAX_WATCHES = 16;
@@ -499,7 +501,7 @@ export function deleteRefusal(state: Pick<EditorState, "definitions" | "sheet" |
 const remember = (state: EditorState) => ({ past: [...state.past, state.circuit].slice(-HISTORY_LIMIT), future: [] });
 
 /** A document edit: undoable, and it clears redo. */
-const edit = (state: EditorState, circuit: Circuit) => ({ ...withCircuit(state, circuit), ...remember(state), refusal: null });
+const edit = (state: EditorState, circuit: Circuit) => ({ ...withCircuit(state, circuit), ...remember(state) });
 
 export const useEditor = create<EditorState>()((set, get) => ({
   metadata: { name: "Untitled", createdAt: now, modifiedAt: now },
@@ -910,7 +912,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
       const part = state.circuit.components.find((c) => c.id === id);
       const valid = Number.isInteger(count) && count >= DEFAULT_INPUTS && count <= MAX_INPUTS;
       const was = part?.props.inputCount ?? DEFAULT_INPUTS;
-      if (!part || part.kind === "custom" || !takesInputs(part.kind) || !valid || was === count) return state;
+      if (!part || !takesInputs(part.kind) || !valid || was === count) return state;
       const props = { ...part.props };
       if (count !== DEFAULT_INPUTS) props.inputCount = count;
       else delete props.inputCount;
@@ -1024,7 +1026,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
     }));
   },
 
-  record: () => set(remember),
+  // A drag starts here: whatever it moves, a refusal from before is no longer the news.
+  record: () => set((state) => ({ ...remember(state), refusal: null })),
   undo: () =>
     set((state) => {
       const previous = state.past.at(-1);
