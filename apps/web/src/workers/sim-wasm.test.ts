@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
-import { Engine, assemble, catalog, check, disassemble, initSync, max_width } from "../generated/sim-wasm/sim_wasm.js";
-import { COMPONENT_KINDS, MAX_WIDTH, project, takesWidth } from "../editor/document";
+import { Engine, assemble, catalog, check, disassemble, initSync, max_inputs, max_width } from "../generated/sim-wasm/sim_wasm.js";
+import { COMPONENT_KINDS, MAX_INPUTS, MAX_WIDTH, project, takesInputs, takesWidth } from "../editor/document";
 import { parseDocument } from "../storage/file";
 import type { CircuitDescription, Diagnostic, Result } from "../simulation/protocol";
 
@@ -121,6 +121,10 @@ test("the catalog marks sized kinds and gives split and merge their field-port r
   const parts = JSON.parse(catalog()) as Part[];
   expect(max_width()).toBe(MAX_WIDTH);
   expect(parts.filter((p) => p.sized).map((p) => p.kind)).toEqual(["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "dff", "rom", "ram", "screen", "tri"]);
+  // ADR 0038: the gates that take an input count, and how many they may have, as the editor has them.
+  const counted = (parts as (Part & { counted?: true })[]).filter((p) => p.counted).map((p) => p.kind);
+  expect(counted).toEqual(COMPONENT_KINDS.filter(takesInputs));
+  expect(max_inputs()).toBe(MAX_INPUTS);
   expect(parts.filter((p) => p.fieldPorts).map((p) => [p.kind, p.fieldPorts])).toEqual([
     ["split", { side: "outputs", prefix: "f" }],
     ["merge", { side: "inputs", prefix: "f" }],

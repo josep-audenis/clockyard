@@ -5,9 +5,11 @@
 // A custom component's layout comes from its definition's pins (ADR 0012).
 import {
   DEFAULT_FIELDS,
+  DEFAULT_INPUTS,
   isFielded,
   pinsOf,
   screenSize,
+  takesInputs,
   type CircuitComponent,
   type ComponentKind,
   type Definition,
@@ -74,6 +76,15 @@ const WIDE: Partial<Record<ComponentKind, Layout>> = {
   // A register (ADR 0017): wider, so 0x and 8 hex digits fit between D and Q.
   dff: { width: 6, height: 4, inputs: { d: { x: 0, y: 1 }, clk: { x: 0, y: 3 } }, outputs: { q: { x: 6, y: 1 } } },
 };
+
+/**
+ * A gate with `count` inputs (ADR 0038): 4 wide and 2 cells high for each input, inputs `a`, `b`, … at rows 1, 3, …
+ * and `out` at the middle, so 2 inputs are the gate as it always was.
+ */
+function gateLayout(count: number): Layout {
+  const inputs = Object.fromEntries(Array.from({ length: count }, (_, i) => [String.fromCharCode(97 + i), { x: 0, y: 1 + 2 * i }]));
+  return { width: 4, height: 2 * count, inputs, outputs: { out: { x: 4, y: count } } };
+}
 
 /** A screen's pixel, in grid cells (4 px at 100%), and where its picture starts: right of the port names (ADR 0021). */
 export const PIXEL = 1 / 4;
@@ -168,6 +179,7 @@ export function layoutOf({
   const wide = kind !== "custom" && (props?.width ?? 1) > 1 ? WIDE[kind] : undefined;
   const fields = (props?.fields ?? DEFAULT_FIELDS).length;
   const screen = kind === "screen" ? screenSize(props ?? {}) : undefined;
+  const count = takesInputs(kind) ? (props?.inputCount ?? DEFAULT_INPUTS) : DEFAULT_INPUTS;
   const key =
     kind === "custom"
       ? `custom:${definition}:${rotation}`
@@ -175,7 +187,7 @@ export function layoutOf({
         ? `${kind}:${fields}:${rotation}`
         : screen
           ? `screen:${screen.columns}x${screen.rows}:${rotation}`
-          : `${kind}${wide ? ":wide" : ""}:${rotation}`;
+          : `${kind}${wide ? ":wide" : ""}${count !== DEFAULT_INPUTS ? `:${count}` : ""}:${rotation}`;
   let layout = rotated.get(key);
   if (!layout) {
     layout =
@@ -185,7 +197,9 @@ export function layoutOf({
           ? bar(kind, fields)
           : screen
             ? screenLayout(screen.columns, screen.rows)
-            : (wide ?? LAYOUTS[kind]);
+            : count !== DEFAULT_INPUTS
+              ? gateLayout(count)
+              : (wide ?? LAYOUTS[kind]);
     for (let r = 0; r < rotation; r += 90) layout = turned(layout);
     rotated.set(key, layout);
   }

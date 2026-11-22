@@ -165,8 +165,8 @@ What there is to build on:
      that is today's gate. It is drawn as today's 4×4 symbol centred on
      the output, with its flat back drawn over every input row.
      - The unrotated top edge stays where it is, in every rotation, so
-       `a` and `b` keep their places and the part grows away from them;
-       `out` and the inputs past `b` move. Bends on wires to a port that
+       every input keeps its place and the part grows away from them;
+       only `out` moves. Bends on wires to a port that
        moved are dropped, as `rotate` does.
      - Fewer inputs drops the wires on the ports that go, and a junction
        left with no wires, in one undoable edit, as `setFields` does.
@@ -257,7 +257,7 @@ What there is to build on:
   miss it, as real hardware does without a debouncer and a latch.
 - A tap on a cap to select a button also holds it for that moment, a
   real press the circuit sees.
-- A rotated gate that gains inputs moves its output and lower inputs.
+- A gate that gains or loses inputs moves its output.
 - Version 13 files do not open in older Clockyards.
 - **Left out:** buttons in challenge checks; notes that route wires around
   them, have frames, sizes or links; a button wider than 1 bit; keys

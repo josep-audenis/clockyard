@@ -38,7 +38,7 @@ const connect = async (storage: Storage, reopen = true) => {
 const addSwitch = () => useEditor.getState().add("switch", { x: 0, y: 0 });
 const emptyDocument: CircuitDocument = {
   format: "clockyard",
-  version: 12,
+  version: 13,
   metadata: { name: "Empty", createdAt: "x", modifiedAt: "x" },
   circuit: { components: [], junctions: [], wires: [] },
   definitions: [],
@@ -97,7 +97,7 @@ test("an opened document becomes a project only at its first change; the one it 
   addSwitch();
   const example: CircuitDocument = {
     format: "clockyard",
-    version: 12,
+    version: 13,
     metadata: { name: "Example", createdAt: "x", modifiedAt: "x" },
     circuit: { components: [], junctions: [], wires: [] },
     definitions: [],

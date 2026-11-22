@@ -51,18 +51,19 @@ The UI never computes a signal value. It renders values received from the worker
 
 The editable design. Owned by the frontend, serialized as JSON, versioned.
 
-Format version 12 (ADRs 0010, 0012, 0013, 0014, 0015, 0017, 0018, 0021, 0025, 0027, 0035; exact schema fixed in code with
+Format version 13 (ADRs 0010, 0012, 0013, 0014, 0015, 0017, 0018, 0021, 0025, 0027, 0035, 0038; exact schema fixed in code with
 validation). Versions 7 to 9 add part kinds and props only: `clock` and `dff` (v7), `rom` and `ram`
 with `addressWidth`, and a ROM's `data` and editor-only `source` (v8), and the devices `seg7`,
 `screen` (a RAM whose words are pixels, with editor-only `columns`) and `keyboard` (v9). Version 10 adds an
 optional `metadata.challenge`, the challenge the document was started from (ADR 0025), and version 11 an
 optional `metadata.notes`, plain text of at most 4,000 characters that the Notes panel shows and edits
-(ADR 0027). Version 12 adds the part kind `tri`, a tri-state buffer (ADR 0035):
+(ADR 0027). Version 12 adds the part kind `tri`, a tri-state buffer (ADR 0035). Version 13 adds a
+gate's `inputCount`, 2 to 8 (absent means 2), on AND, NAND, OR, NOR, XOR and XNOR (ADR 0038):
 
 ```json
 {
   "format": "clockyard",
-  "version": 12,
+  "version": 13,
   "metadata": { "name": "AND demo", "createdAt": "2026-11-06T12:00:00Z", "modifiedAt": "2026-11-06T12:00:00Z" },
   "circuit": {
     "components": [
@@ -125,7 +126,7 @@ Rules:
   list, v3 → v4 renames instance ports from pin labels to pin part IDs, v4 →
   v5 and v5 → v6 change nothing but the version, so an older build refuses a
   file with widths or net labels instead of silently dropping them; the same
-  for every version since, up to v11 → v12 and the tri-state buffer). Unknown future versions are
+  for every version since, up to v12 → v13 and a gate's input count). Unknown future versions are
   rejected with a clear message. Export always writes the current version.
 - Import (`storage/file.ts`) treats the file as untrusted: every field is
   type-checked, unknown fields are dropped, IDs must be unique across parts,
@@ -204,9 +205,10 @@ file format evolve (migrations, layout fields) without touching Rust.
 ```ts
 // apps/web/src/simulation/protocol.ts ↔ sim-core `description`
 type CircuitBody = {
-  // width and fields: from props.width and props.fields (ADR 0014); addressWidth and a ROM's data (ADR 0018).
+  // width and fields: from props.width and props.fields (ADR 0014); addressWidth and a ROM's data (ADR 0018);
+  // a gate's inputCount (ADR 0038).
   components: { id: string; kind: string; definition?: string; width?: number; fields?: number[];
-    addressWidth?: number; data?: number[] }[];
+    addressWidth?: number; data?: number[]; inputCount?: number }[];
   junctions: { id: string; name?: string }[]; // name: a net label (ADR 0015)
   connections: { id: string; from: Endpoint; to: Endpoint }[]; // id = document wire ID
 };
