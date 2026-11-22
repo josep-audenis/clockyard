@@ -1,14 +1,14 @@
 // Writes examples/reference-cpu-2.clockyard.json: Reference CPU 2 of ADR 0036, as specified in
 // docs/reference-cpu-2.md. It is the first reference CPU's sheet (scripts/reference-cpu.mjs) with
-// parts added and a few wires moved: a wider control ROM, a logic and shift unit beside the adder,
-// a second source for C, JNZ, and a return stack.
+// parts added and a few wires moved: a wider control ROM, a logic and shift unit, a second source
+// for C, JNZ, and a return stack. It keeps the first CPU's regions and adds three (ADR 0039).
 //
 //   node scripts/reference-cpu-2.mjs           writes the file
 //   node scripts/reference-cpu-2.mjs --check   fails if the file is not what it would write
 
 import { readFileSync } from "node:fs";
-import { blocks, chip, CONTROL, control, ones, part, register, root, wires } from "./cpu-pieces.mjs";
-import { components as first, emit, junctions, pairs as firstPairs } from "./reference-cpu.mjs";
+import { blocks, chip, CONTROL, control, ones, part, register, root } from "./cpu-pieces.mjs";
+import { ALU, at, components as first, CTL, emit, FET, inRegions, JMP, names, pairs as firstPairs, REG, region, regions, spots } from "./reference-cpu.mjs";
 
 // --- A small assembler --------------------------------------------------------
 
@@ -128,61 +128,87 @@ const program = [
 
 // --- The sheet -----------------------------------------------------------------
 
+/** The first CPU's regions, a few saying more here, and three more: the logic unit, the shifts and the stack. */
+const CTL2 = { ...CTL, text: "Control\nThe whole high byte of IR addresses the\ncontrol ROM. Its bits are gated by the\nphase: they act in the execute cycle." };
+const JMP2 = { ...JMP, text: "Jumps\nJMP, JZ if Z, JC if C, JNZ if not Z:\nin the execute cycle, the PC takes n." };
+const REG2 = { ...REG, text: "Registers (A, Z)\nA takes n, RAM[n], ALU or logic.\nZ ← 1 if the new A is 0." };
+const ALU2 = {
+  ...ALU,
+  text: "ALU\nA + B, or A − B as A + ¬B + 1. B is\nRAM[n] or n. ALU is the sum; C takes\nits carry, or the bit a shift dropped.",
+};
+const FET2 = {
+  ...FET,
+  text: "Fetch (PC, program ROM, IR)\nIR ← ROM[PC], PC ← PC + 1. A jump\nthat is taken overrides it; RET puts\nSTACK in the PC. n is IR's operand.",
+};
+const LOG = region("logic", 2, 2, "Logic unit\nAND, OR and XOR of A with B, or A\nshifted (SHL, SHR): its result is logic.");
+const SHF = region("shifts", 2, 3, "Shifts\nA moved one bit left (SHL) or right\n(SHR), and the bit it drops.");
+const STK = region("stack", 0, 3, "Stack\n16 bytes and a 4-bit pointer, SP.\nCALL writes PC at SP, then SP + 1;\nRET reads at SP − 1 into STACK.");
+const regions2 = regions.map((r) => ({ ctl: CTL2, jumps: JMP2, reg: REG2, alu: ALU2, fetch: FET2 })[r.key] ?? r).concat([LOG, SHF, STK]);
+const R = Object.fromEntries(regions2.map((r) => [r.key, r]));
+
+/** Parts of the first CPU placed elsewhere here, to make room: region and offset. */
+const placed = {
+  jump: [R.jumps, 34, 20],
+  c: [R.alu, 37, 27],
+  cled: [R.alu, 38, 36],
+};
+
 /** The first CPU's parts, with the program ROM and the control ROM and its splitter replaced. */
 const kept = first
   .filter((c) => c.id !== "opsplit")
   .map((c) => {
-    if (c.id === "rom") return { ...c, props: { ...c.props, data: assemble(program), source: program } };
-    if (c.id === "ctl") return { ...c, props: { label: "Control", width: CONTROL2.length, addressWidth: 8, data: control2 } };
-    if (c.id === "cs") return { ...c, props: { fields: ones(CONTROL2.length) } };
-    return c;
+    const moved = placed[c.id] ? { ...c, position: Object.fromEntries(at(...placed[c.id]).map((v, i) => [i ? "y" : "x", v])) } : c;
+    if (c.id === "rom") return { ...moved, props: { ...c.props, data: assemble(program), source: program } };
+    if (c.id === "ctl") return { ...moved, props: { label: "Control", width: CONTROL2.length, addressWidth: 8, data: control2 } };
+    if (c.id === "cs") return { ...moved, props: { fields: ones(CONTROL2.length) } };
+    return moved;
   });
 
 const added = [
   // JNZ: one more way to a jump.
-  part("nz", "not", 92, 44),
-  part("jnzt", "and", 98, 44),
-  part("j3", "or", 98, 52),
+  part("nz", "not", ...at(R.jumps, 2, 25)),
+  part("jnzt", "and", ...at(R.jumps, 10, 23)),
+  part("j3", "or", ...at(R.jumps, 34, 8)),
 
   // The logic and shift unit: AND, OR and XOR of A with the ALU's B, and A moved one bit either way.
-  part("land", "and", 82, 94, { width: 8 }),
-  part("lor", "or", 82, 100, { width: 8 }),
-  part("lxor", "xor", 82, 106, { width: 8 }),
-  part("asplit", "split", 70, 112, { fields: ones(8) }),
-  part("shlm", "merge", 78, 112, { fields: ones(8) }),
-  part("shrm", "merge", 78, 124, { fields: ones(8) }),
-  chip("m1", "mux8", 92, 94, { label: "AND or OR" }),
-  chip("m2", "mux8", 92, 104, { label: "XOR or SHL" }),
-  chip("m3", "mux8", 102, 98, { label: "Logic or shift" }),
-  chip("m4", "mux8", 112, 102, { label: "Or SHR" }),
-  chip("amux3", "mux8", 122, 102, { label: "A or unit" }),
+  part("land", "and", ...at(LOG, 8, 6), { width: 8 }),
+  part("lor", "or", ...at(LOG, 8, 12), { width: 8 }),
+  part("lxor", "xor", ...at(LOG, 8, 18), { width: 8 }),
+  part("asplit", "split", ...at(SHF, 4, 18), { fields: ones(8) }),
+  part("shlm", "merge", ...at(SHF, 17, 17), { fields: ones(8) }),
+  part("shrm", "merge", ...at(SHF, 17, 29), { fields: ones(8) }),
+  chip("m1", "mux8", ...at(LOG, 16, 7), { label: "AND or OR" }),
+  chip("m2", "mux8", ...at(LOG, 16, 19), { label: "XOR or SHL" }),
+  chip("m3", "mux8", ...at(LOG, 24, 7), { label: "Logic or shift" }),
+  chip("m4", "mux8", ...at(LOG, 32, 7), { label: "Or SHR" }),
+  chip("amux3", "mux8", ...at(R.reg, 25, 6), { label: "A or unit" }),
 
   // C: the adder's carry, or the bit a shift drops (bit 7 going left, bit 0 going right).
-  part("nu2", "not", 132, 112),
-  part("sb1", "and", 138, 108),
-  part("sb2", "and", 138, 114),
-  part("sbo", "or", 146, 110),
-  part("ncs", "not", 132, 122),
-  part("c1", "and", 152, 104),
-  part("c2", "and", 152, 112),
-  part("co", "or", 160, 108),
+  part("nu2", "not", ...at(SHF, 23, 26)),
+  part("sb1", "and", ...at(SHF, 28, 24)),
+  part("sb2", "and", ...at(SHF, 28, 12)),
+  part("sbo", "or", ...at(SHF, 33, 18)),
+  part("ncs", "not", ...at(R.alu, 28, 14)),
+  part("c1", "and", ...at(R.alu, 34, 8)),
+  part("c2", "and", ...at(R.alu, 34, 16)),
+  part("co", "or", ...at(R.alu, 30, 26)),
 
   // The return stack: 16 bytes, a 4-bit pointer, and one adder that gives SP + 1 or SP - 1 (add 15).
-  part("callx", "and", 0, 96),
-  part("retx", "and", 0, 104),
-  part("spen", "or", 8, 100),
-  part("zero4", "merge", 0, 112, { fields: ones(4) }),
-  chip("sp", "reg4", 16, 96, { label: "SP" }),
-  part("spled", "led", 24, 106, { label: "SP", width: 4 }),
-  part("spw", "merge", 26, 96, { fields: [4, 4] }),
-  part("spb", "merge", 26, 112, { fields: ones(8) }),
-  chip("spadd", "adder8", 34, 96, { label: "SP ± 1" }),
-  part("sumsplit", "split", 44, 108, { fields: [4, 4] }),
-  chip("spmux", "mux8", 44, 96, { label: "Stack address" }),
-  part("addrsplit", "split", 52, 96, { fields: [4, 4] }),
-  part("stack", "ram", 58, 94, { label: "Stack", width: 8, addressWidth: 4 }),
-  chip("pcmux2", "mux8", 14, 28, { label: "PC or return" }),
-  part("pcen2", "or", 26, 40),
+  part("callx", "and", ...at(STK, 6, 7)),
+  part("retx", "and", ...at(STK, 6, 14)),
+  part("spen", "or", ...at(STK, 13, 11)),
+  part("zero4", "merge", ...at(STK, 22, 17), { fields: ones(4) }),
+  chip("sp", "reg4", ...at(STK, 20, 10), { label: "SP" }),
+  part("spled", "led", ...at(STK, 22, 5), { label: "SP", width: 4 }),
+  part("spw", "merge", ...at(STK, 27, 10), { fields: [4, 4] }),
+  part("spb", "merge", ...at(STK, 32, 12), { fields: ones(8) }),
+  chip("spadd", "adder8", ...at(STK, 38, 10), { label: "SP ± 1" }),
+  part("sumsplit", "split", ...at(STK, 39, 19), { fields: [4, 4] }),
+  chip("spmux", "mux8", ...at(STK, 24, 26), { label: "Stack address" }),
+  part("addrsplit", "split", ...at(STK, 31, 26), { fields: [4, 4] }),
+  part("stack", "ram", ...at(STK, 37, 26), { label: "Stack", width: 8, addressWidth: 4 }),
+  chip("pcmux2", "mux8", ...at(R.fetch, 24, 9), { label: "PC or return" }),
+  part("pcen2", "or", ...at(R.fetch, 24, 17)),
 ];
 
 /** Wires of the first CPU that Reference CPU 2 replaces, as "from>to". */
@@ -300,59 +326,84 @@ const addedPairs = [
 
 const components = [...kept, ...added];
 
-// No part may sit on another. Sizes in grid cells, from apps/web/src/canvas/layout.ts; a chip is
-// taken as 6 by 6, more than any of these needs (each is 4 wide and 6 tall). Captions and net labels
-// are not checked. The screen, far from every new part, is
-// left out.
-const size = (c) => {
-  const fields = c.props.fields?.length;
-  const wide = (c.props.width ?? 1) > 1;
-  switch (c.kind) {
-    case "custom":
-      return [6, 6];
-    case "split":
-    case "merge":
-      return [3, fields + 1];
-    case "switch":
-    case "led":
-      return [wide ? 5 : 2, 2];
-    case "not":
-      return [3, 2];
-    case "clock":
-      return [2, 2];
-    case "rom":
-      return [5, 4];
-    case "ram":
-      return [5, 8];
-    case "seg7":
-      return [3, 4];
-    case "keyboard":
-      return [4, 2];
-    default:
-      return [4, 4];
-  }
+/** Names of the nets that cross regions here and not on the first CPU's sheet. */
+const names2 = {
+  ...names,
+  "zero.out": "zero",
+  "irh.q": "IR high",
+  "pc.q": "PC",
+  "bmux.out": "B",
+  "m4.out": "logic",
+  "shlm.out": "SHL",
+  "shrm.out": "SHR",
+  "sbo.out": "dropped",
+  "stack.out": "STACK",
+  "retx.out": "return",
+  ...Object.fromEntries(["jnz", "unit", "u0", "u1", "u2", "cShift", "call", "ret"].map((n) => [field2(n), n])),
 };
-const boxes = components.filter((c) => c.kind !== "screen").map((c) => ({ id: c.id, x: c.position.x, y: c.position.y, size: size(c) }));
-for (const a of added) {
-  const [w, h] = size(a);
-  for (const b of boxes) {
-    if (b.id === a.id) continue;
-    const apart = a.position.x + w <= b.x || b.x + b.size[0] <= a.position.x || a.position.y + h <= b.y || b.y + b.size[1] <= a.position.y;
-    if (!apart) throw new Error(`${a.id} sits on ${b.id}`);
-  }
-}
+
+/** Where labels sit here: the first CPU's, without its opcode's, and those of the parts added. */
+const spots2 = {
+  ...Object.fromEntries(Object.entries(spots).filter(([key]) => !key.startsWith("opcode@"))),
+  "IR high@ctl": [5, 8],
+  "IR high@fetch": [30, 35],
+  "jnz@ctl": [9, 26],
+  "unit@ctl": [9, 27],
+  "u0@ctl": [9, 28],
+  "u1@ctl": [9, 29],
+  "u2@ctl": [9, 30],
+  "cShift@ctl": [9, 31],
+  "call@ctl": [9, 32],
+  "ret@ctl": [9, 33],
+  "zero@clock": [16, 23],
+  "PC@fetch": [38, 14],
+  "STACK@fetch": [26, 16],
+  "return@fetch": [21, 23],
+  "jnz@jumps": [7, 22],
+  "logic@reg": [22, 15],
+  "unit@reg": [23, 17],
+  "B@alu": [14, 13],
+  "ALU@alu": [33, 4],
+  "cShift@alu": [25, 15],
+  "dropped@alu": [31, 20],
+  "cLoad@alu": [34, 32],
+  "clk@alu": [35, 35],
+  "C@alu": [35, 38],
+  "A@logic": [4, 7],
+  "B@logic": [4, 9],
+  "u0@logic": [13, 26],
+  "SHL@logic": [14, 28],
+  "u1@logic": [22, 15],
+  "SHR@logic": [29, 17],
+  "u2@logic": [33, 17],
+  "A@shifts": [2, 19],
+  "zero@shifts": [3, 37],
+  "u2@shifts": [25, 15],
+  "dropped@shifts": [39, 20],
+  "call@stack": [3, 8],
+  "Execute@stack": [5, 24],
+  "ret@stack": [3, 15],
+  "one@stack": [31, 23],
+  "zero@stack": [19, 23],
+  "clk@stack": [17, 18],
+  "PC@stack": [34, 31],
+  "STACK@stack": [40, 36],
+  "return@stack": [5, 22],
+};
+
+const sheet2 = inRegions(components, [...keptPairs, ...addedPairs], regions2, names2, spots2);
 
 const document = {
   format: "clockyard",
-  version: 11,
+  version: 13,
   metadata: {
     name: "Reference CPU 2",
     createdAt: "2026-11-21T12:00:00.000Z",
     modifiedAt: "2026-11-21T12:00:00.000Z",
     notes:
-      "Reference CPU 2 (docs/reference-cpu-2.md): the reference CPU with eleven more instructions. It can work on single bits (AND, OR, XOR), shift a byte one bit left or right, loop with JNZ, and call a routine and return from it, on a small stack of its own.\n\nSet the speed to 1 kHz or more and press Run. The program in the ROM draws a diagonal line on the screen one pixel at a time, calling the same routine for each of its 32 pixels, and halts with their count on the hex digits.\n\nSelect the ROM to read the program in assembly. Its routine, plot, works out which screen byte a pixel is in and which bit, and writes the byte back with that bit set. Most of the added parts are below the read bus: the logic and shift unit, and the stack with its pointer, SP.",
+      "Reference CPU 2 (docs/reference-cpu-2.md): the reference CPU with eleven more instructions. It can work on single bits (AND, OR, XOR), shift a byte one bit left or right, loop with JNZ, and call a routine and return from it, on a small stack of its own.\n\nSet the speed to 1 kHz or more and press Run. The program in the ROM draws a diagonal line on the screen one pixel at a time, calling the same routine for each of its 32 pixels, and halts with their count on the hex digits.\n\nSelect the ROM to read the program in assembly. Its routine, plot, works out which screen byte a pixel is in and which bit, and writes the byte back with that bit set. The added parts have regions of their own: the Logic unit, the Shifts and the Stack, with its pointer, SP.",
   },
-  circuit: { components, junctions, wires: wires([...keptPairs, ...addedPairs]) },
+  circuit: sheet2,
   definitions: [...blocks, register("reg4", "Register 4", 4)],
 };
 

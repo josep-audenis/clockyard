@@ -38,7 +38,8 @@ What there is:
   - `apps/web/src/canvas/routing.test.ts` pins route hashes for Catch, the
     reference CPU and the devices example;
   - `apps/web/src/storage/link.test.ts` requires Catch's link to stay
-    under 8,000 characters; it is about 7,300 now;
+    under 8,000 characters; it is about 7,300 now (amended below: under
+    10,000);
   - Playwright clicks the program ROM at (22, 14), and the test of opening
     framed (ADR 0033) names its position; `apps/web/scripts/landing-shots.mjs`
     clicks parts and crops Catch's devices by pixel for the about page.
@@ -234,3 +235,26 @@ What there is:
 - Region titles are as quiet as any note; that may need revisiting.
 - **Left out:** frames around regions, note sizes, collapsing regions, a
   minimap, a mark on the canvas, and following a ROM inside a component.
+
+## Amendment (2026-11-22): laying the CPUs out (step 4)
+
+- **Catch's link is about 9,300 characters,** over the 8,000 of item 5,
+  even with its notes cut to titles. What grew is the wiring between
+  regions: 75 net labels against 6 before. Getting under 8,000 would mean
+  some 40 fewer labels, so long wires across the sheet again. 8,000 is
+  only where Copy link starts to warn that some apps cut long links
+  (ADR 0024); browsers open far longer ones. The test's bound is now
+  10,000, and Catch keeps only its regions' titles.
+- **The regions differ from item 5 in three places:**
+  - Jumps (whether JMP, JZ or JC loads the PC with n) is a region of its
+    own beside Control, which did not fit 44 × 40 with it;
+  - in CPU 2, Shifts is split off the Logic unit;
+  - the `SPTR` and `HEX` registers and `OUT` sit in Devices, beside what
+    they drive, not in Memory and I/O.
+- **Label names.** Where neither the specification nor `cpu-pieces.mjs`
+  names a signal, the generators coin a short name: `clk`, `one`, `zero`,
+  `zero8`, `opcode`, `jump`, `B`, `logic`, `dropped`, `return`,
+  `sptrWe`, `hexWe`, `sdataWe`. The old `KEY`, `HEX high` and `HEX low`
+  labels are gone; part IDs do not change.
+- **Captions are not obstacles,** so a few labels sit over a part's
+  caption. Left as it is.

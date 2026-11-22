@@ -142,7 +142,10 @@ test("a circuit shared by link opens in another page and simulates the same way 
   const notice = (p: Page) => p.locator(".file-notice");
   const copied = async (p: Page) => {
     await p.getByRole("button", { name: "Copy link" }).click();
-    await expect(notice(p)).toHaveText(/^Link copied, [\d,]+ characters\. Anyone with it can read the whole circuit\.$/);
+    // Catch's link is over 8,000 characters (ADR 0039), so it carries the warning about long links.
+    await expect(notice(p)).toHaveText(
+      /^Link copied, [\d,]+ characters\. Anyone with it can read the whole circuit\.( Some apps cut links this long; a file from Export is safer\.)?$/,
+    );
     return p.evaluate(() => navigator.clipboard.readText());
   };
   await page.goto("/");
@@ -540,9 +543,9 @@ test("an opened file that does not fit the view is framed at most at 100%; one t
   const [x0, y0, zoom] = await view();
   expect(zoom).toBeGreaterThanOrEqual(0.25);
   expect(zoom).toBeLessThan(1);
-  // Framed: its ROM at (22, 14), say, is inside the canvas, as the start view's 1280 by 800 window could not show it all.
+  // Framed: its ROM at (102, 27), say, is inside the canvas, as the start view's 1280 by 800 window could not show it all.
   const box = await host.boundingBox();
-  const rom = { x: (x0 ?? 0) + 22 * 16 * (zoom ?? 1), y: (y0 ?? 0) + 14 * 16 * (zoom ?? 1) };
+  const rom = { x: (x0 ?? 0) + 102 * 16 * (zoom ?? 1), y: (y0 ?? 0) + 27 * 16 * (zoom ?? 1) };
   expect(rom.x).toBeGreaterThan(0);
   expect(rom.y).toBeGreaterThan(0);
   expect(rom.x).toBeLessThan(box?.width ?? 0);
@@ -1215,10 +1218,10 @@ test("an LED added to a paused CPU leaves its registers and cycle where they wer
   // cycle in four, while the program waits for a key).
   expect(before.some((row) => /^Register 8 IR high q: (?!0 )/.test(row))).toBe(true);
 
-  // A connectivity edit: an LED placed on empty sheet below the CPU.
+  // A connectivity edit: an LED placed on empty sheet, in the gap between two regions (ADR 0039).
   await page.keyboard.press("l");
   await expect(status(page)).toContainText("Placing");
-  await click(page, at(10, 95));
+  await click(page, at(46, 20));
   await expect(rows.filter({ hasText: /^LED \d+: off$/ })).toHaveCount(1);
   await expect(status(page)).toContainText("Settled");
   expect(await registers()).toEqual(before);
@@ -1327,7 +1330,7 @@ test("Reference CPU 2 draws its line one pixel at a time, calling one routine 32
   await expect(readout(page, "LED SP")).toHaveText("LED SP: 0 (0x0)");
   // Rows 0 and 1 of the screen: pixel 0 at byte 0, bit 7; pixel 1 at byte 8, bit 6.
   const at = await grid(page);
-  await click(page, at(35, 5)); // the screen at (25,0), as on the first CPU's sheet
+  await click(page, at(29, 13)); // the screen at (19,8), as on the first CPU's sheet
   const contents = page.getByRole("region", { name: "Screen contents" });
   await expect(contents).toContainText("0x80 0x00 0x00 0x00 0x00 0x00 0x00 0x00\n0x40 0x00");
 });
@@ -1339,7 +1342,7 @@ test("run until an LED lights: an instruction step on the reference CPU, then ru
   const at = await grid(page);
   const button = (name: string) => page.getByRole("button", { name, exact: true });
   const until = page.getByLabel("Run until");
-  await click(page, at(24.5, 16)); // the program ROM at (22,14)
+  await click(page, at(104.5, 29)); // the program ROM at (102,27)
   await page.getByLabel("Assembly", { exact: true }).fill("LDI 5\nADI 3\nOUT\nHLT");
   await button("Assemble").click();
   await page.getByLabel("Speed").selectOption("100");
@@ -1380,7 +1383,7 @@ test("a connectivity edit is drawn once its state is in, not before it (ADR 0030
   await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
   await expect(status(page)).toContainText("Settled");
   const at = await grid(page);
-  await click(page, at(24.5, 16)); // the program ROM at (22,14)
+  await click(page, at(104.5, 29)); // the program ROM at (102,27)
   await page.evaluate(() => performance.clearMeasures());
   // Assumes the answer comes within routing and the scene's 150 ms wait, as it does on any ordinary machine; a much slower
   // one would draw first and fail here without anything being broken.
@@ -1425,7 +1428,7 @@ test("the program editor assembles into the ROM, lists errors by line, and the C
   const at = await grid(page);
   const inspector = page.getByRole("complementary", { name: "Inspector" });
   const button = (name: string) => page.getByRole("button", { name, exact: true });
-  await click(page, at(24.5, 16)); // the program ROM at (22,14)
+  await click(page, at(104.5, 29)); // the program ROM at (102,27)
   const source = inspector.getByLabel("Assembly", { exact: true });
   const listing = inspector.getByRole("region", { name: "Disassembly" });
   await expect(source).toHaveValue(/LDA 0xFF/); // the shipped program: draw the key held
@@ -1510,7 +1513,7 @@ test("Phase 4 demo: a program loops through RAM on the CPU built from parts and 
     "        OUT",
     "        HLT",
   ].join("\n");
-  await click(page, at(24.5, 16)); // the program ROM
+  await click(page, at(104.5, 29)); // the program ROM
   await inspector.getByLabel("Assembly", { exact: true }).fill(program);
   await button("Assemble").click();
   await expect(inspector.getByRole("status")).toHaveText("Assembled 15 words.");
@@ -1570,7 +1573,7 @@ test("memory-mapped I/O demo: the shipped CPU program shows the key held on the 
   await page.getByLabel("Speed").selectOption("1000");
   await button("Run").click();
   // The devices open in view; the program waits on KEY until a key is held.
-  await click(page, at(14, 10)); // the keyboard at (12,9)
+  await click(page, at(36, 34)); // the keyboard at (34,33)
   await expect(status(page)).toContainText("The keyboard has the keys");
   await page.keyboard.down("Shift");
   await page.keyboard.down("A");
@@ -1587,7 +1590,7 @@ test("memory-mapped I/O demo: the shipped CPU program shows the key held on the 
   await button("Pause").click();
   await expect(status(page)).not.toContainText("The keyboard has the keys");
   await expect(readout(page, "Seven-segment High")).toHaveText("Seven-segment High: 102 (0x66)");
-  await click(page, at(35, 5)); // the screen at (25,0)
+  await click(page, at(29, 13)); // the screen at (19,8)
   const contents = page.getByRole("region", { name: "Screen contents" });
   await expect(contents).toContainText("0x00 0xFF 0x00 0x00 0x00 0x00 0x00 0x00");
   await expect(contents).not.toContainText(/0xFF[\s\S]*0xFF/); // byte 0x41 only
@@ -1613,19 +1616,19 @@ test("game demo: in Catch the first block is caught, a miss halts the run, and a
   await expect(halted).toHaveText("LED Halted: on", game);
   await expect(page.locator(".status-live")).toContainText("Stopped: LED Halted lit.");
   await expect(readout(page, "Seven-segment High")).toHaveText("Seven-segment High: 63 (0x3F)"); // 0
-  await click(page, at(35, 5)); // the screen at (25,0)
+  await click(page, at(29, 13)); // the screen at (19,8)
   await expect(contents).toContainText("0x3C 0x00 0x00 0xFF 0x00 0x00 0x00 0x00"); // row 31: block, paddle
   // Again, with Right held: the paddle moves to the right edge, so the first block is missed.
   await button("Reset").click();
   await expect(halted).toHaveText("LED Halted: off");
   await button("Run").click();
-  await click(page, at(14, 10)); // the keyboard at (12,9)
+  await click(page, at(36, 34)); // the keyboard at (34,33)
   await expect(status(page)).toContainText("The keyboard has the keys");
   await page.keyboard.down("ArrowRight");
   await expect(halted).toHaveText("LED Halted: on", game);
   await page.keyboard.up("ArrowRight");
   await expect(readout(page, "Seven-segment Low")).toHaveText("Seven-segment Low: 63 (0x3F)"); // 0
-  await click(page, at(35, 5));
+  await click(page, at(29, 13));
   await expect(contents).toContainText("0x00 0x00 0x00 0x3C 0x00 0x00 0x00 0xFF"); // the block in lane 3, the paddle in lane 7
 });
 
@@ -1654,7 +1657,7 @@ test("game demo: in Catch 2 the paddle moves a pixel at a time, under a block in
   // cycles at this block's delay, so 17 to 23 pixels is 11,000 to
   // 14,800 cycles held.
   const cycle = async () => Number(/\d+/.exec((await counter(page).textContent()) ?? "")?.[0]);
-  await click(page, at(14, 10)); // the keyboard at (12,9), as on the first CPU's sheet
+  await click(page, at(36, 34)); // the keyboard at (34,33), as on the first CPU's sheet
   await expect(status(page)).toContainText("The keyboard has the keys");
   const from = await cycle();
   await page.keyboard.down("ArrowRight");
@@ -1664,7 +1667,7 @@ test("game demo: in Catch 2 the paddle moves a pixel at a time, under a block in
   await expect(low).toHaveText("Seven-segment Low: 91 (0x5B)", game); // 2
   // The third, in column 11, is missed: the run halts.
   await expect(readout(page, "LED Halted")).toHaveText("LED Halted: on", game);
-  await click(page, at(35, 5)); // the screen at (25,0)
+  await click(page, at(29, 13)); // the screen at (19,8)
   const dump = page.getByRole("region", { name: "Screen contents" });
   await expect(dump).toHaveText(/0x[0-9A-F]{2}\s*$/); // the words have arrived
   const row31 = (await dump.textContent())?.trim().split("\n").at(-1) ?? "";
@@ -2240,13 +2243,39 @@ test("a sheet's notes are listed in the Notes panel, and choosing one shows it a
   await expect(page.getByRole("textbox", { name: "Label" })).toBeVisible();
 });
 
+for (const name of ["reference-cpu", "reference-cpu-2"]) {
+  test(`${name} opens framed at 25% or more, and each region's note shows the whole region at 100% (ADR 0039)`, async ({ page }) => {
+    const document = JSON.parse(readFileSync(example(name), "utf8")) as CircuitDocument;
+    await page.goto("/");
+    const host = page.getByRole("main", { name: "Circuit canvas" });
+    const view = async () => ((await host.getAttribute("data-view")) ?? "").split(" ").map(Number);
+    await page.locator('[data-testid="import-file"]').setInputFiles(example(name));
+    await expect(status(page)).toContainText("Settled");
+    expect((await view())[2]).toBeGreaterThanOrEqual(0.25);
+    const box = await host.boundingBox();
+    const list = page.getByRole("list", { name: "On this sheet" });
+    expect(document.circuit.notes.length).toBeGreaterThanOrEqual(8);
+    for (const note of document.circuit.notes) {
+      const title = note.text.split("\n")[0] ?? "";
+      await list.getByRole("button", { name: title, exact: true }).click();
+      await expect(page.getByText(`Showing ${title}.`)).toBeAttached();
+      // At 100%, the note one cell in from the canvas's top left (as viewShowing sets it).
+      const [x0, y0] = [CELL * (1 - note.position.x), CELL * (1 - note.position.y)];
+      await expect(host).toHaveAttribute("data-view", `${x0} ${y0} 1`);
+      // The region, 44 by 40 cells from its note's corner, ends inside the canvas.
+      expect(x0 + (note.position.x + 44) * CELL).toBeLessThanOrEqual(box?.width ?? 0);
+      expect(y0 + (note.position.y + 40) * CELL).toBeLessThanOrEqual(box?.height ?? 0);
+    }
+  });
+}
+
 test("the program editor marks the word at the ROM's address, which moves on after each fetch (ADR 0039)", async ({ page }) => {
   await page.goto("/");
   await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
   await expect(counter(page)).toHaveText("Cycle 0, clock low");
   const at = await grid(page);
   const inspector = page.getByRole("complementary", { name: "Inspector" });
-  await click(page, at(24.5, 16)); // the program ROM at (22,14)
+  await click(page, at(104.5, 29)); // the program ROM at (102,27)
   await inspector.getByLabel("Assembly", { exact: true }).fill("LDI 5\nADI 3\nOUT\nHLT");
   await page.getByRole("button", { name: "Assemble", exact: true }).click();
   const marked = inspector.getByRole("region", { name: "Disassembly" }).locator('[aria-current="true"]');

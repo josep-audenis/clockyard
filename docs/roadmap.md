@@ -759,7 +759,13 @@ routes near it. Step 2 is done: the Notes panel lists the sheet's notes,
 and choosing one shows it at 100% one cell in from the top left, the
 selection left as it is. Step 3 is done: the program editor's listing
 marks the word at the ROM's address now, brought into view when the
-clock stands still.
+clock stands still. Step 4 is done: both reference CPUs, and Catch and
+Catch 2, are laid out in titled regions of at most 44 × 40 cells, three
+across, joined by net labels (the reference CPU opens at about 34%, the
+second at about 26%); a test checks every part, tag and route lies in its
+region and no wire falls back to the plain path, and another that the
+engine joins the same ports as before. Catch's link grew to about 9,300
+characters (ADR 0039, amended).
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
@@ -798,10 +804,9 @@ Rough edges still open:
   blocks fall slowly, and a held key moves the paddle several lanes in a
   moment once they fall fast. Moving only on a new press would fix it, at
   the cost of tapping once per lane.
-- The reference CPU's sheet is dense, with long wires; it opens framed at
-  about 30% in a laptop's window, too small to read its labels.
 
-Fixed since: routing keeps clear of label tags (ADR 0039); deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
+Fixed since: the reference CPU's sheet, dense with long wires, is laid
+out in regions a note's jump shows at 100% (ADR 0039); routing keeps clear of label tags (ADR 0039); deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
 amended); a click on a label's tag selects it; below 900px the inspector
 moves under the canvas; Make component turns each net crossing the
 selection's edge into a new pin, still wired (ADR 0016), leaves junctions

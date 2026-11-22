@@ -22,8 +22,8 @@ test.each(readdirSync(examples).filter((name) => name.endsWith(".clockyard.json"
   expect(await readLinkFragment(`#${fragment}`)).toEqual({ ok: true, document });
 });
 
-test("the largest example, the CPU with its game, makes a link of a few thousand characters", async () => {
-  expect((await linkFragment(read("catch.clockyard.json"))).length).toBeLessThan(8000);
+test("the CPU with its game makes a link under 10,000 characters (ADR 0039)", async () => {
+  expect((await linkFragment(read("catch.clockyard.json"))).length).toBeLessThan(10_000);
 });
 
 test("a fragment without a circuit is not a link", async () => {
