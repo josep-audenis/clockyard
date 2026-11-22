@@ -548,7 +548,7 @@ fn a_bench_check_refuses_what_it_cannot_run_and_says_why() {
     for (set, what) in [
         (
             serde_json::json!({ "out": 1 }),
-            "run Set, step 1: out is a led, not a switch or keyboard",
+            "run Set, step 1: out is a led, not a switch, keyboard or button",
         ),
         (
             serde_json::json!({ "key": 256 }),

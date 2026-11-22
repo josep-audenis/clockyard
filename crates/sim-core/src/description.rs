@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::catalog::{Kind, MAX_ADDRESS, MAX_WIDTH, mask};
+use crate::catalog::{Kind, MAX_ADDRESS, MAX_INPUTS, MAX_WIDTH, mask};
 use crate::elaborate::CUSTOM;
 
 /// Geometry-free circuit projected from the editable document.
@@ -77,6 +77,9 @@ pub struct ComponentDesc {
     /// A ROM's words from address 0 (ADR 0018); words past the end read 0.
     #[serde(default)]
     pub data: Option<Vec<f64>>,
+    /// How many inputs a gate has (ADR 0038), 2 to 8; absent means 2.
+    #[serde(default, rename = "inputCount")]
+    pub input_count: Option<f64>,
 }
 
 /// A part's props as checked whole numbers (ADRs 0014, 0018).
@@ -88,6 +91,8 @@ pub struct Shape {
     pub fields: Vec<u32>,
     /// A memory's address width; 0 for other parts.
     pub address: u32,
+    /// A gate's input count (ADR 0038); 0 for other parts.
+    pub inputs: u32,
     /// A ROM's words.
     pub data: Vec<u32>,
 }
@@ -136,6 +141,23 @@ impl ComponentDesc {
     pub fn ports_shape(&self) -> Result<Shape, (Code, String)> {
         let (width, fields) = self.widths().map_err(|e| (Code::InvalidWidth, e))?;
         let kind = Kind::from_name(&self.kind);
+        // A custom part is refused one too; an unknown kind is reported as such later.
+        let counted = kind.is_some_and(Kind::counted);
+        let inputs = match self.input_count {
+            None if counted => 2,
+            None => 0,
+            Some(_) if kind.is_none() && self.kind != CUSTOM => 0,
+            Some(_) if !counted => {
+                let message = format!("a {} takes no input count", self.kind);
+                return Err((Code::InvalidWidth, message));
+            }
+            Some(n) if n.fract() == 0.0 && (2.0..=f64::from(MAX_INPUTS)).contains(&n) => n as u32,
+            Some(n) => {
+                let message =
+                    format!("input count {n} is not a whole number from 2 to {MAX_INPUTS}");
+                return Err((Code::InvalidWidth, message));
+            }
+        };
         if kind.is_none() {
             return Ok(Shape {
                 width,
@@ -162,6 +184,7 @@ impl ComponentDesc {
             width,
             fields,
             address,
+            inputs,
             data: Vec::new(),
         })
     }

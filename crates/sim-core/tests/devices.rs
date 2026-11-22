@@ -50,7 +50,7 @@ fn a_keyboard_drives_an_eight_bit_code_like_a_switch() {
     assert!(
         sim.set_input("s", 1)
             .unwrap_err()
-            .contains("not a switch or keyboard")
+            .contains("not a switch, keyboard or button")
     );
 }
 
