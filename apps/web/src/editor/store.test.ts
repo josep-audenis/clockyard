@@ -70,7 +70,7 @@ test("load replaces the document and clears transient state", () => {
   toggle(add("switch", { x: 0, y: 0 }));
   const metadata = { name: "Loaded", createdAt: "2026-01-01T00:00:00Z", modifiedAt: "2026-01-02T00:00:00Z" };
   const circuit = { components: [], junctions: [], wires: [] };
-  load({ format: "clockyard", version: 12, metadata, circuit, definitions: [] });
+  load({ format: "clockyard", version: 13, metadata, circuit, definitions: [] });
   const state = useEditor.getState();
   expect([state.metadata, state.circuit, state.selection, state.inputs]).toEqual([metadata, circuit, [], {}]);
 });
@@ -129,7 +129,7 @@ test("loading a document clears history", () => {
   const { add, load, undo } = useEditor.getState();
   add("switch", { x: 0, y: 0 });
   const metadata = { name: "x", createdAt: "", modifiedAt: "" };
-  load({ format: "clockyard", version: 12, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  load({ format: "clockyard", version: 13, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
   undo();
   expect(ids()).toEqual([]);
 });
@@ -730,7 +730,7 @@ test("opens counts the sheets and documents swapped in, not the edits", () => {
   useEditor.getState().closeSheet();
   expect(opens()).toBe(start + 2);
   const { metadata } = useEditor.getState();
-  useEditor.getState().load({ format: "clockyard", version: 12, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  useEditor.getState().load({ format: "clockyard", version: 13, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
   expect(opens()).toBe(start + 3);
 });
 
@@ -793,7 +793,7 @@ test("paste refuses an instance that would make a definition contain itself; ope
   expect(useEditor.getState().circuit.components.filter((c) => c.kind === "custom")).toHaveLength(2);
   // Another file has none of these definitions: nothing is left to paste.
   const metadata = { name: "Other", createdAt: "2026-11-07T00:00:00Z", modifiedAt: "2026-11-07T00:00:00Z" };
-  useEditor.getState().load({ format: "clockyard", version: 12, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  useEditor.getState().load({ format: "clockyard", version: 13, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
   useEditor.getState().paste();
   expect(useEditor.getState().clipboard).toBeNull();
   expect(useEditor.getState().circuit.components).toEqual([]);
@@ -1290,7 +1290,7 @@ test("watching keeps wires in order, at most MAX_WATCHES live ones, and a new sh
   useEditor.getState().closeSheet();
   expect(useEditor.getState().watches).toEqual([]);
   useEditor.setState({ watches: ["z"] });
-  useEditor.getState().load({ format: "clockyard", version: 12, metadata: initial.metadata, circuit: initial.circuit, definitions: [] });
+  useEditor.getState().load({ format: "clockyard", version: 13, metadata: initial.metadata, circuit: initial.circuit, definitions: [] });
   expect(useEditor.getState().watches).toEqual([]);
 });
 
@@ -1352,4 +1352,69 @@ test("make component takes parts whose nets only look shared: without a bus ther
     expect(makeComponent(`Alone ${shared}`, { stale: false, nets })).toBeNull();
     useEditor.getState().undo();
   }
+});
+
+test("setInputCount grows a gate from its unrotated top edge, drops wires to inputs that go, and is refused onto a junction (ADR 0038)", () => {
+  const { add, connect, setInputCount, setWidth, undo } = useEditor.getState();
+  const g = add("and", { x: 0, y: 0 });
+  const s = add("switch", { x: -6, y: 0 });
+  const l = add("led", { x: 8, y: 0 });
+  const part = () => useEditor.getState().circuit.components.find((c) => c.id === g);
+  connect(port(s, "out"), port(g, "a"));
+  connect(port(g, "out"), port(l, "in"));
+  const { past } = useEditor.getState();
+  for (const bad of [1, 9, 2.5, 2]) setInputCount(g, bad);
+  setInputCount(s, 4);
+  expect(useEditor.getState().past).toBe(past);
+  setInputCount(g, 4);
+  expect(part()?.props).toEqual({ inputCount: 4 });
+  expect(part()?.position).toEqual({ x: 0, y: 0 });
+  const d = connect(port(s, "out"), port(g, "d"));
+  expect(d).not.toBeNull();
+  setInputCount(g, 3);
+  expect(useEditor.getState().circuit.wires.map((w) => w.id)).not.toContain(d);
+  expect(useEditor.getState().circuit.wires).toHaveLength(2);
+  setInputCount(g, 2);
+  expect(part()?.props).toEqual({});
+  undo();
+  expect(part()?.props).toEqual({ inputCount: 3 });
+  // Width and inputs are separate props.
+  setWidth(g, 8);
+  expect(part()?.props).toEqual({ inputCount: 3, width: 8 });
+});
+
+test("a turned gate keeps its inputs in place as it grows: the part moves back by the growth at 90° and 180°", () => {
+  const { add, setInputCount } = useEditor.getState();
+  for (const [rotation, moved] of [
+    [0, { x: 0, y: 0 }],
+    [90, { x: -4, y: 0 }],
+    [180, { x: 0, y: -4 }],
+    [270, { x: 0, y: 0 }],
+  ] as const) {
+    useEditor.setState(initial, true);
+    const g = add("or", { x: 0, y: 0 });
+    useEditor.setState((s) => ({ circuit: { ...s.circuit, components: s.circuit.components.map((c) => ({ ...c, rotation })) } }));
+    const at = (name: string) => {
+      const c = useEditor.getState().circuit.components.find((p) => p.id === g);
+      if (!c) throw new Error("no gate");
+      const p = layoutOf(c).inputs[name];
+      return p && { x: c.position.x + p.x, y: c.position.y + p.y };
+    };
+    const [a, b] = [at("a"), at("b")];
+    setInputCount(g, 4);
+    expect(useEditor.getState().circuit.components[0]?.position, `${rotation}`).toEqual(moved);
+    expect([at("a"), at("b")], `${rotation}`).toEqual([a, b]);
+  }
+});
+
+test("a new size that puts a port on a junction is refused and says why, until the next edit", () => {
+  const { add, addLabel, setInputCount } = useEditor.getState();
+  const g = add("and", { x: 0, y: 0 });
+  // Where input c of a 3-input gate would be.
+  addLabel({ x: 0, y: 5 });
+  setInputCount(g, 3);
+  expect(useEditor.getState().circuit.components[0]?.props).toEqual({});
+  expect(useEditor.getState().refusal).toMatch(/a port would land on a junction/);
+  add("led", { x: 10, y: 10 });
+  expect(useEditor.getState().refusal).toBeNull();
 });

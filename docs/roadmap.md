@@ -736,7 +736,11 @@ done: the rules for gates with 2 to 8 inputs and the push button are in
 `docs/simulation-model.md`. Step 2 is done: the engine takes `inputCount`
 on the six gates (ports `a` to `h`) and the `button` part, tested against
 a model of the rules over every `0`, `1`, `X` and `Z` combination of 2 to
-4 inputs and every known one of 2 to 8.
+4 inputs and every known one of 2 to 8. Step 3 is done: the inspector's
+Inputs field sets a gate's inputs, 2 to 8; the gate grows from its
+unrotated top edge so its inputs stay put, fewer inputs delete the wires
+to the ones that go, and a size that would put a port on a junction is
+refused with a reason in the status bar. Format 13.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is

@@ -1,4 +1,4 @@
-// The editable circuit document, format version 12 (docs/architecture.md#circuit-document, ADRs 0010, 0012, 0014, 0015, 0017, 0018, 0021, 0025, 0027, 0035).
+// The editable circuit document, format version 13 (docs/architecture.md#circuit-document, ADRs 0010, 0012, 0014, 0015, 0017, 0018, 0021, 0025, 0027, 0035, 0038).
 // Connectivity is explicit: wires reference ports and junctions by ID, never by geometry.
 import type { CircuitBody, CircuitDescription, Endpoint, JunctionRef, PinDesc } from "../simulation/protocol";
 
@@ -14,6 +14,11 @@ export const FIXED_WIDTH: Partial<Record<PartKind, number>> = { clock: 1, seg7: 
 export const widthOf = (part: { kind: PartKind; props: { width?: number } }) => FIXED_WIDTH[part.kind] ?? part.props.width ?? 1;
 /** Whether `width` sets the part's ports (ADR 0014): not a chip, splitter, merger, or a part of fixed width. */
 export const takesWidth = (kind: PartKind) => kind !== "custom" && FIXED_WIDTH[kind] === undefined && !isFielded(kind);
+/** A gate whose `inputCount` sets its inputs, `a` onwards (ADR 0038): every gate but NOT. The catalog says the same. */
+export const takesInputs = (kind: PartKind) => kind === "and" || kind === "nand" || kind === "or" || kind === "nor" || kind === "xor" || kind === "xnor";
+/** Most inputs a gate has, as sim-core's `MAX_INPUTS`, and how many it has unless set (ADR 0038). */
+export const MAX_INPUTS = 8;
+export const DEFAULT_INPUTS = 2;
 /** A ROM, RAM or screen (ADRs 0018, 0021): `addressWidth` sets its `addr` port and how many words it holds. */
 export const isMemory = (kind: PartKind) => kind === "rom" || kind === "ram" || kind === "screen";
 /** A built-in part, or an instance of a custom component (ADR 0012). */
@@ -41,9 +46,18 @@ export const MAX_SOURCE = 64 * 1024;
  * engine, which owns what they mean (ADR 0014). `addressWidth` (ROM, RAM, screen; absent
  * means 8) and `data` (a ROM's words from address 0) are projected too; `source`, a
  * ROM's assembly, is editor-only (ADRs 0018, 0019), as is `columns`, a screen's
- * pixels per row (ADR 0021).
+ * pixels per row (ADR 0021). `inputCount` (the six gates but NOT; absent means 2) is projected (ADR 0038).
  */
-export type Props = { label?: string; width?: number; fields?: number[]; addressWidth?: number; data?: number[]; source?: string; columns?: number };
+export type Props = {
+  label?: string;
+  width?: number;
+  fields?: number[];
+  addressWidth?: number;
+  data?: number[];
+  source?: string;
+  columns?: number;
+  inputCount?: number;
+};
 
 /** A screen's pixels per row (ADR 0021): 1 to `MAX_COLUMNS`, 32 unless set. Editor-only: the engine sees a RAM. */
 export const MAX_COLUMNS = 256;
@@ -221,7 +235,7 @@ export type Definition = { id: string; name: string; circuit: Circuit };
 
 export type CircuitDocument = {
   format: "clockyard";
-  version: 12;
+  version: 13;
   /**
    * `challenge`: the challenge the document was started from, by its file name such as `01-inverter` (ADR 0025).
    * `notes`: plain text about the design, paragraphs separated by blank lines, at most `MAX_NOTES` characters (ADR 0027).
@@ -269,6 +283,7 @@ const body = (circuit: Circuit): CircuitBody => ({
     ...(props.fields !== undefined && { fields: props.fields }),
     ...(props.addressWidth !== undefined && { addressWidth: props.addressWidth }),
     ...(props.data !== undefined && { data: props.data }),
+    ...(props.inputCount !== undefined && { inputCount: props.inputCount }),
   })),
   junctions: circuit.junctions.map(({ id, name }) => (name ? { id, name } : { id })),
   connections: circuit.wires.map(({ id, from, to }) => ({ id, from, to })),

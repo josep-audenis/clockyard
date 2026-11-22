@@ -2,7 +2,7 @@
 //! Structured values cross the boundary as JSON; net values as a `Uint32Array`.
 
 use serde::Serialize;
-use sim_core::catalog::MAX_WIDTH;
+use sim_core::catalog::{MAX_INPUTS, MAX_WIDTH};
 use sim_core::{CircuitDescription, Code, Diagnostic, Kind, PortNets, Simulator};
 use std::collections::BTreeMap;
 use wasm_bindgen::prelude::*;
@@ -16,6 +16,9 @@ struct Part {
     /// Present on kinds whose `width` prop sets every port's width.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     sized: bool,
+    /// Present on gates whose `inputCount` adds inputs past `a` and `b` (ADR 0038).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    counted: bool,
     /// Present on split and merge: the ports their `fields` add.
     #[serde(skip_serializing_if = "Option::is_none")]
     field_ports: Option<FieldPorts>,
@@ -38,12 +41,19 @@ pub fn catalog() -> String {
         inputs: kind.inputs(),
         outputs: kind.outputs(),
         sized: kind.sized(),
+        counted: kind.counted(),
         field_ports: kind.field_ports().map(|(output, prefix)| FieldPorts {
             side: if output { "outputs" } else { "inputs" },
             prefix,
         }),
     });
     serde_json::to_string(&parts.collect::<Vec<_>>()).expect("catalog serializes")
+}
+
+/// Most inputs a gate may have (ADR 0038).
+#[wasm_bindgen]
+pub fn max_inputs() -> u32 {
+    MAX_INPUTS
 }
 
 /// Widest signal a port may carry, so the editor never hard-codes it.

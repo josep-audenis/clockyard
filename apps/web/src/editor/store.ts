@@ -25,11 +25,14 @@ import {
   takesWidth,
   DEFAULT_ADDRESS,
   isMemory,
+  DEFAULT_INPUTS,
   MAX_ADDRESS,
+  MAX_INPUTS,
   MAX_NOTES,
   MAX_SOURCE,
   wordsProblem,
   withoutDeletedPins,
+  takesInputs,
   type Circuit,
   type CircuitComponent,
   type CircuitDocument,
@@ -47,6 +50,8 @@ export type EditorState = {
   circuit: Circuit;
   /** Selected component, junction and wire IDs. */
   selection: string[];
+  /** Why the last change of a part's size changed nothing, until the next edit: said in the status bar. */
+  refusal: string | null;
   /** Switch values set by the user (0 or 1, or up to 2^width − 1 when wide). Transient: never saved with the document. */
   inputs: Record<string, number>;
   /** Part waiting to be placed by the next canvas click. */
@@ -125,6 +130,12 @@ export type EditorState = {
    * deletes the wires to field ports that no longer exist (ADR 0014). Invalid fields change nothing.
    */
   setFields: (id: string, fields: number[]) => void;
+  /**
+   * Sets a gate's input count (2 to `MAX_INPUTS`, ADR 0038) as one edit. The gate grows or shrinks away from its
+   * unrotated top edge, so its inputs stay where they are and `out` moves; the wires to inputs that go are deleted,
+   * and a wire to `out` loses its bends. Refused, with a reason, if a port would land on a junction.
+   */
+  setInputCount: (id: string, count: number) => void;
   toggle: (id: string) => void;
   /** Names the document, as a label is normalized, at most 64 characters; blank is "Untitled". Outside undo. */
   rename: (name: string) => void;
@@ -341,9 +352,11 @@ export const armedProps = (kind: PartKind, width: number): Props => ({ ...newPro
 function withProps(state: EditorState, id: string, props: Props) {
   const circuit = { ...state.circuit, components: state.circuit.components.map((c) => (c.id === id ? { ...c, props } : c)) };
   const part = circuit.components.find((c) => c.id === id);
-  if (part && stacksJunction(circuit, { [id]: part.position })) return state;
+  if (part && stacksJunction(circuit, { [id]: part.position })) return { refusal: STACKED };
   return edit(state, circuit);
 }
+
+const STACKED = "Not changed: a port would land on a junction. Move the part or the junction first.";
 
 const now = new Date().toISOString();
 const HISTORY_LIMIT = 200;
@@ -486,12 +499,13 @@ export function deleteRefusal(state: Pick<EditorState, "definitions" | "sheet" |
 const remember = (state: EditorState) => ({ past: [...state.past, state.circuit].slice(-HISTORY_LIMIT), future: [] });
 
 /** A document edit: undoable, and it clears redo. */
-const edit = (state: EditorState, circuit: Circuit) => ({ ...withCircuit(state, circuit), ...remember(state) });
+const edit = (state: EditorState, circuit: Circuit) => ({ ...withCircuit(state, circuit), ...remember(state), refusal: null });
 
 export const useEditor = create<EditorState>()((set, get) => ({
   metadata: { name: "Untitled", createdAt: now, modifiedAt: now },
   circuit: { components: [], junctions: [], wires: [] },
   selection: [],
+  refusal: null,
   inputs: {},
   armed: null,
   armedWidth: 1,
@@ -890,6 +904,37 @@ export const useEditor = create<EditorState>()((set, get) => ({
         junctions: state.circuit.junctions.filter((j) => used.has(j.id) || !!j.name || !dropped.has(j.id)),
         wires,
       });
+    }),
+  setInputCount: (id, count) =>
+    set((state) => {
+      const part = state.circuit.components.find((c) => c.id === id);
+      const valid = Number.isInteger(count) && count >= DEFAULT_INPUTS && count <= MAX_INPUTS;
+      const was = part?.props.inputCount ?? DEFAULT_INPUTS;
+      if (!part || part.kind === "custom" || !takesInputs(part.kind) || !valid || was === count) return state;
+      const props = { ...part.props };
+      if (count !== DEFAULT_INPUTS) props.inputCount = count;
+      else delete props.inputCount;
+      // The unrotated top edge stays: it is the right side at 90° and the bottom at 180°, which the growth pushes.
+      const grow = 2 * (count - was);
+      const { x, y } = part.position;
+      const position = part.rotation === 90 ? { x: x - grow, y } : part.rotation === 180 ? { x, y: y - grow } : part.position;
+      const gone = (end: Endpoint) =>
+        !isJunction(end) && end.component === id && end.port.length === 1 && end.port.charCodeAt(0) - 97 >= count;
+      const kept = state.circuit.wires.filter((w) => !gone(w.from) && !gone(w.to));
+      // `out` moved, so a shape drawn to it no longer meets it.
+      const toOut = (end: Endpoint) => !isJunction(end) && end.component === id && end.port === "out";
+      const wires = kept.map((w) => (w.bends && (toOut(w.from) || toOut(w.to)) ? { id: w.id, from: w.from, to: w.to } : w));
+      // A junction left with no wires goes too, as when deleting.
+      const used = new Set(wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
+      const dropped = new Set(state.circuit.wires.filter((w) => !kept.includes(w)).flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
+      const circuit = {
+        ...state.circuit,
+        components: state.circuit.components.map((c) => (c === part ? { ...c, props, position } : c)),
+        junctions: state.circuit.junctions.filter((j) => used.has(j.id) || !!j.name || !dropped.has(j.id)),
+        wires,
+      };
+      if (stacksJunction(circuit, { [id]: position })) return { refusal: STACKED };
+      return edit(state, circuit);
     }),
   rotate: (ids, turn) =>
     set((state) => {

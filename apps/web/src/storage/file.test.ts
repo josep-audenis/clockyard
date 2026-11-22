@@ -5,7 +5,7 @@ import { MAX_DOCUMENT_BYTES, parseDocument, serializeDocument } from "./file";
 
 const document: CircuitDocument = {
   format: "clockyard",
-  version: 12,
+  version: 13,
   metadata: { name: "AND demo", createdAt: "2026-11-06T12:00:00Z", modifiedAt: "2026-11-06T12:30:00Z" },
   circuit: {
     components: [
@@ -77,7 +77,7 @@ test("definition names are normalized like the editor does, and a blank one beco
 test.each([
   ["not JSON", () => parseDocument("{"), "not valid JSON"],
   ["another format", () => broken((doc) => Object.assign(doc, { format: "other" })), "not a Clockyard file"],
-  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 13 })), "newer Clockyard"],
+  ["a newer version", () => broken((doc) => Object.assign(doc, { version: 14 })), "newer Clockyard"],
   ["an instance of a missing definition", () => broken((doc) => Object.assign(doc.circuit.components[2] ?? {}, { definition: "gone" })), "missing definition gone"],
   ["an ID with a slash", () => broken((_, c) => (c.id = "a/b")), 'must not contain "/"'],
   ["a definition ID used twice", () => broken((doc) => doc.definitions.push({ ...(doc.definitions[0] as Definition) })), "ID inv is used more than once"],
@@ -334,4 +334,27 @@ test("a version 11 file is migrated: only the version changes; a tri-state buffe
   const buffer: CircuitComponent = { id: "t", kind: "tri", position: { x: 12, y: 0 }, rotation: 0, props: { width: 8 } };
   const bused = { ...document, circuit: { ...document.circuit, components: [...document.circuit.components, buffer] } };
   expect(parseDocument(serializeDocument(bused))).toEqual({ ok: true, document: bused });
+});
+
+test("a version 12 file is migrated: only the version changes; a gate's input count round-trips in 13 (ADR 0038)", () => {
+  const v12 = { ...document, version: 12 };
+  expect(parseDocument(JSON.stringify(v12))).toEqual({ ok: true, document });
+  const wide: CircuitComponent = { id: "q", kind: "xor", position: { x: 12, y: 0 }, rotation: 0, props: { inputCount: 5 } };
+  const gated = { ...document, circuit: { ...document.circuit, components: [...document.circuit.components, wide] } };
+  expect(parseDocument(serializeDocument(gated))).toEqual({ ok: true, document: gated });
+  // 2 is the default, so it is not stored.
+  const two = JSON.parse(serializeDocument(document)) as CircuitDocument;
+  Object.assign(two.circuit.components[1]?.props ?? {}, { inputCount: 2 });
+  const read = parseDocument(JSON.stringify(two));
+  expect(read.ok && read.document.circuit.components[1]?.props).toEqual({ width: 8 });
+});
+
+test.each([
+  ["an input count of 1", { kind: "and", props: { inputCount: 1 } }, "input count must be a whole number from 2 to 8"],
+  ["an input count of 9", { kind: "or", props: { inputCount: 9 } }, "input count must be a whole number from 2 to 8"],
+  ["a fractional input count", { kind: "xnor", props: { inputCount: 2.5 } }, "input count must be a whole number from 2 to 8"],
+  ["an input count on a NOT", { kind: "not", props: { inputCount: 3 } }, "only AND, NAND, OR, NOR, XOR and XNOR gates take"],
+  ["an input count on a switch", { kind: "switch", props: { inputCount: 3 } }, "only AND, NAND, OR, NOR, XOR and XNOR gates take"],
+])("refuses %s", (_, part, message) => {
+  expect(broken((__, c) => Object.assign(c, part))).toMatchObject({ ok: false, error: expect.stringContaining(message) });
 });

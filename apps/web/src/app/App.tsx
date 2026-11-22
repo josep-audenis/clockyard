@@ -10,10 +10,13 @@ import {
   fieldsProblem,
   hex,
   DEFAULT_ADDRESS,
+  DEFAULT_INPUTS,
   isFielded,
   isMemory,
   MAX_ADDRESS,
   MAX_COLUMNS,
+  MAX_INPUTS,
+  takesInputs,
   screenSize,
   MAX_SOURCE,
   takesWidth,
@@ -2048,6 +2051,22 @@ function PartProperties({ part }: { part: CircuitComponent }) {
           onCommit={(value) => /^\s*\d+\s*$/.test(value) && useEditor.getState().setWidth(part.id, Number(value))}
         />
       )}
+      {part.kind !== "custom" && takesInputs(part.kind) && (
+        <CommitField
+          key={`inputs:${part.props.inputCount ?? DEFAULT_INPUTS}`}
+          label="Inputs"
+          saved={String(part.props.inputCount ?? DEFAULT_INPUTS)}
+          hint={`${DEFAULT_INPUTS} to ${MAX_INPUTS}. Fewer deletes the wires to the inputs that go.`}
+          problem={(value) =>
+            /^\s*\d+\s*$/.test(value) && Number(value) >= DEFAULT_INPUTS && Number(value) <= MAX_INPUTS
+              ? null
+              : `Enter a whole number from ${DEFAULT_INPUTS} to ${MAX_INPUTS}.`
+          }
+          inputMode="numeric"
+          // One undoable edit (ADR 0038); the gate grows from its top edge and keeps its inputs in place.
+          onCommit={(value) => /^\s*\d+\s*$/.test(value) && useEditor.getState().setInputCount(part.id, Number(value))}
+        />
+      )}
       {part.kind === "switch" && (part.props.width ?? 1) > 1 && <ValueField part={part} />}
       {isMemory(part.kind) && (
         <CommitField
@@ -2753,6 +2772,8 @@ function StatusBar() {
   // While a part is armed, how to place it.
   // A keyboard part with the keys says so, and how to give them back (ADR 0021).
   const keyboard = useCanvasHints((s) => s.keyboard);
+  // A part's new size that would have put a port on a junction (ADR 0038).
+  const refusal = useEditor((s) => s.refusal);
   const placing = useEditor((s) =>
     s.armedLabel
       ? "Placing a label: click a grid point. Esc cancels."
@@ -2816,6 +2837,7 @@ function StatusBar() {
       : keyboard
         ? "The keyboard has the keys: what you type goes to the circuit. Esc, Tab or a click elsewhere gives them back."
         : placing ||
+          refusal ||
           why ||
           (first &&
         `${first.code === "unstable" || first.code === "unsettled" ? stoppedUnstable : ""}${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${problems.length > 1 ? ` (+${problems.length - 1} more)` : ""}`) ||

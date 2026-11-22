@@ -977,17 +977,20 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
         break;
       case "and":
       case "nand": {
-        // IEEE distinctive shape: flat back, semicircular front; NAND makes room for its bubble.
+        // IEEE distinctive shape: flat back, semicircular front; NAND makes room for its bubble. With more than
+        // two inputs (ADR 0038) the 4×4 symbol is centred on `out` and its back runs down past every input.
         const front = component.kind === "and" ? 4 * c : 3.5 * c;
         const r = 2 * c;
-        g.moveTo(x, y)
-          .lineTo(x + front - r, y)
-          .arc(x + front - r, y + r, r, -Math.PI / 2, Math.PI / 2)
-          .lineTo(x, y + 2 * r)
+        const top = y + (local.height / 2 - 2) * c;
+        g.moveTo(x, top)
+          .lineTo(x + front - r, top)
+          .arc(x + front - r, top + r, r, -Math.PI / 2, Math.PI / 2)
+          .lineTo(x, top + 2 * r)
           .closePath()
           .fill(body)
           .stroke(outline);
-        if (component.kind === "nand") bubble(x + 3.75 * c, y + 2 * c);
+        if (local.height > 4) g.moveTo(x, y).lineTo(x, y + local.height * c).stroke(outline);
+        if (component.kind === "nand") bubble(x + 3.75 * c, top + 2 * c);
         break;
       }
       case "or":
@@ -999,18 +1002,33 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
         const back = x + (exclusive ? 0.5 * c : 0);
         const tip = x + (inverted ? 3.5 * c : 4 * c);
         const h = 4 * c;
-        g.moveTo(back, y)
-          .quadraticCurveTo(back + 0.6 * (tip - back), y, tip, y + h / 2)
-          .quadraticCurveTo(back + 0.6 * (tip - back), y + h, back, y + h)
-          .quadraticCurveTo(back + c, y + h / 2, back, y)
+        // The 4×4 symbol, centred on `out` when there are more than two inputs (ADR 0038).
+        const top = y + (local.height / 2 - 2) * c;
+        g.moveTo(back, top)
+          .quadraticCurveTo(back + 0.6 * (tip - back), top, tip, top + h / 2)
+          .quadraticCurveTo(back + 0.6 * (tip - back), top + h, back, top + h)
+          .quadraticCurveTo(back + c, top + h / 2, back, top)
           .closePath()
           .fill(body)
           .stroke(outline);
-        if (exclusive) g.moveTo(x, y).quadraticCurveTo(x + c, y + h / 2, x, y + h).stroke(outline);
-        // The concave back sits 3/8 of a cell in at the input rows.
-        lead(x, back + 0.375 * c, y + c);
-        lead(x, back + 0.375 * c, y + 3 * c);
-        if (inverted) bubble(x + 3.75 * c, y + 2 * c);
+        if (exclusive) g.moveTo(x, top).quadraticCurveTo(x + c, top + h / 2, x, top + h).stroke(outline);
+        // Above and below the symbol, its back goes straight on past the other inputs.
+        if (local.height > 4) {
+          for (const [from, to] of [
+            [y, top],
+            [top + h, y + local.height * c],
+          ] as const) {
+            g.moveTo(back, from).lineTo(back, to).stroke(outline);
+            if (exclusive) g.moveTo(x, from).lineTo(x, to).stroke(outline);
+          }
+        }
+        // Each input's lead reaches the back: the curve's depth at its row, 3/8 of a cell at a 2-input gate's rows.
+        for (const p of Object.values(local.inputs)) {
+          const t = (y + p.y * c - top) / h;
+          const reach = back + (t > 0 && t < 1 ? 2 * t * (1 - t) * c : 0);
+          if (reach > x) lead(x, reach, y + p.y * c);
+        }
+        if (inverted) bubble(x + 3.75 * c, top + 2 * c);
         break;
       }
     }

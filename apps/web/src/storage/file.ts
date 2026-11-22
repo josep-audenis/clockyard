@@ -4,13 +4,16 @@ import {
   COMPONENT_KINDS,
   fieldsProblem,
   DEFAULT_ADDRESS,
+  DEFAULT_INPUTS,
   FIXED_WIDTH,
   isFielded,
   isMemory,
   MAX_ADDRESS,
   DEFAULT_COLUMNS,
   MAX_COLUMNS,
+  MAX_INPUTS,
   MAX_SOURCE,
+  takesInputs,
   wordsProblem,
   MAX_BENDS,
   MAX_LABEL,
@@ -33,7 +36,7 @@ import {
   type Wire,
 } from "../editor/document";
 
-export const FORMAT_VERSION = 12;
+export const FORMAT_VERSION = 13;
 
 /** How a part of fixed width is named when a file gives it a width. */
 const FIXED_NAMES: Partial<Record<PartKind, string>> = { clock: "clock", seg7: "seven-segment display", keyboard: "keyboard" };
@@ -154,6 +157,16 @@ function readProps(props: Record<string, unknown>, kind: PartKind, where: string
     if (source.length > MAX_SOURCE) throw new Error(`${where} source is longer than ${MAX_SOURCE} characters.`);
     if (source) read.source = source;
   }
+  // ADR 0038: how many inputs a gate has.
+  if (props.inputCount !== undefined) {
+    if (!takesInputs(kind)) throw new Error(`${where} has an input count, which only AND, NAND, OR, NOR, XOR and XNOR gates take.`);
+    const count = props.inputCount;
+    if (!Number.isInteger(count) || (count as number) < DEFAULT_INPUTS || (count as number) > MAX_INPUTS) {
+      throw new Error(`${where} input count must be a whole number from ${DEFAULT_INPUTS} to ${MAX_INPUTS}.`);
+    }
+    // 2 is the default, so it is not stored.
+    if (count !== DEFAULT_INPUTS) read.inputCount = count as number;
+  }
   // ADR 0021: a screen's pixels per row.
   if (props.columns !== undefined) {
     if (kind !== "screen") throw new Error(`${where} has columns, which only screens take.`);
@@ -181,7 +194,7 @@ function readDocument(data: unknown): CircuitDocument {
   if (version > FORMAT_VERSION) {
     throw new Error(`This file uses format version ${version}, from a newer Clockyard. This version reads up to ${FORMAT_VERSION}.`);
   }
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, FORMAT_VERSION].includes(version)) throw new Error(`Format version ${version} is not supported.`);
   // Version 4 → 5 (ADR 0014): widths arrive as props; nothing to change.
   // Version 5 → 6 (ADR 0015): junctions may carry a net label's name; nothing to change.
   // Version 6 → 7 (ADR 0017): clock and dff kinds; nothing to change.
@@ -190,6 +203,7 @@ function readDocument(data: unknown): CircuitDocument {
   // Version 9 → 10 (ADR 0025): metadata may name the challenge the document was started from; nothing to change.
   // Version 10 → 11 (ADR 0027): metadata may carry notes; nothing to change.
   // Version 11 → 12 (ADR 0035): the tri kind; nothing to change.
+  // Version 12 → 13 (ADR 0038): a gate's inputCount; nothing to change.
 
   const metadata = object(data.metadata, "metadata");
   const circuit = object(data.circuit, "circuit");

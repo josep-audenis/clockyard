@@ -72,3 +72,18 @@ test("a screen grows to fit its picture, 4 pixels a cell, with a RAM's ports and
   expect(layoutOf({ kind: "screen", rotation: 0, props: { width: 8, addressWidth: 7, columns: 64 } })).toMatchObject({ width: 19, height: 8 });
   expect(layoutOf({ kind: "screen", rotation: 90, props: { width: 8, addressWidth: 7 } })).toMatchObject({ width: 9, height: 11 });
 });
+
+test("a gate with more inputs is 2 cells taller for each, its inputs every other row and `out` in the middle (ADR 0038)", () => {
+  expect(layoutOf({ kind: "and", rotation: 0, props: { inputCount: 2 } })).toBe(LAYOUTS.and);
+  const four = layoutOf({ kind: "nor", rotation: 0, props: { inputCount: 4 } });
+  expect(four).toEqual({
+    width: 4,
+    height: 8,
+    inputs: { a: { x: 0, y: 1 }, b: { x: 0, y: 3 }, c: { x: 0, y: 5 }, d: { x: 0, y: 7 } },
+    outputs: { out: { x: 4, y: 4 } },
+  });
+  const eight = layoutOf({ kind: "xor", rotation: 0, props: { inputCount: 8, width: 8 } });
+  expect([eight.height, eight.inputs.h, eight.outputs.out]).toEqual([16, { x: 0, y: 15 }, { x: 4, y: 8 }]);
+  // Turned, as any layout: at 90° the inputs run along the top, `a` at the right.
+  expect(layoutOf({ kind: "nor", rotation: 90, props: { inputCount: 4 } }).inputs).toMatchObject({ a: { x: 7, y: 0 }, d: { x: 1, y: 0 } });
+});
