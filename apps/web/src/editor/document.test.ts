@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { fieldRanges, fieldsProblem, hex, litPixels, parseValue, project, screenSize, showValue, signalState, withoutDeletedPins, type Circuit } from "./document";
+import { fieldRanges, fieldsProblem, hex, litPixels, notesInOrder, parseValue, project, screenSize, showValue, signalState, withoutDeletedPins, type Circuit } from "./document";
 
 test("projection keeps connectivity and widths, junctions included, and drops geometry and labels", () => {
   const circuit: Circuit = {
@@ -169,4 +169,16 @@ test("notes never reach the engine: a sheet's description is the same with and w
   const definitions = [{ id: "d", name: "D", circuit: noted }];
   expect(project(noted, definitions)).toEqual(project(sheet, [{ id: "d", name: "D", circuit: sheet }]));
   expect(JSON.stringify(project(noted, definitions))).not.toContain("A note");
+});
+
+test("a sheet's notes are listed top to bottom, then left to right, by their first lines (ADR 0039)", () => {
+  const note = (id: string, x: number, y: number, text: string) => ({ id, position: { x, y }, text });
+  const listed = notesInOrder([note("c", 0, 50, "Control"), note("f", 48, 0, "Fetch\nPC and the ROM"), note("k", 0, 0, "Clock")]);
+  expect(listed.map((n) => [n.note.id, n.title])).toEqual([
+    ["k", "Clock"],
+    ["f", "Fetch"],
+    ["c", "Control"],
+  ]);
+  // A note being placed, still empty, is not listed.
+  expect(notesInOrder([note("d", 0, 0, "")])).toEqual([]);
 });

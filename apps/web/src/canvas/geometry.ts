@@ -22,6 +22,9 @@ export const places = (circuit: Circuit): Places => ({
   junctions: new Map(circuit.junctions.map((j) => [j.id, j])),
 });
 
+/** The view that shows grid point `p` one cell in from the canvas's top left at 100% (ADR 0039): screen = view + p × cell. */
+export const viewShowing = (p: Point, cellPx: number) => ({ x: cellPx * (1 - p.x), y: cellPx * (1 - p.y), zoom: 1 });
+
 export type TagSide = "right" | "left" | "below" | "above";
 const SIDES: readonly TagSide[] = ["right", "left", "below", "above"];
 /** Grid points a tag keeps routes off, corners included; null when its label has no side free. */

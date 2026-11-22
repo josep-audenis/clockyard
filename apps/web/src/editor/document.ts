@@ -216,6 +216,14 @@ export type SheetNote = { id: string; position: { x: number; y: number }; text: 
 /** The longest note on a sheet, in characters, and the most notes a sheet holds (ADR 0038). */
 export const MAX_NOTE = 500;
 export const MAX_SHEET_NOTES = 200;
+/** A sheet's notes as a list shows them (ADR 0039): top to bottom, then left to right, each by its first line. */
+export const notesInOrder = (notes: readonly SheetNote[]) =>
+  // A note being placed has no text yet: nothing to list it by.
+  notes
+    .filter((note) => note.text !== "")
+    .sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x)
+    .map((note) => ({ note, title: note.text.split("\n")[0] ?? "" }));
+
 /** A note's box in grid cells, for picking and boxing it: half a cell a character, a cell a line (ADR 0038). */
 export function noteSize(text: string) {
   const lines = text.split("\n");

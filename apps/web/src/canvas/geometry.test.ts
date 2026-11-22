@@ -6,6 +6,7 @@ import {
   hitTest,
   itemsInBox,
   labelTags,
+  viewShowing,
   nearestOnRoute,
   occupied,
   orthogonal,
@@ -279,4 +280,11 @@ test("a label's tag takes the first side none of its wires goes towards, and cov
   const shaped = sheet([{ x: 20, y: 10 }]);
   shaped.wires = shaped.wires.map((w) => ({ ...w, bends: [{ x: 22, y: 4 }, { x: 4, y: 4 }] }));
   expect(labelTags(shaped).get("j")?.side).toBe("right");
+});
+
+test("showing a note puts it one cell in from the canvas's top left at 100% (ADR 0039)", () => {
+  const view = viewShowing({ x: 40, y: 12 }, 16);
+  expect(view.zoom).toBe(1);
+  // Where the note lands on screen: view + point × cell.
+  expect([view.x + 40 * 16, view.y + 12 * 16]).toEqual([16, 16]);
 });

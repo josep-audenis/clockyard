@@ -2207,3 +2207,35 @@ test("the playground's target: a 4-input AND held by four push buttons, with a n
   await click(page, after(0.5, 18.5)); // button 4's corner, off its cap: selects without holding
   await expect(page.getByRole("textbox", { name: "Key" })).toHaveValue("4");
 });
+
+test("a sheet's notes are listed in the Notes panel, and choosing one shows it at 100% without changing the selection (ADR 0039)", async ({ page }) => {
+  const document = {
+    format: "clockyard",
+    version: 13,
+    metadata: { name: "Far", createdAt: "2026-11-22T00:00:00Z", modifiedAt: "2026-11-22T00:00:00Z" },
+    circuit: {
+      components: [{ id: "s", kind: "switch", position: { x: 0, y: 0 }, rotation: 0, props: {} }],
+      junctions: [],
+      wires: [],
+      notes: [
+        { id: "far", position: { x: 120, y: 80 }, text: "Far away\nwhere nothing is" },
+        { id: "near", position: { x: 4, y: 0 }, text: "Near" },
+      ],
+    },
+    definitions: [],
+  };
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles({ name: "far.clockyard.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(document)) });
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+  await click(page, at(1, 1)); // the switch, selected (and toggled)
+  const list = page.getByRole("list", { name: "On this sheet" });
+  await expect(list.getByRole("button")).toHaveText(["Near", "Far away"]);
+  // From the keyboard, as from a click.
+  await list.getByRole("button", { name: "Far away" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("main", { name: "Circuit canvas" })).toHaveAttribute("data-view", `${16 - 120 * 16} ${16 - 80 * 16} 1`);
+  await expect(page.getByText("Showing Far away.")).toBeAttached();
+  // The inspector still shows the switch.
+  await expect(page.getByRole("textbox", { name: "Label" })).toBeVisible();
+});
