@@ -179,4 +179,6 @@ test("a sheet's notes are listed top to bottom, then left to right, by their fir
     ["f", "Fetch"],
     ["c", "Control"],
   ]);
+  // A note being placed, still empty, is not listed.
+  expect(notesInOrder([note("d", 0, 0, "")])).toEqual([]);
 });

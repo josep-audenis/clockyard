@@ -118,7 +118,6 @@ export const useCanvasHints = create<{
 /** The zoom controls' commands, bound while a canvas is mounted. */
 export const viewControls: { zoomBy?: (factor: number) => void; fit?: () => void; show?: (p: Point) => void } = {};
 
-
 type Theme = { color: Record<(typeof COLORS)[number], string>; size: Record<(typeof SIZES)[number], number>; mono: string };
 
 // Pixi cannot read CSS variables: copy the tokens once, and again on theme change.

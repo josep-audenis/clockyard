@@ -1723,18 +1723,20 @@ function NotesPanel() {
             <p className="field-label" id={`${id}-sheet`}>
               On this sheet
             </p>
-            <ul className="sheet-notes" aria-labelledby={`${id}-sheet`}>
+            <ul className="sheet-notes" role="list" aria-labelledby={`${id}-sheet`}>
               {onSheet.map(({ note, title }) => (
                 <li key={note.id}>
                   <button
                     type="button"
                     className="button button-quiet type-label"
+                    title={title}
                     onClick={() => {
-                      viewControls.show?.(note.position);
+                      if (!viewControls.show) return;
+                      viewControls.show(note.position);
                       announce(`Showing ${title}.`);
                     }}
                   >
-                    {title}
+                    <span>{title}</span>
                   </button>
                 </li>
               ))}

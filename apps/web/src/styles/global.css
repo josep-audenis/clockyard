@@ -1379,6 +1379,7 @@ select.input {
 /* ADR 0039: the sheet's notes, one button each, that show a region at 100%. */
 .sheet-notes {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
   margin: 0;
   padding: 0;
@@ -1388,6 +1389,11 @@ select.input {
 .sheet-notes .button {
   justify-content: flex-start;
   width: 100%;
+  min-width: 0;
+}
+
+/* A flex button does not ellipsize; its text does. */
+.sheet-notes .button span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

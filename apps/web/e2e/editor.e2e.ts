@@ -2231,8 +2231,11 @@ test("a sheet's notes are listed in the Notes panel, and choosing one shows it a
   await click(page, at(1, 1)); // the switch, selected (and toggled)
   const list = page.getByRole("list", { name: "On this sheet" });
   await expect(list.getByRole("button")).toHaveText(["Near", "Far away"]);
-  await list.getByRole("button", { name: "Far away" }).click();
+  // From the keyboard, as from a click.
+  await list.getByRole("button", { name: "Far away" }).focus();
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("main", { name: "Circuit canvas" })).toHaveAttribute("data-view", `${16 - 120 * 16} ${16 - 80 * 16} 1`);
+  await expect(page.getByText("Showing Far away.")).toBeAttached();
   // The inspector still shows the switch.
   await expect(page.getByRole("textbox", { name: "Label" })).toBeVisible();
 });
