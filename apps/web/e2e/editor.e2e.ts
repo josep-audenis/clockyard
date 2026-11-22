@@ -2053,3 +2053,62 @@ test("a narrow window folds history and files into More, and starts with the not
   await notes.click();
   await expect(page.getByRole("textbox", { name: "Notes" })).toBeVisible();
 });
+
+test("a push button is held by the pointer on its cap, and by its key once the circuit has the keys, across a Step (ADR 0038)", async ({ page }) => {
+  const part = (id: string, kind: string, x: number, y: number, props = {}) => ({ id, kind, position: { x, y }, rotation: 0, props });
+  const wire = (id: string, from: [string, string], to: [string, string]) => ({
+    id,
+    from: { component: from[0], port: from[1] },
+    to: { component: to[0], port: to[1] },
+  });
+  // The button lights LED 1 directly, and is D flip-flop 1's d, clocked by the clock; LED 2 shows its q.
+  const document = {
+    format: "clockyard",
+    version: 13,
+    metadata: { name: "Button", createdAt: "2026-11-22T00:00:00Z", modifiedAt: "2026-11-22T00:00:00Z" },
+    circuit: {
+      components: [
+        part("p", "button", 0, 0, { binding: "Digit1" }),
+        part("l", "led", 8, 1),
+        part("k", "clock", 0, 8),
+        part("d", "dff", 8, 6),
+        part("q", "led", 16, 6),
+      ],
+      junctions: [],
+      wires: [wire("w1", ["p", "out"], ["l", "in"]), wire("w2", ["p", "out"], ["d", "d"]), wire("w3", ["k", "out"], ["d", "clk"]), wire("w4", ["d", "q"], ["q", "in"])],
+    },
+    definitions: [],
+  };
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles({ name: "button.clockyard.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(document)) });
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+  const button = readout(page, "Push button 1");
+  // The pointer on the cap holds it while down.
+  const cap = at(2, 2);
+  await page.mouse.move(cap.x, cap.y);
+  await page.mouse.down();
+  await expect(button).toHaveText("Push button 1: held");
+  await expectStates(page, { "LED 1": 1 });
+  await page.mouse.up();
+  await expect(button).toHaveText("Push button 1: let go");
+  // That press gave the circuit the keys: 1 holds it now, and R, a shortcut, does nothing.
+  await expect(status(page)).toContainText("The circuit has the keys: 1 hold buttons");
+  await page.keyboard.down("1");
+  await expect(button).toHaveText("Push button 1: held");
+  await page.keyboard.up("1");
+  await expect(button).toHaveText("Push button 1: let go");
+  // Held by its key across a Step, the flip-flop takes the 1.
+  await page.keyboard.down("1");
+  await page.getByRole("button", { name: "Step", exact: true }).click();
+  await expect(counter(page)).toHaveText("Cycle 1, clock low");
+  await expect(button).toHaveText("Push button 1: held");
+  await page.keyboard.up("1");
+  await expectStates(page, { "LED 2": 1, "LED 1": 0 });
+  // Escape gives the keys back: 1 no longer holds it.
+  await page.keyboard.press("Escape");
+  await expect(status(page)).not.toContainText("has the keys");
+  await page.keyboard.down("1");
+  await expect(button).toHaveText("Push button 1: let go");
+  await page.keyboard.up("1");
+});

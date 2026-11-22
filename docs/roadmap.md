@@ -740,7 +740,13 @@ a model of the rules over every `0`, `1`, `X` and `Z` combination of 2 to
 Inputs field sets a gate's inputs, 2 to 8; the gate grows from its
 unrotated top edge so its inputs stay put, fewer inputs delete the wires
 to the ones that go, and a size that would put a port on a junction is
-refused with a reason in the status bar. Format 13.
+refused with a reason in the status bar. Format 13. Step 4 is done:
+the push button, held by the pointer on its cap (each pointer on its
+own), or by its key while the circuit has the keys, which a press on a
+bound button gives; Step, Run and Reset keep them, so a button can be
+held across a Step. Ctrl or Cmd keys stay the editor's and let go. The
+inspector sets its key and has a Press button; the worker reports a
+press let go before a tick while running.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is

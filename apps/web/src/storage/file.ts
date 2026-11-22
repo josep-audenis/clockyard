@@ -35,11 +35,12 @@ import {
   type Props,
   type Wire,
 } from "../editor/document";
+import { BINDING } from "../editor/buttons";
 
 export const FORMAT_VERSION = 13;
 
 /** How a part of fixed width is named when a file gives it a width. */
-const FIXED_NAMES: Partial<Record<PartKind, string>> = { clock: "clock", seg7: "seven-segment display", keyboard: "keyboard" };
+const FIXED_NAMES: Partial<Record<PartKind, string>> = { clock: "clock", seg7: "seven-segment display", keyboard: "keyboard", button: "push button" };
 
 export type ParseResult = { ok: true; document: CircuitDocument } | { ok: false; error: string };
 
@@ -167,6 +168,14 @@ function readProps(props: Record<string, unknown>, kind: PartKind, where: string
     // 2 is the default, so it is not stored.
     if (count !== DEFAULT_INPUTS) read.inputCount = count as number;
   }
+  // ADR 0038: the key that holds a push button.
+  if (props.binding !== undefined) {
+    if (kind !== "button") throw new Error(`${where} has a key, which only push buttons take.`);
+    if (typeof props.binding !== "string" || !BINDING.test(props.binding)) {
+      throw new Error(`${where} key must be a letter or digit key, such as KeyA or Digit1.`);
+    }
+    read.binding = props.binding;
+  }
   // ADR 0021: a screen's pixels per row.
   if (props.columns !== undefined) {
     if (kind !== "screen") throw new Error(`${where} has columns, which only screens take.`);
@@ -203,7 +212,7 @@ function readDocument(data: unknown): CircuitDocument {
   // Version 9 → 10 (ADR 0025): metadata may name the challenge the document was started from; nothing to change.
   // Version 10 → 11 (ADR 0027): metadata may carry notes; nothing to change.
   // Version 11 → 12 (ADR 0035): the tri kind; nothing to change.
-  // Version 12 → 13 (ADR 0038): a gate's inputCount; nothing to change.
+  // Version 12 → 13 (ADR 0038): a gate's inputCount, and the button kind with its binding; nothing to change.
 
   const metadata = object(data.metadata, "metadata");
   const circuit = object(data.circuit, "circuit");

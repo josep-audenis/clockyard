@@ -358,3 +358,17 @@ test.each([
 ])("refuses %s", (_, part, message) => {
   expect(broken((__, c) => Object.assign(c, part))).toMatchObject({ ok: false, error: expect.stringContaining(message) });
 });
+
+test("a push button and its key round-trip in 13; a key is refused elsewhere or when not a letter or digit (ADR 0038)", () => {
+  const button: CircuitComponent = { id: "p", kind: "button", position: { x: 12, y: 0 }, rotation: 0, props: { binding: "Digit1" } };
+  const pressed = { ...document, circuit: { ...document.circuit, components: [...document.circuit.components, button] } };
+  expect(parseDocument(serializeDocument(pressed))).toEqual({ ok: true, document: pressed });
+  for (const [part, message] of [
+    [{ kind: "switch", props: { binding: "KeyA" } }, "only push buttons take"],
+    [{ kind: "button", props: { binding: "Space" } }, "letter or digit key"],
+    [{ kind: "button", props: { binding: 7 } }, "letter or digit key"],
+    [{ kind: "button", props: { width: 2 } }, "always 1 bit wide"],
+  ] as const) {
+    expect(broken((__, c) => Object.assign(c, part))).toMatchObject({ ok: false, error: expect.stringContaining(message) });
+  }
+});

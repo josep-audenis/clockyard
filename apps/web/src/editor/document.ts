@@ -3,13 +3,13 @@
 import type { CircuitBody, CircuitDescription, Endpoint, JunctionRef, PinDesc } from "../simulation/protocol";
 
 /** The built-in parts (the engine's catalog). */
-export const COMPONENT_KINDS = ["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "split", "merge", "clock", "dff", "rom", "ram", "seg7", "screen", "keyboard", "tri"] as const;
+export const COMPONENT_KINDS = ["switch", "led", "not", "and", "nand", "or", "nor", "xor", "xnor", "split", "merge", "clock", "dff", "rom", "ram", "seg7", "screen", "keyboard", "tri", "button"] as const;
 export type ComponentKind = (typeof COMPONENT_KINDS)[number];
 /** A splitter or merger: its `fields` prop adds a port per field (ADR 0014). Every other built-in part takes `width`. */
 export type FieldedKind = "split" | "merge";
 export const isFielded = (kind: PartKind): kind is FieldedKind => kind === "split" || kind === "merge";
-/** Parts whose ports have one width whatever their props: a clock (ADR 0017), a seven-segment display and a keyboard (ADR 0021). */
-export const FIXED_WIDTH: Partial<Record<PartKind, number>> = { clock: 1, seg7: 8, keyboard: 8 };
+/** Parts whose ports have one width whatever their props: a clock (ADR 0017), a seven-segment display and a keyboard (ADR 0021), a push button (ADR 0038). */
+export const FIXED_WIDTH: Partial<Record<PartKind, number>> = { clock: 1, seg7: 8, keyboard: 8, button: 1 };
 /** The width of a part's ports: fixed for its kind, else its `width` prop (custom parts and splitters: 1, unused). */
 export const widthOf = (part: { kind: PartKind; props: { width?: number } }) => FIXED_WIDTH[part.kind] ?? part.props.width ?? 1;
 /** Whether `width` sets the part's ports (ADR 0014): not a chip, splitter, merger, or a part of fixed width. */
@@ -46,7 +46,8 @@ export const MAX_SOURCE = 64 * 1024;
  * engine, which owns what they mean (ADR 0014). `addressWidth` (ROM, RAM, screen; absent
  * means 8) and `data` (a ROM's words from address 0) are projected too; `source`, a
  * ROM's assembly, is editor-only (ADRs 0018, 0019), as is `columns`, a screen's
- * pixels per row (ADR 0021). `inputCount` (the six gates but NOT; absent means 2) is projected (ADR 0038).
+ * pixels per row (ADR 0021). `inputCount` (the six gates but NOT; absent means 2) is projected (ADR 0038);
+ * `binding`, the physical key that holds a push button (`KeyA`, `Digit1`), is editor-only (ADR 0038).
  */
 export type Props = {
   label?: string;
@@ -57,6 +58,7 @@ export type Props = {
   source?: string;
   columns?: number;
   inputCount?: number;
+  binding?: string;
 };
 
 /** A screen's pixels per row (ADR 0021): 1 to `MAX_COLUMNS`, 32 unless set. Editor-only: the engine sees a RAM. */

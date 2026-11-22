@@ -58,7 +58,9 @@ with `addressWidth`, and a ROM's `data` and editor-only `source` (v8), and the d
 optional `metadata.challenge`, the challenge the document was started from (ADR 0025), and version 11 an
 optional `metadata.notes`, plain text of at most 4,000 characters that the Notes panel shows and edits
 (ADR 0027). Version 12 adds the part kind `tri`, a tri-state buffer (ADR 0035). Version 13 adds a
-gate's `inputCount`, 2 to 8 (absent means 2), on AND, NAND, OR, NOR, XOR and XNOR (ADR 0038):
+gate's `inputCount`, 2 to 8 (absent means 2), on AND, NAND, OR, NOR, XOR and XNOR, and the part kind
+`button`, a push button, with an editor-only `binding`: the physical key that holds it, `KeyA` to `KeyZ` or
+`Digit0` to `Digit9` (ADR 0038):
 
 ```json
 {
