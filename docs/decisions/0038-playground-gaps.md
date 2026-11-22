@@ -86,8 +86,9 @@ What there is to build on:
        click on a keyboard part does. A press on a cap never gives them
        back: it keeps a keyboard part's claim and every button held by
        key. A press on an unbound cap leaves the keys where they are.
-     - The Step, Run and Pause, and Reset buttons keep the keys too, so a
-       button can be held by key across a Step. Any other press, on the
+     - The Step, Run and Pause, and Reset buttons keep the keys a button
+       gave, so a button can be held by key across a Step. (Amended in step
+       4: a keyboard part's keys still go back on them, as ADR 0021 has it.) Any other press, on the
        canvas or outside it, gives them back, as today. That includes the
        speed and run-until selects: a native select's popup can swallow a
        key-up and leave a button held.

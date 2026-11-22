@@ -41,6 +41,7 @@ import {
   type Props,
   type Wire,
 } from "./document";
+import { BINDING } from "./buttons";
 import { addDefinitions, type Added } from "./blueprints";
 
 type Point = { x: number; y: number };
@@ -136,6 +137,10 @@ export type EditorState = {
    * and a wire to `out` loses its bends. Refused, with a reason, if a port would land on a junction.
    */
   setInputCount: (id: string, count: number) => void;
+  /** Binds a push button to a letter or digit key by its physical code, or unbinds it with null, as one edit (ADR 0038). */
+  setBinding: (id: string, code: string | null) => void;
+  /** Sets several inputs at once, so buttons held together reach the engine together (ADR 0038). */
+  setInputs: (values: Record<string, number>) => void;
   toggle: (id: string) => void;
   /** Names the document, as a label is normalized, at most 64 characters; blank is "Untitled". Outside undo. */
   rename: (name: string) => void;
@@ -863,6 +868,16 @@ export const useEditor = create<EditorState>()((set, get) => ({
       return withProps(state, id, props);
     }),
 
+  setBinding: (id, code) =>
+    set((state) => {
+      const part = state.circuit.components.find((c) => c.id === id);
+      if (part?.kind !== "button" || (code !== null && !BINDING.test(code)) || (part.props.binding ?? null) === code) return state;
+      const props = { ...part.props };
+      if (code) props.binding = code;
+      else delete props.binding;
+      return edit(state, { ...state.circuit, components: state.circuit.components.map((c) => (c === part ? { ...c, props } : c)) });
+    }),
+  setInputs: (values) => set(({ inputs }) => ({ inputs: { ...inputs, ...values } })),
   setColumns: (id, columns) =>
     set((state) => {
       const part = state.circuit.components.find((c) => c.id === id);

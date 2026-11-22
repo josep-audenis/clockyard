@@ -63,6 +63,8 @@ export const LAYOUTS: Record<Exclude<ComponentKind, FieldedKind>, Layout> = {
   keyboard: { width: 4, height: 2, inputs: {}, outputs: { out: { x: 4, y: 1 } } },
   // ADR 0035: a tri-state buffer is a NOT's triangle without the bubble, its enable below `in`.
   tri: { width: 3, height: 4, inputs: { in: { x: 0, y: 1 }, en: { x: 0, y: 3 } }, outputs: { out: { x: 3, y: 1 } } },
+  // ADR 0038: a push button, its cap in the middle and `out` on the right, as big as a gate to press.
+  button: { width: 4, height: 4, inputs: {}, outputs: { out: { x: 4, y: 2 } } },
 };
 
 /**

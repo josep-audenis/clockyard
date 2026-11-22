@@ -1,5 +1,6 @@
 import init, { assemble, check, disassemble, Engine } from "../generated/sim-wasm/sim_wasm.js";
 import type { Command, Diagnostic, Result, Stopped } from "../simulation/protocol";
+import { notePresses } from "../simulation/presses";
 
 const reply = (result: Result, transfer: Transferable[] = []) => postMessage(result, { transfer });
 
@@ -42,6 +43,13 @@ const watch = () => {
   if (engine && hasCircuit) engine.watch(watching);
   watchedNets = hasCircuit && engine ? Array.from(engine.recorded_nets()) : [];
 };
+
+/**
+ * ADR 0038: the push buttons of the circuit loaded now, and the tick each one held went to 1. A release at that same
+ * tick while a run is going is reported: no tick, so no clock edge, fell while it was held.
+ */
+let buttons = new Set<string>();
+const pressedAt = new Map<string, number>();
 
 /** The last settle's runtime diagnostics, sent again by run and pause so they do not clear an unstable report. */
 let last: Diagnostic[] = [];
@@ -127,6 +135,9 @@ onmessage = async (event: MessageEvent<Command>) => {
         // A run keeps running: from time 0 after an open, from the kept time after an edit (ADRs 0017, 0033).
         hasCircuit = false;
         watchedNets = [];
+        buttons = new Set(command.circuit.components.filter((c) => c.kind === "button").map((c) => c.id));
+        // An edit's load keeps the press ticks of buttons still there, so a reload that sends a held 1 again starts nothing.
+        for (const id of pressedAt.keys()) if (!command.keep || !buttons.has(id)) pressedAt.delete(id);
         const { runtime, ...loaded } = JSON.parse(engine.load(JSON.stringify(command.circuit), command.keep ?? false));
         hasCircuit = loaded.netCount > 0;
         reply({ type: "loaded", ...loaded });
@@ -143,10 +154,12 @@ onmessage = async (event: MessageEvent<Command>) => {
         }
         break;
       }
-      case "setInputs":
+      case "setInputs": {
+        for (const id of notePresses(pressedAt, buttons, command.values, engine.time(), run !== null)) reply({ type: "short", component: id });
         // After validation errors there is nothing to set; the client re-sends inputs with the next load.
         if (hasCircuit) state(JSON.parse(engine.set_inputs(JSON.stringify(command.values))));
         break;
+      }
       case "run":
         pause();
         run = {
@@ -170,6 +183,8 @@ onmessage = async (event: MessageEvent<Command>) => {
         pause();
         // With no circuit (an edit's errors), the engine drops the one it kept, so the fix starts clean (ADR 0033).
         state(JSON.parse(engine.reset()));
+        // Time is back to 0, and a button still held was held from there.
+        for (const id of pressedAt.keys()) pressedAt.set(id, 0);
         break;
       case "watch":
         watching = command.wires;

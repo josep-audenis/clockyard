@@ -36,6 +36,8 @@ export type SimState = {
   time: number;
   /** Whether the worker is running the clock (it pauses itself on an unstable loop). */
   running: boolean;
+  /** A push button the worker last said was let go before a tick (ADR 0038), until the next input or control. */
+  short: string | null;
   /** Why the last run ended by itself, as the worker last said; null when it was paused or since changed (ADR 0021). */
   stopped: Stopped | null;
   /** Run speed in cycles per second, the editor's choice. */
@@ -69,6 +71,7 @@ export const useSim = create<SimState>()(() => ({
   time: 0,
   running: false,
   stopped: null,
+  short: null,
   speed: 2,
   until: null,
   memory: {},
@@ -83,6 +86,7 @@ let send: ((command: Command) => void) | null = null;
 /** Run, Pause, Step and Reset (ADR 0017). Run uses the chosen speed, and stops at the chosen LED (ADR 0019). */
 export function control(type: "run" | "pause" | "step" | "reset") {
   const { speed, until } = useSim.getState();
+  useSim.setState({ short: null });
   send?.(type === "run" ? { type, cyclesPerSecond: speed, ...(until && { until }) } : { type });
 }
 
@@ -240,6 +244,9 @@ export function connectEngine(): () => void {
       case "ready":
         useSim.setState({ status: "ready" });
         break;
+      case "short":
+        useSim.setState({ short: message.component });
+        break;
       case "error":
         // A request's failure (assembler or check) answers that request only; the simulation is unaffected.
         if (message.request !== undefined) {
@@ -339,7 +346,7 @@ export function connectEngine(): () => void {
       if (open) openLoads = loads;
       // An open's record describes another circuit; an edit's stays in the store until its load is answered (the panel
       // shows no lanes while stale, but keeps its axis and cursor).
-      useSim.setState(open ? { stale: true, waves: null } : { stale: true });
+      useSim.setState(open ? { stale: true, waves: null, short: null } : { stale: true });
       loadsSent.push(performance.now());
       // The load's answer covers inputs still unanswered.
       inputsSent = -1;
@@ -350,6 +357,8 @@ export function connectEngine(): () => void {
     // them cannot sample the others in the order they were first toggled (ADR 0017).
     const changed = Object.fromEntries(Object.entries(inputs).filter(([component, value]) => sent[component] !== value));
     if (Object.keys(changed).length > 0) {
+      // A press or release after a short press is the news now (ADR 0038).
+      if (useSim.getState().short !== null) useSim.setState({ short: null });
       client.send({ type: "setInputs", values: changed });
       // Answered only by a state of the current circuit: with a load pending, the load's own wait covers them, and after
       // validation errors (no nets) the worker answers nothing. Timed from the first unanswered send, so the wait is capped.

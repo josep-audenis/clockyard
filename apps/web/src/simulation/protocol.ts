@@ -149,6 +149,8 @@ export type Result =
    * Step or Reset; never for a pause.
    */
   | { type: "state"; nets: Uint32Array; unknown: Uint32Array; diagnostics: Diagnostic[]; time: number; running: boolean; stopped?: Stopped }
+  /** A push button let go at the tick it was pressed while a run was going (ADR 0038): clocked parts did not see it. */
+  | { type: "short"; component: string }
   /**
    * `errors` empty: the source assembled to `words` (empty for an empty program). `second`: how many of them only
    * Reference CPU 2 runs, which the first reference CPU ignores (ADR 0036).

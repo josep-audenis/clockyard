@@ -1474,3 +1474,21 @@ test("growing a gate strips the bends of a wire to `out`, keeps those to inputs,
   setInputCount(g, 2);
   expect(useEditor.getState().circuit.junctions).toHaveLength(0);
 });
+
+test("setBinding binds a push button to a letter or digit key as one edit, and clears it with null (ADR 0038)", () => {
+  const { add, setBinding, undo } = useEditor.getState();
+  const p = add("button", { x: 0, y: 0 });
+  const s = add("switch", { x: 6, y: 0 });
+  const part = (id: string) => useEditor.getState().circuit.components.find((c) => c.id === id);
+  const { past } = useEditor.getState();
+  setBinding(p, "Space");
+  setBinding(s, "KeyA");
+  setBinding(p, null);
+  expect(useEditor.getState().past).toBe(past);
+  setBinding(p, "KeyQ");
+  expect(part(p)?.props).toEqual({ binding: "KeyQ" });
+  setBinding(p, null);
+  expect(part(p)?.props).toEqual({});
+  undo();
+  expect(part(p)?.props).toEqual({ binding: "KeyQ" });
+});

@@ -2053,3 +2053,93 @@ test("a narrow window folds history and files into More, and starts with the not
   await notes.click();
   await expect(page.getByRole("textbox", { name: "Notes" })).toBeVisible();
 });
+
+test("a push button is held by the pointer on its cap, and by its key once the circuit has the keys, across a Step (ADR 0038)", async ({ page }) => {
+  const part = (id: string, kind: string, x: number, y: number, props = {}) => ({ id, kind, position: { x, y }, rotation: 0, props });
+  const wire = (id: string, from: [string, string], to: [string, string]) => ({
+    id,
+    from: { component: from[0], port: from[1] },
+    to: { component: to[0], port: to[1] },
+  });
+  // The button lights LED 1 directly, and is D flip-flop 1's d, clocked by the clock; LED 2 shows its q.
+  const document = {
+    format: "clockyard",
+    version: 13,
+    metadata: { name: "Button", createdAt: "2026-11-22T00:00:00Z", modifiedAt: "2026-11-22T00:00:00Z" },
+    circuit: {
+      components: [
+        part("p", "button", 0, 0, { binding: "Digit1" }),
+        part("l", "led", 8, 1),
+        part("k", "clock", 0, 8),
+        part("d", "dff", 8, 6),
+        part("q", "led", 16, 6),
+      ],
+      junctions: [],
+      wires: [wire("w1", ["p", "out"], ["l", "in"]), wire("w2", ["p", "out"], ["d", "d"]), wire("w3", ["k", "out"], ["d", "clk"]), wire("w4", ["d", "q"], ["q", "in"])],
+    },
+    definitions: [],
+  };
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles({ name: "button.clockyard.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(document)) });
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+  const button = readout(page, "Push button 1");
+  // The pointer on the cap holds it while down.
+  const cap = at(2, 2);
+  await page.mouse.move(cap.x, cap.y);
+  await page.mouse.down();
+  await expect(button).toHaveText("Push button 1: held");
+  await expectStates(page, { "LED 1": 1 });
+  await page.mouse.up();
+  await expect(button).toHaveText("Push button 1: let go");
+  // That press gave the circuit the keys, and selected it: Delete, a shortcut, does nothing now, and 1 holds it.
+  await expect(status(page)).toContainText("The circuit has the keys: 1 holds buttons");
+  await page.keyboard.press("Delete");
+  await expect(button).toHaveText("Push button 1: let go");
+  await page.keyboard.down("1");
+  await expect(button).toHaveText("Push button 1: held");
+  await page.keyboard.up("1");
+  await expect(button).toHaveText("Push button 1: let go");
+  // Held by its key across a Step, the flip-flop takes the 1.
+  await page.keyboard.down("1");
+  await page.getByRole("button", { name: "Step", exact: true }).click();
+  await expect(counter(page)).toHaveText("Cycle 1, clock low");
+  await expect(button).toHaveText("Push button 1: held");
+  await page.keyboard.up("1");
+  await expectStates(page, { "LED 2": 1, "LED 1": 0 });
+  // Escape gives the keys back: 1 no longer holds it.
+  await page.keyboard.press("Escape");
+  await expect(status(page)).not.toContainText("has the keys");
+  await page.keyboard.down("1");
+  await expect(button).toHaveText("Push button 1: let go");
+  await page.keyboard.up("1");
+
+  // Two fingers hold the button and drag LED 2 away: the hold stays, the drag moves only the LED (touch through CDP).
+  const cdp = await page.context().newCDPSession(page);
+  const [led, to] = [at(17, 7), at(17, 13)];
+  const touch = (type: "touchStart" | "touchMove" | "touchEnd", points: At[]) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map((p, id) => ({ x: p.x, y: p.y, id })) });
+  await touch("touchStart", [cap]);
+  await expect(button).toHaveText("Push button 1: held");
+  await touch("touchStart", [cap, led]);
+  for (let i = 1; i <= 5; i++) await touch("touchMove", [{ x: cap.x + 1, y: cap.y }, { x: led.x, y: led.y + ((to.y - led.y) * i) / 5 }]);
+  await touch("touchEnd", [cap]);
+  await expect(button).toHaveText("Push button 1: held");
+  await touch("touchEnd", []);
+  await expect(button).toHaveText("Push button 1: let go");
+  // The drag did not take the button with it: its cap is where it was.
+  await page.mouse.move(cap.x, cap.y);
+  await page.mouse.down();
+  await expect(button).toHaveText("Push button 1: held");
+  await page.mouse.up();
+
+  // Running, a press let go before the next tick is reported: clocked parts did not see it.
+  await page.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(async () => {
+    await page.mouse.move(cap.x, cap.y);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(status(page)).toContainText("Push button 1 was let go before a tick", { timeout: 500 });
+  }).toPass({ timeout: 10_000 });
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+});
