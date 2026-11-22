@@ -920,7 +920,7 @@ const HELP: [ReactNode, string][] = [
   [<>{keys("Space")} + drag</>, "Pan"],
   ["Wheel", "Zoom"],
   [keys("F"), "Fit the sheet in view"],
-  ["Press a push button's cap", "Hold it; with a key set, its key holds it too"],
+  ["Press a push button's cap", "Hold it; its key holds it too, until Esc, Tab or a click elsewhere"],
   [keys(MOD, "C", "X", "V"), "Copy, cut, paste"],
   [keys(MOD, "D", "A"), "Duplicate, select all"],
   [keys(MOD, "Z"), "Undo"],
@@ -2339,12 +2339,12 @@ function InnerButtons({ definition }: { definition?: string }) {
  */
 function ButtonFields({ part }: { part: CircuitComponent }) {
   const id = useId();
-  const [pressed, setPressed] = useState(false);
-  const { setBinding, setInput } = useEditor.getState();
-  const hold = (on: boolean) => {
-    setPressed(on);
-    setInput(part.id, on ? 1 : 0);
-  };
+  // Press is one more hold, with the cap's pointers and the button's key: the canvas works out the value from all.
+  const pressed = useCanvasHints((s) => s.pressed === part.id);
+  const { setBinding } = useEditor.getState();
+  const hold = (on: boolean) => useCanvasHints.setState({ pressed: on ? part.id : null });
+  // Let go when the inspector shows another part.
+  useEffect(() => () => useCanvasHints.setState((s) => (s.pressed === part.id ? { pressed: null } : {})), [part.id]);
   const binding = part.props.binding;
   const keyboard = useEditor((s) => s.circuit.components.some((c) => c.kind === "keyboard"));
   return (
@@ -2363,12 +2363,14 @@ function ButtonFields({ part }: { part: CircuitComponent }) {
           onKeyDown={(e) => {
             if (e.key === "Tab" || e.ctrlKey || e.metaKey || e.altKey) return;
             e.preventDefault();
+            if (e.key === "Escape") return e.currentTarget.blur();
             if (e.key === "Backspace" || e.key === "Delete") setBinding(part.id, null);
             else if (BINDING.test(e.code)) setBinding(part.id, e.code);
           }}
         />
         <p id={`${id}-hint`} className="field-hint">
-          Holds the button while the circuit has the keys: press its cap to give them.
+          Press a letter or digit here to set it; Backspace clears it. It holds the button while the circuit has the keys:
+          press its cap to give them.
           {binding && keyboard ? " A keyboard part on this sheet no longer gets this key." : ""}
         </p>
       </div>
@@ -2377,11 +2379,13 @@ function ButtonFields({ part }: { part: CircuitComponent }) {
         className="button type-label"
         aria-pressed={pressed}
         onPointerDown={(e) => {
+          if (e.button !== 0) return;
           e.currentTarget.setPointerCapture(e.pointerId);
           hold(true);
         }}
         onPointerUp={() => hold(false)}
         onPointerCancel={() => hold(false)}
+        onLostPointerCapture={() => hold(false)}
         onKeyDown={(e) => {
           if ((e.key === " " || e.key === "Enter") && !e.repeat) {
             e.preventDefault();
@@ -2861,7 +2865,8 @@ function StatusBar() {
   const keyboard = useCanvasHints((s) => s.keyboard);
   // ADR 0038: keys bound to push buttons on the sheet, said while the circuit has the keys.
   const buttonKeys = useCanvasHints((s) => s.buttons);
-  const bound = [...new Set(components.flatMap((c) => (c.kind === "button" && c.props.binding ? [bindingName(c.props.binding)] : [])))].join(", ");
+  const boundKeys = [...new Set(components.flatMap((c) => (c.kind === "button" && c.props.binding ? [bindingName(c.props.binding)] : [])))];
+  const bound = boundKeys.length > 0 ? `${boundKeys.join(", ")} ${boundKeys.length === 1 ? "holds" : "hold"} buttons` : "";
   const short = useSim((s) => s.short);
   const shortPart = short ? components.find((c) => c.id === short) : undefined;
   // A part's new size that would have put a port on a junction (ADR 0038).
@@ -2926,15 +2931,16 @@ function StatusBar() {
   const message =
     status === "error"
       ? error
-      : keyboard
-        ? `The keyboard has the keys: what you type goes to the circuit${bound ? `; ${bound} hold buttons` : ""}. Esc, Tab or a click elsewhere gives them back.`
+      : // A short press is news, until the next input or control: over who has the keys and warnings, not errors (ADR 0038).
+        shortPart && errors.length === 0
+        ? `${partName(components, shortPart)} was let go before a tick: parts clocked by the clock did not see it.`
+        : keyboard
+        ? `The keyboard has the keys: what you type goes to the circuit${bound ? `; ${bound}` : ""}. Esc, Tab or a click elsewhere gives them back.`
         : buttonKeys
-          ? `The circuit has the keys: ${bound} hold buttons. Esc, Tab or a click elsewhere gives them back.`
-          : shortPart
-            ? `${partName(components, shortPart)} was let go before a tick: parts clocked by the clock did not see it.`
-            : placing ||
-          refusal ||
-          why ||
+          ? `The circuit has the keys: ${bound}. Esc, Tab or a click elsewhere gives them back.`
+          : placing ||
+            refusal ||
+            why ||
           (first &&
         `${first.code === "unstable" || first.code === "unsettled" ? stoppedUnstable : ""}${PLAIN[first.code] ?? first.message}${named.length > 0 ? ` (${named.join(", ")})` : ""}${problems.length > 1 ? ` (+${problems.length - 1} more)` : ""}`) ||
           (clocked && !running && time > 0 && !empty ? "Clock paused." : null);

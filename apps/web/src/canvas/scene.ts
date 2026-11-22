@@ -22,7 +22,7 @@ import {
   type Junction,
   type Props,
 } from "../editor/document";
-import { heldCode, keyStep, type Held } from "../editor/keyboard";
+import { heldCode, keyCode, keyStep, type Held } from "../editor/keyboard";
 import { buttonValues, keyHolds } from "../editor/buttons";
 import { armedProps, useEditor } from "../editor/store";
 import type { Endpoint } from "../simulation/protocol";
@@ -101,12 +101,15 @@ export const useCanvasHints = create<{
   keyboard: string | null;
   /** Whether a press on a bound push button gave the circuit the keys (ADR 0038), with or without a keyboard part. */
   buttons: boolean;
+  /** The push button the inspector's Press holds, if any: one more thing that holds a button (ADR 0038). */
+  pressed: string | null;
 }>(() => ({
   wire: null,
   focusValue: null,
   zoom: 1,
   keyboard: null,
   buttons: false,
+  pressed: null,
 }));
 
 /** The zoom controls' commands, bound while a canvas is mounted. */
@@ -546,6 +549,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     // A keyboard deleted, or left behind on another sheet, gives the keys back.
     const keyboard = useCanvasHints.getState().keyboard;
     if (keyboard && !circuit.components.some((c) => c.id === keyboard)) focusKeyboard(null);
+    // So does the last bound push button going (a cut, an undo), when no keyboard part has them (ADR 0038).
+    if (!keyboard && useCanvasHints.getState().buttons && !circuit.components.some((c) => c.kind === "button" && c.props.binding)) {
+      focusKeyboard(null);
+    }
     // Each screen's words, read after every state (ADR 0021).
     watchMemory(new Map(circuit.components.flatMap((c) => (c.kind === "screen" ? [[c.id, screenSize(c.props).words] as const] : []))));
     const present = new Set(circuit.components.map((component) => component.id));
@@ -1141,7 +1148,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       if (part?.kind === "button" && onCap(part, p)) {
         canvas.setPointerCapture(e.pointerId);
         pointerHolds.set(e.pointerId, part.id);
-        if (!editor.selection.includes(part.id)) editor.select([part.id]);
+        if (!editor.selection.includes(part.id)) editor.select(e.shiftKey ? [...editor.selection, part.id] : [part.id]);
         if (part.props.binding) useCanvasHints.setState({ buttons: true });
         applyButtons();
         return schedule();
@@ -1150,6 +1157,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     // A press anywhere else gives the keys back; a click on a keyboard takes them again on release.
     focusKeyboard(null);
     canvas.setPointerCapture(e.pointerId);
+    // The gesture this press starts is this pointer's: another, holding a button, never moves or ends it.
+    gesturePointer = e.pointerId;
     // A press on the canvas ends any page text selection, so the next copy is the canvas's again.
     window.getSelection()?.removeAllRanges();
     if (e.button === 1 || (e.button === 0 && spaceHeld)) {
@@ -1216,6 +1225,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   };
 
   const onPointerMove = (e: PointerEvent) => {
+    if (pointerHolds.has(e.pointerId) || (gesture && e.pointerId !== gesturePointer)) return;
     pointer = { clientX: e.clientX, clientY: e.clientY };
     const p = toWorld(e);
     const editor = useEditor.getState();
@@ -1278,7 +1288,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   };
 
   const onPointerUp = (e: PointerEvent) => {
-    if (endHold(e)) return;
+    if (endHold(e) || (gesture && e.pointerId !== gesturePointer)) return;
     const editor = useEditor.getState();
     if (placedLabel) useCanvasHints.setState({ focusValue: placedLabel });
     placedLabel = null;
@@ -1381,8 +1391,12 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
    * reuses these routes.
    */
   const frameOpened = () => {
-    // A drag of the old document has nothing to drag in this one.
+    // A drag of the old document has nothing to drag in this one, nor any hold a button (ADR 0038): opened, every
+    // button is let go, and the keys go back to the editor.
     gesture = null;
+    pointerHolds.clear();
+    useCanvasHints.setState({ pressed: null });
+    focusKeyboard(null);
     const b = bounds();
     const [x, y, w, h] = [48, 48, host.clientWidth, host.clientHeight];
     // What it covers, margins aside, is inside the window at the start view; a window of no size frames nothing.
@@ -1398,6 +1412,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
 
   /** The keys held while a keyboard part has them (ADR 0021). */
   let held: Held = [];
+  /** The pointer whose press started `gesture`. */
+  let gesturePointer = -1;
   /** Push buttons held by a pointer, by pointer ID, and the bound keys held (ADR 0038). Apart from `gesture`. */
   const pointerHolds = new Map<number, string>();
   let keysHeld: ReadonlySet<string> = new Set();
@@ -1405,7 +1421,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   const applyButtons = () => {
     const editor = useEditor.getState();
     const buttons = editor.circuit.components.filter((c) => c.kind === "button").map((c) => ({ id: c.id, binding: c.props.binding }));
-    const values = buttonValues(buttons, pointerHolds.values(), keysHeld);
+    const { pressed } = useCanvasHints.getState();
+    const values = buttonValues(buttons, [...pointerHolds.values(), ...(pressed ? [pressed] : [])], keysHeld);
     const changed = Object.fromEntries(Object.entries(values).filter(([id, v]) => (editor.inputs[id] ?? 0) !== v));
     if (Object.keys(changed).length > 0) editor.setInputs(changed);
   };
@@ -1427,11 +1444,16 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     useCanvasHints.setState({ keyboard: id });
     schedule();
   };
-  /** Lets go of the button a pointer holds, if it holds one: true if it did. */
+  /** Whether `p` is on a push button's cap. */
   const onCap = (part: CircuitComponent, p: Point) => {
     const { width, height } = layoutOf(part);
     return Math.hypot(p.x - part.position.x - width / 2, p.y - part.position.y - height / 2) <= CAP;
   };
+  // The inspector's Press is one more hold: whatever holds a button, its value comes from all of them.
+  const unsubscribePressed = useCanvasHints.subscribe((now, before) => {
+    if (now.pressed !== before.pressed) applyButtons();
+  });
+  /** Lets go of the button a pointer holds, if it holds one: true if it did. */
   const endHold = (e: PointerEvent) => {
     if (!pointerHolds.delete(e.pointerId)) return false;
     applyButtons();
@@ -1463,12 +1485,12 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       if (id) focusKeyboard(null);
       if (!useCanvasHints.getState().buttons) return;
       // Only buttons have the keys: Tab moves on and Escape gives them back; Ctrl or Cmd keys are the editor's;
-      // any other key is dropped, so no shortcut fires.
+      // any other key is dropped, so no shortcut fires. Only what would type is kept from the browser, as for a keyboard.
       const down = type === "keydown";
       if (down && key === "Tab") return focusKeyboard(null);
       if (down && (ctrlKey || metaKey) && !altKey) return;
       e.stopImmediatePropagation();
-      if (key !== "Tab") e.preventDefault();
+      if (keyCode(key) !== null) e.preventDefault();
       if (!down && key === "Escape") focusKeyboard(null);
       return;
     }
@@ -1551,7 +1573,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   canvas.addEventListener("pointerup", onPointerUp);
   // A cancelled press (OS interruption, lost touch) is not a release: take back what it did.
   canvas.addEventListener("pointercancel", (e) => {
-    if (!endHold(e)) endGesture(true);
+    if (!endHold(e) && e.pointerId === gesturePointer) endGesture(true);
   });
   canvas.addEventListener("lostpointercapture", (e) => endHold(e));
   canvas.addEventListener("pointerleave", () => {
@@ -1565,8 +1587,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   window.addEventListener("keydown", onKeyboardKey, true);
   window.addEventListener("keyup", onKeyboardKey, true);
   const onPressOutside = (e: PointerEvent) => {
-    // Step, Run and Reset keep the keys, so a button can be held by its key across a Step (ADR 0038).
-    if (e.target !== canvas && !(e.target instanceof Element && e.target.closest("[data-keeps-keys]"))) focusKeyboard(null);
+    // Step, Run and Reset keep the keys a button gave, so it can be held by its key across a Step (ADR 0038). A keyboard
+    // part's go back, as before (ADR 0021): a running CPU would read the Escape that gives them back.
+    const keeps = e.target instanceof Element && e.target.closest("[data-keeps-keys]") && useCanvasHints.getState().buttons;
+    if (e.target !== canvas && !keeps) focusKeyboard(null);
   };
   window.addEventListener("pointerdown", onPressOutside, true);
   const onWindowBlur = () => focusKeyboard(null);
@@ -1647,6 +1671,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     resize.disconnect();
     scheme.removeEventListener("change", onScheme);
     window.removeEventListener("keydown", onKeyDown);
+    unsubscribePressed();
     window.removeEventListener("keydown", onKeyboardKey, true);
     window.removeEventListener("keyup", onKeyboardKey, true);
     window.removeEventListener("pointerdown", onPressOutside, true);

@@ -2092,8 +2092,10 @@ test("a push button is held by the pointer on its cap, and by its key once the c
   await expectStates(page, { "LED 1": 1 });
   await page.mouse.up();
   await expect(button).toHaveText("Push button 1: let go");
-  // That press gave the circuit the keys: 1 holds it now, and R, a shortcut, does nothing.
-  await expect(status(page)).toContainText("The circuit has the keys: 1 hold buttons");
+  // That press gave the circuit the keys, and selected it: Delete, a shortcut, does nothing now, and 1 holds it.
+  await expect(status(page)).toContainText("The circuit has the keys: 1 holds buttons");
+  await page.keyboard.press("Delete");
+  await expect(button).toHaveText("Push button 1: let go");
   await page.keyboard.down("1");
   await expect(button).toHaveText("Push button 1: held");
   await page.keyboard.up("1");
@@ -2111,4 +2113,33 @@ test("a push button is held by the pointer on its cap, and by its key once the c
   await page.keyboard.down("1");
   await expect(button).toHaveText("Push button 1: let go");
   await page.keyboard.up("1");
+
+  // Two fingers hold the button and drag LED 2 away: the hold stays, the drag moves only the LED (touch through CDP).
+  const cdp = await page.context().newCDPSession(page);
+  const [led, to] = [at(17, 7), at(17, 13)];
+  const touch = (type: string, points: At[]) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map((p, id) => ({ x: p.x, y: p.y, id })) });
+  await touch("touchStart", [cap]);
+  await expect(button).toHaveText("Push button 1: held");
+  await touch("touchStart", [cap, led]);
+  for (let i = 1; i <= 5; i++) await touch("touchMove", [{ x: cap.x + 1, y: cap.y }, { x: led.x, y: led.y + ((to.y - led.y) * i) / 5 }]);
+  await touch("touchEnd", [cap]);
+  await expect(button).toHaveText("Push button 1: held");
+  await touch("touchEnd", []);
+  await expect(button).toHaveText("Push button 1: let go");
+  // The drag did not take the button with it: its cap is where it was.
+  await page.mouse.move(cap.x, cap.y);
+  await page.mouse.down();
+  await expect(button).toHaveText("Push button 1: held");
+  await page.mouse.up();
+
+  // Running, a press let go before the next tick is reported: clocked parts did not see it.
+  await page.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(async () => {
+    await page.mouse.move(cap.x, cap.y);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(status(page)).toContainText("Push button 1 was let go before a tick", { timeout: 500 });
+  }).toPass({ timeout: 10_000 });
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
 });

@@ -40,8 +40,12 @@ test("a bound key holds its buttons and is theirs; others are not; Ctrl, Cmd or 
   step(key("keydown", "Digit2"));
   expect(step({ ...key("keyup", "MetaLeft"), key: "Meta" })).toBe(false);
   expect(held.size).toBe(0);
-  // Shift with a bound digit is its own key there, so still the button's; Alt with it is not.
+  // Alt with a bound key is not the button's.
   expect(step(key("keydown", "Digit1", { altKey: true }))).toBe(false);
+  // A held key let go while Alt is down still lets go.
+  step(key("keydown", "Digit2"));
+  expect(step(key("keyup", "Digit2", { altKey: true }))).toBe(true);
+  expect(held.size).toBe(0);
 });
 
 test("a button is held while any pointer or its key holds it, so two pointers hold two buttons", () => {

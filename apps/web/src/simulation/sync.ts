@@ -346,7 +346,7 @@ export function connectEngine(): () => void {
       if (open) openLoads = loads;
       // An open's record describes another circuit; an edit's stays in the store until its load is answered (the panel
       // shows no lanes while stale, but keeps its axis and cursor).
-      useSim.setState(open ? { stale: true, waves: null } : { stale: true });
+      useSim.setState(open ? { stale: true, waves: null, short: null } : { stale: true });
       loadsSent.push(performance.now());
       // The load's answer covers inputs still unanswered.
       inputsSent = -1;

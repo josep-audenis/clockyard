@@ -19,6 +19,12 @@ export function keyHolds(held: ReadonlySet<string>, bound: ReadonlySet<string>, 
   const down = e.type === "keydown";
   if (down && (e.ctrlKey || e.metaKey) && !e.altKey && !e.altGraph) return { held: new Set(), ours: false };
   if (!down && e.key === "Meta") return { held: new Set(), ours: false };
+  // A held key's release lets go whatever is down with it, as for a keyboard part: Alt pressed meanwhile must not keep it.
+  if (!down && held.has(e.code)) {
+    const next = new Set(held);
+    next.delete(e.code);
+    return { held: next, ours: true };
+  }
   if (!bound.has(e.code) || e.ctrlKey || e.metaKey || e.altKey || e.altGraph) return { held, ours: false };
   const next = new Set(held);
   if (down) next.add(e.code);
