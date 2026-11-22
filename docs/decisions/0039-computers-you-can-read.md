@@ -86,7 +86,9 @@ What there is:
    - **Side.** From each of the label's wires, the direction from the dot
      to the wire's far end (a port's or a junction's position): right if
      the far end is further right, left if further left, below and above
-     the same way, so a diagonal far end takes two sides. The tag takes
+     the same way, so a diagonal far end takes two sides. For a wire the
+     user shaped, its bend nearest the dot stands for the far end, since
+     it is laid as shaped (amended in step 1). The tag takes
      the first side, of right, left, below and above, that no wire takes.
      If all four are taken, it is drawn on the right as today and is no
      obstacle.
@@ -105,8 +107,12 @@ What there is:
    - **Kept routes.** A label whose box changed (renamed, or its side
      flipped because a far end moved) counts as moved for `unaffected`, so
      routes near it are laid again.
-   - The route hashes in `routing.test.ts` change, on purpose, in the same
-     pull request; the benchmarks are measured before and after.
+   - The route hashes in `routing.test.ts` are checked in the same pull
+     request (as built, none changed: the examples' routes already kept
+     clear of their tags); the benchmarks are measured before and after.
+   - The box is generous, so it can cover a neighbouring dot or the first
+     cell outside a port; a wire that then has no way out takes the plain
+     fallback (ADR 0011). Step 4's layout test catches any in the CPUs.
 
 2. **Notes stay one size.** A region is titled by one note: its first line
    is the title, and the lines after it say what the region does. Nothing

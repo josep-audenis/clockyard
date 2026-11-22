@@ -752,7 +752,10 @@ the inspector, kept apart from parts so the engine never sees them,
 moved, turned, copied and deleted with the selection), and the target
 in Playwright: a 4-input AND held by four push buttons bound to 1 to 4,
 with a note beside it, saved and opened again. Increment 2, computers
-you can read, is designed in ADR 0039 (accepted).
+you can read, is designed in ADR 0039 (accepted). Step 1 is done:
+label tags are routing obstacles for every net, their side worked out
+from where their wires go, and a renamed or turned tag reroutes the kept
+routes near it.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
@@ -779,7 +782,6 @@ Rough edges still open:
 - The about page (`apps/web/about/index.html`) still says nine challenges
   and lists 01 to 09, its list of parts has no tri-state buffer, and it
   names challenges for the CPU and four-state signals as still to come.
-- Routing does not yet avoid label tags (ADR 0015).
 - A component made by Make component can cover parts below it (ADR 0016).
 - Make component is offered only for two or more selected items.
 - The readout for screen readers does not list memories or screens.
@@ -795,7 +797,7 @@ Rough edges still open:
 - The reference CPU's sheet is dense, with long wires; it opens framed at
   about 30% in a laptop's window, too small to read its labels.
 
-Fixed since: deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
+Fixed since: routing keeps clear of label tags (ADR 0039); deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
 amended); a click on a label's tag selects it; below 900px the inspector
 moves under the canvas; Make component turns each net crossing the
 selection's edge into a new pin, still wired (ADR 0016), leaves junctions

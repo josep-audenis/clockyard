@@ -34,6 +34,7 @@ import {
   exitOf,
   hitTest,
   itemsInBox,
+  labelTags,
   nearestOnRoute,
   occupied,
   places,
@@ -447,26 +448,14 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     for (const tag of tags) tag();
 
     // ADR 0015: a named junction is a tag beside its dot, on the first side (right, left, below, above)
-    // that none of its wires leaves from. Its outline is the net's tone, or caution while unmatched.
+    // that none of its wires goes towards (ADR 0039). Its outline is the net's tone, or caution while unmatched.
     const unmatched = new Set((loaded?.diagnostics ?? []).filter((d) => d.code === "unmatchedLabel").flatMap((d) => d.ids));
     // The selected label's name: its partners on the sheet are outlined too. A display aid only; the engine joins them.
     const chosen = selection.length === 1 ? circuit.junctions.find((j) => j.id === selection[0])?.name : undefined;
-    // The sides each junction's wires leave from, from their routes, in one pass over the wires.
-    const sides = new Map<string, Set<string>>();
-    for (const w of circuit.wires) {
-      const points = paths.get(w.id);
-      if (!points || points.length < 2) continue;
-      for (const [end, from, near] of [[w.from, points[0], points[1]], [w.to, points.at(-1), points.at(-2)]] as const) {
-        if (!("junction" in end) || !from || !near) continue;
-        const [dx, dy] = [near.x - from.x, near.y - from.y];
-        const taken = sides.get(end.junction) ?? new Set<string>();
-        taken.add(dx > 0 ? "right" : dx < 0 ? "left" : dy > 0 ? "below" : "above");
-        sides.set(end.junction, taken);
-      }
-    }
+    // ADR 0039: each tag's side from where its wires go, as the router reckons it, so routes keep clear of it.
+    const tagSides = labelTags(circuit);
     const drawTag = (junction: Junction, x: number, y: number, tone: string, unknown: boolean) => {
-      const taken = sides.get(junction.id) ?? new Set<string>();
-      const side = ["right", "left", "below", "above"].find((s) => !taken.has(s)) ?? "right";
+      const side = tagSides.get(junction.id)?.side ?? "right";
       const gap = 8;
       const [tx, ty, anchor] =
         side === "right"
