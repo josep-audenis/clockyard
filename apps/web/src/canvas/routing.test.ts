@@ -452,7 +452,7 @@ test("a search box holds, cell for cell, what a box over the whole sheet holds t
   }
 });
 
-test.each(Object.entries({"4-bit-adder":"c93c3c34","8-bit-adder":"b14d0bb0","8-bit-counter":"46649868","and-gate":"be6655bf","cascade-fanout":"9867cc08","catch":"70e065c3","devices":"bf396a0f","half-adder":"802fb42e","reference-cpu":"70e065c3"}))("the routes of example %s stay exactly as they are", (name, expected) => {
+test.each(Object.entries({"4-bit-adder":"c93c3c34","8-bit-adder":"b14d0bb0","8-bit-counter":"46649868","and-gate":"be6655bf","cascade-fanout":"9867cc08","catch":"e82222e4","devices":"bf396a0f","half-adder":"802fb42e","reference-cpu":"e82222e4"}))("the routes of example %s stay exactly as they are", (name, expected) => {
   const url = new URL(`../../../../examples/${name}.clockyard.json`, import.meta.url);
   const { circuit, definitions } = JSON.parse(readFileSync(url, "utf8")) as { circuit: Circuit; definitions: (Parameters<typeof setDefinitionLayouts>[0][number] & { circuit: Circuit })[] };
   setDefinitionLayouts(definitions);

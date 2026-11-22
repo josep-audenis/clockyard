@@ -693,6 +693,21 @@ being sent and its state being shown; with main's `scene.ts` it failed 10 of 10 
 20. While a clock runs, a state the worker sent before it took the inputs can end the wait; the next state follows
 within a frame, as before.
 
+### 15. A sheet of many labels (ADR 0039)
+
+Laying the reference CPUs out in regions took the first CPU's sheet from 6 net labels to 75, each tag now an obstacle
+to every route (ADR 0039, step 1). Routing a whole sheet from cold (`routeWithTiles` after `forgetRoutes`, median of
+7 runs in Vitest under Node, on a laptop on mains):
+
+| Sheet | Wires before | Before, ms | Wires after | After, ms |
+| --- | --- | --- | --- | --- |
+| Reference CPU (and Catch) | 174 | 62 | 203 | 18 |
+| Reference CPU 2 (and Catch 2) | 271 | 203 | 317 | 61 |
+
+Routing is about three times faster, though there are more wires and more obstacles: wires stay inside their region,
+so each search is short. `cpu-1k` holds the CPU as a component, so its own sheet has no labels; it was regenerated
+only because the component's sheet changed.
+
 ### Left for later
 
 Step 3 closed with toggles and deletes within 100 ms at 10,000 parts, and `adder-10k` panning, unmet. A profile of the

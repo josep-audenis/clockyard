@@ -666,6 +666,15 @@ export function boxOver(circuit: Circuit, laid: { net: string; points: Point[] }
   return box;
 }
 
+/** Wires laid on the plain path because no search found a way: counted for the layout tests (ADR 0039). */
+let fallbackCount = 0;
+/** How many of `circuit`'s wires fall back to the plain path when routed afresh. */
+export function fallbacks(circuit: Circuit) {
+  const before = fallbackCount;
+  route(circuit, new Map());
+  return fallbackCount - before;
+}
+
 function route(circuit: Circuit, frozen: Map<string, Point[]>, size = TILE): Map<string, Point[]> {
   const at = places(circuit);
   const netOf = nets(circuit);
@@ -696,6 +705,7 @@ function route(circuit: Circuit, frozen: Map<string, Point[]>, size = TILE): Map
       if (points) break;
     }
     // shortcut: when nothing fits even the wider box, the plain route may touch another net; widen further if that shows up.
+    if (!points) fallbackCount++;
     points ??= wirePoints(at, wire);
     if (points) lay(wire.id, points);
   }
