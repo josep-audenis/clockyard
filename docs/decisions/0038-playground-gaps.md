@@ -61,9 +61,9 @@ What there is to build on:
 ## Decision
 
 1. **Push button, a new part `button`.** One output `out`, 1 bit, `1`
-   while held and `0` otherwise. Always known, like a switch. 3×3 cells,
-   its output on the middle of the right edge, a round cap of 1 cell's
-   radius in the middle.
+   while held and `0` otherwise. Always known, like a switch. 4×4 cells,
+   as a gate is, its output at (4, 2), a round cap of 1.25 cells' radius
+   in the middle.
    - **In the engine** it is an input part like a switch, with its own
      kind so that the catalog, the readout and a definition can tell them
      apart. Its value is set between ticks by the same input call; the
@@ -86,9 +86,11 @@ What there is to build on:
        click on a keyboard part does. A press on a cap never gives them
        back: it keeps a keyboard part's claim and every button held by
        key. A press on an unbound cap leaves the keys where they are.
-     - The run controls (Step, Run and Pause, Reset, the speed) keep the
-       keys too, so a button can be held by key across a Step. Any other
-       press, on the canvas or outside it, gives them back, as today.
+     - The Step, Run and Pause, and Reset buttons keep the keys too, so a
+       button can be held by key across a Step. Any other press, on the
+       canvas or outside it, gives them back, as today. That includes the
+       speed and run-until selects: a native select's popup can swallow a
+       key-up and leave a button held.
      - While the circuit has the keys, a plain key bound to buttons holds
        every button bound to it (down holds, up lets go, repeats are
        ignored) and goes nowhere else. Other plain keys go to the keyboard
@@ -116,7 +118,9 @@ What there is to build on:
      it goes back to 0 at the same tick while the simulation runs, the
      worker reports the button's ID, and the editor's status line says:
      "Button 1 was let go before a tick: parts that change on a clock
-     edge did not see it." Combinational parts did see it, and the canvas
+     edge did not see it." An edit's reload that sends a held button's
+     1 again keeps its noted tick; Reset sets it to 0, as time goes back
+     to 0. Combinational parts did see it, and the canvas
      lit it. Nothing stretches a press: what the circuit sees is what was
      held. `docs/simulation-model.md` says that a clocked part sees a
      press only if its clock's rising edge falls inside it.
@@ -172,8 +176,9 @@ What there is to build on:
 3. **Notes on the canvas.**
    - **In the document,** each sheet (the main circuit and each
      definition) gets `notes`, a required field beside `components`,
-     `junctions` and `wires`, empty when a file of version 12 or older is
-     read: `{ id, x, y, text }`, at a grid point. Required, so that the
+     `junctions` and `wires`, read as empty when a file has none (every
+     file of version 12 or older, and version 13 files written before
+     step 5): `{ id, x, y, text }`, at a grid point. Required, so that the
      type checker finds every edit that rebuilds a circuit (move, remove,
      rotate, `setFields` and the rest) and none drops them.
    - **On read,** as for `metadata.notes`: each text goes through
@@ -249,6 +254,8 @@ What there is to build on:
   type a different character.
 - A short press is reported, not prevented: a clocked circuit can still
   miss it, as real hardware does without a debouncer and a latch.
+- A tap on a cap to select a button also holds it for that moment, a
+  real press the circuit sees.
 - A rotated gate that gains inputs moves its output and lower inputs.
 - Version 13 files do not open in older Clockyards.
 - **Left out:** buttons in challenge checks; notes that route wires around
