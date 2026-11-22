@@ -216,6 +216,13 @@ export type SheetNote = { id: string; position: { x: number; y: number }; text: 
 /** The longest note on a sheet, in characters, and the most notes a sheet holds (ADR 0038). */
 export const MAX_NOTE = 500;
 export const MAX_SHEET_NOTES = 200;
+/**
+ * The listing row to mark (ADR 0039): the ROM's address now, unless the engine has not answered for this circuit yet,
+ * a bit of it is unknown, or it is past the rows listed.
+ */
+export const markedRow = (address: number | undefined, unknown: number, stale: boolean, rows: number) =>
+  stale || address === undefined || unknown !== 0 || address >= rows ? null : address;
+
 /** A sheet's notes as a list shows them (ADR 0039): top to bottom, then left to right, each by its first line. */
 export const notesInOrder = (notes: readonly SheetNote[]) =>
   // A note being placed has no text yet: nothing to list it by.

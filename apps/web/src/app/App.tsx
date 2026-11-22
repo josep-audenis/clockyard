@@ -27,6 +27,7 @@ import {
   MAX_WIDTH,
   noteSize,
   maxValue,
+  markedRow,
   normalizeNotes,
   notesInOrder,
   parseValue,
@@ -2341,6 +2342,24 @@ function ProgramEditor({ part }: { part: CircuitComponent }) {
         : "Reference-CPU assembly (docs/reference-cpu.md, docs/reference-cpu-2.md). Assemble writes the program and resets the circuit.");
   const digits = Math.ceil(address / 4);
   const total = data?.length ?? 0;
+  // ADR 0039: the word at the ROM's address now. Only that number is read from the engine's state, so a run redraws
+  // the listing only when the address moves.
+  const rows = Array.isArray(listing) ? listing.length : 0;
+  const mark = useSim((s) => {
+    const net = s.loaded?.portNets[part.id]?.addr;
+    return net === undefined ? null : markedRow(s.nets?.[net], s.unknown[net] ?? 0, s.stale, rows);
+  });
+  const running = useSim((s) => s.running);
+  const marked = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  // Brought into view inside the listing when the clock stands still (a Step, a Reset, a pause), never while running:
+  // a run would fight the reader's own scrolling. Only the listing scrolls, never the inspector around it.
+  useEffect(() => {
+    const [row, list] = [marked.current, box.current];
+    if (running || !row || !list) return;
+    if (row.offsetTop < list.scrollTop) list.scrollTop = row.offsetTop;
+    else if (row.offsetTop + row.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = row.offsetTop + row.offsetHeight - list.clientHeight;
+  }, [mark, running]);
   return (
     <div className="field">
       <label className="field-label" htmlFor={`${id}-source`}>
@@ -2379,16 +2398,24 @@ function ProgramEditor({ part }: { part: CircuitComponent }) {
       <p className="field-label" id={`${id}-listing`}>
         Disassembly
       </p>
-      <pre className="memory-words" role="region" tabIndex={0} aria-labelledby={`${id}-listing`}>
+      <div ref={box} className="memory-words listing" role="region" tabIndex={0} aria-labelledby={`${id}-listing`} aria-describedby={`${id}-mark`}>
         {listing === null
           ? "…"
           : listing === "unavailable"
             ? "Not available: the engine is not running."
             : listing.length === 0
               ? "Empty: every word reads 0, which runs as NOP."
-              : listing.map((line, a) => `${a.toString(16).toUpperCase().padStart(digits, "0")}  ${line}`).join("\n") +
-                (total > DUMP_WORDS ? `\n… ${total - DUMP_WORDS} more words` : "")}
-      </pre>
+              : listing.map((line, a) => (
+                  <div key={a} ref={a === mark ? marked : undefined} className={a === mark ? "is-marked" : undefined} aria-current={a === mark ? "true" : undefined}>
+                    {`${a.toString(16).toUpperCase().padStart(digits, "0")}  ${line}`}
+                  </div>
+                ))}
+        {Array.isArray(listing) && total > DUMP_WORDS && <div>{`… ${total - DUMP_WORDS} more words`}</div>}
+      </div>
+      <p id={`${id}-mark`} className="field-hint">
+        Marked: the word at the ROM&apos;s address now, which in a CPU fetching from this ROM is the next instruction once its
+        fetch has begun.
+      </p>
     </div>
   );
 }
