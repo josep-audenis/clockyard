@@ -22,6 +22,7 @@ import {
   takesWidth,
   widthOf,
   MAX_LABEL,
+  MAX_NOTE,
   MAX_NOTES,
   MAX_WIDTH,
   maxValue,
@@ -37,6 +38,7 @@ import {
   type Junction,
   type ComponentKind,
   type PartKind,
+  type SheetNote,
 } from "../editor/document";
 import { withContents } from "../editor/blueprints";
 import { BINDING, bindingName } from "../editor/buttons";
@@ -68,7 +70,7 @@ import {
 
 /** `label` is not a part: it places a named junction (ADR 0015). */
 /** A parts-panel tile; `width` arms the part that wide (a Register is an 8-bit D flip-flop). */
-type Part = { kind: ComponentKind | "label"; name: string; key?: string; width?: number };
+type Part = { kind: ComponentKind | "label" | "note"; name: string; key?: string; width?: number };
 // Shortcut letters follow the design system's PartTile spec.
 const LIBRARY: { title: string; parts: Part[] }[] = [
   {
@@ -115,6 +117,8 @@ const LIBRARY: { title: string; parts: Part[] }[] = [
       { kind: "merge", name: "Merger" },
       // A net label: junctions with the same name on a sheet are one net (ADR 0015).
       { kind: "label", name: "Label" },
+      // ADR 0038: text on the sheet, which the engine never sees.
+      { kind: "note", name: "Text" },
     ],
   },
   {
@@ -580,6 +584,7 @@ function PartsLibrary() {
   const armed = useEditor((s) => s.armed);
   const arm = useEditor((s) => s.arm);
   const armedLabel = useEditor((s) => s.armedLabel);
+  const armedNote = useEditor((s) => s.armedNote);
   const armedWidth = useEditor((s) => s.armedWidth);
   const armLabel = useEditor((s) => s.armLabel);
   const armedDefinition = useEditor((s) => s.armedDefinition);
@@ -645,7 +650,7 @@ function PartsLibrary() {
       // Only while the canvas has the keyboard: a letter typed on a focused control does not arm a part.
       if (e.ctrlKey || e.metaKey || e.altKey || !onCanvas(e.target) || document.querySelector("dialog[open]")) return;
       const kind = SHORTCUTS.get(e.key.toUpperCase());
-      if (kind && kind !== "label") useEditor.getState().arm(kind);
+      if (kind && kind !== "label" && kind !== "note") useEditor.getState().arm(kind);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -683,7 +688,7 @@ function PartsLibrary() {
                   key={name}
                   type="button"
                   className="part-tile type-label"
-                  aria-pressed={kind === "label" ? armedLabel : armed === kind && armedWidth === width}
+                  aria-pressed={kind === "label" ? armedLabel : kind === "note" ? armedNote : armed === kind && armedWidth === width}
                   aria-keyshortcuts={key}
                   tabIndex={tileIndex.get(name) === rove ? 0 : -1}
                   onFocus={() => setRove(tileIndex.get(name) ?? 0)}
@@ -691,6 +696,7 @@ function PartsLibrary() {
                     // From the keyboard there is no pointer to place with: the part goes straight onto the sheet.
                     if (e.detail === 0) placeFromKeyboard(kind, width);
                     else if (kind === "label") armLabel(!armedLabel);
+                    else if (kind === "note") useEditor.getState().armNote(!armedNote);
                     else arm(armed === kind && armedWidth === width ? null : kind, width);
                   }}
                 >
@@ -814,7 +820,7 @@ function opened(message: string) {
 }
 
 /** Puts a part on the sheet without a pointer: at the left, below everything there, selected for the inspector. */
-function placeFromKeyboard(kind: PartKind | "label", width: number, definition?: string) {
+function placeFromKeyboard(kind: PartKind | "label" | "note", width: number, definition?: string) {
   const editor = useEditor.getState();
   const { components, junctions } = editor.circuit;
   const bottom = Math.max(-2, ...components.map((c) => c.position.y + layoutOf(c).height), ...junctions.map((j) => j.position.y));
@@ -823,6 +829,8 @@ function placeFromKeyboard(kind: PartKind | "label", width: number, definition?:
     const id = editor.addLabel(position);
     // Its Name field takes the keyboard, as after a click.
     if (id) useCanvasHints.setState({ focusValue: id });
+  } else if (kind === "note") {
+    useCanvasHints.setState({ focusValue: editor.addNote(position) });
   } else {
     if (definition) editor.armChip(definition);
     else editor.arm(kind, width);
@@ -1262,7 +1270,9 @@ function WavePanel({ height: chosen, setHeight }: { height: number | null; setHe
 
 /** On an empty sheet with nothing armed: how to start. */
 function EmptyHint() {
-  const show = useEditor((s) => s.circuit.components.length === 0 && s.circuit.junctions.length === 0 && !s.armed && !s.armedLabel);
+  const show = useEditor(
+    (s) => s.circuit.components.length === 0 && s.circuit.junctions.length === 0 && s.circuit.notes.length === 0 && !s.armed && !s.armedLabel && !s.armedNote,
+  );
   if (!show) return null;
   return (
     <div className="canvas-empty">
@@ -1768,6 +1778,7 @@ function Inspector() {
   const selection = useEditor((s) => s.selection);
   const part = useEditor((s) => (s.selection.length === 1 ? s.circuit.components.find((c) => c.id === s.selection[0]) : undefined));
   const wire = useEditor((s) => (s.selection.length === 1 ? s.circuit.wires.find((w) => w.id === s.selection[0]) : undefined));
+  const note = useEditor((s) => (s.selection.length === 1 ? s.circuit.notes.find((n) => n.id === s.selection[0]) : undefined));
   const junction = useEditor((s) =>
     s.selection.length === 1 ? s.circuit.junctions.find((j) => j.id === s.selection[0]) : undefined,
   );
@@ -1794,6 +1805,8 @@ function Inspector() {
           </div>
         ) : junction ? (
           <JunctionProperties key={junction.id} junction={junction} />
+        ) : note ? (
+          <NoteProperties key={note.id} note={note} />
         ) : selection.length > 1 ? (
           <MakeComponent count={selection.length} />
         ) : (
@@ -1834,6 +1847,59 @@ function WatchToggle({ wire }: { wire: string }) {
       </button>
       {!watching && full && <p className="type-body inspector-empty">{`At most ${MAX_WATCHES} wires can be watched.`}</p>}
     </>
+  );
+}
+
+/**
+ * A note's text (ADR 0038): lines as written, committed when the field is left or on Ctrl+Enter; Escape puts the old
+ * text back. Left empty, the note goes, and a new one leaves no undo step.
+ */
+function NoteProperties({ note }: { note: SheetNote }) {
+  const id = useId();
+  const focus = useCanvasHints((s) => s.focusValue === note.id);
+  const field = useRef<HTMLTextAreaElement>(null);
+  const [value, setValue] = useState(note.text);
+  const cancelled = useRef(false);
+  useEffect(() => {
+    if (!focus) return;
+    field.current?.focus();
+    useCanvasHints.setState({ focusValue: null });
+  }, [focus]);
+  return (
+    <div className="inspector-body">
+      <p className="type-label inspector-kind">Text</p>
+      <div className="field">
+        <label className="field-label" htmlFor={id}>
+          Text
+        </label>
+        <textarea
+          ref={field}
+          id={id}
+          className="input"
+          rows={4}
+          maxLength={MAX_NOTE}
+          value={value}
+          aria-describedby={`${id}-hint`}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) e.currentTarget.blur();
+            else if (e.key === "Escape") {
+              cancelled.current = true;
+              setValue(note.text);
+              e.currentTarget.blur();
+            }
+          }}
+          onBlur={() => {
+            const text = cancelled.current ? note.text : value;
+            cancelled.current = false;
+            useEditor.getState().setNoteText(note.id, text);
+          }}
+        />
+        <p id={`${id}-hint`} className="field-hint">
+          {`Shown on the sheet as written, at most ${MAX_NOTE} characters. Empty removes it.`}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -2632,6 +2698,10 @@ function Readout() {
         {leds.map((c) => (
           <li key={c.id}>{`${names.get(c.id)}: ${value(c, c.kind === "seg7" ? "seg" : "in")}`}</li>
         ))}
+        {/* ADR 0038: the sheet's notes, which show only on the canvas. */}
+        {circuit.notes.map((n) => (
+          <li key={n.id}>{`Text: ${n.text}`}</li>
+        ))}
         {flipFlops.map((c) => (
           <li key={c.id}>{`${names.get(c.id)}: ${value(c, "q")}`}</li>
         ))}
@@ -2874,7 +2944,9 @@ function StatusBar() {
   const placing = useEditor((s) =>
     s.armedLabel
       ? "Placing a label: click a grid point. Esc cancels."
-      : s.armed &&
+      : s.armedNote
+        ? "Placing text: click where it starts. Esc cancels."
+        : s.armed &&
         `Placing ${kindName({ kind: s.armed, definition: s.armedDefinition ?? undefined, props: { width: s.armedWidth } })}: click to place it, R turns it. Esc cancels.`,
   );
 

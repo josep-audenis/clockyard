@@ -12,7 +12,7 @@ test("projection keeps connectivity and widths, junctions included, and drops ge
     wires: [
       { id: "w", from: { component: "s", port: "out" }, to: { junction: "j" } },
       { id: "v", from: { junction: "j" }, to: { component: "l", port: "in" } },
-    ],
+    ], notes: [],
   };
   expect(project(circuit)).toEqual({
     components: [
@@ -42,9 +42,9 @@ test("a definition's parts, its pins included, project their widths too", () => 
       { id: "o", kind: "led", position: { x: 4, y: 0 }, rotation: 0, props: { width: 8 } },
     ],
     junctions: [],
-    wires: [{ id: "w", from: { component: "i", port: "out" }, to: { component: "o", port: "in" } }],
+    wires: [{ id: "w", from: { component: "i", port: "out" }, to: { component: "o", port: "in" } }], notes: [],
   };
-  const projected = project({ components: [], junctions: [], wires: [] }, [{ id: "d", name: "Bus", circuit: inner }]);
+  const projected = project({ components: [], junctions: [], wires: [], notes: [] }, [{ id: "d", name: "Bus", circuit: inner }]);
   expect(projected.definitions[0]?.components).toEqual([
     { id: "i", kind: "switch", width: 8 },
     { id: "o", kind: "led", width: 8 },
@@ -70,7 +70,7 @@ test("projection copies a splitter's fields", () => {
   const circuit: Circuit = {
     components: [{ id: "sp", kind: "split", position: { x: 0, y: 0 }, rotation: 0, props: { fields: [4, 4] } }],
     junctions: [],
-    wires: [],
+    wires: [], notes: [],
   };
   expect(project(circuit).components).toEqual([{ id: "sp", kind: "split", fields: [4, 4] }]);
 });
@@ -82,14 +82,14 @@ test("projection copies a junction's name and leaves plain junctions as they wer
       { id: "a", position: { x: 0, y: 0 }, name: "clk" },
       { id: "b", position: { x: 2, y: 0 } },
     ],
-    wires: [],
+    wires: [], notes: [],
   };
   expect(project(circuit).junctions).toEqual([{ id: "a", name: "clk" }, { id: "b" }]);
 });
 
 test("an empty name is projected as no name; a definition's labels are projected too", () => {
-  const circuit: Circuit = { components: [], junctions: [{ id: "a", position: { x: 0, y: 0 }, name: "" }], wires: [] };
-  const inner: Circuit = { components: [], junctions: [{ id: "b", position: { x: 0, y: 0 }, name: "clk" }], wires: [] };
+  const circuit: Circuit = { components: [], junctions: [{ id: "a", position: { x: 0, y: 0 }, name: "" }], wires: [], notes: [] };
+  const inner: Circuit = { components: [], junctions: [{ id: "b", position: { x: 0, y: 0 }, name: "clk" }], wires: [], notes: [] };
   const projected = project(circuit, [{ id: "d", name: "D", circuit: inner }]);
   expect(projected.junctions).toEqual([{ id: "a" }]);
   expect(projected.definitions[0]?.junctions).toEqual([{ id: "b", name: "clk" }]);
@@ -100,7 +100,7 @@ test("wires to a deleted pin are left out of the projection and the file, and ke
   const inner: Circuit = {
     components: [{ id: "o", kind: "led", position: { x: 4, y: 0 }, rotation: 0, props: {} }],
     junctions: [],
-    wires: [],
+    wires: [], notes: [],
   };
   const definitions = [{ id: "d", name: "Chip", circuit: inner }];
   const main: Circuit = {
@@ -113,7 +113,7 @@ test("wires to a deleted pin are left out of the projection and the file, and ke
     wires: [
       { id: "gone", from: { component: "s", port: "out" }, to: { component: "c", port: "a" } },
       { id: "kept", from: { component: "c", port: "o" }, to: { component: "l", port: "in" } },
-    ],
+    ], notes: [],
   };
   expect(project(main, definitions).connections.map((c) => c.id)).toEqual(["kept"]);
   // A definition holding the instance is cleaned the same way.
@@ -156,4 +156,17 @@ test("unknown bits are written as X and Z, a hex digit Z only if all its bits ar
   // A 6-bit value's top digit has two bits: Z when both are.
   expect([hex(0b000101, 6, 0b110000), hex(0b100101, 6, 0b110000), hex(0b000101, 6, 0b010000)]).toEqual(["0xZ5", "0xX5", "0xX5"]);
   expect(showValue(0x5f, 8, 0x05)).toBe("0x5X");
+});
+
+test("notes never reach the engine: a sheet's description is the same with and without them (ADR 0038)", () => {
+  const sheet: Circuit = {
+    components: [{ id: "s", kind: "switch", position: { x: 0, y: 0 }, rotation: 0, props: {} }],
+    junctions: [],
+    wires: [],
+    notes: [],
+  };
+  const noted = { ...sheet, notes: [{ id: "n", position: { x: 4, y: 4 }, text: "A note" }] };
+  const definitions = [{ id: "d", name: "D", circuit: noted }];
+  expect(project(noted, definitions)).toEqual(project(sheet, [{ ...definitions[0]!, circuit: sheet }]));
+  expect(JSON.stringify(project(noted, definitions))).not.toContain("A note");
 });

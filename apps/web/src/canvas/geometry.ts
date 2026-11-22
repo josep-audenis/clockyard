@@ -1,6 +1,6 @@
 // Pure geometry in grid units: port positions, wire routes, hit-testing.
 // Connectivity is never derived from here; only what the pointer is over.
-import { isJunction, type Circuit, type CircuitComponent, type Junction, type Wire } from "../editor/document";
+import { isJunction, noteSize, type Circuit, type CircuitComponent, type Junction, type Wire } from "../editor/document";
 import type { Endpoint, PortRef } from "../simulation/protocol";
 import { layoutOf, type Point } from "./layout";
 
@@ -195,6 +195,8 @@ export type Hit =
   | { type: "port"; ref: PortRef }
   | { type: "junction"; id: string }
   | { type: "component"; id: string }
+  // ADR 0038: text on the sheet, under everything else.
+  | { type: "note"; id: string }
   // `segment`: index of the route segment under the pointer.
   | { type: "wire"; id: string; segment: number }
   | null;
@@ -266,6 +268,12 @@ export function hitTest(circuit: Circuit, p: Point, pick: number, routes: Map<st
       if (a && b && segmentDistance(p, a, b) <= pick / 2) return { type: "wire", id: wire.id, segment: i - 1 };
     }
   }
+
+  for (const note of [...circuit.notes].reverse()) {
+    const { x, y } = note.position;
+    const { width, height } = noteSize(note.text);
+    if (p.x >= x && p.x <= x + width && p.y >= y && p.y <= y + height) return { type: "note", id: note.id };
+  }
   return null;
 }
 
@@ -279,5 +287,9 @@ export function itemsInBox(circuit: Circuit, a: Point, b: Point): string[] {
     const { width, height } = layoutOf(component);
     return inside(position) && inside({ x: position.x + width, y: position.y + height });
   });
-  return [...parts, ...circuit.junctions.filter((j) => inside(j.position))].map((item) => item.id);
+  const notes = circuit.notes.filter((n) => {
+    const { width, height } = noteSize(n.text);
+    return inside(n.position) && inside({ x: n.position.x + width, y: n.position.y + height });
+  });
+  return [...parts, ...circuit.junctions.filter((j) => inside(j.position)), ...notes].map((item) => item.id);
 }

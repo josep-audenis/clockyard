@@ -746,7 +746,13 @@ own), or by its key while the circuit has the keys, which a press on a
 bound button gives; Step, Run and Reset keep them, so a button can be
 held across a Step. Ctrl or Cmd keys stay the editor's and let go. The
 inspector sets its key and has a Press button; the worker reports a
-press let go before a tick while running.
+press let go before a tick while running. Step 5 is done, and with it
+increment 1: notes on the canvas (Text in the parts panel, written in
+the inspector, kept apart from parts so the engine never sees them,
+moved, turned, copied and deleted with the selection), and the target
+in Playwright: a 4-input AND held by four push buttons bound to 1 to 4,
+with a note beside it, saved and opened again. Increment 2, computers
+you can read, needs its ADR.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is

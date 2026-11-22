@@ -146,7 +146,7 @@ test("states that arrive faster than the page shows them are applied once, as th
   // A state waiting when a load is sent describes the circuit before it: its nets are not shown.
   worker.reply(state(21));
   worker.reply(state(22));
-  useEditor.setState({ circuit: { components: [], junctions: [], wires: [{ id: "x", from: { junction: "a" }, to: { junction: "b" } }] } });
+  useEditor.setState({ circuit: { components: [], junctions: [], wires: [{ id: "x", from: { junction: "a" }, to: { junction: "b" } }], notes: [] } });
   vi.runAllTimers();
   expect(useSim.getState().time).toBe(21);
   unsubscribe();
@@ -201,6 +201,7 @@ test("waveforms: watch follows the load it belongs to, an open's load or an edit
     ],
     junctions: [],
     wires: [{ id: "w", from: { component: "s", port: "out" }, to: { component: "l", port: "in" } }],
+    notes: [],
   };
 
   // A new circuit and a watch in one change: the load goes first, so the worker resolves the wire in it.
@@ -217,7 +218,7 @@ test("waveforms: watch follows the load it belongs to, an open's load or an edit
   expect(useSim.getState().waves?.time).toBe(4);
 
   // An edit that removes the watched wire: nothing is watched any more, so the record goes at once.
-  useEditor.setState({ circuit: { ...circuit, components: circuit.components.slice(0, 1), wires: [] } });
+  useEditor.setState({ circuit: { ...circuit, components: circuit.components.slice(0, 1), wires: [], notes: [] } });
   expect(useSim.getState().waves).toBeNull();
   expect(worker.sent.at(-1)).toEqual({ type: "watch", wires: [] });
   worker.reply({ type: "loaded", portNets: {}, wireNets: {} } as unknown as Result);

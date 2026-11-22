@@ -60,7 +60,9 @@ optional `metadata.notes`, plain text of at most 4,000 characters that the Notes
 (ADR 0027). Version 12 adds the part kind `tri`, a tri-state buffer (ADR 0035). Version 13 adds a
 gate's `inputCount`, 2 to 8 (absent means 2), on AND, NAND, OR, NOR, XOR and XNOR, and the part kind
 `button`, a push button, with an editor-only `binding`: the physical key that holds it, `KeyA` to `KeyZ` or
-`Digit0` to `Digit9` (ADR 0038):
+`Digit0` to `Digit9`, and each sheet's `notes`: text placed on it, `{ id, position, text }`, at most 500
+characters each and 200 a sheet, never projected to the engine; a sheet without notes has no `notes` field
+(ADR 0038):
 
 ```json
 {

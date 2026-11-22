@@ -30,7 +30,7 @@ const circuit: Circuit = {
   wires: [
     { id: "w", from: { component: "s", port: "out" }, to: { component: "g", port: "b" } },
     { id: "v", from: { junction: "j" }, to: { component: "l", port: "in" } },
-  ],
+  ], notes: [],
 };
 const at = places(circuit);
 
@@ -207,7 +207,7 @@ test("the segment next to a port's first run cannot be dragged back over that po
 });
 
 test("a rotated port exits away from the side it now sits on", () => {
-  const turned: Circuit = { components: [{ ...part("g", "and", 0, 0), rotation: 90 }], junctions: [], wires: [] };
+  const turned: Circuit = { components: [{ ...part("g", "and", 0, 0), rotation: 90 }], junctions: [], wires: [], notes: [] };
   const at = places(turned);
   expect(portAt(turned.components[0] as CircuitComponent, "a")).toEqual({ x: 3, y: 0 });
   expect(exitOf(at, { component: "g", port: "a" })).toBe(3); // up
@@ -239,4 +239,18 @@ test("placing a part is refused where one of its ports would sit on a junction",
   // Turned upright (input on top at (1,0)), the same spot is fine, and (2,9) is not.
   expect(placementStacks(circuit, { ...part("n", "not", 3, 8), rotation: 90 })).toBe(false);
   expect(placementStacks(circuit, { ...part("n", "not", 2, 9), rotation: 90 })).toBe(true);
+});
+
+test("a note is picked by its text's box under everything else, and boxed when wholly inside (ADR 0038)", () => {
+  const circuit: Circuit = {
+    components: [{ id: "g", kind: "and", position: { x: 10, y: 0 }, rotation: 0, props: {} }],
+    junctions: [],
+    wires: [],
+    // Two lines, the longer 8 characters: 4 cells by 2.
+    notes: [{ id: "n", position: { x: 0, y: 0 }, text: "Fetch it\nnow" }],
+  };
+  expect(hitTest(circuit, { x: 3.5, y: 1.5 }, 0.5, new Map())).toEqual({ type: "note", id: "n" });
+  expect(hitTest(circuit, { x: 4.5, y: 1.5 }, 0.2, new Map())).toBeNull();
+  expect(itemsInBox(circuit, { x: -1, y: -1 }, { x: 4, y: 2 })).toEqual(["n"]);
+  expect(itemsInBox(circuit, { x: -1, y: -1 }, { x: 3, y: 2 })).toEqual([]);
 });

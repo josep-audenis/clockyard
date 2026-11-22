@@ -2,7 +2,7 @@
 // spec. Reads the editor and engine stores outside React and redraws on change.
 // shortcut: every change still walks the whole scene (a pan only moves the view; parts and wire chunks are rebuilt only
 // when they look different); further per-object updates are ADR 0030 step 3.
-import { Application, BitmapFontManager, BitmapText, CanvasTextMetrics, Container, Graphics } from "pixi.js";
+import { Application, BitmapFontManager, BitmapText, CanvasTextMetrics, Container, Graphics, Text } from "pixi.js";
 import { create } from "zustand";
 import {
   DEFAULT_FIELDS,
@@ -13,6 +13,7 @@ import {
   DEFAULT_ADDRESS,
   isFielded,
   isMemory,
+  noteSize,
   litPixels,
   sameEnd,
   screenSize,
@@ -191,7 +192,8 @@ function placement(part: Pick<CircuitComponent, "kind" | "rotation" | "definitio
 }
 
 const positionOf = (circuit: Circuit, id: string) =>
-  (circuit.components.find((c) => c.id === id) ?? circuit.junctions.find((j) => j.id === id))?.position;
+  (circuit.components.find((c) => c.id === id) ?? circuit.junctions.find((j) => j.id === id) ?? circuit.notes.find((n) => n.id === id))
+    ?.position;
 
 const samePoint = (a: Point | undefined, b: Point) => a !== undefined && a.x === b.x && a.y === b.y;
 
@@ -240,7 +242,10 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   let themeVersion = 0;
   const overlay = new Graphics();
   const labels = new Container();
-  world.addChild(wireChunks, raised.g, wires, bodies, labels, overlay);
+  /** Notes on the sheet (ADR 0038), under everything else so they never hide a connection; plain Text, few of them. */
+  const notesLayer = new Container();
+  const noteTexts = new Map<string, Text>();
+  world.addChild(notesLayer, wireChunks, raised.g, wires, bodies, labels, overlay);
   /** Label text objects by component ID, reused across redraws. */
   const texts = new Map<string, BitmapText>();
   app.stage.addChild(world);
@@ -314,7 +319,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
 
   /** The view's pan and zoom, the grid under it, and the cursor: all a frame that only moves the view changes. */
   function placeView() {
-    const { armed, armedLabel } = useEditor.getState();
+    const { armed, armedLabel, armedNote } = useEditor.getState();
     world.position.set(view.x, view.y);
     world.scale.set(view.zoom);
     // Where grid point (0, 0) is on the canvas and the zoom, for the browser tests' grid (ADR 0033).
@@ -323,7 +328,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     const step = cell() * view.zoom * (view.zoom < 0.5 ? 4 : 1);
     host.style.backgroundSize = `${step}px ${step}px`;
     host.style.backgroundPosition = `${view.x - step / 2}px ${view.y - step / 2}px`;
-    canvas.style.cursor = armed || armedLabel ? "crosshair" : gesture?.type === "pan" ? "grabbing" : spaceHeld ? "grab" : "default";
+    canvas.style.cursor = armed || armedLabel || armedNote ? "crosshair" : gesture?.type === "pan" ? "grabbing" : spaceHeld ? "grab" : "default";
   }
 
   function draw() {
@@ -546,6 +551,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     }
 
     drawLabels(circuit.components);
+    drawNotes(circuit.notes, selected);
     // A keyboard deleted, or left behind on another sheet, gives the keys back.
     const keyboard = useCanvasHints.getState().keyboard;
     if (keyboard && !circuit.components.some((c) => c.id === keyboard)) focusKeyboard(null);
@@ -661,6 +667,37 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     text.anchor.set(anchor.x, anchor.y);
     text.position.set(x, y);
     return text;
+  }
+
+  /**
+   * Notes as written, one cell a line, in the mono face at a size where a character is about half a cell, as
+   * `noteSize` reckons for picking (ADR 0038). Selected ones get the selection's outline.
+   */
+  function drawNotes(notes: Circuit["notes"], selected: Set<string>) {
+    const c = cell();
+    const { color, size } = theme;
+    const present = new Set<string>();
+    for (const note of notes) {
+      present.add(note.id);
+      let text = noteTexts.get(note.id);
+      if (!text) {
+        text = new Text({ text: note.text, style: { fontFamily: theme.mono, fontSize: 13, lineHeight: c, fill: color.ink } });
+        noteTexts.set(note.id, text);
+        notesLayer.addChild(text);
+      }
+      if (text.text !== note.text) text.text = note.text;
+      const at = px(note.position);
+      text.position.set(at.x, at.y);
+      if (selected.has(note.id)) {
+        const { width, height } = noteSize(note.text);
+        overlay.roundRect(at.x - 4, at.y - 4, width * c + 8, height * c + 8, size["radius-sm"]).stroke({ width: size["select-width"], color: color.select });
+      }
+    }
+    for (const [id, text] of noteTexts) {
+      if (present.has(id)) continue;
+      text.destroy();
+      noteTexts.delete(id);
+    }
   }
 
   // CanvasKit: labels in the canvas-label style, ink-muted, centred below the body;
@@ -1169,6 +1206,9 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       hover = null;
       useCanvasHints.setState({ wire: null });
       return shown ? schedule() : scheduleView();
+    } else if (e.button === 0 && editor.armedNote) {
+      // ADR 0038: a note at the nearest grid point; its text field takes the keyboard on release.
+      placedLabel = editor.addNote({ x: Math.round(p.x), y: Math.round(p.y) });
     } else if (e.button === 0 && editor.armedLabel) {
       // A net label (ADR 0015) at the nearest grid point. Its Name field takes the keyboard on release,
       // after the press has moved focus where it will.
@@ -1184,7 +1224,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       const hit = hitTest(editor.circuit, p, pick(), currentRoutes(editor.circuit));
       // A label's tag selects and drags it; its dot still draws wires (ADR 0015).
       const tag = hit?.type === "port" || hit?.type === "junction" ? undefined : tagAt(p);
-      const item = tag ?? (hit?.type === "component" || hit?.type === "junction" ? hit.id : undefined);
+      const item = tag ?? (hit?.type === "component" || hit?.type === "junction" || hit?.type === "note" ? hit.id : undefined);
       const position = item && positionOf(editor.circuit, item);
       if (hit?.type === "port") {
         gesture = { type: "wire", from: hit.ref, at: p };
@@ -1196,7 +1236,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       } else if (item && position) {
         if (!editor.selection.includes(item)) editor.select([item]);
         const selected = new Set(useEditor.getState().selection);
-        const movable = [...editor.circuit.components, ...editor.circuit.junctions].filter((m) => selected.has(m.id));
+        const movable = [...editor.circuit.components, ...editor.circuit.junctions, ...editor.circuit.notes].filter((m) => selected.has(m.id));
         const starts = Object.fromEntries(movable.map((m) => [m.id, m.position]));
         const grab = { x: p.x - position.x, y: p.y - position.y };
         const start = { x: e.clientX, y: e.clientY };
@@ -1617,6 +1657,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
     // Labels are recreated in the new theme's ink.
     for (const text of texts.values()) text.destroy();
     texts.clear();
+    for (const text of noteTexts.values()) text.destroy();
+    noteTexts.clear();
     dropFonts();
     retired.push(...templates.values());
     templates.clear();

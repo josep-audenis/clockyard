@@ -17,7 +17,7 @@ const document: CircuitDocument = {
     wires: [
       { id: "w", from: { component: "a", port: "out" }, to: { component: "g", port: "a" } },
       { id: "v", from: { junction: "j" }, to: { component: "g", port: "b" }, bends: [{ x: 4, y: 1 }] },
-    ],
+    ], notes: [],
   },
   definitions: [
     {
@@ -33,7 +33,7 @@ const document: CircuitDocument = {
         wires: [
           { id: "w1", from: { component: "i", port: "out" }, to: { component: "n", port: "in" } },
           { id: "w2", from: { component: "n", port: "out" }, to: { component: "o", port: "in" } },
-        ],
+        ], notes: [],
       },
     },
   ],
@@ -156,7 +156,7 @@ test("a version 1 file is migrated: same parts and wires, no junctions", () => {
     ok: true,
     document: {
       ...document,
-      circuit: { components: document.circuit.components.slice(0, 2), junctions: [], wires: document.circuit.wires.slice(0, 1) },
+      circuit: { components: document.circuit.components.slice(0, 2), junctions: [], wires: document.circuit.wires.slice(0, 1), notes: [] },
       definitions: [],
     },
   });
@@ -263,11 +263,11 @@ test("a component that contains itself, directly or through another, is refused 
   const custom = (id: string, definition: string) => ({ id, kind: "custom", definition, position: { x: 0, y: 0 }, rotation: 0, props: {} });
   const doc = (definitions: unknown[]) => JSON.stringify({ ...document, definitions });
   const loop = [
-    { id: "a", name: "Alpha", circuit: { components: [custom("x", "b")], junctions: [], wires: [] } },
-    { id: "b", name: "Beta", circuit: { components: [custom("y", "a")], junctions: [], wires: [] } },
+    { id: "a", name: "Alpha", circuit: { components: [custom("x", "b")], junctions: [], wires: [], notes: [] } },
+    { id: "b", name: "Beta", circuit: { components: [custom("y", "a")], junctions: [], wires: [], notes: [] } },
   ];
   expect(parseDocument(doc(loop))).toEqual({ ok: false, error: "The component Alpha contains itself, so it could never be built." });
-  const self = [{ id: "s", name: "Self", circuit: { components: [custom("x", "s")], junctions: [], wires: [] } }];
+  const self = [{ id: "s", name: "Self", circuit: { components: [custom("x", "s")], junctions: [], wires: [], notes: [] } }];
   expect(parseDocument(doc(self))).toEqual({ ok: false, error: "The component Self contains itself, so it could never be built." });
 });
 
@@ -371,4 +371,30 @@ test("a push button and its key round-trip in 13; a key is refused elsewhere or 
   ] as const) {
     expect(broken((__, c) => Object.assign(c, part))).toMatchObject({ ok: false, error: expect.stringContaining(message) });
   }
+});
+
+test("a sheet's notes round-trip in 13, normalized, and a sheet without any is written as before (ADR 0038)", () => {
+  const noted = { ...document, circuit: { ...document.circuit, notes: [{ id: "n", position: { x: 2, y: -3 }, text: "Fetch\nand decode" }] } };
+  expect(parseDocument(serializeDocument(noted))).toEqual({ ok: true, document: noted });
+  expect(JSON.parse(serializeDocument(document)).circuit).not.toHaveProperty("notes");
+  const odd = JSON.parse(serializeDocument(noted)) as CircuitDocument;
+  odd.circuit.notes = [
+    { id: "n", position: { x: 0, y: 0 }, text: "a‮b\r\nc " },
+    { id: "m", position: { x: 1, y: 1 }, text: "   " },
+  ];
+  const read = parseDocument(JSON.stringify(odd));
+  expect(read.ok && read.document.circuit.notes).toEqual([{ id: "n", position: { x: 0, y: 0 }, text: "ab\nc" }]);
+});
+
+test.each([
+  ["a note too long", (doc: CircuitDocument) => (doc.circuit.notes = [{ id: "n", position: { x: 0, y: 0 }, text: "x".repeat(501) }]), "longer than 500"],
+  [
+    "too many notes",
+    (doc: CircuitDocument) => (doc.circuit.notes = Array.from({ length: 201 }, (_, i) => ({ id: `n${i}`, position: { x: 0, y: i }, text: "x" }))),
+    "more than 200 notes",
+  ],
+  ["a note with a part's ID", (doc: CircuitDocument) => (doc.circuit.notes = [{ id: "a", position: { x: 0, y: 0 }, text: "x" }]), "ID a is used more than once"],
+  ["a note off the grid", (doc: CircuitDocument) => (doc.circuit.notes = [{ id: "n", position: { x: 0.5, y: 0 }, text: "x" }]), "x must be a whole number"],
+])("refuses %s", (_, change, message) => {
+  expect(broken((doc) => change(doc))).toMatchObject({ ok: false, error: expect.stringContaining(message) });
 });

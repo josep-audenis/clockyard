@@ -5,7 +5,7 @@ import type { Circuit, Definition } from "./document";
 const pin = (id: string, kind: "switch" | "led", y = 0) => ({ id, kind, position: { x: kind === "led" ? 9 : 0, y }, rotation: 0 as const, props: { label: id } });
 const gate = (id: string) => ({ id, kind: "not" as const, position: { x: 4, y: 0 }, rotation: 0 as const, props: {} });
 const instance = (id: string, definition: string) => ({ id, kind: "custom" as const, definition, position: { x: 4, y: 0 }, rotation: 0 as const, props: {} });
-const circuit = (...components: Circuit["components"]): Circuit => ({ components, junctions: [], wires: [] });
+const circuit = (...components: Circuit["components"]): Circuit => ({ components, junctions: [], wires: [], notes: [] });
 
 const inv: Definition = { id: "inv", name: "Inverter", circuit: circuit(pin("A", "switch"), gate("n"), pin("Y", "led")) };
 const buf: Definition = { id: "buf", name: "Buffer", circuit: circuit(pin("A", "switch"), instance("i1", "inv"), instance("i2", "inv"), pin("Y", "led")) };

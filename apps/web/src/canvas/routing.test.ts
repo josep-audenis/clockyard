@@ -41,7 +41,7 @@ const and = part("g", "and", 8, 5);
 const loop: Circuit = {
   components: [not, and],
   junctions: [],
-  wires: [wire("fwd", "n.out", "g.a"), wire("back", "g.out", "n.in")],
+  wires: [wire("fwd", "n.out", "g.a"), wire("back", "g.out", "n.in")], notes: [],
 };
 
 test("a feedback wire goes around both parts, never through them", () => {
@@ -97,7 +97,7 @@ test("ends a million cells apart get the plain route at once instead of a huge s
       wire("w", "s.out", "l.in"),
       // A shaped wire whose bends lie far from everything.
       { ...wire("v", "s.out", "l.in"), id: "v", bends: [{ x: 999_000, y: 1 }, { x: 999_000, y: 999_991 }] },
-    ],
+    ], notes: [],
   };
   const started = performance.now();
   const all = routes(far);
@@ -127,7 +127,7 @@ test.each([0, -37])("in a crowded grid at offset %i, wires of different nets nev
       wires.push(wire(`b${r}${c}`, `g${r}${c}.out`, `g${(r + 3) % 4}${c + 1}.b`));
     }
   }
-  const all = routes({ components, junctions: [], wires });
+  const all = routes({ components, junctions: [], wires, notes: [] });
   // Both wires from one output are one net; every other pair must keep apart.
   const owner = new Map<string, string>();
   for (const w of wires) {
@@ -177,7 +177,7 @@ test("after an edit, wires on a junction keep their routes while it stays, and a
     wires: [
       { id: "a", from: { component: "s", port: "out" }, to: { junction: "j" } },
       { id: "b", from: { junction: "j" }, to: { component: "l", port: "in" } },
-    ],
+    ], notes: [],
   };
   const before = routes(base);
   const far: Circuit = { ...base, components: [...base.components, part("x", "switch", 40, 40)] };
@@ -193,7 +193,7 @@ test("after an edit, routes and shapes too long to file by tile are still checke
   const base: Circuit = {
     components: [part("s", "switch", 0, 0), part("l", "led", 3000, 0), part("s2", "switch", 0, 10), part("l2", "led", 20, 10)],
     junctions: [],
-    wires: [wire("long", "s.out", "l.in"), wire("short", "s2.out", "l2.in")],
+    wires: [wire("long", "s.out", "l.in"), wire("short", "s2.out", "l2.in")], notes: [],
   };
   const before = routes(base);
   expect(before.get("long")).toBeDefined();
@@ -220,7 +220,7 @@ test("a shaped wire moved onto an automatic one of another net makes that one mo
   const base: Circuit = {
     components: [part("s1", "switch", 0, 0), part("l1", "led", 20, 0), part("s2", "switch", 0, 10), part("l2", "led", 20, 10)],
     junctions: [],
-    wires: [k, s],
+    wires: [k, s], notes: [],
   };
   routes(base);
   // What dragging the shaped wire's middle up onto row 1 produces.
@@ -235,7 +235,7 @@ test("after forgetRoutes (opening a file) everything is routed afresh", () => {
   const blocked: Circuit = {
     components: [part("s", "switch", 0, 0), part("l", "led", 20, 0), part("x", "led", 9, 0)],
     junctions: [],
-    wires: [wire("w", "s.out", "l.in")],
+    wires: [wire("w", "s.out", "l.in")], notes: [],
   };
   const detour = routes(blocked).get("w");
   const cleared: Circuit = { ...blocked, components: blocked.components.filter((c) => c.id !== "x") };
@@ -253,13 +253,14 @@ test("a cached circuit is routed again once its instances' pins move", () => {
   const definition = (extra: CircuitComponent[]) => ({
     id: "d",
     name: "D",
-    circuit: { components: [...extra, led("o", 4, "Out")], junctions: [], wires: [] },
+    circuit: { components: [...extra, led("o", 4, "Out")], junctions: [], wires: [], notes: [] },
   });
   setDefinitionLayouts([definition([])]);
   const main: Circuit = {
     components: [{ ...part("x", "custom", 0, 0), definition: "d" }, part("l", "led", 12, 0)],
     junctions: [],
     wires: [wire("w", "x.o", "l.in")], // an instance's port is its pin part's ID
+    notes: [],
   };
   expect(routes(main).get("w")?.[0]).toEqual({ x: 4, y: 1 });
   // An LED above Out moves it down a pin; the same circuit object must not keep its old route.
@@ -272,7 +273,7 @@ test("a width edit that resizes a part routes its wires again; one that does not
   const before: Circuit = {
     components: [part("s", "switch", 0, 0), part("g", "not", 8, 0)],
     junctions: [],
-    wires: [wire("w", "s.out", "g.in")],
+    wires: [wire("w", "s.out", "g.in")], notes: [],
   };
   expect(routes(before).get("w")?.[0]).toEqual({ x: 2, y: 1 });
   const widen = (c: CircuitComponent) => ({ ...c, props: { width: 8 } });
@@ -288,7 +289,7 @@ test("an 8-way splitter's field wires, one cell apart, route without touching ea
   const split: CircuitComponent = { ...part("sp", "split", 0, 0), props: { fields: Array<number>(8).fill(1) } };
   const leds = Array.from({ length: 8 }, (_, i) => part(`l${i}`, "led", 12, i * 3));
   const wires = leds.map((l, i) => wire(`w${i}`, `sp.f${i}`, `${l.id}.in`));
-  const all = routes({ components: [split, ...leds], junctions: [], wires });
+  const all = routes({ components: [split, ...leds], junctions: [], wires, notes: [] });
   const owner = new Map<string, string>();
   for (const w of wires) {
     const points = all.get(w.id) ?? [];
@@ -336,7 +337,7 @@ test("routes with the tile index are the routes a scan of the whole sheet gives"
       const w = wire(`w${i}`, `${from.id}.out`, `${to.id}.${inputs[random(inputs.length)]}`);
       wires.push(random(10) === 0 ? { ...w, bends: [] } : w);
     }
-    const circuit = { components, junctions: [], wires };
+    const circuit = { components, junctions: [], wires, notes: [] };
     // Two wires laid first as straight lines across the area, as a drag lays frozen routes: the middles of their
     // segments run through other wires' boxes, one filed by tiles, one long enough for the list.
     const frozen = new Map<string, Point[]>();
@@ -357,7 +358,7 @@ test("parts a million cells apart route at once: a long route is not filed under
   const components = Array.from({ length: 400 }, (_, i) => part(`n${i}`, "not", i % 2 ? 1_000_000 : -1_000_000, 4 * i));
   const wires = Array.from({ length: 200 }, (_, i) => wire(`w${i}`, `n${2 * i}.out`, `n${2 * i + 1}.in`));
   const start = performance.now();
-  routes({ components, junctions: [], wires });
+  routes({ components, junctions: [], wires, notes: [] });
   // Filed tile by tile this took about ten seconds and two gigabytes; a scan takes milliseconds.
   expect(performance.now() - start).toBeLessThan(2000);
 });
@@ -421,7 +422,7 @@ test("a search box holds, cell for cell, what a box over the whole sheet holds t
   const SIDE = 60;
   for (let round = 0; round < 40; round++) {
     const components = Array.from({ length: 6 }, (_, i) => part(`p${i}`, "and", random(SIDE) - 30, random(SIDE) - 30));
-    const circuit: Circuit = { components, junctions: [], wires: [] };
+    const circuit: Circuit = { components, junctions: [], wires: [], notes: [] };
     const laid = Array.from({ length: 30 }, (_, i) => {
       // Orthogonal routes of a few segments, some of them far longer than a tile, and of a few nets.
       let [x, y] = [random(SIDE) - 30, random(SIDE) - 30];
@@ -471,7 +472,7 @@ test("a sheet large enough for the bend count still keeps its nets apart", () =>
     components.push(part(`n${i}`, "not", 6 + (i % 50) * 5, Math.floor(i / 50) * 4));
     wires.push(wire(`w${i}`, i === 0 ? "s.out" : `n${i - 1}.out`, `n${i}.in`));
   }
-  const all = routes({ components, junctions: [], wires });
+  const all = routes({ components, junctions: [], wires, notes: [] });
   const owner = new Map<string, string>();
   for (const w of wires) {
     for (const e of unitEdges(all.get(w.id) ?? [])) {

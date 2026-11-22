@@ -28,8 +28,10 @@ import {
   DEFAULT_INPUTS,
   MAX_ADDRESS,
   MAX_INPUTS,
+  MAX_NOTE,
   MAX_NOTES,
   MAX_SOURCE,
+  normalizeNotes,
   wordsProblem,
   withoutDeletedPins,
   takesInputs,
@@ -63,6 +65,10 @@ export type EditorState = {
   armedDefinition: string | null;
   /** A net label (ADR 0015) waits to be placed by the next canvas click. */
   armedLabel: boolean;
+  /** Whether a click places a note (ADR 0038). */
+  armedNote: boolean;
+  /** A note just placed and not yet written: written, its placing and text are one undo step; left empty, neither is. */
+  draftNote: string | null;
   add: (kind: PartKind, position: { x: number; y: number }) => string;
   /**
    * Places a net label: a junction named with the first unused `n1`, `n2`, … on the sheet, selected,
@@ -161,6 +167,14 @@ export type EditorState = {
   armChip: (definition: string) => void;
   /** Arms a net label, or disarms it. */
   armLabel: (on: boolean) => void;
+  armNote: (on: boolean) => void;
+  /** Places an empty note at a grid point, selected, as a draft (ADR 0038); returns its ID. */
+  addNote: (position: Point) => string;
+  /**
+   * Sets a note's text as one edit, normalized as the project's notes are and cut to `MAX_NOTE` characters; empty
+   * deletes it. A draft's first text joins its placing in one undo step, and a draft left empty leaves no step at all.
+   */
+  setNoteText: (id: string, text: string) => void;
   /** Custom component definitions (ADR 0012); the one open on a sheet is `circuit`, see `liveDefinitions`. */
   definitions: Definition[];
   /**
@@ -375,8 +389,9 @@ function withCircuit(state: EditorState, circuit: Circuit) {
   const width = new Map(circuit.components.map((c) => [c.id, widthOf(c)]));
   return {
     circuit,
-    // A refused size is about the circuit before this one.
+    // A refused size is about the circuit before this one, and a draft note is a draft only until the next change.
     refusal: null,
+    draftNote: null,
     selection: state.selection.filter((id) => kept.has(id)),
     inputs: Object.fromEntries(
       Object.entries(state.inputs).flatMap(([id, value]) => {
@@ -387,7 +402,7 @@ function withCircuit(state: EditorState, circuit: Circuit) {
   };
 }
 
-const items = (circuit: Circuit) => [...circuit.components, ...circuit.junctions, ...circuit.wires];
+const items = (circuit: Circuit) => [...circuit.components, ...circuit.junctions, ...circuit.wires, ...circuit.notes];
 
 /** Nothing to copy: no parts and no labels. Plain junctions with only wires between them are not worth a copy. */
 const isEmpty = (part: Circuit) => part.components.length === 0 && !part.junctions.some((j) => j.name);
@@ -401,7 +416,7 @@ function fragment(circuit: Circuit, ids: string[]): Circuit {
   const wires = circuit.wires.filter((w) => inside.has(endOwner(w.from)) && inside.has(endOwner(w.to)));
   // A plain junction only joins wires; one with none among them would arrive as a lone dot. A label is kept.
   const used = new Set(wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
-  return { components, junctions: junctions.filter((j) => used.has(j.id) || !!j.name), wires };
+  return { components, junctions: junctions.filter((j) => used.has(j.id) || !!j.name), wires, notes: circuit.notes.filter((n) => chosen.has(n.id)) };
 }
 
 /** A copy of `part` with fresh IDs, shifted down-right by `offset` cells. */
@@ -424,6 +439,7 @@ function cloned(part: Circuit, offset: number): Circuit {
       to: end(w.to),
       ...(w.bends && { bends: w.bends.map((b) => ({ x: b.x + offset, y: b.y + offset })) }),
     })),
+    notes: part.notes.map((n) => ({ ...n, id: crypto.randomUUID(), position: { x: n.position.x + offset, y: n.position.y + offset } })),
   };
 }
 
@@ -440,6 +456,7 @@ function placed(circuit: Circuit, part: Circuit, offset: number): [Circuit, numb
       components: [...circuit.components, ...copy.components],
       junctions: [...circuit.junctions, ...copy.junctions],
       wires: [],
+      notes: [],
     };
     if (!stacksJunction(together, positions)) return [copy, offset];
   }
@@ -451,6 +468,7 @@ const insert = (state: EditorState, part: Circuit) => ({
     components: [...state.circuit.components, ...part.components],
     junctions: [...state.circuit.junctions, ...part.junctions],
     wires: [...state.circuit.wires, ...part.wires],
+    notes: [...state.circuit.notes, ...part.notes],
   }),
   selection: items(part).map((item) => item.id),
 });
@@ -469,7 +487,17 @@ function canConnect(circuit: Circuit, from: Endpoint, to: Endpoint) {
 }
 
 /** What a sheet starts with: nothing selected, armed or switched on. */
-const fresh = { selection: [], refusal: null, inputs: {}, armed: null, armedDefinition: null, armedLabel: false, watches: [] };
+const fresh = {
+  selection: [],
+  refusal: null,
+  inputs: {},
+  armed: null,
+  armedDefinition: null,
+  armedLabel: false,
+  armedNote: false,
+  draftNote: null,
+  watches: [],
+};
 
 /** Traces the waveform panel shows at most (ADR 0026). */
 export const MAX_WATCHES = 16;
@@ -510,7 +538,7 @@ const edit = (state: EditorState, circuit: Circuit) => ({ ...withCircuit(state, 
 
 export const useEditor = create<EditorState>()((set, get) => ({
   metadata: { name: "Untitled", createdAt: now, modifiedAt: now },
-  circuit: { components: [], junctions: [], wires: [] },
+  circuit: { components: [], junctions: [], wires: [], notes: [] },
   selection: [],
   refusal: null,
   inputs: {},
@@ -518,6 +546,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
   armedWidth: 1,
   armedDefinition: null,
   armedLabel: false,
+  armedNote: false,
+  draftNote: null,
   definitions: [],
   sheet: null,
   main: null,
@@ -596,6 +626,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
         components: parts.map((c) => ({ ...c, position: shift(c.position) })),
         junctions: junctions.map((j) => ({ ...j, position: shift(j.position) })),
         wires: own.map((w) => (w.bends ? { ...w, bends: w.bends.map(shift) } : w)),
+        // Make component takes parts only: notes stay on the sheet they were on (ADR 0038).
+        notes: [],
       },
     };
     const instance: CircuitComponent = {
@@ -609,7 +641,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
     // No port of it on a junction left on the sheet (ADR 0010): stepped down 2 cells until clear. Its
     // ports come from the new definition, so its layout is set before the store's own pass does it.
     setDefinitionLayouts([...liveDefinitions(state), definition]);
-    const rest = { components: [], junctions: circuit.junctions.filter((j) => !inside.has(j.id)), wires: [] };
+    const rest = { components: [], junctions: circuit.junctions.filter((j) => !inside.has(j.id)), wires: [], notes: [] };
     while (placementStacks(rest, instance)) instance.position = { ...instance.position, y: instance.position.y + 2 };
     set((s) => {
       // Wires touching the selection go with it; crossings come back wired to the instance (ADR 0016).
@@ -620,6 +652,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
         components: [...s.circuit.components.filter((c) => !inside.has(c.id)), instance],
         junctions: s.circuit.junctions.filter((j) => !inside.has(j.id) && (used.has(j.id) || !!j.name)),
         wires,
+        notes: s.circuit.notes,
       };
       return { ...edit(s, next), definitions: [...s.definitions, definition], selection: [instance.id] };
     });
@@ -685,7 +718,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
 
   move: (positions) =>
     set(({ circuit }) => {
-      const old = new Map([...circuit.components, ...circuit.junctions].map((item) => [item.id, item.position]));
+      const old = new Map([...circuit.components, ...circuit.junctions, ...circuit.notes].map((item) => [item.id, item.position]));
       const shift = (id: string) => {
         const [from, to] = [old.get(id), positions[id]];
         return from && to && { x: to.x - from.x, y: to.y - from.y };
@@ -694,6 +727,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
         circuit: {
           components: circuit.components.map((c) => ({ ...c, position: positions[c.id] ?? c.position })),
           junctions: circuit.junctions.map((j) => ({ ...j, position: positions[j.id] ?? j.position })),
+          notes: circuit.notes.map((n) => ({ ...n, position: positions[n.id] ?? n.position })),
           wires: circuit.wires.map((w) => {
             const [a, b] = [shift(endOwner(w.from)), shift(endOwner(w.to))];
             // Carried along only when both ends move together; otherwise the ends' corners adapt (ADR 0011).
@@ -763,8 +797,9 @@ export const useEditor = create<EditorState>()((set, get) => ({
       const used = new Set(wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
       const junctions = circuit.junctions.filter((j) => !gone.has(j.id) && (used.has(j.id) || !!j.name));
       // Nothing removed: not an edit, so history (and redo) stays as it is.
-      if (items({ components, junctions, wires }).length === items(circuit).length) return state;
-      return edit(state, { components, junctions, wires });
+      const notes = circuit.notes.filter((n) => !gone.has(n.id));
+      if (items({ components, junctions, wires, notes }).length === items(circuit).length) return state;
+      return edit(state, { components, junctions, wires, notes });
     });
   },
 
@@ -917,6 +952,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
       const used = new Set(wires.flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
       const dropped = new Set(state.circuit.wires.filter((w) => !wires.includes(w)).flatMap((w) => [endOwner(w.from), endOwner(w.to)]));
       return edit(state, {
+        ...state.circuit,
         components: state.circuit.components.map((c) => (c === part ? { ...c, props: { ...c.props, fields: [...fields] } } : c)),
         junctions: state.circuit.junctions.filter((j) => used.has(j.id) || !!j.name || !dropped.has(j.id)),
         wires,
@@ -1000,7 +1036,9 @@ export const useEditor = create<EditorState>()((set, get) => ({
         if (inside[0] || inside[1]) return { id: w.id, from: w.from, to: w.to };
         return w;
       });
-      const turned = { components, junctions, wires };
+      // A note's place turns with the selection; its text stays level (ADR 0038).
+      const notes = circuit.notes.map((n) => (chosen.has(n.id) ? { ...n, position: turnPoint(n.position) } : n));
+      const turned = { components, junctions, wires, notes };
       if (stacksJunction(turned, positions)) return state;
       return edit(state, turned);
     }),
@@ -1017,9 +1055,38 @@ export const useEditor = create<EditorState>()((set, get) => ({
       return live.includes(wire) || live.length >= MAX_WATCHES ? {} : { watches: [...live, wire] };
     }),
   setInput: (id, value) => set(({ inputs }) => ({ inputs: { ...inputs, [id]: value } })),
-  arm: (kind, width = 1) => set({ armed: kind, armedWidth: width, armedDefinition: null, armedRotation: 0, armedLabel: false }),
-  armChip: (definition) => set({ armed: "custom", armedWidth: 1, armedDefinition: definition, armedRotation: 0, armedLabel: false }),
-  armLabel: (on) => set({ armed: null, armedDefinition: null, armedLabel: on }),
+  arm: (kind, width = 1) => set({ armed: kind, armedWidth: width, armedDefinition: null, armedRotation: 0, armedLabel: false, armedNote: false }),
+  armChip: (definition) =>
+    set({ armed: "custom", armedWidth: 1, armedDefinition: definition, armedRotation: 0, armedLabel: false, armedNote: false }),
+  armLabel: (on) => set({ armed: null, armedDefinition: null, armedLabel: on, armedNote: false }),
+  armNote: (on) => set({ armed: null, armedDefinition: null, armedLabel: false, armedNote: on }),
+  addNote: (position) => {
+    const id = crypto.randomUUID();
+    set((state) => ({
+      ...edit(state, { ...state.circuit, notes: [...state.circuit.notes, { id, position, text: "" }] }),
+      selection: [id],
+      armedNote: false,
+      draftNote: id,
+    }));
+    return id;
+  },
+  setNoteText: (id, raw) =>
+    set((state) => {
+      const note = state.circuit.notes.find((n) => n.id === id);
+      if (!note) return state;
+      const text = [...normalizeNotes(raw)].slice(0, MAX_NOTE).join("").trim();
+      const draft = state.draftNote === id;
+      if (!text && draft) {
+        // Left empty: as if never placed, with no step to undo.
+        const previous = state.past.at(-1);
+        return previous ? { ...withCircuit(state, previous), past: state.past.slice(0, -1), draftNote: null } : { draftNote: null };
+      }
+      if (text === note.text) return { draftNote: null };
+      const notes = text ? state.circuit.notes.map((n) => (n === note ? { ...n, text } : n)) : state.circuit.notes.filter((n) => n !== note);
+      const circuit = { ...state.circuit, notes };
+      // A draft's text joins the step that placed it.
+      return draft ? { ...withCircuit(state, circuit), draftNote: null } : { ...edit(state, circuit), draftNote: null };
+    }),
   load: ({ metadata, circuit, definitions }) => {
     // An opened file is routed afresh, never shaped by whatever was on screen before.
     forgetRoutes();
@@ -1042,7 +1109,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   },
 
   // A drag starts here: whatever it moves, a refusal from before is no longer the news.
-  record: () => set((state) => ({ ...remember(state), refusal: null })),
+  record: () => set((state) => ({ ...remember(state), refusal: null, draftNote: null })),
   undo: () =>
     set((state) => {
       const previous = state.past.at(-1);

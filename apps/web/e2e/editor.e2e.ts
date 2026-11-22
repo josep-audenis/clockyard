@@ -2143,3 +2143,67 @@ test("a push button is held by the pointer on its cap, and by its key once the c
   }).toPass({ timeout: 10_000 });
   await page.getByRole("button", { name: "Pause", exact: true }).click();
 });
+
+test("the playground's target: a 4-input AND held by four push buttons, with a note, saved and opened again (ADR 0038)", async ({ page }) => {
+  const part = (id: string, kind: string, x: number, y: number, props = {}) => ({ id, kind, position: { x, y }, rotation: 0, props });
+  const document = {
+    format: "clockyard",
+    version: 13,
+    metadata: { name: "Four", createdAt: "2026-11-22T00:00:00Z", modifiedAt: "2026-11-22T00:00:00Z" },
+    circuit: {
+      components: [
+        ...[0, 1, 2, 3].map((i) => part(`p${i}`, "button", 0, 6 * i, { binding: `Digit${i + 1}` })),
+        part("g", "and", 10, 4, { inputCount: 4 }),
+        part("l", "led", 18, 7),
+      ],
+      junctions: [],
+      wires: [
+        ...["a", "b", "c", "d"].map((port, i) => ({ id: `w${i}`, from: { component: `p${i}`, port: "out" }, to: { component: "g", port } })),
+        { id: "wl", from: { component: "g", port: "out" }, to: { component: "l", port: "in" } },
+      ],
+    },
+    definitions: [],
+  };
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles({ name: "four.clockyard.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(document)) });
+  await expect(status(page)).toContainText("Settled");
+  const at = await grid(page);
+  // A note beside the gate, placed from the parts panel and written in the inspector.
+  await page.getByRole("button", { name: "Text", exact: true }).click();
+  await click(page, at(22, 2));
+  const text = page.getByRole("textbox", { name: "Text" });
+  await expect(text).toBeFocused();
+  await text.fill("Lights when all four are held");
+  await text.press("Control+Enter");
+  await expect(page.getByRole("list", { name: "Inputs and outputs" }).getByText("Text: Lights when all four are held")).toHaveCount(1);
+  // A press on button 1's cap gives the circuit the keys; then 1, 2 and 3 held leave the LED dark, and 4 lights it.
+  const cap = at(2, 2);
+  await click(page, cap);
+  await expect(status(page)).toContainText("The circuit has the keys: 1, 2, 3, 4 hold buttons");
+  for (const key of ["1", "2", "3"]) await page.keyboard.down(key);
+  await expectStates(page, { "LED 1": 0 });
+  await page.keyboard.down("4");
+  await expectStates(page, { "LED 1": 1 });
+  await page.keyboard.up("2");
+  await expectStates(page, { "LED 1": 0 });
+  for (const key of ["1", "3", "4"]) await page.keyboard.up(key);
+  await page.keyboard.press("Escape");
+
+  // Saved to a file and opened again: four inputs, the keys, the note, every button let go.
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export" }).click();
+  const file = await (await download).path();
+  await openTab(page, "Projects");
+  await page.getByRole("button", { name: "New circuit" }).click();
+  await expect(status(page)).toContainText("No circuit");
+  await page.locator('[data-testid="import-file"]').setInputFiles(file);
+  await expect(status(page)).toContainText("Settled");
+  await expect(page.getByRole("list", { name: "Inputs and outputs" }).getByText("Text: Lights when all four are held")).toHaveCount(1);
+  for (const n of [1, 2, 3, 4]) await expect(readout(page, `Push button ${n}`)).toHaveText(`Push button ${n}: let go`);
+  await expectStates(page, { "LED 1": 0 });
+  const after = await grid(page);
+  await click(page, after(12, 5)); // the gate's body
+  await expect(page.getByRole("textbox", { name: "Inputs" })).toHaveValue("4");
+  await click(page, after(0.5, 18.5)); // button 4's corner, off its cap: selects without holding
+  await expect(page.getByRole("textbox", { name: "Key" })).toHaveValue("4");
+});

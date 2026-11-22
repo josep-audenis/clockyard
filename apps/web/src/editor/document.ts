@@ -208,7 +208,21 @@ export type Wire = { id: string; from: Endpoint; to: Endpoint; bends?: { x: numb
 /** Most bends a shaped wire may carry. */
 export const MAX_BENDS = 64;
 
-export type Circuit = { components: CircuitComponent[]; junctions: Junction[]; wires: Wire[] };
+/**
+ * Text placed on a sheet (ADR 0038): at a grid point, its lines as written, at most `MAX_NOTE` characters. Not a part:
+ * the engine never receives it.
+ */
+export type SheetNote = { id: string; position: { x: number; y: number }; text: string };
+/** The longest note on a sheet, in characters, and the most notes a sheet holds (ADR 0038). */
+export const MAX_NOTE = 500;
+export const MAX_SHEET_NOTES = 200;
+/** A note's box in grid cells, for picking and boxing it: half a cell a character, a cell a line (ADR 0038). */
+export function noteSize(text: string) {
+  const lines = text.split("\n");
+  return { width: Math.max(1, Math.ceil(Math.max(...lines.map((l) => [...l].length)) / 2)), height: lines.length };
+}
+
+export type Circuit = { components: CircuitComponent[]; junctions: Junction[]; wires: Wire[]; notes: SheetNote[] };
 
 export const isJunction = (end: Endpoint): end is JunctionRef => "junction" in end;
 /** ID of the part or junction a wire end is attached to. */
