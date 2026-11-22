@@ -275,4 +275,8 @@ test("a label's tag takes the first side none of its wires goes towards, and cov
   const all = labelTags(sheet([{ x: 20, y: 5 }, { x: 0, y: 15 }]));
   expect(all.get("j")).toEqual({ side: "right", box: null });
   expect(all.has("k")).toBe(false);
+  // A shaped wire leaves towards its first bend: far end right, first bend left, so the tag keeps off the left.
+  const shaped = sheet([{ x: 20, y: 10 }]);
+  shaped.wires = shaped.wires.map((w) => ({ ...w, bends: [{ x: 22, y: 4 }, { x: 4, y: 4 }] }));
+  expect(labelTags(shaped).get("j")?.side).toBe("right");
 });

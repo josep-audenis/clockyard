@@ -130,10 +130,10 @@ class RouteTiles {
   }
 }
 
-/** What routes keep away from: part bodies and junctions, the routes laid so far, and those too long to file. */
+/** What routes keep away from: part bodies, junctions and label tags, the routes laid so far, and those too long to file. */
 type Obstacles = { bodies: Tiles<{ x0: number; y0: number; x1: number; y1: number }>; routes: RouteTiles; long: LaidRoute[] };
 
-/** Parts and junctions of `circuit`, indexed by tiles of `size` cells; routes are added as they are laid (`lay`). */
+/** Parts, junctions and label tags of `circuit`, indexed by tiles of `size` cells; routes are added as they are laid (`lay`). */
 function obstaclesOf(circuit: Circuit, size: number): Obstacles {
   const bodies = new Tiles<{ x0: number; y0: number; x1: number; y1: number }>(size);
   for (const c of circuit.components) {
@@ -179,7 +179,7 @@ let searches = 0;
 class Box {
   readonly w: number;
   readonly h: number;
-  /** Part bodies (ports included) and junctions; a route's own ends are let through. */
+  /** Part bodies (ports included), junctions and label tags; a route's own ends are let through. */
   readonly blocked: Uint8Array;
   /** Another net runs along the edge leaving this cell to the right (2c) or downwards (2c + 1). */
   readonly edges: Uint8Array;
@@ -518,7 +518,10 @@ function unaffected(
   const nextDots = new Map(next.junctions.map((j) => [j.id, j.position]));
   // A label whose tag moved, grew or changed side counts as moved (ADR 0039).
   const [tagsBefore, tagsNow] = [labelTags(prev), labelTags(next)];
-  const sameTag = (id: string) => JSON.stringify(tagsBefore.get(id)?.box) === JSON.stringify(tagsNow.get(id)?.box);
+  const sameTag = (id: string) => {
+    const [a, b] = [tagsBefore.get(id)?.box, tagsNow.get(id)?.box];
+    return a === b || (!!a && !!b && a.x0 === b.x0 && a.y0 === b.y0 && a.x1 === b.x1 && a.y1 === b.y1);
+  };
   const stays = (id: string) => {
     const [old, now] = [parts.get(id), nextParts.get(id)];
     if (old || now) {
@@ -537,7 +540,7 @@ function unaffected(
     const [was, is] = [dots.get(id), nextDots.get(id)];
     return !!was && !!is && samePoint(was, is) && sameTag(id);
   };
-  // Boxes of parts and junctions that moved, turned or appeared: a kept route must not run into one.
+  // Boxes of parts, junctions and label tags that moved, turned or appeared: a kept route must not run into one.
   const obstacles = [
     ...next.components.filter((c) => !stays(c.id)).map((c) => ({ ...c.position, ...size(c) })),
     ...next.junctions.filter((j) => !stays(j.id)).map((j) => ({ ...j.position, width: 0, height: 0 })),

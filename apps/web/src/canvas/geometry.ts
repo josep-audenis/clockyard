@@ -33,16 +33,20 @@ export type TagBox = { x0: number; y0: number; x1: number; y1: number } | null;
  * cell a character, more than the drawn text takes. Worked out from where wires go, not from their routes, so the router
  * and the canvas agree before routing. A label with every side taken draws its tag on the right and blocks nothing.
  */
-export function labelTags(circuit: Circuit, at: Places = places(circuit)): Map<string, { side: TagSide; box: TagBox }> {
+export function labelTags(circuit: Circuit, at?: Places): Map<string, { side: TagSide; box: TagBox }> {
+  const tags = new Map<string, { side: TagSide; box: TagBox }>();
+  if (!circuit.junctions.some((j) => j.name)) return tags;
+  at ??= places(circuit);
   const taken = new Map<string, Set<TagSide>>();
   for (const w of circuit.wires) {
-    for (const [end, other] of [
-      [w.from, w.to],
-      [w.to, w.from],
+    for (const [end, other, bend] of [
+      [w.from, w.to, w.bends?.[0]],
+      [w.to, w.from, w.bends?.at(-1)],
     ] as const) {
       if (!isJunction(end)) continue;
       const dot = at.junctions.get(end.junction);
-      const far = dot?.name ? endAt(at, other) : undefined;
+      // A shaped wire leaves towards its nearest bend, as it is laid.
+      const far = dot?.name ? (bend ?? endAt(at, other)) : undefined;
       if (!dot || !far) continue;
       const sides = taken.get(dot.id) ?? new Set<TagSide>();
       if (far.x > dot.position.x) sides.add("right");
@@ -52,7 +56,6 @@ export function labelTags(circuit: Circuit, at: Places = places(circuit)): Map<s
       taken.set(dot.id, sides);
     }
   }
-  const tags = new Map<string, { side: TagSide; box: TagBox }>();
   for (const { id, name, position } of circuit.junctions) {
     if (!name) continue;
     const side = SIDES.find((s) => !taken.get(id)?.has(s));
