@@ -30,9 +30,10 @@ on splits and merges) and never inferred. They are checked when a circuit
 loads: a bad `width` or `fields` is `invalidWidth`, and ports of different
 widths on one net are `widthMismatch`, never a silent truncation. The engine,
 protocol, file format (v5) and editor all carry them (ADR 0014).
-*ADR 0038:* a gate also declares how many inputs it has, `inputCount`, 2
-to 8, absent meaning 2. Out of range, or on a part that is not one of the
-six gates, it is `invalidWidth`, as a bad address width is.
+*ADR 0038:* AND, OR, NAND, NOR, XOR and XNOR also declare how many
+inputs they have, `inputCount`, absent meaning 2. One that is not a whole
+number from 2 to 8, or one on any other part (custom parts included), is
+`invalidWidth`, as a bad address width is.
 
 A bit can also be `X` (unknown) or `Z` (high impedance), which only a
 tri-state buffer gives.
@@ -103,7 +104,7 @@ Parts compile to primitives, each with one output net: a switch or gate to
 one, a split to one per field, a merge to one, an LED to none. Gates are
 bitwise at their width (a 4-bit NOT of `0000` is `1111`).
 
-*ADR 0038:* a gate has *n* inputs, `a`, `b`, … up to `h`, 2 to 8 of them,
+*ADR 0038:* each of those six gates has *n* inputs, `a`, `b`, … up to `h`, 2 to 8 of them,
 each of the gate's width, and one output `out`. Bit by bit, AND is `1`
 when all its inputs are `1`, OR when any is, and XOR when an odd number
 are (parity). NAND, NOR and XNOR are the NOT of AND, OR and XOR: the
@@ -113,9 +114,10 @@ gate there is now. NOT has one input, `in`.
 
 *ADR 0038:* a **push button** (`button`) is an input part like a 1-bit
 switch: no inputs, an output `out` of 1 bit, set through `setInputs`,
-`1` while held. It is its own kind only so that the editor can tell it
-from a switch; inside a custom component it is not a pin, and it stays
-at `0` wherever the component is used.
+`1` while held. It takes no `width`; one is `invalidWidth`. It is its own
+kind only so that the editor can tell it from a switch; inside a custom
+component it is not a pin, and it stays at `0` wherever the component is
+used.
 
 Split field *i* is
 `in` shifted right past the fields below it and masked to its width; a merge
@@ -290,13 +292,16 @@ single delta is planned.
 
 *ADR 0038:* **a press between two ticks.** An input change is applied
 between ticks and settled at once, so combinational logic always sees it.
-An edge-triggered part sees a push button's press only if a rising edge of
-its clock falls while the button is held: a press and release with no tick
-between them never reaches a flip-flop or a RAM, and leaves no trace in a
-waveform, which keeps one value per tick. Nothing stretches a press. The
-worker, which applies input changes between its slices of ticks, notes the
-tick at which a button went to `1`, and reports the button if it goes back
-to `0` at that same tick while the simulation runs. A reload that sends a
+A flip-flop or RAM whose `clk` the button drives, directly or through
+gates, sees the press itself as a rising edge, between ticks, as it would
+a switch's. One clocked by the clock, or by anything else, sees a press
+only if a rising edge of its clock falls while the button is held: a press
+and release with no tick between them never reaches it. Such a press
+leaves no trace in a waveform either, which keeps one value per tick.
+Nothing stretches a press. The worker, which applies input changes between
+its slices of ticks, notes the tick at which a button went to `1`, and
+reports the button if it goes back to `0` at that same tick while a run is
+going (Run or Run until). A reload that sends a
 held button's `1` again keeps the noted tick; Reset sets it to 0, as time
 goes back to 0.
 
@@ -365,7 +370,7 @@ Bit by bit, never more unknown than the inputs force:
 | XOR, XNOR | `X` if any input is unknown |
 | Split, merge | each bit passes through; a `Z` becomes `X` |
 | ROM | all `X` if any address bit is unknown |
-| Switch, push button, keyboard, clock | always known |
+| Switch, push button (ADR 0038), keyboard, clock | always known |
 | Tri-state buffer (`tri`: `in` of width *w*, `en` of 1 bit → `out` of width *w*, sized 1 to 32 like a gate) | `en` a known `1`: `in`, a `Z` bit as `X`; `en` a known `0`: all `Z`; `en` unknown: all `X` |
 
 ### Parts with state
@@ -540,6 +545,10 @@ so the editor can highlight the culprit. Neither category crashes the app.
   `1`, `X` and `Z`, against a model written from the rules above; 8 inputs
   at width 32 on chosen values; an `inputCount` out of range or on another
   part refused.
+- *ADR 0038:* a push button set through `setInputs`, and a value above 1
+  refused; kept by `load_keeping` and by Reset; a switch replaced by a
+  button under the same ID starting at 0; a definition pin naming a button
+  refused; a button driving a flip-flop's `clk` clocking it between ticks.
 - Cascades, fan-out, re-evaluation after toggles.
 - Order independence: shuffling component order at compile time gives
   identical results.
