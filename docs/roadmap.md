@@ -733,7 +733,9 @@ wider gates, notes on the canvas), then readable computers, rough edges,
 challenges 13 to 16, and a project others can join. Increment 1, the
 playground's gaps, is designed in ADR 0038 (accepted). Step 1 is
 done: the rules for gates with 2 to 8 inputs and the push button are in
-`docs/simulation-model.md`, marked as not built yet.
+`docs/simulation-model.md`. Step 2 is done: the engine takes `inputCount`
+on the six gates (ports `a` to `h`) and the `button` part, tested against
+a model of the rules over every `0`, `1`, `X` and `Z` combination.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is

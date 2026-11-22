@@ -8,7 +8,9 @@ type Part = { kind: string; inputs: string[]; outputs: string[]; fieldPorts?: { 
 test("every engine catalog kind has a layout with the same ports", () => {
   initSync({ module: readFileSync(new URL("../generated/sim-wasm/sim_wasm_bg.wasm", import.meta.url)) });
   const all = JSON.parse(catalog()) as Part[];
-  const parts = all.filter((p) => !p.fieldPorts).map(({ kind, inputs, outputs }) => ({ kind, inputs, outputs }));
+  // The push button is in the engine (ADR 0038 step 2) before the editor draws it (step 4).
+  expect(all.filter((p) => !p.fieldPorts && !(p.kind in LAYOUTS)).map((p) => p.kind)).toEqual(["button"]);
+  const parts = all.filter((p) => !p.fieldPorts && p.kind in LAYOUTS).map(({ kind, inputs, outputs }) => ({ kind, inputs, outputs }));
   const fromLayouts = Object.entries(LAYOUTS).map(([kind, layout]) => ({
     kind,
     inputs: Object.keys(layout.inputs),

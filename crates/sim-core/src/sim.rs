@@ -265,6 +265,9 @@ enum Op {
         memory: Box<Memory>,
         clk_was: Level,
     },
+    /// A gate with more than two inputs (ADR 0038), apart from `Gate` so the
+    /// two-input case costs what it did.
+    Wide(Kind),
 }
 
 #[derive(Debug)]
@@ -792,7 +795,8 @@ impl Simulator {
             match kind {
                 Kind::Led | Kind::Seg7 => {}
                 // ADR 0021: a keyboard is a switch the editor sets from the key held.
-                Kind::Switch | Kind::Keyboard => add(Op::Switch, &[], 0),
+                // ADR 0038: so is a push button, held at 1 while pressed.
+                Kind::Switch | Kind::Keyboard | Kind::Button => add(Op::Switch, &[], 0),
                 Kind::Clock => add(Op::Clock, &[], 0),
                 Kind::Tri => add(Op::Tri, &nets[..2], 2),
                 Kind::Dff => add(
@@ -841,9 +845,15 @@ impl Simulator {
                         .collect();
                     add(Op::Merge { shifts }, &nets[..n], n);
                 }
+                // Every input, then `out`.
                 gate => {
-                    let n = gate.inputs().len();
-                    add(Op::Gate(gate), &nets[..n], n);
+                    let n = ports[c].len() - 1;
+                    let op = if n > 2 {
+                        Op::Wide(gate)
+                    } else {
+                        Op::Gate(gate)
+                    };
+                    add(op, &nets[..n], n);
                 }
             }
         }
@@ -1087,9 +1097,9 @@ impl Simulator {
             .ids
             .binary_search_by(|id| id.as_str().cmp(component))
             .map_err(|_| format!("unknown component {component}"))?;
-        if !matches!(self.kinds[c], Kind::Switch | Kind::Keyboard) {
+        if !matches!(self.kinds[c], Kind::Switch | Kind::Keyboard | Kind::Button) {
             return Err(format!(
-                "{component} is a {}, not a switch or keyboard",
+                "{component} is a {}, not a switch, keyboard or button",
                 self.kinds[c].name()
             ));
         }
@@ -1178,6 +1188,7 @@ impl Simulator {
             Op::Rom { words } => words.get(input(0) as usize).copied().unwrap_or(0),
             Op::Ram { memory, .. } => memory.cells.get(input(0) as usize).copied().unwrap_or(0),
             Op::Gate(kind) => kind.gate(input(0), input(1)),
+            Op::Wide(kind) => kind.gate_all(prim.inputs.iter().map(|&net| self.nets[net as usize])),
             Op::Field { shift } => input(0) >> shift,
             Op::Merge { shifts } => shifts
                 .iter()
@@ -1222,6 +1233,16 @@ impl Simulator {
                 V { v, u: 0 } => cell(&memory.cells, &memory.unknown, v as usize),
                 _ => V::UNKNOWN,
             },
+            Op::Wide(kind) => {
+                let (base, invert) = kind.base();
+                let value =
+                    (1..prim.inputs.len()).fold(input(0), |acc, i| gate(base, acc, input(i)));
+                if invert {
+                    gate(Kind::Not, value, V::default())
+                } else {
+                    value
+                }
+            }
             Op::Gate(kind) => gate(*kind, input(0), input(1)),
             Op::Field { shift } => {
                 let whole = input(0);

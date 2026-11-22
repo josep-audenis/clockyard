@@ -11,6 +11,10 @@ pub const MAX_WIDTH: u32 = 32;
 /// Widest address a ROM or RAM may have: 2^16 words (ADR 0018).
 pub const MAX_ADDRESS: u32 = 16;
 
+/// The most inputs a gate may have (ADR 0038), and their port names in order.
+pub const MAX_INPUTS: u32 = 8;
+const GATE_INPUTS: [&str; MAX_INPUTS as usize] = ["a", "b", "c", "d", "e", "f", "g", "h"];
+
 /// The low `width` bits set, for a width from 1 to `MAX_WIDTH`. Never built
 /// by shifting 1, which overflows at 32.
 pub(crate) fn mask(width: u32) -> u32 {
@@ -40,6 +44,8 @@ pub enum Kind {
     Keyboard,
     /// A tri-state buffer (ADR 0035): `out` is `in` while `en` is 1, and drives nothing while it is 0.
     Tri,
+    /// A push button (ADR 0038): a 1-bit switch the editor holds at 1 while it is pressed.
+    Button,
 }
 
 /// One port of a part, with the width its props give it.
@@ -51,7 +57,7 @@ pub struct Port {
 }
 
 impl Kind {
-    pub const ALL: [Kind; 19] = [
+    pub const ALL: [Kind; 20] = [
         Kind::Switch,
         Kind::Led,
         Kind::Not,
@@ -71,6 +77,7 @@ impl Kind {
         Kind::Screen,
         Kind::Keyboard,
         Kind::Tri,
+        Kind::Button,
     ];
 
     /// Name used in circuit descriptions.
@@ -95,6 +102,7 @@ impl Kind {
             Kind::Screen => "screen",
             Kind::Keyboard => "keyboard",
             Kind::Tri => "tri",
+            Kind::Button => "button",
         }
     }
 
@@ -112,7 +120,7 @@ impl Kind {
     /// The width of a part whose ports never take a `width` prop.
     pub fn fixed_width(self) -> Option<u32> {
         match self {
-            Kind::Clock => Some(1),
+            Kind::Clock | Kind::Button => Some(1),
             Kind::Seg7 | Kind::Keyboard => Some(8),
             _ => None,
         }
@@ -122,6 +130,15 @@ impl Kind {
     /// (ADR 0018). A screen is a RAM whose words are pixels (ADR 0021).
     pub fn addressed(self) -> bool {
         matches!(self, Kind::Rom | Kind::Ram | Kind::Screen)
+    }
+
+    /// Whether `inputCount` sets how many inputs it has, `a` to `h` (ADR 0038):
+    /// every gate but NOT.
+    pub fn counted(self) -> bool {
+        matches!(
+            self,
+            Kind::And | Kind::Nand | Kind::Or | Kind::Nor | Kind::Xor | Kind::Xnor
+        )
     }
 
     /// Whether the `fields` prop adds field ports `f0`, `f1`, … (split, merge).
@@ -139,17 +156,18 @@ impl Kind {
         }
     }
 
-    /// Fixed input ports. A merge's field inputs come from `ports`.
+    /// Fixed input ports. A merge's field inputs come from `ports`; a gate's
+    /// are its first two, and `ports` gives the rest of its `inputCount`.
     pub fn inputs(self) -> &'static [&'static str] {
         match self {
-            Kind::Switch | Kind::Merge | Kind::Clock | Kind::Keyboard => &[],
+            Kind::Switch | Kind::Merge | Kind::Clock | Kind::Keyboard | Kind::Button => &[],
             Kind::Led | Kind::Not | Kind::Split => &["in"],
             Kind::Seg7 => &["seg"],
             Kind::Dff => &["d", "clk"],
             Kind::Tri => &["in", "en"],
             Kind::Rom => &["addr"],
             Kind::Ram | Kind::Screen => &["addr", "din", "we", "clk"],
-            _ => &["a", "b"],
+            _ => &GATE_INPUTS[..2],
         }
     }
 
@@ -191,7 +209,12 @@ impl Kind {
             width,
             output,
         });
-        let mut ports: Vec<Port> = fixed(self.inputs(), false).collect();
+        let inputs = if self.counted() {
+            &GATE_INPUTS[..shape.inputs.clamp(2, MAX_INPUTS) as usize]
+        } else {
+            self.inputs()
+        };
+        let mut ports: Vec<Port> = fixed(inputs, false).collect();
         if self == Kind::Merge {
             ports.extend(field_ports.clone());
         }
@@ -200,6 +223,27 @@ impl Kind {
             ports.extend(field_ports);
         }
         ports
+    }
+
+    /// A gate with any number of inputs as the gate it folds with, and
+    /// whether it inverts once at the end (ADR 0038): NAND, NOR and XNOR do
+    /// not chain.
+    pub(crate) fn base(self) -> (Kind, bool) {
+        match self {
+            Kind::Nand => (Kind::And, true),
+            Kind::Nor => (Kind::Or, true),
+            Kind::Xnor => (Kind::Xor, true),
+            kind => (kind, false),
+        }
+    }
+
+    /// A gate's output over all its inputs, bit by bit and not yet masked
+    /// (ADR 0038): AND of all, OR of any, XOR their parity.
+    pub(crate) fn gate_all(self, mut inputs: impl Iterator<Item = u32>) -> u32 {
+        let (base, invert) = self.base();
+        let first = inputs.next().unwrap_or(0);
+        let value = inputs.fold(first, |acc, x| base.gate(acc, x));
+        if invert { !value } else { value }
     }
 
     /// A gate's output, bit by bit and not yet masked to its width (ADR 0014).
@@ -223,7 +267,8 @@ impl Kind {
             | Kind::Seg7
             | Kind::Screen
             | Kind::Keyboard
-            | Kind::Tri => {
+            | Kind::Tri
+            | Kind::Button => {
                 unreachable!("{} is not a gate", self.name())
             }
         }
@@ -260,6 +305,7 @@ mod tests {
             width,
             fields: fields.to_vec(),
             address,
+            inputs: 0,
             data: Vec::new(),
         }
     }

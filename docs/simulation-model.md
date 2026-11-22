@@ -4,8 +4,8 @@ Status: **built** for combinational logic (Phase 1, ADR 0006) and sequential
 logic (Phase 3, ADR 0017), and for four-state signals (ADR 0035): unknown
 values, the tri-state buffer and nets with several drivers. See Four-state
 signals. Gates with 2 to 8 inputs and the push button (ADR 0038) are
-**specified, not built yet**: the passages marked *ADR 0038* say what the
-engine will do once they are.
+built in the engine (step 2). The editor cannot place them yet, and the
+worker's report of a short press is **not built yet** (step 4).
 
 ## Terms
 
