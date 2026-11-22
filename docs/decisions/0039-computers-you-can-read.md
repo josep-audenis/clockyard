@@ -6,7 +6,8 @@
   canvas); ADR 0015 (net labels and their tags); ADR 0011 and ADR 0033
   (routing, kept routes, opening framed); ADR 0017 (the open sheet is what
   runs); ADR 0019 and ADR 0036 (the reference CPUs and the program
-  editor); ADR 0024 (links); ADR 0030 (benchmarks); ADR 0034 (the cut CPU)
+  editor); ADR 0024 (links); ADR 0030 (benchmarks); ADR 0034 (the cut CPU,
+  left as it is)
 
 ## Context
 
@@ -93,8 +94,9 @@ What there is:
      one function the router and the canvas share: half a cell a character
      (generous for 11 px mono, about 0.4 of a cell), one row, starting one
      point from the dot on its side, or centred on the dot's column above
-     or below. The canvas draws the tag where it draws it now; picking it
-     (`tagAt`) uses the same box.
+     or below. The canvas draws the tag where it draws it now, and picks
+     it (`tagAt`) by the drawn tag, as now; the reckoned box only keeps
+     routes away.
    - **Routing.** Tag boxes go into `obstaclesOf` as bodies: every net's
      routes keep clear of them, the label's own included, so no wire hides
      its own name. The dot stays a reachable goal. Where nothing clear
@@ -132,11 +134,13 @@ What there is:
      the ROM's address now: in a CPU fetching from this ROM, the next
      instruction to run, once its fetch has begun." It knows nothing of
      CPUs, so it works for any circuit that fetches from a ROM on the open
-     sheet. A ROM inside a component cannot be followed, as nothing inside
-     a component is shown (ADR 0017).
+     sheet. A ROM inside an instance on this sheet cannot be selected, so
+     it is not followed; opening its component's sheet follows it there,
+     since the open sheet is what runs (ADR 0017).
 
 5. **The reference CPUs laid out in regions.**
-   - **Regions** are rectangles of at most 44 × 40 cells, in a grid of at
+   - **Regions** are rectangles of at most 44 × 40 cells, each with its
+     note at its top left corner, in a grid of at
      most three columns with 4 cells between them, so a sheet still opens
      framed at 25% or more. The first CPU: Clock and phase; Fetch (`PC`,
      the program ROM, `IR`); Control; Registers; ALU; Memory and I/O (RAM
@@ -160,16 +164,23 @@ What there is:
    - **The layout check** is a Vitest test over each example file, routed
      by the editor's own router: every part, tag and route lies inside its
      region; no route crosses a note; no wire falls back to the plain
-     path.
+     path, which the router counts in a figure exported for tests
+     (`fallbacks`).
    - **Connectivity does not change.** A committed fixture records, for
      each example, which ports share a net today, computed by union-find
      over its wires and label names. A test computes the same for the new
      files and compares partitions (junction and wire IDs may change;
      ports may not), and checks that the engine reports no diagnostic it
      did not report before (no `unmatchedLabel`, say).
-   - **What follows,** in the same pull request: Catch, Catch 2, the cut
-     CPU (`scripts/computer.mjs`, laid out the same way), `cpu-1k` and its
-     check, the route hashes, and the Playwright tests that click parts.
+   - **What follows,** in the same pull request: Catch, Catch 2, `cpu-1k`
+     and its check, the route hashes, and the Playwright tests that click
+     parts.
+   - **The cut CPU** of challenge 11's bench (`scripts/computer.mjs`) is
+     left as it is: it is a component inside the challenge files, spread
+     from the old positions for its pins-only starter, not a computer
+     shown to read; relaying it would change challenge 11's starter and
+     the challenges' format for no reader's gain. ADR 0037 expected it to
+     follow; this records why it does not.
      Catch's link stays under 8,000 characters; if region text pushes it
      over, Catch keeps only the titles.
 
@@ -196,7 +207,8 @@ What there is:
       the mark is where the specification says `PC` is.
    4. **The reference CPUs in regions,** both at once, since the second
       is built from the first: the generators, the connectivity fixture
-      and test, the layout test, everything that follows (item 5), and the
+      and test, the router's fallback count and the layout test,
+      everything that follows (item 5), and the
       target: in a 1280×800 viewport with both panels open, jumping to
       each region's note gives 100% with the region's rectangle inside the
       canvas, and the sheet opens framed at 25% or more.
