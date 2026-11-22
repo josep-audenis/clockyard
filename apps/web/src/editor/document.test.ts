@@ -167,6 +167,6 @@ test("notes never reach the engine: a sheet's description is the same with and w
   };
   const noted = { ...sheet, notes: [{ id: "n", position: { x: 4, y: 4 }, text: "A note" }] };
   const definitions = [{ id: "d", name: "D", circuit: noted }];
-  expect(project(noted, definitions)).toEqual(project(sheet, [{ ...definitions[0]!, circuit: sheet }]));
+  expect(project(noted, definitions)).toEqual(project(sheet, [{ id: "d", name: "D", circuit: sheet }]));
   expect(JSON.stringify(project(noted, definitions))).not.toContain("A note");
 });
