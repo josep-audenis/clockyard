@@ -731,7 +731,9 @@ drawn in single pixels by one shared routine. That completes the plan of
 ADR 0028. Phase 7 is planned in ADR 0037 (accepted): the playground's gaps (push buttons,
 wider gates, notes on the canvas), then readable computers, rough edges,
 challenges 13 to 16, and a project others can join. Increment 1, the
-playground's gaps, is designed in ADR 0038 (accepted).
+playground's gaps, is designed in ADR 0038 (accepted). Step 1 is
+done: the rules for gates with 2 to 8 inputs and the push button are in
+`docs/simulation-model.md`, marked as not built yet.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is

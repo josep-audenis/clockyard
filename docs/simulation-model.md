@@ -3,7 +3,9 @@
 Status: **built** for combinational logic (Phase 1, ADR 0006) and sequential
 logic (Phase 3, ADR 0017), and for four-state signals (ADR 0035): unknown
 values, the tri-state buffer and nets with several drivers. See Four-state
-signals.
+signals. Gates with 2 to 8 inputs and the push button (ADR 0038) are
+**specified, not built yet**: the passages marked *ADR 0038* say what the
+engine will do once they are.
 
 ## Terms
 
@@ -28,6 +30,9 @@ on splits and merges) and never inferred. They are checked when a circuit
 loads: a bad `width` or `fields` is `invalidWidth`, and ports of different
 widths on one net are `widthMismatch`, never a silent truncation. The engine,
 protocol, file format (v5) and editor all carry them (ADR 0014).
+*ADR 0038:* a gate also declares how many inputs it has, `inputCount`, 2
+to 8, absent meaning 2. Out of range, or on a part that is not one of the
+six gates, it is `invalidWidth`, as a bad address width is.
 
 A bit can also be `X` (unknown) or `Z` (high impedance), which only a
 tri-state buffer gives.
@@ -96,7 +101,23 @@ same circuit compiles to the same indices on every machine.
 
 Parts compile to primitives, each with one output net: a switch or gate to
 one, a split to one per field, a merge to one, an LED to none. Gates are
-bitwise at their width (a 4-bit NOT of `0000` is `1111`). Split field *i* is
+bitwise at their width (a 4-bit NOT of `0000` is `1111`).
+
+*ADR 0038:* a gate has *n* inputs, `a`, `b`, … up to `h`, 2 to 8 of them,
+each of the gate's width, and one output `out`. Bit by bit, AND is `1`
+when all its inputs are `1`, OR when any is, and XOR when an odd number
+are (parity). NAND, NOR and XNOR are the NOT of AND, OR and XOR: the
+engine combines the inputs with AND, OR or XOR and inverts once at the
+end, since NAND, NOR and XNOR do not chain. With two inputs each is the
+gate there is now. NOT has one input, `in`.
+
+*ADR 0038:* a **push button** (`button`) is an input part like a 1-bit
+switch: no inputs, an output `out` of 1 bit, set through `setInputs`,
+`1` while held. It is its own kind only so that the editor can tell it
+from a switch; inside a custom component it is not a pin, and it stays
+at `0` wherever the component is used.
+
+Split field *i* is
 `in` shifted right past the fields below it and masked to its width; a merge
 places each field at its offset, `f0` lowest. Every primitive adds one delta
 of delay. Below, "component" means a primitive.
@@ -252,13 +273,13 @@ and asynchronous reset (asynchronous reset acts like a combinational input).
 | Run / Pause | The worker ticks in slices, each 16 ms after the last finished: as many ticks as the speed calls for since then, in chunks of 64, starting no new chunk after 8 ms. Ticks that do not fit are dropped, so a circuit too heavy for the speed runs slower rather than catching up. A tick that is unstable pauses the run; the warning that a loop's `X` remains does not |
 | Run until | Run, stopping at the tick where a chosen LED's net rises: a known 0 just before the tick (after any switch change), and a bit at a known 1 after it, so an LED lit at the start must go dark first, and one that leaves `X` for 1 has not risen (`tick_until`, ADR 0019). Where it stops does not depend on how the run is split into slices |
 | Step | `step_cycle`: ticks until the clock has risen once and is low again (2 ticks from low, 3 from high) |
-| Reset | Flip-flops, RAM, the clock and time to 0, switch values and ROM kept; nets to 0, then pre-settle and settle as a load does |
+| Reset | Flip-flops, RAM, the clock and time to 0, switch values (and push buttons, ADR 0038) and ROM kept; nets to 0, then pre-settle and settle as a load does |
 | Speed | Target cycles per wall-clock second (1 to 10,000). Pacing decides only how many ticks run, so the state after *n* ticks is the same at any speed |
 
 A load starts at time 0 with every flip-flop at 0. `load_keeping(description,
 previous)` instead carries state from `previous`, the circuit simulated before
 an edit (ADR 0033): time (the clock takes the level it gives), and each switch,
-keyboard, flip-flop, RAM and screen whose elaborated ID names a part of the same
+push button (ADR 0038), keyboard, flip-flop, RAM and screen whose elaborated ID names a part of the same
 kind and size in both. A switch whose width changed keeps the bits that still
 fit; anything else new or changed starts at 0, and nets still settle from 0, so
 a latch built from gates is not kept. The editor sends a connectivity edit
@@ -266,6 +287,18 @@ a latch built from gates is not kept. The editor sends a connectivity edit
 was; opening a file, example, project, link or sheet is a plain load from time
 0, and Reset is the way back to 0. A run under way keeps running. Stepping a
 single delta is planned.
+
+*ADR 0038:* **a press between two ticks.** An input change is applied
+between ticks and settled at once, so combinational logic always sees it.
+An edge-triggered part sees a push button's press only if a rising edge of
+its clock falls while the button is held: a press and release with no tick
+between them never reaches a flip-flop or a RAM, and leaves no trace in a
+waveform, which keeps one value per tick. Nothing stretches a press. The
+worker, which applies input changes between its slices of ticks, notes the
+tick at which a button went to `1`, and reports the button if it goes back
+to `0` at that same tick while the simulation runs. A reload that sends a
+held button's `1` again keeps the noted tick; Reset sets it to 0, as time
+goes back to 0.
 
 ### Waveforms
 
@@ -326,13 +359,13 @@ Bit by bit, never more unknown than the inputs force:
 
 | Part | Output |
 |------|--------|
-| AND | `0` if either input is `0`; `1` if both are `1`; else `X` |
-| OR | `1` if either input is `1`; `0` if both are `0`; else `X` |
+| AND | `0` if any input is `0`; `1` if all are `1`; else `X` |
+| OR | `1` if any input is `1`; `0` if all are `0`; else `X` |
 | NOT | `X` for `X` or `Z`; NAND and NOR are NOT of the above |
-| XOR, XNOR | `X` if either input is unknown |
+| XOR, XNOR | `X` if any input is unknown |
 | Split, merge | each bit passes through; a `Z` becomes `X` |
 | ROM | all `X` if any address bit is unknown |
-| Switch, keyboard, clock | always known |
+| Switch, push button, keyboard, clock | always known |
 | Tri-state buffer (`tri`: `in` of width *w*, `en` of 1 bit → `out` of width *w*, sized 1 to 32 like a gate) | `en` a known `1`: `in`, a `Z` bit as `X`; `en` a known `0`: all `Z`; `en` unknown: all `X` |
 
 ### Parts with state
@@ -503,6 +536,10 @@ so the editor can highlight the culprit. Neither category crashes the app.
 ## Test obligations
 
 - Every gate's full truth table.
+- *ADR 0038:* every gate with 2 to 4 inputs over every combination of `0`,
+  `1`, `X` and `Z`, against a model written from the rules above; 8 inputs
+  at width 32 on chosen values; an `inputCount` out of range or on another
+  part refused.
 - Cascades, fan-out, re-evaluation after toggles.
 - Order independence: shuffling component order at compile time gives
   identical results.
