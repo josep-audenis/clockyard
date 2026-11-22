@@ -254,7 +254,15 @@ What there is:
 - **Label names.** Where neither the specification nor `cpu-pieces.mjs`
   names a signal, the generators coin a short name: `clk`, `one`, `zero`,
   `zero8`, `opcode`, `jump`, `B`, `logic`, `dropped`, `return`,
-  `sptrWe`, `hexWe`, `sdataWe`. The old `KEY`, `HEX high` and `HEX low`
-  labels are gone; part IDs do not change.
+  `sptrWe`, `hexWe`, `sdataWe`. `KEY` is still a label, now one pair per
+  region it joins; `HEX high` and `HEX low` are wires inside Devices;
+  part IDs do not change.
+- **The layout test reads regions from the notes,** 44 × 40 cells from
+  each note's corner, rather than importing them from the generators:
+  the files are what a reader opens, and the generators check their own
+  rectangles.
+- **Measured** (step 1 asked for it): routing the first CPU's sheet from
+  cold takes about 18 ms against 62 before, the second's 61 against 203;
+  see `docs/performance.md`, section 15.
 - **Captions are not obstacles,** so a few labels sit over a part's
   caption. Left as it is.

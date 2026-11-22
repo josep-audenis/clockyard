@@ -2251,7 +2251,8 @@ for (const name of ["reference-cpu", "reference-cpu-2"]) {
     const view = async () => ((await host.getAttribute("data-view")) ?? "").split(" ").map(Number);
     await page.locator('[data-testid="import-file"]').setInputFiles(example(name));
     await expect(status(page)).toContainText("Settled");
-    expect((await view())[2]).toBeGreaterThanOrEqual(0.25);
+    // Framing never goes under 25% (it clamps there), so above it means the whole sheet fits.
+    expect((await view())[2]).toBeGreaterThan(0.25);
     const box = await host.boundingBox();
     const list = page.getByRole("list", { name: "On this sheet" });
     expect(document.circuit.notes.length).toBeGreaterThanOrEqual(8);
