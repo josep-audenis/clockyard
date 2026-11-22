@@ -25,6 +25,7 @@ import {
   MAX_NOTE,
   MAX_NOTES,
   MAX_WIDTH,
+  noteSize,
   maxValue,
   normalizeNotes,
   parseValue,
@@ -822,8 +823,13 @@ function opened(message: string) {
 /** Puts a part on the sheet without a pointer: at the left, below everything there, selected for the inspector. */
 function placeFromKeyboard(kind: PartKind | "label" | "note", width: number, definition?: string) {
   const editor = useEditor.getState();
-  const { components, junctions } = editor.circuit;
-  const bottom = Math.max(-2, ...components.map((c) => c.position.y + layoutOf(c).height), ...junctions.map((j) => j.position.y));
+  const { components, junctions, notes } = editor.circuit;
+  const bottom = Math.max(
+    -2,
+    ...components.map((c) => c.position.y + layoutOf(c).height),
+    ...junctions.map((j) => j.position.y),
+    ...notes.map((n) => n.position.y + noteSize(n.text).height),
+  );
   const position = { x: 2, y: bottom + 3 };
   if (kind === "label") {
     const id = editor.addLabel(position);
@@ -1806,7 +1812,8 @@ function Inspector() {
         ) : junction ? (
           <JunctionProperties key={junction.id} junction={junction} />
         ) : note ? (
-          <NoteProperties key={note.id} note={note} />
+          // Keyed by its text too: an undo or redo shows the text it brings back, never a stale one to commit again.
+          <NoteProperties key={`${note.id}:${note.text}`} note={note} />
         ) : selection.length > 1 ? (
           <MakeComponent count={selection.length} />
         ) : (
@@ -1896,7 +1903,7 @@ function NoteProperties({ note }: { note: SheetNote }) {
           }}
         />
         <p id={`${id}-hint`} className="field-hint">
-          {`Shown on the sheet as written, at most ${MAX_NOTE} characters. Empty removes it.`}
+          {`Shown on the sheet as written, at most ${MAX_NOTE} characters. Ctrl+Enter or leaving the field keeps it, Esc puts it back; empty removes it.`}
         </p>
       </div>
     </div>
@@ -2698,15 +2705,15 @@ function Readout() {
         {leds.map((c) => (
           <li key={c.id}>{`${names.get(c.id)}: ${value(c, c.kind === "seg7" ? "seg" : "in")}`}</li>
         ))}
-        {/* ADR 0038: the sheet's notes, which show only on the canvas. */}
-        {circuit.notes.map((n) => (
-          <li key={n.id}>{`Text: ${n.text}`}</li>
-        ))}
         {flipFlops.map((c) => (
           <li key={c.id}>{`${names.get(c.id)}: ${value(c, "q")}`}</li>
         ))}
         {registers.map(({ part, pin, name }) => (
           <li key={`${part.id}/${pin.id}`}>{`${names.get(part.id)} ${name}: ${pinValue(part, pin)}`}</li>
+        ))}
+        {/* ADR 0038: the sheet's notes, which show only on the canvas, last. */}
+        {circuit.notes.map((n) => (
+          <li key={n.id}>{`Text: ${n.text}`}</li>
         ))}
       </Fragment>
     </ul>

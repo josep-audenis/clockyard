@@ -681,7 +681,7 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
       present.add(note.id);
       let text = noteTexts.get(note.id);
       if (!text) {
-        text = new Text({ text: note.text, style: { fontFamily: theme.mono, fontSize: 13, lineHeight: c, fill: color.ink } });
+        text = new Text({ text: note.text, style: { fontFamily: theme.mono, fontSize: 13, fontWeight: "500", lineHeight: c, fill: color.ink } });
         noteTexts.set(note.id, text);
         notesLayer.addChild(text);
       }

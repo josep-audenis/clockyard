@@ -1497,12 +1497,12 @@ test("a placed note is a draft: written, placing and text are one undo step; lef
   const { addNote, setNoteText, undo, armNote } = useEditor.getState();
   armNote(true);
   const { past } = useEditor.getState();
-  const n = addNote({ x: 2, y: 3 });
+  const n = addNote({ x: 2, y: 3 }) ?? "";
   expect(useEditor.getState()).toMatchObject({ selection: [n], armedNote: false });
   setNoteText(n, "  \n ");
   expect(useEditor.getState().circuit.notes).toEqual([]);
   expect(useEditor.getState().past).toEqual(past);
-  const m = addNote({ x: 2, y: 3 });
+  const m = addNote({ x: 2, y: 3 }) ?? "";
   setNoteText(m, "Fetch\r\nand decode");
   expect(useEditor.getState().circuit.notes).toEqual([{ id: m, position: { x: 2, y: 3 }, text: "Fetch\nand decode" }]);
   expect(useEditor.getState().past).toHaveLength(past.length + 1);
@@ -1515,14 +1515,31 @@ test("a placed note is a draft: written, placing and text are one undo step; lef
   undo();
   undo();
   expect(useEditor.getState().circuit.notes).toEqual([]);
-  setNoteText(m, "x".repeat(600));
-  expect(useEditor.getState().circuit.notes).toEqual([]);
+  // Cut to 500 characters on a live note.
+  const long = addNote({ x: 0, y: 0 });
+  if (!long) throw new Error("no note");
+  setNoteText(long, "x".repeat(600));
+  expect(useEditor.getState().circuit.notes[0]?.text).toHaveLength(500);
+});
+
+test("a sheet holds at most 200 notes: placing or pasting past that is refused with a reason (ADR 0038)", () => {
+  const notes = Array.from({ length: 200 }, (_, i) => ({ id: `n${i}`, position: { x: 0, y: i }, text: "x" }));
+  useEditor.setState({ circuit: { components: [], junctions: [], wires: [], notes } });
+  expect(useEditor.getState().addNote({ x: 5, y: 5 })).toBeNull();
+  expect(useEditor.getState().refusal).toMatch(/at most 200 notes/);
+  useEditor.getState().select(["n0"]);
+  useEditor.getState().duplicate();
+  expect(useEditor.getState().circuit.notes).toHaveLength(200);
+  // A lone note copies and duplicates as parts do.
+  useEditor.setState({ circuit: { components: [], junctions: [], wires: [], notes: notes.slice(0, 1) }, selection: ["n0"] });
+  useEditor.getState().duplicate();
+  expect(useEditor.getState().circuit.notes).toHaveLength(2);
 });
 
 test("notes move, turn in place, delete, copy and paste with the selection (ADR 0038)", () => {
   const { add, addNote, setNoteText, record, move, rotate, select, copy, paste, remove } = useEditor.getState();
   const g = add("and", { x: 0, y: 0 });
-  const n = addNote({ x: 0, y: 6 });
+  const n = addNote({ x: 0, y: 6 }) ?? "";
   setNoteText(n, "AND");
   record();
   move({ [g]: { x: 2, y: 0 }, [n]: { x: 2, y: 6 } });

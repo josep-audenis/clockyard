@@ -30,6 +30,7 @@ import {
   MAX_INPUTS,
   MAX_NOTE,
   MAX_NOTES,
+  MAX_SHEET_NOTES,
   MAX_SOURCE,
   normalizeNotes,
   wordsProblem,
@@ -168,8 +169,8 @@ export type EditorState = {
   /** Arms a net label, or disarms it. */
   armLabel: (on: boolean) => void;
   armNote: (on: boolean) => void;
-  /** Places an empty note at a grid point, selected, as a draft (ADR 0038); returns its ID. */
-  addNote: (position: Point) => string;
+  /** Places an empty note at a grid point, selected, as a draft (ADR 0038); returns its ID, or null on a full sheet. */
+  addNote: (position: Point) => string | null;
   /**
    * Sets a note's text as one edit, normalized as the project's notes are and cut to `MAX_NOTE` characters; empty
    * deletes it. A draft's first text joins its placing in one undo step, and a draft left empty leaves no step at all.
@@ -405,7 +406,7 @@ function withCircuit(state: EditorState, circuit: Circuit) {
 const items = (circuit: Circuit) => [...circuit.components, ...circuit.junctions, ...circuit.wires, ...circuit.notes];
 
 /** Nothing to copy: no parts and no labels. Plain junctions with only wires between them are not worth a copy. */
-const isEmpty = (part: Circuit) => part.components.length === 0 && !part.junctions.some((j) => j.name);
+const isEmpty = (part: Circuit) => part.components.length === 0 && !part.junctions.some((j) => j.name) && part.notes.length === 0;
 
 /** The chosen parts and junctions and the wires running between them; wires to anything else are left out. */
 function fragment(circuit: Circuit, ids: string[]): Circuit {
@@ -462,8 +463,12 @@ function placed(circuit: Circuit, part: Circuit, offset: number): [Circuit, numb
   }
 }
 
-/** Adds `part` to the circuit as one edit and selects it. */
-const insert = (state: EditorState, part: Circuit) => ({
+const FULL_OF_NOTES = `Not added: a sheet holds at most ${MAX_SHEET_NOTES} notes.`;
+
+/** Adds `part` to the circuit as one edit and selects it; refused if the sheet would hold more notes than a file can. */
+const insert = (state: EditorState, part: Circuit) =>
+  state.circuit.notes.length + part.notes.length > MAX_SHEET_NOTES ? { refusal: FULL_OF_NOTES } : inserted(state, part);
+const inserted = (state: EditorState, part: Circuit) => ({
   ...edit(state, {
     components: [...state.circuit.components, ...part.components],
     junctions: [...state.circuit.junctions, ...part.junctions],
@@ -1061,6 +1066,11 @@ export const useEditor = create<EditorState>()((set, get) => ({
   armLabel: (on) => set({ armed: null, armedDefinition: null, armedLabel: on, armedNote: false }),
   armNote: (on) => set({ armed: null, armedDefinition: null, armedLabel: false, armedNote: on }),
   addNote: (position) => {
+    // Never more than a file can hold, so every sheet can be saved and opened again.
+    if (get().circuit.notes.length >= MAX_SHEET_NOTES) {
+      set({ refusal: FULL_OF_NOTES, armedNote: false });
+      return null;
+    }
     const id = crypto.randomUUID();
     set((state) => ({
       ...edit(state, { ...state.circuit, notes: [...state.circuit.notes, { id, position, text: "" }] }),
