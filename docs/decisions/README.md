@@ -44,6 +44,7 @@ replacement.
 | [0036](0036-second-reference-cpu.md) | A second reference CPU: bit operations, shifts, a jump, and call and return | Accepted |
 | [0037](0037-phase-7-plan.md) | Phase 7: the playground's gaps, computers you can read, and a project others can join | Accepted |
 | [0038](0038-playground-gaps.md) | The playground's gaps: push buttons, gates with 2 to 8 inputs, notes on the canvas | Accepted |
+| [0039](0039-computers-you-can-read.md) | Computers you can read: regions, routing clear of label tags, jumping to a note, the program followed | Proposed |
 
 ## Template
 
