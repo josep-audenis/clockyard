@@ -752,7 +752,7 @@ the inspector, kept apart from parts so the engine never sees them,
 moved, turned, copied and deleted with the selection), and the target
 in Playwright: a 4-input AND held by four push buttons bound to 1 to 4,
 with a note beside it, saved and opened again. Increment 2, computers
-you can read, is designed in ADR 0039 (proposed).
+you can read, is designed in ADR 0039 (accepted).
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is

@@ -1,6 +1,6 @@
 # 0039. Computers you can read: regions, routing clear of label tags, jumping to a note, the program followed
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-22
 - Depends on: ADR 0037 (Phase 7 plan, increment 2); ADR 0038 (notes on the
   canvas); ADR 0015 (net labels and their tags); ADR 0011 and ADR 0033
