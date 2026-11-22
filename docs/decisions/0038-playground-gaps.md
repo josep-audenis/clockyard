@@ -1,6 +1,6 @@
 # 0038. The playground's gaps: push buttons, gates with 2 to 8 inputs, notes on the canvas
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-22
 - Depends on: ADR 0037 (Phase 7 plan, increment 1); ADR 0006 (the
   combinational engine); ADR 0014 (buses and widths); ADR 0012 and ADR 0017
