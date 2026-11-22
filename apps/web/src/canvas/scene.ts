@@ -1589,7 +1589,8 @@ export async function mountCanvas(host: HTMLElement): Promise<{ stop: () => void
   const onPressOutside = (e: PointerEvent) => {
     // Step, Run and Reset keep the keys a button gave, so it can be held by its key across a Step (ADR 0038). A keyboard
     // part's go back, as before (ADR 0021): a running CPU would read the Escape that gives them back.
-    const keeps = e.target instanceof Element && e.target.closest("[data-keeps-keys]") && useCanvasHints.getState().buttons;
+    const { buttons, keyboard } = useCanvasHints.getState();
+    const keeps = e.target instanceof Element && e.target.closest("[data-keeps-keys]") && buttons && !keyboard;
     if (e.target !== canvas && !keeps) focusKeyboard(null);
   };
   window.addEventListener("pointerdown", onPressOutside, true);

@@ -2117,7 +2117,7 @@ test("a push button is held by the pointer on its cap, and by its key once the c
   // Two fingers hold the button and drag LED 2 away: the hold stays, the drag moves only the LED (touch through CDP).
   const cdp = await page.context().newCDPSession(page);
   const [led, to] = [at(17, 7), at(17, 13)];
-  const touch = (type: string, points: At[]) =>
+  const touch = (type: "touchStart" | "touchMove" | "touchEnd", points: At[]) =>
     cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map((p, id) => ({ x: p.x, y: p.y, id })) });
   await touch("touchStart", [cap]);
   await expect(button).toHaveText("Push button 1: held");
