@@ -2239,3 +2239,29 @@ test("a sheet's notes are listed in the Notes panel, and choosing one shows it a
   // The inspector still shows the switch.
   await expect(page.getByRole("textbox", { name: "Label" })).toBeVisible();
 });
+
+test("the program editor marks the word at the ROM's address, which moves on after each fetch (ADR 0039)", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("reference-cpu"));
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  const at = await grid(page);
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  await click(page, at(24.5, 16)); // the program ROM at (22,14)
+  await inspector.getByLabel("Assembly", { exact: true }).fill("LDI 5\nADI 3\nOUT\nHLT");
+  await page.getByRole("button", { name: "Assemble", exact: true }).click();
+  const marked = inspector.getByRole("region", { name: "Disassembly" }).locator('[aria-current="true"]');
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  await expect(marked).toHaveText(/^00 {2}LDI 5$/);
+  // Two cycles an instruction: its fetch moves PC on, so the mark moves after the fetch, then stays for the execute.
+  for (const [cycle, row] of [
+    [1, "01  ADI 3"],
+    [2, "01  ADI 3"],
+    [3, "02  OUT"],
+    [4, "02  OUT"],
+  ] as const) {
+    await page.getByRole("button", { name: "Step", exact: true }).click();
+    await expect(counter(page)).toHaveText(`Cycle ${cycle}, clock low`);
+    await expect(marked).toHaveText(row);
+    await expect(marked).toBeInViewport();
+  }
+});

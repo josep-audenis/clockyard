@@ -757,7 +757,9 @@ label tags are routing obstacles for every net, their side worked out
 from where their wires go, and a renamed or turned tag reroutes the kept
 routes near it. Step 2 is done: the Notes panel lists the sheet's notes,
 and choosing one shows it at 100% one cell in from the top left, the
-selection left as it is.
+selection left as it is. Step 3 is done: the program editor's listing
+marks the word at the ROM's address now, brought into view when the
+clock stands still.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is

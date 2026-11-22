@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { fieldRanges, fieldsProblem, hex, litPixels, notesInOrder, parseValue, project, screenSize, showValue, signalState, withoutDeletedPins, type Circuit } from "./document";
+import { fieldRanges, fieldsProblem, hex, litPixels, markedRow, notesInOrder, parseValue, project, screenSize, showValue, signalState, withoutDeletedPins, type Circuit } from "./document";
 
 test("projection keeps connectivity and widths, junctions included, and drops geometry and labels", () => {
   const circuit: Circuit = {
@@ -181,4 +181,12 @@ test("a sheet's notes are listed top to bottom, then left to right, by their fir
   ]);
   // A note being placed, still empty, is not listed.
   expect(notesInOrder([note("d", 0, 0, "")])).toEqual([]);
+});
+
+test("the listing marks the ROM's address, unless stale, unknown or past its rows (ADR 0039)", () => {
+  expect(markedRow(3, 0, false, 256)).toBe(3);
+  expect(markedRow(3, 0, true, 256)).toBeNull();
+  expect(markedRow(3, 1, false, 256)).toBeNull();
+  expect(markedRow(undefined, 0, false, 256)).toBeNull();
+  expect(markedRow(256, 0, false, 256)).toBeNull();
 });

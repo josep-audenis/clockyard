@@ -1532,13 +1532,20 @@ textarea.memory-words {
   max-height: 20rem;
 }
 
-pre.memory-words {
+pre.memory-words,
+.memory-words.listing {
   max-height: 16rem;
   overflow-y: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--panel-raised);
   color: var(--ink);
+}
+
+/* ADR 0039: the listing's row at the ROM's address now. */
+.listing .is-marked {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 /* Assembly errors (ADR 0019): one per line, under the source. */
