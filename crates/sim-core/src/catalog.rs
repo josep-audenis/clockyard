@@ -241,7 +241,7 @@ impl Kind {
     /// (ADR 0038): AND of all, OR of any, XOR their parity.
     pub(crate) fn gate_all(self, mut inputs: impl Iterator<Item = u32>) -> u32 {
         let (base, invert) = self.base();
-        let first = inputs.next().unwrap_or(0);
+        let first = inputs.next().expect("a gate has inputs");
         let value = inputs.fold(first, |acc, x| base.gate(acc, x));
         if invert { !value } else { value }
     }

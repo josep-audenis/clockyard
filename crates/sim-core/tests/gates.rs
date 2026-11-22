@@ -236,6 +236,20 @@ fn an_input_count_out_of_range_or_on_another_part_is_an_invalid_width() {
         codes(json!([{ "id": "g", "kind": "nor", "inputCount": 8 }])),
         []
     );
+    let message = |count: Value| {
+        let description = describe(
+            json!({ "components": [{ "id": "g", "kind": "and", "inputCount": count }], "connections": [] }),
+        );
+        Simulator::load(&description).expect_err("refused")[0]
+            .message
+            .clone()
+    };
+    assert!(
+        message(json!(9)).contains("input count 9 is not a whole number from 2 to 8"),
+        "{}",
+        message(json!(9))
+    );
+    assert!(message(json!(2.5)).contains("input count 2.5"));
 }
 
 /// A button `b` wired to an LED, and to flip-flop `q`'s clock, with `d` from switch `s`.
