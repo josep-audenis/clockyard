@@ -43,6 +43,7 @@ replacement.
 | [0035](0035-four-state-signals.md) | Four-state signals: `X`, `Z`, a tri-state buffer and shared buses | Accepted |
 | [0036](0036-second-reference-cpu.md) | A second reference CPU: bit operations, shifts, a jump, and call and return | Accepted |
 | [0037](0037-phase-7-plan.md) | Phase 7: the playground's gaps, computers you can read, and a project others can join | Accepted |
+| [0038](0038-playground-gaps.md) | The playground's gaps: push buttons, gates with 2 to 8 inputs, notes on the canvas | Accepted |
 
 ## Template
 
