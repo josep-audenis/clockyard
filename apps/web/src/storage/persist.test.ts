@@ -40,7 +40,7 @@ const emptyDocument: CircuitDocument = {
   format: "clockyard",
   version: 13,
   metadata: { name: "Empty", createdAt: "x", modifiedAt: "x" },
-  circuit: { components: [], junctions: [], wires: [] },
+  circuit: { components: [], junctions: [], wires: [], notes: [] },
   definitions: [],
 };
 const stored = async (storage: Storage, id: string) => {
@@ -99,7 +99,7 @@ test("an opened document becomes a project only at its first change; the one it 
     format: "clockyard",
     version: 13,
     metadata: { name: "Example", createdAt: "x", modifiedAt: "x" },
-    circuit: { components: [], junctions: [], wires: [] },
+    circuit: { components: [], junctions: [], wires: [], notes: [] },
     definitions: [],
   };
   // Opened before the delay ran out: the work it replaces is saved anyway.
@@ -247,11 +247,11 @@ test("a save that throws before reaching storage does not stop later saves", asy
 test("a component saved to the library comes with what it contains, replaces one of the same name, and adds elsewhere", async () => {
   const storage = memoryStorage();
   await connect(storage);
-  const inner = { id: "inv", name: "Inverter", circuit: { components: [], junctions: [], wires: [] } };
+  const inner = { id: "inv", name: "Inverter", circuit: { components: [], junctions: [], wires: [], notes: [] } };
   const outer = {
     id: "buf",
     name: "Buffer",
-    circuit: { components: [{ id: "i", kind: "custom" as const, definition: "inv", position: { x: 0, y: 0 }, rotation: 0 as const, props: {} }], junctions: [], wires: [] },
+    circuit: { components: [{ id: "i", kind: "custom" as const, definition: "inv", position: { x: 0, y: 0 }, rotation: 0 as const, props: {} }], junctions: [], wires: [], notes: [] },
   };
   useEditor.setState({ definitions: [inner, outer] });
   // Saved twice at once (a double click), and again under another case: one entry all the same.
@@ -295,7 +295,7 @@ test("a library save or removal leaves the open project's save error alone, and 
   const storage = memoryStorage();
   storage.removeLibrary = () => Promise.reject(new Error("locked"));
   await connect(storage);
-  useEditor.setState({ definitions: [{ id: "a", name: "A", circuit: { components: [], junctions: [], wires: [] } }] });
+  useEditor.setState({ definitions: [{ id: "a", name: "A", circuit: { components: [], junctions: [], wires: [], notes: [] } }] });
   useProjects.setState({ error: "Not saved: the quota is full" });
   expect(await saveToLibrary("a")).toBe(true);
   expect(useProjects.getState().error).toBe("Not saved: the quota is full");

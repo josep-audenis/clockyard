@@ -17,7 +17,9 @@ import {
   wordsProblem,
   MAX_BENDS,
   MAX_LABEL,
+  MAX_NOTE,
   MAX_NOTES,
+  MAX_SHEET_NOTES,
   MAX_WIDTH,
   normalizeNotes,
   normalizeLabel,
@@ -33,6 +35,7 @@ import {
   type PartKind,
   type Junction,
   type Props,
+  type SheetNote,
   type Wire,
 } from "../editor/document";
 import { BINDING } from "../editor/buttons";
@@ -51,7 +54,11 @@ export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 export function serializeDocument(document: CircuitDocument, indent = 2): string {
   // Wires to deleted pins stay in the editor for undo only (ADR 0013, amended).
   const { circuit, definitions } = document;
-  const clean = (c: Circuit) => withoutDeletedPins(c, definitions);
+  // A sheet with no notes is written as before they existed (ADR 0038).
+  const clean = (c: Circuit) => {
+    const { notes, ...rest } = withoutDeletedPins(c, definitions);
+    return notes.length > 0 ? { ...rest, notes } : rest;
+  };
   return JSON.stringify(
     { ...document, circuit: clean(circuit), definitions: definitions.map((d) => ({ ...d, circuit: clean(d.circuit) })) },
     null,
@@ -413,5 +420,19 @@ function readCircuit(circuit: Record<string, unknown>, where0: string, definitio
     return wire;
   });
 
-  return { components, junctions, wires };
+  // ADR 0038: text on the sheet, normalized as the project's notes are (ADR 0027), so nothing hides or reorders it.
+  // Absent is none, as in every file before notes; an empty one is dropped.
+  const rawNotes = circuit.notes === undefined ? [] : array(circuit.notes, `${where0}circuit.notes`);
+  if (rawNotes.length > MAX_SHEET_NOTES) throw new Error(`${where0}circuit has more than ${MAX_SHEET_NOTES} notes.`);
+  const notes = rawNotes.flatMap((raw, i): SheetNote[] => {
+    const where = `${where0}Note ${i + 1}`;
+    const n = object(raw, where);
+    const noteId = unique(elementId(n.id, `${where} id`), where);
+    const position = object(n.position, `${where} position`);
+    const body = normalizeNotes(text(n.text, `${where} text`));
+    if ([...body].length > MAX_NOTE) throw new Error(`${where} is longer than ${MAX_NOTE} characters.`);
+    return body ? [{ id: noteId, position: { x: integer(position.x, `${where} x`), y: integer(position.y, `${where} y`) }, text: body }] : [];
+  });
+
+  return { components, junctions, wires, notes };
 }

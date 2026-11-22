@@ -162,7 +162,7 @@ export function newCircuit() {
     format: "clockyard",
     version: FORMAT_VERSION,
     metadata: { name: "Untitled", createdAt: now, modifiedAt: now },
-    circuit: { components: [], junctions: [], wires: [] },
+    circuit: { components: [], junctions: [], wires: [], notes: [] },
     definitions: [],
   });
 }
@@ -212,7 +212,7 @@ export async function saveToLibrary(definition: string): Promise<boolean> {
     format: "clockyard",
     version: FORMAT_VERSION,
     metadata: { name: component.name, createdAt: now, modifiedAt: now },
-    circuit: { components: [], junctions: [], wires: [] },
+    circuit: { components: [], junctions: [], wires: [], notes: [] },
     definitions,
   });
   try {

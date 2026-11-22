@@ -69,7 +69,7 @@ test("load replaces the document and clears transient state", () => {
   const { add, toggle, load } = useEditor.getState();
   toggle(add("switch", { x: 0, y: 0 }));
   const metadata = { name: "Loaded", createdAt: "2026-01-01T00:00:00Z", modifiedAt: "2026-01-02T00:00:00Z" };
-  const circuit = { components: [], junctions: [], wires: [] };
+  const circuit = { components: [], junctions: [], wires: [], notes: [] };
   load({ format: "clockyard", version: 13, metadata, circuit, definitions: [] });
   const state = useEditor.getState();
   expect([state.metadata, state.circuit, state.selection, state.inputs]).toEqual([metadata, circuit, [], {}]);
@@ -129,7 +129,7 @@ test("loading a document clears history", () => {
   const { add, load, undo } = useEditor.getState();
   add("switch", { x: 0, y: 0 });
   const metadata = { name: "x", createdAt: "", modifiedAt: "" };
-  load({ format: "clockyard", version: 13, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  load({ format: "clockyard", version: 13, metadata, circuit: { components: [], junctions: [], wires: [], notes: [] }, definitions: [] });
   undo();
   expect(ids()).toEqual([]);
 });
@@ -334,7 +334,7 @@ test("removing a junction removes its wires; a junction left without wires goes 
   useEditor.getState().undo();
   // Deleting the three parts leaves the junction with no wires.
   remove([s, l, m]);
-  expect(useEditor.getState().circuit).toEqual({ components: [], junctions: [], wires: [] });
+  expect(useEditor.getState().circuit).toEqual({ components: [], junctions: [], wires: [], notes: [] });
 });
 
 test("junctions move, copy and paste with the parts around them", () => {
@@ -391,7 +391,7 @@ test("paste and duplicate step past any spot that would stack a port on a juncti
       wires: [
         { id: "w1", from: port("s", "out"), to: junction("j") },
         { id: "w2", from: junction("j"), to: port("l", "in") },
-      ],
+      ], notes: [],
     },
   });
   const { select, copy, paste, duplicate, undo } = useEditor.getState();
@@ -418,7 +418,7 @@ test("a pasted junction steps past a port it would land on", () => {
         { id: "n", kind: "not", position: { x: 6, y: 2 }, rotation: 0, props: {} },
       ],
       junctions: [{ id: "j", position: { x: 4, y: 1 } }],
-      wires: [{ id: "w", from: junction("j"), to: port("l", "in") }],
+      wires: [{ id: "w", from: junction("j"), to: port("l", "in") }], notes: [],
     },
   });
   const { select, copy, paste } = useEditor.getState();
@@ -518,7 +518,7 @@ test("rotating a group turns its junctions and the bends of shaped wires inside 
       wires: [
         { id: "w", from: { component: "s", port: "out" }, to: { junction: "j" } },
         { id: "v", from: { junction: "j" }, to: { component: "l", port: "in" }, bends: [{ x: 6, y: 1 }] },
-      ],
+      ], notes: [],
     },
   });
   // Box (0,0)-(10,2), centre (5,1): clockwise, (x, y) goes to (6 - y, x - 4).
@@ -551,7 +551,7 @@ test("rotate is refused where a port would land on a junction", () => {
     circuit: {
       components: [{ id: "g", kind: "and", position: { x: 0, y: 0 }, rotation: 0, props: {} }],
       junctions: [{ id: "j", position: { x: 3, y: 0 } }],
-      wires: [],
+      wires: [], notes: [],
     },
   });
   useEditor.getState().rotate(["g"], 1);
@@ -577,7 +577,7 @@ test("turning a part on its own drops the shape of a wire that leaves the turned
         { id: "l", kind: "led", position: { x: 12, y: 8 }, rotation: 0, props: {} },
       ],
       junctions: [],
-      wires: [{ id: "w", from: { component: "g", port: "out" }, to: { component: "l", port: "in" }, bends: [{ x: 8, y: 2 }, { x: 8, y: 9 }] }],
+      wires: [{ id: "w", from: { component: "g", port: "out" }, to: { component: "l", port: "in" }, bends: [{ x: 8, y: 2 }, { x: 8, y: 9 }] }], notes: [],
     },
   });
   useEditor.getState().rotate(["g"], 1);
@@ -730,7 +730,7 @@ test("opens counts the sheets and documents swapped in, not the edits", () => {
   useEditor.getState().closeSheet();
   expect(opens()).toBe(start + 2);
   const { metadata } = useEditor.getState();
-  useEditor.getState().load({ format: "clockyard", version: 13, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  useEditor.getState().load({ format: "clockyard", version: 13, metadata, circuit: { components: [], junctions: [], wires: [], notes: [] }, definitions: [] });
   expect(opens()).toBe(start + 3);
 });
 
@@ -770,7 +770,7 @@ test("an armed chip places an instance of its definition; nesting is checked thr
   expect(useEditor.getState().circuit.components.find((c) => c.id === placed)?.definition).toBe(inner);
   const definitions = [
     ...useEditor.getState().definitions,
-    { id: "outer", name: "Outer", circuit: { components: useEditor.getState().circuit.components.slice(-1), junctions: [], wires: [] } },
+    { id: "outer", name: "Outer", circuit: { components: useEditor.getState().circuit.components.slice(-1), junctions: [], wires: [], notes: [] } },
   ];
   expect(contains(definitions, "outer", inner)).toBe(true);
   expect(contains(definitions, inner, "outer")).toBe(false);
@@ -793,7 +793,7 @@ test("paste refuses an instance that would make a definition contain itself; ope
   expect(useEditor.getState().circuit.components.filter((c) => c.kind === "custom")).toHaveLength(2);
   // Another file has none of these definitions: nothing is left to paste.
   const metadata = { name: "Other", createdAt: "2026-11-07T00:00:00Z", modifiedAt: "2026-11-07T00:00:00Z" };
-  useEditor.getState().load({ format: "clockyard", version: 13, metadata, circuit: { components: [], junctions: [], wires: [] }, definitions: [] });
+  useEditor.getState().load({ format: "clockyard", version: 13, metadata, circuit: { components: [], junctions: [], wires: [], notes: [] }, definitions: [] });
   useEditor.getState().paste();
   expect(useEditor.getState().clipboard).toBeNull();
   expect(useEditor.getState().circuit.components).toEqual([]);
@@ -1491,4 +1491,68 @@ test("setBinding binds a push button to a letter or digit key as one edit, and c
   expect(part(p)?.props).toEqual({});
   undo();
   expect(part(p)?.props).toEqual({ binding: "KeyQ" });
+});
+
+test("a placed note is a draft: written, placing and text are one undo step; left empty, there is no step (ADR 0038)", () => {
+  const { addNote, setNoteText, undo, armNote } = useEditor.getState();
+  armNote(true);
+  const { past } = useEditor.getState();
+  const n = addNote({ x: 2, y: 3 }) ?? "";
+  expect(useEditor.getState()).toMatchObject({ selection: [n], armedNote: false });
+  setNoteText(n, "  \n ");
+  expect(useEditor.getState().circuit.notes).toEqual([]);
+  expect(useEditor.getState().past).toEqual(past);
+  const m = addNote({ x: 2, y: 3 }) ?? "";
+  setNoteText(m, "Fetch\r\nand decode");
+  expect(useEditor.getState().circuit.notes).toEqual([{ id: m, position: { x: 2, y: 3 }, text: "Fetch\nand decode" }]);
+  expect(useEditor.getState().past).toHaveLength(past.length + 1);
+  // A later change of text is a step of its own; emptied, the note goes, undoably.
+  setNoteText(m, "Fetch");
+  setNoteText(m, "");
+  expect(useEditor.getState().circuit.notes).toEqual([]);
+  undo();
+  expect(useEditor.getState().circuit.notes[0]?.text).toBe("Fetch");
+  undo();
+  undo();
+  expect(useEditor.getState().circuit.notes).toEqual([]);
+  // Cut to 500 characters on a live note.
+  const long = addNote({ x: 0, y: 0 });
+  if (!long) throw new Error("no note");
+  setNoteText(long, "x".repeat(600));
+  expect(useEditor.getState().circuit.notes[0]?.text).toHaveLength(500);
+});
+
+test("a sheet holds at most 200 notes: placing or pasting past that is refused with a reason (ADR 0038)", () => {
+  const notes = Array.from({ length: 200 }, (_, i) => ({ id: `n${i}`, position: { x: 0, y: i }, text: "x" }));
+  useEditor.setState({ circuit: { components: [], junctions: [], wires: [], notes } });
+  expect(useEditor.getState().addNote({ x: 5, y: 5 })).toBeNull();
+  expect(useEditor.getState().refusal).toMatch(/at most 200 notes/);
+  useEditor.getState().select(["n0"]);
+  useEditor.getState().duplicate();
+  expect(useEditor.getState().circuit.notes).toHaveLength(200);
+  // A lone note copies and duplicates as parts do.
+  useEditor.setState({ circuit: { components: [], junctions: [], wires: [], notes: notes.slice(0, 1) }, selection: ["n0"] });
+  useEditor.getState().duplicate();
+  expect(useEditor.getState().circuit.notes).toHaveLength(2);
+});
+
+test("notes move, turn in place, delete, copy and paste with the selection (ADR 0038)", () => {
+  const { add, addNote, setNoteText, record, move, rotate, select, copy, paste, remove } = useEditor.getState();
+  const g = add("and", { x: 0, y: 0 });
+  const n = addNote({ x: 0, y: 6 }) ?? "";
+  setNoteText(n, "AND");
+  record();
+  move({ [g]: { x: 2, y: 0 }, [n]: { x: 2, y: 6 } });
+  expect(useEditor.getState().circuit.notes[0]?.position).toEqual({ x: 2, y: 6 });
+  rotate([n], 1);
+  expect(useEditor.getState().circuit.notes[0]).toMatchObject({ text: "AND", position: { x: 2, y: 6 } });
+  select([g, n]);
+  copy();
+  paste();
+  const notes = useEditor.getState().circuit.notes;
+  expect(notes).toHaveLength(2);
+  expect(notes[1]?.id).not.toBe(n);
+  expect(useEditor.getState().selection).toContain(notes[1]?.id);
+  remove([n]);
+  expect(useEditor.getState().circuit.notes.map((x) => x.id)).toEqual([notes[1]?.id]);
 });

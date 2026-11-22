@@ -68,6 +68,7 @@ const bubble = (cx: number) => <circle cx={cx} cy="9" r="1.6" />;
 const GLYPHS: Record<string, ReactNode> = {
   Switch: <path d="M2 12h6l7-6M16 12h6" />,
   Clock: <path d="M2 13h4V5h6v8h6V5h4" />,
+  Text: <path d="M5 4h14M12 4v11M9 15h6" />,
   "Push button": (
     <>
       <rect x="5" y="2" width="14" height="14" rx="1.5" />

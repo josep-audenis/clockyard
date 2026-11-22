@@ -180,7 +180,8 @@ What there is to build on:
      definition) gets `notes`, a required field beside `components`,
      `junctions` and `wires`, read as empty when a file has none (every
      file of version 12 or older, and version 13 files written before
-     step 5): `{ id, x, y, text }`, at a grid point. Required, so that the
+     step 5): `{ id, position, text }`, at a grid point (as built: a
+     `position`, as parts and junctions have). Required, so that the
      type checker finds every edit that rebuilds a circuit (move, remove,
      rotate, `setFields` and the rest) and none drops them.
    - **On read,** as for `metadata.notes`: each text goes through
