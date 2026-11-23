@@ -88,7 +88,7 @@ close:
    - a ROM: `ROM Program: address 3 (0x03), word 4611 (0x1203)`, from its `addr` and
      `out` nets, named as the readout names other parts (its kind and
      label, or "ROM 1");
-   - a RAM: `RAM 1: address 12 (0x0c), data 7 (0x07)`, from its `addr`
+   - a RAM: `RAM 1: address 12 (0x0C), data 7 (0x07)`, from its `addr`
      and `out` nets;
    - a screen: `Screen 1: 18 of 512 pixels on`, counted from the words the
      editor already reads to draw it; a pixel whose bit is unknown is not
