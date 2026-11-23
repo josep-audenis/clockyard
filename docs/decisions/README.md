@@ -46,6 +46,7 @@ replacement.
 | [0038](0038-playground-gaps.md) | The playground's gaps: push buttons, gates with 2 to 8 inputs, notes on the canvas | Accepted |
 | [0039](0039-computers-you-can-read.md) | Computers you can read: regions, routing clear of label tags, jumping to a note, the program followed | Accepted |
 | [0040](0040-rough-edges.md) | Rough edges: Make component, the readout, bench reports, and a list that holds only what stays | Accepted |
+| [0041](0041-challenges-13-to-16.md) | Challenges 13 to 16: a decoder, a shifter, a stack, and a program that draws with `CALL` | Proposed |
 
 ## Template
 
