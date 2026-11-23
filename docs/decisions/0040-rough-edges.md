@@ -45,7 +45,7 @@ close:
   screen not at all. The editor already reads each screen's words after
   every state (`watched` in `simulation/sync.ts`), to draw it.
 - **A bench challenge's text is one paragraph:** challenge 10's is about
-  1,700 characters, with the opcodes run into the prose. Its pass reads
+  1,300 characters, with the opcodes run into the prose. Its pass reads
   "Passed, 30 of 30 steps.", while a failure names its run ("Run Store and
   load, step 2 of 3 failed.").
 
@@ -54,16 +54,24 @@ close:
 1. **Make component's instance lands clear of the parts it leaves.** Its
    box, from the new definition's layout, is stepped down 2 cells, as for a
    port on a junction today, until it overlaps no part, junction or note
-   left on the sheet. The wires back to it are routed as now. Stepping down
-   keeps it in its column, near where the selection was; a search in every
-   direction would place it better on a crowded sheet, and is left out.
+   left on the sheet, with a gap of one cell so no port touches another
+   part's and looks joined to it (as ADR 0010 keeps ports off junctions).
+   Boxes are taken as drawn, turned parts with their turned bounds. Wires
+   left on the sheet are not obstacles: the chip may lie over one, as a
+   placed part may today. The wires back to it are routed as now. Stepping
+   down keeps it in its column, near where the selection was, and ends,
+   since the items are finite; a search in every direction would place it
+   better on a crowded sheet, and is left out.
 
 2. **Make component is offered for one part too.** The inspector shows the
    form below a single part's properties when the part is not a pin
-   (switch or LED) and not a note. The rules do not change: the component
-   needs pins, from labelled switches and LEDs inside or from crossing
-   wires, so a lone gate with wires to it becomes a chip with those wires
-   as pins, and a lone gate with none is refused as today.
+   (switch or LED) and not a note. A lone component is allowed: it wraps a
+   chip in a chip. The rules do not change: the component needs pins, from
+   labelled switches and LEDs inside or from crossing wires, so a lone gate
+   with wires to it becomes a chip with those wires as pins, and a lone
+   gate with none is refused as today. The form says "1 part selected"
+   (not "1 items"), and is keyed on the part, so a typed name or an error
+   does not carry over to the next one selected.
 
 3. **The engine names each bus's drivers.** `Simulator::bus_drivers()`
    returns, for each bus, the top-level parts that own its tri-state
@@ -77,15 +85,18 @@ close:
    counts as one).
 
 4. **The readout lists memories and screens,** after the registers:
-   - a ROM: `ROM 1: address 3, word 0x1203`, from its `addr` and `out`
-     nets;
+   - a ROM: `Program: address 3, word 4611 (0x1203)`, from its `addr` and
+     `out` nets, named as the readout names other parts (its label, or
+     "ROM 1");
    - a RAM: `RAM 1: address 12, data 7`, from its `addr` and `out` nets;
    - a screen: `Screen 1: 18 of 512 pixels on`, counted from the words the
-     editor already reads to draw it. A screen hidden from the readout's
-     user is no more readable as a count, but it says whether anything is
-     drawn and how much changed; a description of the picture is left out.
-   Values are written as the readout writes others (`X`, `Z`, "unknown"
-   while stale). The list is not live (`aria-live` stays off), as now: a
+     editor already reads to draw it; a pixel whose bit is unknown is not
+     counted as on. A count does not show the picture, but it says whether
+     anything is drawn and how much changed; a description of the picture
+     is left out.
+   Values are written with `showValue`, as the readout writes others (`X`,
+   `Z`, "unknown" while stale): an address at the part's address width, a
+   word or data at its width. The list is not live (`aria-live` stays off), as now: a
    reader asks for it.
 
 5. **A bench challenge reads in parts and its pass names its runs.**
@@ -94,8 +105,12 @@ close:
      the instructions or the interface as a list of lines, then what is
      provided. No other challenge changes.
    - A pass on a bench reads "Passed all 10 runs, 30 steps: Load and
-     show, Add, subtract and flags, …", the runs named in order. A
-     challenge without runs still reads "Passed, 4 of 4 steps."
+     show; Add, subtract and flags; …", the runs named in order and
+     joined by semicolons, since run names hold commas. A challenge
+     without runs still reads "Passed, 4 of 4 steps."
+   - The texts are written by `scripts/challenges.mjs`, whose `--check`
+     keeps the files in step; the split goes there, and the files are
+     made again.
 
 6. **The rest of the list, each with its reason,** in the roadmap under
    "by design" and in "out of scope (for now)":
@@ -103,8 +118,7 @@ close:
      - kept wires longer than needed until the file opens again (ADR 0011:
        an edit reroutes only what it touches, so other wires do not jump);
      - a circuit with a tri-state buffer runs on the two-word path
-       throughout (ADR 0035: one path per circuit keeps the evaluator
-       simple; the cost is measured when a benchmark has a bus);
+       throughout (ADR 0035: the two-state path has no `Z`);
      - a register that took `X` from a loop holds it, and a settle cut by
        the delta limit is reported as an oscillating loop (ADR 0035: state
        holds what it was given; the limit cannot tell a long transient
@@ -115,6 +129,8 @@ close:
        is the game's choice; moving on a new press only would need
        tapping once per lane).
    - **Out of scope (for now):**
+     - a benchmark with a bus, to measure that path's cost (ADR 0035 notes
+       none has one);
      - a diagnostic naming two bus drivers in conflict (already listed by
        ADR 0037);
      - a challenge mismatch's width, needed only once a challenge allows
@@ -126,8 +142,11 @@ close:
    1. **Bus drivers from the engine:** `bus_drivers` in `sim-core` with a
       native test (a buffer at top level, one inside an instance, and an
       instance that passes the bus through, which is not a driver),
-      `sim-wasm` and the store following, and Vitest for Make component on
-      the pass-through case, selected alone and with the buffers.
+      `sim-wasm`, the worker protocol (`simulation/protocol.ts`) and the
+      store following, with their tests (`sim-wasm.test.ts`,
+      `store.test.ts`). Vitest for Make component on the pass-through
+      case, selected alone and with the buffers: the made circuit loads
+      with no diagnostic and the bus's value still reaches its reader.
    2. **Make component for one part, clear of the rest:** the inspector,
       the placement, Vitest (a lone gate with crossings becomes a chip; an
       instance taller than its selection lands below the parts beside it,
@@ -165,4 +184,4 @@ close:
 - Make component's form shows for single parts, so the inspector is taller
   for them.
 - **Left out:** a free-space search for the instance, a picture in words
-  for screens, and the four out-of-scope items above.
+  for screens, and the out-of-scope items above.
