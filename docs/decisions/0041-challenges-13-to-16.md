@@ -141,11 +141,12 @@ What exists to build on:
    `MAX_RUN_CYCLES`.
    - `MAX_RUN_CYCLES` goes from 1,000 to 4,000 for every bench, which
      amends ADR 0034 item 4; step 4 updates `check.rs` and its doc comment.
-     A run's limit (below) comes to about 3,600 cycles, under the new cap.
+     A run's limit (below) comes to about 3,700 cycles, under the new cap.
    - **The count.** No JavaScript model of Reference CPU 2 exists, and
      none is added. The reference solution's cycles to halt for each key
      are written by hand in `scripts/challenges.mjs`, and `challenges.rs`
-     runs the solution on `cpu2.rs`'s model and fails if they differ, as
+     runs the solution on `cpu2.rs`'s model, moved for that into
+     `tests/common/`, and fails if they differ, as
      it holds the words to their source.
    - **The limit a run gives** is twice the reference's count for n = 16,
      rounded up to a hundred, the same for every run. The text states it,
