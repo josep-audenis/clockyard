@@ -50,7 +50,9 @@ test("a challenge with a bench gets it projected, and its reports name the run a
   const runs = cpu.runs ?? [];
   const steps = runs.reduce((n, run) => n + run.steps.length, 0);
   expect(steps).toBe(3 * runs.length);
-  expect(reportText({ result: "passed", steps }, cpu)).toBe(`Passed, ${steps} of ${steps} steps.`);
+  // A pass names its runs, joined by semicolons since run names hold commas (ADR 0040).
+  expect(reportText({ result: "passed", steps }, cpu)).toBe(`Passed all ${runs.length} runs, ${steps} steps: ${runs.map((run) => run.name).join("; ")}.`);
+  expect(reportText({ result: "passed", steps }, cpu)).toContain("Load and show; Add, subtract and flags; ");
   // Every challenge with a bench has one that opens.
   for (const { challenge } of CHALLENGES) expect(benchOf(challenge) === undefined).toBe(challenge.bench === undefined);
   const failed = reportText(
@@ -82,4 +84,12 @@ test("a value with unknown bits is written with X and Z digits (ADR 0035)", () =
   expect(showUnknown(0x10f, 0x1f0)).toBe("0xXZF");
   const failed = reportText({ result: "failed", step: 0, inputs: [], mismatches: [{ name: "Y", expected: 1, got: 1, unknown: 1 }] }, inverter);
   expect(failed).toContain("Y should be 1 but is X.");
+});
+
+test("a bench challenge's text comes in paragraphs, its instructions one to a line; the others are one paragraph (ADR 0040)", () => {
+  const text = (name: string) => findChallenge(name)?.challenge.text ?? "";
+  for (const name of ["10-cpu", "11-program", "12-display"]) expect(text(name).split("\n\n").length).toBeGreaterThan(2);
+  expect(text("10-cpu")).toContain("The opcodes:\n0 NOP: nothing\n1 LDI n: A = n\n");
+  expect(text("11-program")).toContain("The instructions:\n0 NOP: nothing\n");
+  for (const { name, challenge } of CHALLENGES) if (!challenge.bench) expect(challenge.text, name).not.toContain("\n");
 });

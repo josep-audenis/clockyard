@@ -301,7 +301,7 @@ test("the program challenge: a program written in the ROM's editor is checked on
   await page.getByRole("button", { name: "Assemble", exact: true }).click();
   await expect(inspector.getByRole("status")).toHaveText("Assembled 13 words.");
   await challenge(page).getByRole("button", { name: "Check" }).click();
-  await expect(checked(page)).toHaveText("Passed, 15 of 15 steps.");
+  await expect(checked(page)).toHaveText("Passed all 5 runs, 15 steps: Sum to 1; Sum to 2; Sum to 5; Sum to 10; Sum to 22.");
 });
 
 test("the display challenge: its starter draws nothing, and the reference screen interface passes (ADR 0034)", async ({ page }) => {
@@ -315,7 +315,7 @@ test("the display challenge: its starter draws nothing, and the reference screen
   await page.locator('[data-testid="import-file"]').setInputFiles(solution("12-display"));
   await expect(page.getByLabel("Project name")).toHaveValue("Display: solution");
   await challenge(page).getByRole("button", { name: "Check" }).click();
-  await expect(checked(page)).toHaveText("Passed, 9 of 9 steps.");
+  await expect(checked(page)).toHaveText("Passed all 3 runs, 9 steps: One byte; Two bytes; Other addresses.");
 });
 
 test("the CPU challenge: its starter never halts, and the reference CPU passes every run on the bench (ADR 0034)", async ({ page }) => {
@@ -332,7 +332,7 @@ test("the CPU challenge: its starter never halts, and the reference CPU passes e
   await page.locator('[data-testid="import-file"]').setInputFiles(solution("10-cpu"));
   await expect(page.getByLabel("Project name")).toHaveValue("CPU: solution");
   await challenge(page).getByRole("button", { name: "Check" }).click();
-  await expect(checked(page)).toHaveText("Passed, 30 of 30 steps.");
+  await expect(checked(page)).toHaveText(/^Passed all 10 runs, 30 steps: Load and show; Add, subtract and flags; .*; Devices\.$/);
 });
 
 test("a broken link shows its reason and opens nothing (ADR 0024)", async ({ page }) => {
@@ -2317,4 +2317,43 @@ test("the readout lists each memory's address and word, and a screen's lit pixel
   await page.getByRole("button", { name: "Step", exact: true }).click();
   await page.getByRole("button", { name: "Step", exact: true }).click();
   await expect(readout(page, "ROM Program")).toHaveText(/^ROM Program: address [1-9]\d* \(0x[0-9A-F]{2}\)/);
+});
+
+test("rough edges (ADR 0040): Make component on one gate gives a chip clear of the rest, and a bench challenge reads in paragraphs", async ({ page }) => {
+  await page.goto("/");
+  const at = await grid(page);
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  // An AND between two switches and an LED, and a NOT left one cell below it.
+  await page.keyboard.press("s");
+  await click(page, at(1, 1)); // switch at (0,0)
+  await page.keyboard.press("s");
+  await click(page, at(1, 5)); // switch at (0,4)
+  await page.keyboard.press("a");
+  await click(page, at(8, 2)); // AND at (6,0)
+  await page.keyboard.press("l");
+  await click(page, at(13, 2)); // LED at (12,1)
+  await page.keyboard.press("n");
+  await click(page, at(7.5, 6)); // NOT at (6,5)
+  await drag(page, at(2, 1), at(6, 1));
+  await drag(page, at(2, 5), at(6, 3));
+  await drag(page, at(10, 2), at(12, 2));
+  await click(page, at(8, 2)); // the AND alone
+  await expect(inspector).toContainText("1 part selected.");
+  await inspector.getByRole("textbox", { name: "Name of the new component" }).fill("Gate");
+  await inspector.getByRole("button", { name: "Make component" }).click();
+  await expect(inspector.getByRole("textbox", { name: "Component name" })).toHaveValue("Gate");
+  // The switches stay on the sheet, and the chip keeps clear of the NOT: each is picked where it is.
+  await expect(readout(page, "Switch 1")).toHaveCount(1);
+  await click(page, at(7.5, 6));
+  await expect(inspector).toContainText("NOT");
+  await click(page, at(8, 2));
+  await expect(inspector.getByRole("textbox", { name: "Component name" })).toHaveValue("Gate");
+
+  // Challenge 10's text is in paragraphs, its opcodes one to a line.
+  await openTab(page, "Learn");
+  await challenges(page).getByRole("button", { name: "10. CPU" }).click();
+  const paragraphs = challenge(page).locator(".challenge-text");
+  await expect(paragraphs.first()).toContainText("Build a CPU that runs programs");
+  expect(await paragraphs.count()).toBeGreaterThan(4);
+  await expect(challenge(page).getByText(/^The opcodes:/)).toContainText("0 NOP: nothing");
 });

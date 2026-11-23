@@ -1790,7 +1790,12 @@ function ChallengePanel() {
       </h2>
       <div className="inspector-body">
         <p className="type-label inspector-kind">{challenge.title}</p>
-        <p className="type-body challenge-text">{challenge.text}</p>
+        {/* Blank lines part a challenge's text into paragraphs; a single newline breaks a line (ADR 0040). */}
+        {challenge.text.split("\n\n").map((part, i) => (
+          <p key={i} className="type-body challenge-text">
+            {part}
+          </p>
+        ))}
         {progress[entry.name] && <p className="type-caption challenge-text">{`First passed ${when(progress[entry.name] ?? "")}.`}</p>}
         {built && sheet !== built.id && (
           <button type="button" className="button type-label" onClick={() => useEditor.getState().openSheet(built.id)}>

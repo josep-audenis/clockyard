@@ -80,11 +80,16 @@ export function showUnknown(value: number, unknown = 0): string {
 
 const assignments = (values: { name: string; value: number }[]) => values.map(({ name, value }) => `${name} = ${value}`).join(", ");
 
-/** A report in words: "Passed, 4 of 4 steps.", the first failing step, or why the check could not run. */
+/**
+ * A report in words: "Passed, 4 of 4 steps." (on a bench, "Passed all 2 runs, 6 steps: Load; Add.", the runs joined by
+ * semicolons since their names hold commas, ADR 0040), the first failing step, or why the check could not run.
+ */
 export function reportText(report: Report, challenge: Challenge): string {
   switch (report.result) {
     case "passed":
-      return `Passed, ${report.steps} of ${stepCount(challenge)} steps.`;
+      return challenge.runs?.length
+        ? `Passed all ${challenge.runs.length} runs, ${report.steps} steps: ${challenge.runs.map((run) => run.name).join("; ")}.`
+        : `Passed, ${report.steps} of ${stepCount(challenge)} steps.`;
     case "failed": {
       const wrong = report.mismatches.map(({ name, expected, got, unknown }) => `${named(name)} should be ${expected} but is ${showUnknown(got, unknown)}`).join("; ");
       // On a bench the run is named, and its steps are counted within it (ADR 0034).
