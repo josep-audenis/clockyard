@@ -1156,12 +1156,30 @@ impl Simulator {
         &self.port_nets
     }
 
-    /// The nets with several drivers, each a bus resolved from its tri-state
-    /// buffers (ADR 0035), in ascending order.
-    pub fn buses(&self) -> Vec<u32> {
-        let resolver =
-            |(p, prim): (usize, &Prim)| matches!(prim.op, Op::Resolve).then_some(p as u32 + 1);
-        self.prims.iter().enumerate().filter_map(resolver).collect()
+    /// Each bus (a net resolved from several tri-state buffers, ADR 0035) →
+    /// the top-level parts that own its buffers, each once, in ID order. A
+    /// buffer inside an instance is reported as the instance, as
+    /// [`Simulator::net_drivers`] does; an instance whose output only follows
+    /// the bus through its pins owns no buffer, so it is not one (ADR 0040).
+    pub fn bus_drivers(&self) -> BTreeMap<u32, Vec<&str>> {
+        let owner = |net: &u32| {
+            let buffer = &self.prims[*net as usize - 1];
+            debug_assert!(
+                matches!(buffer.op, Op::Tri),
+                "a bus is resolved from buffers"
+            );
+            top(&self.ids[buffer.part as usize])
+        };
+        let bus = |(p, prim): (usize, &Prim)| {
+            matches!(prim.op, Op::Resolve).then(|| {
+                // Each input is a buffer's output net, and primitive `p` drives net `p + 1`.
+                let mut parts: Vec<&str> = prim.inputs.iter().map(owner).collect();
+                parts.sort_unstable();
+                parts.dedup();
+                (p as u32 + 1, parts)
+            })
+        };
+        self.prims.iter().enumerate().filter_map(bus).collect()
     }
 
     /// Net index → the top-level part that drives it, `None` for ground.

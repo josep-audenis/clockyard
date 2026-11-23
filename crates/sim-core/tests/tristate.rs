@@ -906,3 +906,55 @@ fn a_disabled_buffer_fed_by_a_loop_stays_z_and_leaves_its_bus_alone() {
     assert_eq!(bits(&sim, "l", "in"), (0, 0));
     assert_eq!(bits(&sim, "q", "out"), (0, 0));
 }
+
+#[test]
+fn a_bus_names_the_parts_that_own_its_buffers_and_not_a_component_it_passes_through() {
+    // On one bus: `t1` at top level, `u` holding a buffer inside, and `p`, whose `y` is its `d` wired straight
+    // through, read from the bus. `p.y` is on the bus's net, but `p` drives nothing (ADR 0040).
+    let through = json!({
+        "id": "through",
+        "components": [part("d", "switch"), part("y", "led")],
+        "connections": wires(&[("d.out", "y.in")]),
+        "inputs": [{ "name": "d", "component": "d" }],
+        "outputs": [{ "name": "y", "component": "y" }],
+    });
+    let sheet = describe(json!({
+        "components": [
+            part("s1", "switch"), part("e1", "switch"), part("t1", "tri"),
+            instance("u", "drv"), part("ud", "switch"), part("ue", "switch"),
+            instance("p", "through"), part("l", "led"),
+        ],
+        "connections": wires(&[
+            ("s1.out", "t1.in"), ("e1.out", "t1.en"), ("t1.out", "p.d"),
+            ("ud.out", "u.d"), ("ue.out", "u.e"), ("u.y", "p.d"),
+            ("p.y", "l.in"),
+        ]),
+        "definitions": [driver(), through],
+    }));
+    let mut sim = load(&sheet);
+    let bus = sim.port_nets()["t1"]["out"];
+    assert_eq!(
+        sim.port_nets()["p"]["y"],
+        bus,
+        "p's output is on the bus's net"
+    );
+    let drivers = sim.bus_drivers();
+    assert_eq!(drivers.keys().copied().collect::<Vec<_>>(), vec![bus]);
+    assert_eq!(drivers[&bus], vec!["t1", "u"]);
+    // The bus still reaches its reader through p.
+    sim.set_inputs(&[("s1", 1), ("e1", 1)]).unwrap();
+    assert_eq!(bits(&sim, "l", "in"), (1, 0));
+    // Two buffers at top level make one bus of their own; a circuit with no buffer has none.
+    assert_eq!(
+        load(&shared_bus())
+            .bus_drivers()
+            .into_values()
+            .collect::<Vec<_>>(),
+        vec![vec!["ta", "tb"]]
+    );
+    let plain = circuit(
+        vec![part("a", "switch"), part("b", "led")],
+        &[("a.out", "b.in")],
+    );
+    assert!(load(&plain).bus_drivers().is_empty());
+}

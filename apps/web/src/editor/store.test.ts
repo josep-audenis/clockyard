@@ -1,8 +1,12 @@
 import { beforeEach, expect, test } from "vitest";
 import { endOwner, sameEnd, type Circuit } from "./document";
-import { contains } from "./document";
+import { contains, project } from "./document";
 import { liveDefinitions, liveWatches, mainCircuit, MAX_WATCHES, useEditor, type NetView } from "./store";
 import { layoutOf, pinLabel } from "../canvas/layout";
+import { readFileSync } from "node:fs";
+import { Engine, initSync } from "../generated/sim-wasm/sim_wasm.js";
+
+initSync({ module: readFileSync(new URL("../generated/sim-wasm/sim_wasm_bg.wasm", import.meta.url)) });
 
 const initial = useEditor.getState();
 beforeEach(() => useEditor.setState(initial, true));
@@ -1316,8 +1320,7 @@ test("make component refuses to split a bus: its tri-state buffers go in togethe
     wireNets: { [wa]: 3, [wb]: 3 },
     wireWidths: { [wa]: 1, [wb]: 1 },
     netDrivers: [null, a, b, a],
-    portNets: { [a]: { in: 0, en: 0, out: 3 }, [b]: { in: 0, en: 0, out: 3 }, [led]: { in: 3 } },
-    buses: [3],
+    busDrivers: { 3: [a, b] },
   };
   // While the engine has not caught up, its word on buses is waited for, crossing wires or not.
   select([a]);
@@ -1332,26 +1335,103 @@ test("make component refuses to split a bus: its tri-state buffers go in togethe
   expect(definition?.circuit.components.map((c) => c.kind)).toEqual(["tri", "tri", "led"]);
 });
 
-test("make component takes parts whose nets only look shared: without a bus there is nothing to split (ADR 0035)", () => {
-  const { add, connect, select, makeComponent } = useEditor.getState();
-  // As the engine reports two instances whose output pins are on one net that is no bus (both undriven, on ground;
-  // or both wired straight through from one switch), and a buffer alone on its net.
-  const [t, l1, l2] = [add("tri", { x: 0, y: 0 }), add("led", { x: 10, y: 0 }), add("led", { x: 10, y: 6 })];
-  const wire = connect(port(t, "out"), port(l1, "in")) ?? "";
-  for (const shared of [0, 2]) {
-    useEditor.setState({ selection: [] });
-    const nets: NetView = {
-      wireNets: { [wire]: 1 },
-      wireWidths: { [wire]: 1 },
-      netDrivers: [null, t, t],
-      // `u1` and `u2` stand for instances elsewhere on the sheet: only their port nets matter here.
-      portNets: { [t]: { in: 0, en: 0, out: 1 }, u1: { y: shared }, u2: { y: shared }, [l1]: { in: 1 }, [l2]: { in: 0 } },
-      buses: [],
-    };
-    select([t]);
-    expect(makeComponent(`Alone ${shared}`, { stale: false, nets })).toBeNull();
-    useEditor.getState().undo();
+test("make component counts only the parts that own a bus's buffers, not one it passes through (ADR 0040)", () => {
+  const { add, connect, select, makeComponent, setLabel, undo } = useEditor.getState();
+  // `Through`: its pin y is its pin d, wired straight through.
+  const [d, y] = [add("switch", { x: 0, y: 0 }), add("led", { x: 6, y: 0 })];
+  setLabel(d, "d");
+  setLabel(y, "y");
+  connect(port(d, "out"), port(y, "in"));
+  select([d, y]);
+  expect(makeComponent("Through")).toBeNull();
+  const [p] = useEditor.getState().selection as [string];
+  // Two buffers share a bus into p's d; p's y feeds the LED, so y is on the bus's net too.
+  const [s1, e1, t1, s2, e2, t2, l] = [
+    add("switch", { x: -20, y: 10 }),
+    add("switch", { x: -20, y: 14 }),
+    add("tri", { x: -14, y: 10 }),
+    add("switch", { x: -20, y: 20 }),
+    add("switch", { x: -20, y: 24 }),
+    add("tri", { x: -14, y: 20 }),
+    add("led", { x: 20, y: 0 }),
+  ];
+  for (const [from, to] of [
+    [port(s1, "out"), port(t1, "in")],
+    [port(e1, "out"), port(t1, "en")],
+    [port(s2, "out"), port(t2, "in")],
+    [port(e2, "out"), port(t2, "en")],
+    [port(t1, "out"), port(p, d)],
+    [port(t2, "out"), port(p, d)],
+    [port(p, y), port(l, "in")],
+  ] as const) {
+    expect(connect(from, to)).not.toBeNull();
   }
+  const engine = new Engine();
+  const loadNow = () => {
+    const { circuit, definitions } = useEditor.getState();
+    return JSON.parse(engine.load(JSON.stringify(project(circuit, definitions)), false)) as NetView & {
+      portNets: Record<string, Record<string, number>>;
+      diagnostics: { code: string }[];
+    };
+  };
+  const nets = loadNow();
+  expect(nets.diagnostics).toEqual([]);
+  expect(nets.portNets[p]?.[y]).toBe(nets.portNets[l]?.in);
+  expect(Object.values(nets.busDrivers ?? {})).toEqual([[t1, t2].sort()]);
+  // A buffer alone would split the bus, as before.
+  select([t1]);
+  expect(makeComponent("Half", { stale: false, nets })).toMatch(/A shared bus would be split/);
+  // Both buffers without p, and p without them: neither splits it.
+  select([t1, t2]);
+  expect(makeComponent("Drivers", { stale: false, nets })).toBeNull();
+  undo();
+  select([p]);
+  expect(makeComponent("Wrap", { stale: false, nets })).toBeNull();
+  // The made circuit loads with nothing to report, and the bus still reaches the LED through the new chip.
+  const made = loadNow();
+  expect(made.diagnostics).toEqual([]);
+  engine.set_inputs(JSON.stringify({ [s1]: 1, [e1]: 1 }));
+  expect(engine.nets()[made.portNets[l]?.in ?? -1]).toBe(1);
+});
+
+test("make component gives each output wired straight to an input its own pin, two on one net too (ADR 0040)", () => {
+  const { add, connect, select, makeComponent, setLabel } = useEditor.getState();
+  const [d, y] = [add("switch", { x: 0, y: 0 }), add("led", { x: 6, y: 0 })];
+  setLabel(d, "d");
+  setLabel(y, "y");
+  connect(port(d, "out"), port(y, "in"));
+  select([d, y]);
+  expect(makeComponent("Through")).toBeNull();
+  const [p1] = useEditor.getState().selection as [string];
+  useEditor.getState().armChip(useEditor.getState().definitions[0]?.id ?? "");
+  const p2 = add("custom", { x: 0, y: 10 });
+  // One switch feeds both; each output goes to its own LED.
+  const [s, l1, l2] = [add("switch", { x: -10, y: 4 }), add("led", { x: 20, y: 0 }), add("led", { x: 20, y: 10 })];
+  for (const [from, to] of [
+    [port(s, "out"), port(p1, d)],
+    [port(s, "out"), port(p2, d)],
+    [port(p1, y), port(l1, "in")],
+    [port(p2, y), port(l2, "in")],
+  ] as const) {
+    expect(connect(from, to)).not.toBeNull();
+  }
+  const engine = new Engine();
+  const loadNow = () => {
+    const { circuit, definitions } = useEditor.getState();
+    return JSON.parse(engine.load(JSON.stringify(project(circuit, definitions)), false)) as NetView & {
+      portNets: Record<string, Record<string, number>>;
+      diagnostics: { code: string }[];
+    };
+  };
+  select([p1, p2]);
+  expect(makeComponent("Pair", { stale: false, nets: loadNow() })).toBeNull();
+  const made = loadNow();
+  expect(made.diagnostics).toEqual([]);
+  // One input pin, two output pins.
+  const pair = useEditor.getState().definitions.find((x) => x.name === "Pair");
+  expect(pair?.circuit.components.filter((c) => c.kind === "switch" || c.kind === "led").map((c) => c.kind).sort()).toEqual(["led", "led", "switch"]);
+  engine.set_inputs(JSON.stringify({ [s]: 1 }));
+  expect([made.portNets[l1]?.in, made.portNets[l2]?.in].map((net) => engine.nets()[net ?? -1])).toEqual([1, 1]);
 });
 
 test("setInputCount grows a gate from its unrotated top edge, drops wires to inputs that go, and is refused onto a junction (ADR 0038)", () => {

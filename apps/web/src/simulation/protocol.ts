@@ -137,8 +137,8 @@ export type Result =
       portNets: Record<string, Record<string, number>>;
       /** Net index → ID of the top-level part driving it, null for ground (ADR 0016). */
       netDrivers: (string | null)[];
-      /** The nets several tri-state buffers share, each resolved from its drivers (ADR 0035). */
-      buses: number[];
+      /** Each net several tri-state buffers share → the top-level parts that own its buffers (ADRs 0035, 0040). */
+      busDrivers: Record<number, string[]>;
       diagnostics: Diagnostic[];
     }
   /**
