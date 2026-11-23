@@ -1,6 +1,6 @@
 # 0040. Rough edges: Make component, the readout, bench reports, and a list that holds only what stays
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-23
 - Depends on: ADR 0037 (Phase 7 plan, increment 3); ADR 0016 (Make
   component); ADR 0035 (buses and tri-state buffers); ADR 0021 (devices,

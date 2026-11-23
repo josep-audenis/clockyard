@@ -772,7 +772,7 @@ as their notes do, its shots, CPU recording and links are made again by
 regions no longer put the digits and keyboard beside it), and the text
 says twelve challenges, two reference CPUs, the push button, wider
 gates, the tri-state buffer and notes. Increment 3, rough edges, is designed in
-ADR 0040 (proposed).
+ADR 0040 (accepted).
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
