@@ -85,10 +85,11 @@ close:
    counts as one).
 
 4. **The readout lists memories and screens,** after the registers:
-   - a ROM: `Program: address 3, word 4611 (0x1203)`, from its `addr` and
-     `out` nets, named as the readout names other parts (its label, or
-     "ROM 1");
-   - a RAM: `RAM 1: address 12, data 7`, from its `addr` and `out` nets;
+   - a ROM: `ROM Program: address 3, word 4611 (0x1203)`, from its `addr` and
+     `out` nets, named as the readout names other parts (its kind and
+     label, or "ROM 1");
+   - a RAM: `RAM 1: address 12 (0x0c), data 7 (0x07)`, from its `addr`
+     and `out` nets;
    - a screen: `Screen 1: 18 of 512 pixels on`, counted from the words the
      editor already reads to draw it; a pixel whose bit is unknown is not
      counted as on. A count does not show the picture, but it says whether
@@ -96,8 +97,8 @@ close:
      is left out.
    Values are written with `showValue`, as the readout writes others (`X`,
    `Z`, "unknown" while stale): an address at the part's address width, a
-   word or data at its width. The list is not live (`aria-live` stays off), as now: a
-   reader asks for it.
+   word or data at its width. The list is not live (`aria-live` stays
+   off), as now: a reader asks for it.
 
 5. **A bench challenge reads in parts and its pass names its runs.**
    - A challenge's `text` may hold blank lines; the panel shows each part
