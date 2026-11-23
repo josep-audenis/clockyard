@@ -1823,8 +1823,12 @@ function Inspector() {
       <section className="panel">
         <h2 className="type-heading panel-title">Properties</h2>
         {part ? (
-          // Remounts for another part; each field remounts itself when its own value changes.
-          <PartProperties key={part.id} part={part} />
+          <>
+            {/* Remounts for another part; each field remounts itself when its own value changes. */}
+            <PartProperties key={part.id} part={part} />
+            {/* A switch or LED alone would be a pin with nothing to wrap (ADR 0040). */}
+            {part.kind !== "switch" && part.kind !== "led" && <MakeComponent key={`make:${part.id}`} count={1} />}
+          </>
         ) : wire ? (
           <div className="inspector-body">
             <p className="type-label inspector-kind">Wire</p>
@@ -1965,10 +1969,10 @@ function MakeComponent({ count }: { count: number }) {
   const id = useId();
   return (
     <div className="inspector-body">
-      <p className="type-body inspector-empty">{`${count} items selected.`}</p>
+      <p className="type-body inspector-empty">{count === 1 ? "1 part selected." : `${count} items selected.`}</p>
       <div className="field">
         <label className="field-label" htmlFor={`${id}-name`}>
-          Component name
+          Name of the new component
         </label>
         <input
           id={`${id}-name`}

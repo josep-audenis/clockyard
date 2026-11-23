@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
-import { endOwner, sameEnd, type Circuit } from "./document";
+import { endOwner, noteSize, sameEnd, type Circuit } from "./document";
 import { contains, project } from "./document";
 import { liveDefinitions, liveWatches, mainCircuit, MAX_WATCHES, useEditor, type NetView } from "./store";
 import { layoutOf, pinLabel } from "../canvas/layout";
@@ -1635,4 +1635,61 @@ test("notes move, turn in place, delete, copy and paste with the selection (ADR 
   expect(useEditor.getState().selection).toContain(notes[1]?.id);
   remove([n]);
   expect(useEditor.getState().circuit.notes.map((x) => x.id)).toEqual([notes[1]?.id]);
+});
+
+/** Whether the chip `id` keeps a cell clear of every other part, junction and note on the sheet (ADR 0040). */
+function clearOfTheRest(id: string): boolean {
+  const { circuit } = useEditor.getState();
+  const chip = circuit.components.find((c) => c.id === id);
+  if (!chip) return false;
+  const a = { ...chip.position, ...layoutOf(chip) };
+  const boxes = [
+    ...circuit.components.filter((c) => c.id !== id).map((c) => ({ ...c.position, ...layoutOf(c) })),
+    ...circuit.junctions.map((j) => ({ ...j.position, width: 0, height: 0 })),
+    ...circuit.notes.map((n) => ({ ...n.position, ...noteSize(n.text) })),
+  ];
+  return boxes.every((b) => a.x + a.width + 1 <= b.x || b.x + b.width + 1 <= a.x || a.y + a.height + 1 <= b.y || b.y + b.height + 1 <= a.y);
+}
+
+test("make component takes one part: its crossing wires become pins, and a lone part with none is refused (ADR 0040)", () => {
+  const { add, connect, select, makeComponent } = useEditor.getState();
+  const lone = add("not", { x: 40, y: 40 });
+  select([lone]);
+  expect(makeComponent("Nothing")).toBe("A component needs pins: labelled switches (inputs) and LEDs (outputs).");
+  const [a, b, g, l] = [add("switch", { x: 0, y: 0 }), add("switch", { x: 0, y: 4 }), add("and", { x: 6, y: 1 }), add("led", { x: 14, y: 2 })];
+  connect(port(a, "out"), port(g, "a"));
+  connect(port(b, "out"), port(g, "b"));
+  connect(port(g, "out"), port(l, "in"));
+  const { circuit, definitions } = useEditor.getState();
+  const nets = JSON.parse(new Engine().load(JSON.stringify(project(circuit, definitions)), false)) as NetView;
+  select([g]);
+  expect(makeComponent("Gate", { stale: false, nets })).toBeNull();
+  const [definition] = useEditor.getState().definitions;
+  expect(definition?.circuit.components.map((c) => c.kind).sort()).toEqual(["and", "led", "switch", "switch"]);
+  const [chip] = useEditor.getState().selection as [string];
+  expect(useEditor.getState().circuit.wires.filter((w) => endOwner(w.from) === chip || endOwner(w.to) === chip)).toHaveLength(3);
+  expect(clearOfTheRest(chip)).toBe(true);
+});
+
+test("make component steps the chip down until it covers nothing left on the sheet, a cell clear (ADR 0040)", () => {
+  const { add, select, makeComponent, setLabel, addNote } = useEditor.getState();
+  // Four inputs and four outputs in a short block: the chip is 8 cells tall, the block 4.
+  const pins = [0, 1, 2, 3].flatMap((i) => {
+    const [s, l] = [add("switch", { x: i * 3, y: 0 }), add("led", { x: i * 3, y: 2 })];
+    setLabel(s, `i${i}`);
+    setLabel(l, `o${i}`);
+    return [s, l];
+  });
+  // Left on the sheet: a part just under the block, and a note under that.
+  const below = add("not", { x: 1, y: 5 });
+  addNote({ x: 0, y: 9 });
+  select(pins);
+  expect(makeComponent("Tall")).toBeNull();
+  const [chip] = useEditor.getState().selection as [string];
+  expect(useEditor.getState().circuit.components.some((c) => c.id === below)).toBe(true);
+  expect(clearOfTheRest(chip)).toBe(true);
+  // Still in the block's column, below what it would have covered.
+  const placed = useEditor.getState().circuit.components.find((c) => c.id === chip);
+  expect(placed?.position.x).toBe(0);
+  expect(placed?.position.y).toBeGreaterThan(5);
 });

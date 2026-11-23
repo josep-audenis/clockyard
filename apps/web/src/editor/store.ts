@@ -33,6 +33,7 @@ import {
   MAX_SHEET_NOTES,
   MAX_SOURCE,
   normalizeNotes,
+  noteSize,
   wordsProblem,
   withoutDeletedPins,
   takesInputs,
@@ -637,11 +638,22 @@ export const useEditor = create<EditorState>()((set, get) => ({
       rotation: 0,
       props: {},
     };
-    // No port of it on a junction left on the sheet (ADR 0010): stepped down 2 cells until clear. Its
-    // ports come from the new definition, so its layout is set before the store's own pass does it.
+    // Stepped down 2 cells until no port of it is on a junction left on the sheet (ADR 0010), and its box keeps a
+    // cell clear of every part, junction and note left there (ADR 0040). Its ports come from the new definition, so
+    // its layout is set before the store's own pass does it.
     setDefinitionLayouts([...liveDefinitions(state), definition]);
     const rest = { components: [], junctions: circuit.junctions.filter((j) => !inside.has(j.id)), wires: [], notes: [] };
-    while (placementStacks(rest, instance)) instance.position = { ...instance.position, y: instance.position.y + 2 };
+    const boxes = [
+      ...circuit.components.filter((c) => !inside.has(c.id)).map((c) => ({ ...c.position, width: layoutOf(c).width, height: layoutOf(c).height })),
+      ...rest.junctions.map((j) => ({ ...j.position, width: 0, height: 0 })),
+      ...circuit.notes.map((n) => ({ ...n.position, ...noteSize(n.text) })),
+    ];
+    const covers = () => {
+      const { x, y } = instance.position;
+      const { width, height } = layoutOf(instance);
+      return boxes.some((b) => x < b.x + b.width + 1 && b.x < x + width + 1 && y < b.y + b.height + 1 && b.y < y + height + 1);
+    };
+    while (placementStacks(rest, instance) || covers()) instance.position = { ...instance.position, y: instance.position.y + 2 };
     set((s) => {
       // Wires touching the selection go with it; crossings come back wired to the instance (ADR 0016).
       const outer = added.outer(instance.id);
