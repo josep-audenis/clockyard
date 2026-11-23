@@ -782,36 +782,33 @@ properties (not a switch or LED), and its chip is stepped down until it
 keeps a cell clear of every part, junction and note left on the sheet.
 Step 3 is done: the readout lists each ROM and RAM by its address and the
 word there now, and each screen by how many of its pixels are on.
-Rough edges still open:
+Step 4 is done, and with it increment 3: challenges 10 to 12 read in
+paragraphs, their opcodes one to a line, and a pass on a bench names its
+runs; the rough edges left are each marked by design, the rest moved to
+out of scope; and the target in Playwright: Make component on one gate
+gives a chip clear of the part below it, and challenge 10 shows its text
+in paragraphs. Next is increment 4, challenges 13 to 16, with its own ADR.
+Rough edges still open, each by design (ADR 0040):
 
 - Wires kept after an edit can stay longer than needed until the file is
-  opened again (by design, ADR 0011).
-- A circuit with a tri-state buffer runs on the engine's slower two-word
-  path throughout, and no benchmark has a bus (ADR 0035).
-- Two enabled drivers that disagree show `X` and nothing else: no
-  diagnostic names them (ADR 0035, left out by design).
+  opened again (ADR 0011: an edit reroutes only what it touches, so other
+  wires do not jump).
+- A circuit with a tri-state buffer runs on the engine's two-word path
+  throughout (ADR 0035: the two-state path has no `Z`).
 - A register that took `X` from a loop holds it with no warning once the
   loop itself is known again; and a settle cut by the delta limit on a
   transient that then ends is reported as an oscillating loop, with no
-  `X` left (ADR 0035).
-- A challenge mismatch is written without its width, so an all-`Z` top
-  digit of fewer than four bits reads `X` there; no challenge allows a
-  tri-state buffer (ADR 0035).
-- A bench challenge's text is one long paragraph, and a pass counts the
-  steps of all its runs ("30 of 30 steps") without naming runs.
+  `X` left (ADR 0035: state holds what it was given; the limit cannot tell
+  a long transient from an oscillation).
 - A component added from another file under a `bench-` ID cannot be used
-  in a bench challenge: the check refuses it as unknown (ADR 0034).
-- Make component on a pass-through whose output reaches the selection's
-  edge through an inside junction joins it to the input pin, which the
-  engine refuses as two drivers (ADR 0040, amended).
-- The program editor is offered for 16-bit ROMs only, the reference CPU's
-  word size; other machines would need their own assembler (ADR 0019).
+  in a bench challenge: the check refuses it as unknown (ADR 0034: those
+  IDs are the bench's own).
 - Catch reads `KEY` once per step, so a quick tap can be missed while
   blocks fall slowly, and a held key moves the paddle several lanes in a
-  moment once they fall fast. Moving only on a new press would fix it, at
-  the cost of tapping once per lane.
+  moment once they fall fast (ADR 0023: the paddle follows the key held;
+  moving only on a new press would mean tapping once per lane).
 
-Fixed since: the readout lists memories and screens (ADR 0040); Make component's chip no longer covers parts left beside it, and it is offered for a single part (ADR 0040); Make component no longer counts a component that passes a bus through as one of its drivers (ADR 0040); the about page is current again (ADR 0039); the bit operations and the call Catch showed the reference CPU lacks are in Reference CPU 2 (ADR 0036); the reference CPU's sheet, dense with long wires, is laid
+Fixed since: a bench challenge's text comes in paragraphs, and its pass names its runs (ADR 0040); the readout lists memories and screens (ADR 0040); Make component's chip no longer covers parts left beside it, and it is offered for a single part (ADR 0040); Make component no longer counts a component that passes a bus through as one of its drivers (ADR 0040); the about page is current again (ADR 0039); the bit operations and the call Catch showed the reference CPU lacks are in Reference CPU 2 (ADR 0036); the reference CPU's sheet, dense with long wires, is laid
 out in regions a note's jump shows at 100% (ADR 0039); routing keeps clear of label tags (ADR 0039); deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
 amended); a click on a label's tag selects it; below 900px the inspector
 moves under the canvas; Make component turns each net crossing the
@@ -826,4 +823,11 @@ and native scrollbars that follow the theme.
 
 Out of scope for now: global labels across sheets and the other items ADR
 0015 leaves out; editing several parts' widths at once, signed display and
-widths above 32 (ADR 0014).
+widths above 32 (ADR 0014); a benchmark with a bus, two bus drivers
+in conflict named by a diagnostic, a challenge mismatch's width (needed
+once a challenge allows a tri-state buffer), the program editor for ROMs
+other than 16 bits wide (ADR 0019: each machine needs its own assembler),
+and Make component on a pass-through whose output reaches the selection's
+edge through an inside junction, which still joins it to the input pin
+(ADR 0040); and the items ADR 0037 leaves out of Phase 7, such as a 16-bit
+CPU, several clocks, Markdown in notes and a guided tutorial.

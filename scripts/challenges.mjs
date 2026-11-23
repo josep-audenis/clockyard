@@ -537,22 +537,24 @@ const INSTRUCTIONS = [
   "A JC n: PC = n if C",
   "B OUT: out = A",
   "C HLT: halt",
-].join("; ");
+].join("\n");
 const benchChallenges = [
   {
     file: "10-cpu",
     slot: "cpu",
     title: "CPU",
-    text:
+    // Parts split by blank lines, which the panel shows as paragraphs; the opcodes one to a line (ADR 0040).
+    text: [
       "Build a CPU that runs programs. Each instruction is a 16-bit word: its top four bits are the opcode and its low eight the operand n. " +
-      "It takes two clock cycles. In the first, the word on instr is kept and PC goes up by one; in the second, the instruction is carried out. " +
-      `The opcodes: ${INSTRUCTIONS}. D to F do nothing. ` +
+        "It takes two clock cycles. In the first, the word on instr is kept and PC goes up by one; in the second, the instruction is carried out.",
+      `The opcodes:\n${INSTRUCTIONS}\nD to F do nothing.`,
       "A and PC are 8 bits and wrap; everything starts at 0. " +
-      "Whenever A is loaded (LDI, LDA and the four additions and subtractions), Z becomes 1 if the new A is 0, else 0. " +
-      "An addition makes C 1 on a carry, else 0; a subtraction makes C 1 when nothing is borrowed, else 0. Every other instruction leaves Z and C as they are, and LDI and LDA leave C. " +
+        "Whenever A is loaded (LDI, LDA and the four additions and subtractions), Z becomes 1 if the new A is 0, else 0. " +
+        "An addition makes C 1 on a carry, else 0; a subtraction makes C 1 when nothing is borrowed, else 0. Every other instruction leaves Z and C as they are, and LDI and LDA leave C.",
       "pc is the address of the next word. For RAM[n], put n on addr: the byte there arrives on din. To store, hold A on dout and we at 1 through the second cycle. " +
-      "we is 0 at any other time. fetch is 1 during a first cycle. Once halted, halt is 1, fetch is 0 and nothing changes. " +
+        "we is 0 at any other time. fetch is 1 during a first cycle. Once halted, halt is 1, fetch is 0 and nothing changes.",
       "Registers, a multiplexer and an 8-bit adder are provided, and a ROM can decode the opcode. The main sheet is a computer to run your CPU in.",
+    ].join("\n\n"),
     parts: [...GATES, "dff", "split", "merge", "rom"],
     runs: cpuRuns,
   },
@@ -562,12 +564,14 @@ const benchChallenges = [
     title: "Program",
     // The reference: the sum, by a loop that counts the key down.
     reference: program(SUM.words, SUM.source),
-    text:
-      "Write a program for the CPU. It reads a number from 1 to 22 at address 0xFF, adds up 1 + 2 + ... up to it, shows the sum with OUT, and halts within 900 clock cycles: 5 gives 15. " +
-      "Open Program, select its ROM, write the program in assembly, and press Assemble. " +
-      `The instructions: ${INSTRUCTIONS}. n is a number, such as 16 or 0xFF. RAM[n] is a byte of memory you can use, for n from 0 to 0xEF; every byte starts at 0, and so does A. ` +
-      "Z is set when A becomes 0, and C by an addition that carries or a subtraction that borrows nothing. " +
+    text: [
+      "Write a program for the CPU. It reads a number from 1 to 22 at address 0xFF, adds up 1 + 2 + ... up to it, shows the sum with OUT, and halts within 900 clock cycles: 5 gives 15.",
+      "Open Program, select its ROM, write the program in assembly, and press Assemble.",
+      `The instructions:\n${INSTRUCTIONS}`,
+      "n is a number, such as 16 or 0xFF. RAM[n] is a byte of memory you can use, for n from 0 to 0xEF; every byte starts at 0, and so does A. " +
+        "Z is set when A becomes 0, and C by an addition that carries or a subtraction that borrows nothing.",
       "The main sheet is the computer: set Key, then step the Clock switch or wire a clock in to watch your program run.",
+    ].join("\n\n"),
     parts: ["rom"],
     runs: programRuns,
   },
@@ -575,11 +579,12 @@ const benchChallenges = [
     file: "12-display",
     slot: "display",
     title: "Display",
-    text:
-      "Connect the screen to the CPU. The CPU puts an address on addr and a byte on dout, with we at 1 through the clock cycle of a store. " +
-      "sptr is the screen pointer, 8 bits: a store to address 0xFE sets it to dout at the rising clk, and nothing else changes it. " +
-      "swe is 1 while a store to address 0xFD is under way, and 0 at any other time: the screen then takes dout at the byte sptr points to. " +
+    text: [
+      "Connect the screen to the CPU. The CPU puts an address on addr and a byte on dout, with we at 1 through the clock cycle of a store.",
+      "sptr is the screen pointer, 8 bits: a store to address 0xFE sets it to dout at the rising clk, and nothing else changes it.",
+      "swe is 1 while a store to address 0xFD is under way, and 0 at any other time: the screen then takes dout at the byte sptr points to.",
       "A register is provided. The main sheet is the computer, with the screen on it: write a program that draws in Program's ROM to try yours.",
+    ].join("\n\n"),
     parts: [...GATES, "dff", "split", "merge"],
     runs: displayRuns,
   },

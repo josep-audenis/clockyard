@@ -969,6 +969,7 @@ select.input {
 .challenge-text {
   font-size: 13px;
   line-height: 18px;
+  white-space: pre-line;
 }
 
 /* The engine's verdict, in words and a mark: a square for a failure, a dot for a pass, as in the status bar. */

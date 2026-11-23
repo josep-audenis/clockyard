@@ -1,6 +1,6 @@
 {
   "title": "Display",
-  "text": "Connect the screen to the CPU. The CPU puts an address on addr and a byte on dout, with we at 1 through the clock cycle of a store. sptr is the screen pointer, 8 bits: a store to address 0xFE sets it to dout at the rising clk, and nothing else changes it. swe is 1 while a store to address 0xFD is under way, and 0 at any other time: the screen then takes dout at the byte sptr points to. A register is provided. The main sheet is the computer, with the screen on it: write a program that draws in Program's ROM to try yours.",
+  "text": "Connect the screen to the CPU. The CPU puts an address on addr and a byte on dout, with we at 1 through the clock cycle of a store.\n\nsptr is the screen pointer, 8 bits: a store to address 0xFE sets it to dout at the rising clk, and nothing else changes it.\n\nswe is 1 while a store to address 0xFD is under way, and 0 at any other time: the screen then takes dout at the byte sptr points to.\n\nA register is provided. The main sheet is the computer, with the screen on it: write a program that draws in Program's ROM to try yours.",
   "definition": "display",
   "bench": "display",
   "inputs": [

@@ -200,4 +200,4 @@ yet its output leaves the selection too. So a crossing that leaves from an
 inside part's output port, on a net driven from outside, gets an output
 pin of its own, one per such port; the rest of the net keeps its input
 pin. An output that reaches the edge through an inside junction is not
-seen as one yet, and stays a rough edge.
+seen as one yet; step 4 moves it to out of scope, until it comes up.
