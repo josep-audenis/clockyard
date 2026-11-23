@@ -313,12 +313,7 @@ video.loop { display: block; width: 100%; height: auto; }
 .shot-map:has(.key li:nth-child(5):hover) .blocks li:nth-child(5),
 .shot-map:has(.key li:nth-child(6):hover) .blocks li:nth-child(6),
 .shot-map:has(.key li:nth-child(7):hover) .blocks li:nth-child(7),
-.shot-map:has(.key li:nth-child(8):hover) .blocks li:nth-child(8),
-.shot-map:has(.key li:nth-child(9):hover) .blocks li:nth-child(9),
-.shot-map:has(.key li:nth-child(10):hover) .blocks li:nth-child(10),
-.shot-map:has(.key li:nth-child(11):hover) .blocks li:nth-child(11),
-.shot-map:has(.key li:nth-child(12):hover) .blocks li:nth-child(12),
-.shot-map:has(.key li:nth-child(13):hover) .blocks li:nth-child(13) {
+.shot-map:has(.key li:nth-child(8):hover) .blocks li:nth-child(8) {
   border: 2px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
@@ -330,12 +325,7 @@ video.loop { display: block; width: 100%; height: auto; }
 .shot-map:has(.blocks li:nth-child(5):hover) .key li:nth-child(5)::before,
 .shot-map:has(.blocks li:nth-child(6):hover) .key li:nth-child(6)::before,
 .shot-map:has(.blocks li:nth-child(7):hover) .key li:nth-child(7)::before,
-.shot-map:has(.blocks li:nth-child(8):hover) .key li:nth-child(8)::before,
-.shot-map:has(.blocks li:nth-child(9):hover) .key li:nth-child(9)::before,
-.shot-map:has(.blocks li:nth-child(10):hover) .key li:nth-child(10)::before,
-.shot-map:has(.blocks li:nth-child(11):hover) .key li:nth-child(11)::before,
-.shot-map:has(.blocks li:nth-child(12):hover) .key li:nth-child(12)::before,
-.shot-map:has(.blocks li:nth-child(13):hover) .key li:nth-child(13)::before { background: var(--accent); color: var(--on-accent); }
+.shot-map:has(.blocks li:nth-child(8):hover) .key li:nth-child(8)::before { background: var(--accent); color: var(--on-accent); }
 @media (prefers-reduced-motion: reduce) { .map picture { transition: none; } }
 
 /* Programs: the inspector beside the text, both from the top */
@@ -625,7 +615,7 @@ main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw
 .cpu-run.is-live .cpu-steps { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
 .cpu-run.is-live .map picture { opacity: 0; }
 /* With controls, the map, the controls, the readout and the tape fit one screen. */
-@media (min-width: 721px) { .cpu-run.has-controls .map { width: min(100%, calc((100vh - 300px) * 1974 / 1752)); margin-inline: auto; } }
+@media (min-width: 721px) { .cpu-run.has-controls .map { width: min(100%, calc((100vh - 300px) * 1580 / 1446)); margin-inline: auto; } }
 .cpu-run.has-controls .blocks li { opacity: 0.25; }
 .cpu-run.has-controls .blocks li.is-used { opacity: 1; border: 2px solid var(--accent); }
 .cpu-controls { display: flex; align-items: center; gap: 8px; margin-top: 16px; }

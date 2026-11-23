@@ -182,10 +182,14 @@ for (const theme of ["dark", "light"]) {
   const sheet = async () => {
     const corners = await Promise.all(notes.map(async (n) => [await wide.at(n.position.x, n.position.y), await wide.at(n.position.x + REGION.width, n.position.y + REGION.height)]));
     const pad = (await wide.at(1, 0)).x - (await wide.at(0, 0)).x;
-    const canvas = await wide.page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
-    const x = Math.max(canvas.x, Math.min(...corners.map(([a]) => a.x)) - pad);
-    const y = Math.max(canvas.y, Math.min(...corners.map(([a]) => a.y)) - pad);
+    const x = Math.min(...corners.map(([a]) => a.x)) - pad;
+    const y = Math.min(...corners.map(([a]) => a.y)) - pad;
     const clip = { x, y, width: Math.max(...corners.map(([, b]) => b.x)) + pad - x, height: Math.max(...corners.map(([, b]) => b.y)) + pad - y };
+    // Fit frames the parts and wires, not the notes, so the titles of the top row could fall outside the canvas.
+    const canvas = await wide.page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
+    if (x < canvas.x || y < canvas.y || x + clip.width > canvas.x + canvas.width || y + clip.height > canvas.y + canvas.height) {
+      throw new Error(`Fig. 5: the regions do not fit the canvas at this view (${JSON.stringify(clip)} in ${JSON.stringify(canvas)})`);
+    }
     const pct = (v) => `${(100 * v).toFixed(1)}%`;
     map.blocks = corners.map(([a, b]) => `--l: ${pct((a.x - x) / clip.width)}; --t: ${pct((a.y - y) / clip.height)}; --w: ${pct((b.x - a.x) / clip.width)}; --h: ${pct((b.y - a.y) / clip.height)}`);
     map.size = [Math.round(clip.width * 1.5), Math.round(clip.height * 1.5)];
@@ -193,8 +197,14 @@ for (const theme of ["dark", "light"]) {
   };
   // The whole CPU from Reset, one frame per clock cycle: setup, the paddle drawn, the first block
   // drawn. A keyframe every 16 frames keeps it small and any frame quick to seek to.
-  {
+  // Fit, then one step out: room for the notes above the parts.
+  const frame = async () => {
     await wide.button("Fit").click();
+    await wide.button("Zoom out").click();
+    await wide.page.waitForTimeout(200);
+  };
+  {
+    await frame();
     await wide.page.addStyleTag({ content: ".zoom-controls { visibility: hidden; }" });
     const box = await sheet();
     const counter = wide.page.getByText(/^Cycle \d+,/);
@@ -222,7 +232,7 @@ for (const theme of ["dark", "light"]) {
     await wide.open(example("catch"));
   }
   await wide.page.getByLabel("Speed").selectOption("10000");
-  await wide.button("Fit").click();
+  await frame();
   await wide.button("Run").click();
   await wide.page.waitForTimeout(4000);
   await wide.button("Pause").click();
@@ -416,12 +426,17 @@ if (steps.length !== 64) throw new Error(`steps: ${steps.length} frames, not 64`
 page = page.replace(/data-steps="[^"]*"/, `data-steps="${steps.join(";")}"`);
 // Fig. 5's outlines and names: one per region, in the order of the sheet's notes.
 if (map.blocks.length !== notes.length) throw new Error(`map: ${map.blocks.length} outlines`);
+// Each rewrite must find its place: a page that drifted would otherwise keep a stale outline, list or size.
+const rewrite = (text, re, to) => {
+  if (!re.test(text)) throw new Error(`nothing matches ${re}`);
+  return text.replace(re, to);
+};
 const items = (indent, list) => list.map((li) => `\n${" ".repeat(indent)}${li}`).join("");
-page = page.replace(/(<ol class="blocks"[^>]*>)[\s\S]*?(\s*<\/ol>)/, (_, open, close) => open + items(20, map.blocks.map((style, i) => `<li style="${style}">${i + 1}</li>`)) + close);
-page = page.replace(/(<ol class="key"[^>]*>)[\s\S]*?(\s*<\/ol>)/, (_, open, close) => open + items(18, notes.map((n) => `<li>${n.text.split("\n")[0]}</li>`)) + close);
-page = page.replace(/(srcset="\.\/shots\/cpu-light\.png" \/>\s*<img\s+src="\.\/shots\/cpu-dark\.png"\s+width=")\d+("\s+height=")\d+/, (_, a, b) => `${a}${map.size[0]}${b}${map.size[1]}`);
+page = rewrite(page, /(<ol class="blocks"[^>]*>)[\s\S]*?(\s*<\/ol>)/, (_, open, close) => open + items(20, map.blocks.map((style, i) => `<li style="${style}">${i + 1}</li>`)) + close);
+page = rewrite(page, /(<ol class="key"[^>]*>)[\s\S]*?(\s*<\/ol>)/, (_, open, close) => open + items(18, notes.map((n) => `<li>${n.text.split("\n")[0]}</li>`)) + close);
+page = rewrite(page, /(srcset="\.\/shots\/cpu-light\.png" \/>\s*<img\s+src="\.\/shots\/cpu-dark\.png"\s+width=")\d+("\s+height=")\d+/, (_, a, b) => `${a}${map.size[0]}${b}${map.size[1]}`);
 writeFileSync(html, page);
 // The map is sized to fit the window by its picture's aspect.
 const css = here("../about/landing.css");
-writeFileSync(css, readFileSync(css, "utf8").replace(/(\(100vh - 300px\) \* )\d+ \/ \d+/, `$1${map.size[0]} / ${map.size[1]}`));
+writeFileSync(css, rewrite(readFileSync(css, "utf8"), /(\(100vh - 300px\) \* )\d+ \/ \d+/, `$1${map.size[0]} / ${map.size[1]}`));
 console.log("links:", Object.fromEntries(Object.entries(links).map(([k, v]) => [k, v.length])));

@@ -800,15 +800,12 @@ Rough edges still open:
 - The readout for screen readers does not list memories or screens.
 - The program editor is offered for 16-bit ROMs only, the reference CPU's
   word size; other machines would need their own assembler (ADR 0019).
-- What Catch showed the reference CPU lacks, for a later richer-CPU ADR
-  (ADR 0023): bit operations, to draw single pixels rather than whole
-  bytes; and a call, so drawing code is shared rather than repeated.
 - Catch reads `KEY` once per step, so a quick tap can be missed while
   blocks fall slowly, and a held key moves the paddle several lanes in a
   moment once they fall fast. Moving only on a new press would fix it, at
   the cost of tapping once per lane.
 
-Fixed since: the about page is current again (ADR 0039); the reference CPU's sheet, dense with long wires, is laid
+Fixed since: the about page is current again (ADR 0039); the bit operations and the call Catch showed the reference CPU lacks are in Reference CPU 2 (ADR 0036); the reference CPU's sheet, dense with long wires, is laid
 out in regions a note's jump shows at 100% (ADR 0039); routing keeps clear of label tags (ADR 0039); deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
 amended); a click on a label's tag selects it; below 900px the inspector
 moves under the canvas; Make component turns each net crossing the
