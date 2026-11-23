@@ -772,7 +772,11 @@ as their notes do, its shots, CPU recording and links are made again by
 regions no longer put the digits and keyboard beside it), and the text
 says twelve challenges, two reference CPUs, the push button, wider
 gates, the tri-state buffer and notes. Increment 3, rough edges, is designed in
-ADR 0040 (accepted).
+ADR 0040 (accepted). Step 1 is done: the engine names each bus's
+drivers, the parts that own its buffers, and Make component counts only
+those, so a component that passes a bus through is no longer one; and a
+component wrapped whole gets an output pin of its own for each output
+wired straight to an input, where it used to get one pin for both.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
@@ -781,10 +785,6 @@ Rough edges still open:
   path throughout, and no benchmark has a bus (ADR 0035).
 - Two enabled drivers that disagree show `X` and nothing else: no
   diagnostic names them (ADR 0035, left out by design).
-- Make component counts a component that only passes a bus through (an
-  input pin wired straight to an output pin) as one of the bus's drivers:
-  it and the bus's buffers must be selected together or not at all,
-  though the message speaks of buffers only (ADR 0035).
 - A register that took `X` from a loop holds it with no warning once the
   loop itself is known again; and a settle cut by the delta limit on a
   transient that then ends is reported as an oscillating loop, with no
@@ -806,7 +806,7 @@ Rough edges still open:
   moment once they fall fast. Moving only on a new press would fix it, at
   the cost of tapping once per lane.
 
-Fixed since: the about page is current again (ADR 0039); the bit operations and the call Catch showed the reference CPU lacks are in Reference CPU 2 (ADR 0036); the reference CPU's sheet, dense with long wires, is laid
+Fixed since: Make component no longer counts a component that passes a bus through as one of its drivers (ADR 0040); the about page is current again (ADR 0039); the bit operations and the call Catch showed the reference CPU lacks are in Reference CPU 2 (ADR 0036); the reference CPU's sheet, dense with long wires, is laid
 out in regions a note's jump shows at 100% (ADR 0039); routing keeps clear of label tags (ADR 0039); deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
 amended); a click on a label's tag selects it; below 900px the inspector
 moves under the canvas; Make component turns each net crossing the
