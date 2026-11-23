@@ -287,7 +287,7 @@ video.loop { display: block; width: 100%; height: auto; }
   background: var(--ink);
   border-radius: var(--radius-sm) 0 var(--radius-sm) 0;
 }
-.key { margin: 0; padding: 0; list-style: none; counter-reset: key; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px 24px; font-size: 14px; }
+.key { margin: 0; padding: 0; list-style: none; counter-reset: key; display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 24px; font-size: 14px; }
 .key li { counter-increment: key; display: flex; gap: 10px; align-items: baseline; padding: 4px 0; color: var(--ink); cursor: default; }
 .key li::before {
   content: counter(key);
@@ -625,7 +625,7 @@ main { position: relative; overflow-x: clip; } /* full-bleed lines measure 100vw
 .cpu-run.is-live .cpu-steps { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
 .cpu-run.is-live .map picture { opacity: 0; }
 /* With controls, the map, the controls, the readout and the tape fit one screen. */
-@media (min-width: 721px) { .cpu-run.has-controls .map { width: min(100%, calc((100vh - 300px) * 3072 / 1752)); margin-inline: auto; } }
+@media (min-width: 721px) { .cpu-run.has-controls .map { width: min(100%, calc((100vh - 300px) * 1974 / 1752)); margin-inline: auto; } }
 .cpu-run.has-controls .blocks li { opacity: 0.25; }
 .cpu-run.has-controls .blocks li.is-used { opacity: 1; border: 2px solid var(--accent); }
 .cpu-controls { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
