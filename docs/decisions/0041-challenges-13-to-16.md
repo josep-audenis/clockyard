@@ -6,6 +6,7 @@
   (challenges 1 to 9, built in code); ADR 0034 (bench challenges, runs and
   their reports); ADR 0036 (Reference CPU 2); ADR 0040 (challenge text in
   paragraphs)
+- Amends: ADR 0034 item 4, the 1,000-cycle limit on a run (item 7 here)
 
 ## Context
 
@@ -78,25 +79,36 @@ What exists to build on:
      - with `pop` 1, `sp` goes down by 1.
    - `sp` wraps from 15 to 0 and from 0 to 15, as Reference CPU 2's `SP`
      does.
+   - There is no reset input. At the start of the check `sp` is 0 and
+     every byte is 0, so `top` reads 0.
    - While `push` is 0, `top` is the byte at `sp − 1`: the last byte
      pushed, as `RET` reads it. While `push` is 1, `top` is not checked. A
      stack with one RAM has one address, which a push needs for `sp`.
    - `push` and `pop` are never 1 together; the text says so, and no step
      asks for it.
-   - After reset `sp` is 0 and every byte is 0, so `top` reads 0.
    - Allowed parts: gates, `dff`, split, merge and `ram`. A 4-bit register
-     and a full adder are provided, copies with IDs of their own
-     (`reg4`, `fulladder`), as challenge 12 provides `reg8`.
+     and a full adder are provided, as challenge 5 provides its full
+     adder: `reg4`, built by the same `register()` as the CPUs' registers,
+     and `full-adder`.
    - The steps push more than sixteen bytes, so the seventeenth writes
      over the first; pop past empty; hold with neither line; and change
-     `din` while `clk` is high, which must change nothing.
+     `din` while `clk` is high during a push, which must change nothing:
+     the next step, with `push` at 0, reads `top` to show it.
 
 5. **16, the drawing.** The key holds n, from 1 to 16. The program lights
-   the pixels at column 4i, row 2i, for i from 0 to n − 1, then halts.
+   the pixels at column 3i, row 2i, for i from 0 to n − 1, then halts.
    The screen starts dark, and every other pixel stays dark.
-   - Those pixels lie in different bytes and at different bits. A
-     routine that lights one pixel from a column and a row, called n
-     times, is the natural program, and the text asks for one.
+   - Each pixel lies in a byte of its own, and column 3i passes through
+     all eight bit positions (0, 3, 6, 1, 4, 7, 2, 5, then again), so no
+     short pattern of masks draws it. A routine that lights one pixel
+     from a column and a row, called n times, is the natural program, and
+     the text asks for one.
+   - **The text** carries what the program needs from its own page:
+     Reference CPU 2's eleven added instructions beside the first CPU's
+     table, as challenge 11's text carries that table; the screen I/O
+     (`SPTR` at `0xFE`, `SDATA` at `0xFD`, `KEY` at `0xFF`); the screen's
+     layout (eight bytes a row, the most significant bit leftmost); and
+     the run's cycle limit (item 7).
    - **The check cannot see a `CALL`.** It reads the screen and `halt`. A
      program without a routine that draws the same picture passes. That
      is said in the text, as ADR 0034 says what challenge 12's check
@@ -121,14 +133,26 @@ What exists to build on:
    - `cpu2.rs` runs its model against the cut CPU on the bench, as `cpu.rs`
      does for the first.
 
-7. **The run budget.** A routine that lights one pixel takes about 30
-   instructions, so sixteen pixels take about 1,000 cycles, past
-   `MAX_RUN_CYCLES`. It goes from 1,000 to 4,000 for every bench. The
-   reference solution's count for n = 16 is written into the step that
-   builds challenge 16, and each run allows that count and some more, as
-   challenge 11's runs do. Step 4 measures the check's time in the browser
-   and records it; if all five runs together take more than a second, the
-   keys shrink before the budget grows again.
+7. **The run budget.** A routine that lights one pixel, built as the
+   example's `plot` in `reference-cpu-2.mjs`, takes about 22 instructions
+   and 8 more for each bit it shifts, with about 7 more for the loop that
+   calls it. Over column 3i a pixel shifts 3.5 bits on average, so it takes
+   about 57 instructions, and n = 16 about 1,800 cycles, past
+   `MAX_RUN_CYCLES`.
+   - `MAX_RUN_CYCLES` goes from 1,000 to 4,000 for every bench, which
+     amends ADR 0034 item 4; step 4 updates `check.rs` and its doc comment.
+     A run's limit (below) comes to about 3,600 cycles, under the new cap.
+   - **The count.** No JavaScript model of Reference CPU 2 exists, and
+     none is added. The reference solution's cycles to halt for each key
+     are written by hand in `scripts/challenges.mjs`, and `challenges.rs`
+     runs the solution on `cpu2.rs`'s model and fails if they differ, as
+     it holds the words to their source.
+   - **The limit a run gives** is twice the reference's count for n = 16,
+     rounded up to a hundred, the same for every run. The text states it,
+     as challenge 11's says it halts within 900 cycles.
+   - Step 4 measures the check's time in the browser and records it. If
+     all five runs together take more than a second, the keys are cut
+     rather than the budget raised further.
 
 8. **Solutions, starters, tests,** as ADRs 0025 and 0034:
    - **Solutions:** 13 to 15 from gates and the provided parts, written in
@@ -142,7 +166,7 @@ What exists to build on:
    - **Native tests:** every solution passes and every starter fails. For
      each of 13 to 15, circuits with one thing miswired fail: a decoder
      that ignores the high nibble, a shifter whose `C` is the wrong bit, a
-     stack that does not wrap or that writes at `sp − 1`. For 16, a
+     stack whose pointer stops at 15 or that writes at `sp − 1`. For 16, a
      program that lights one pixel too many fails, and one without `CALL`
      that draws the picture passes.
    - **Playwright, the target:** each starter fails and each solution
@@ -185,8 +209,9 @@ What exists to build on:
   builds the first. It would repeat 10 with eleven more rows. The three
   pieces that are new are 13 to 15.
 - **Keeping the budget at 1,000** with fewer pixels: n up to 8 fits. But
-  then every pixel sits in a few rows and the routine is barely worth
-  writing; sixteen across the screen is the picture the routine earns.
+  then the picture covers a quarter of the screen and the routine is
+  barely worth writing; sixteen across it is the picture the routine
+  earns.
 
 ## Consequences
 
