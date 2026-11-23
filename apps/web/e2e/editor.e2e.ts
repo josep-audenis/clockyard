@@ -2342,7 +2342,7 @@ test("rough edges (ADR 0040): Make component on one gate gives a chip clear of t
   await inspector.getByRole("textbox", { name: "Name of the new component" }).fill("Gate");
   await inspector.getByRole("button", { name: "Make component" }).click();
   await expect(inspector.getByRole("textbox", { name: "Component name" })).toHaveValue("Gate");
-  // Its three wires are its pins, and the chip keeps clear of the NOT: each is picked where it is.
+  // The switches stay on the sheet, and the chip keeps clear of the NOT: each is picked where it is.
   await expect(readout(page, "Switch 1")).toHaveCount(1);
   await click(page, at(7.5, 6));
   await expect(inspector).toContainText("NOT");

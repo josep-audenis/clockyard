@@ -787,7 +787,8 @@ paragraphs, their opcodes one to a line, and a pass on a bench names its
 runs; the rough edges left are each marked by design, the rest moved to
 out of scope; and the target in Playwright: Make component on one gate
 gives a chip clear of the part below it, and challenge 10 shows its text
-in paragraphs. Next is increment 4, challenges 13 to 16, with its own ADR.
+in paragraphs (the readout's part, the reference CPU's ROM and RAM, is
+step 3's test on Catch). Next is increment 4, challenges 13 to 16, with its own ADR.
 Rough edges still open, each by design (ADR 0040):
 
 - Wires kept after an edit can stay longer than needed until the file is

@@ -6,7 +6,8 @@ these files by hand: `node scripts/challenges.mjs` writes them, and
 
 - `NN-name.json`: the challenge. Its title and text, the definition to
   build, its pins (by part ID) and widths, the parts it allows, and its
-  steps: inputs to set, then outputs to expect.
+  steps: inputs to set, then outputs to expect. In the text a blank line
+  starts a paragraph and a single newline breaks a line (ADR 0040).
 - `solutions/NN-name.clockyard.json`: a reference solution.
 - `starters/NN-name.clockyard.json`: what the editor opens. The definition
   holds only its pins; parts the challenge provides are kept.
