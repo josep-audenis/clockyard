@@ -92,6 +92,16 @@ export function litPixels(words: ArrayLike<number>, props: Props): number[] {
   return lit;
 }
 
+/**
+ * A screen in words for the readout (ADR 0040): "18 of 512 pixels on", from the words read for it. A pixel whose bit is
+ * unknown is not counted as on; the total is every pixel the picture shows.
+ */
+export function pixelsOn(words: ArrayLike<number>, unknown: ArrayLike<number>, props: Props): string {
+  const { columns, rows } = screenSize(props);
+  const known = Array.from(words, (w, i) => w & ~(unknown[i] ?? 0));
+  return `${litPixels(known, props).length} of ${columns * rows} pixels on`;
+}
+
 /** What is wrong with a ROM's words, or null: whole numbers that fit `width` bits, no more than `2^address` (ADR 0018). */
 export function wordsProblem(words: unknown, width: number, address: number): string | null {
   if (!Array.isArray(words)) return "must be a list of words";
