@@ -24,6 +24,10 @@ const ffmpeg = join(root, ffmpegDir, readdirSync(join(root, ffmpegDir)).find((f)
 const browser = await chromium.launch();
 const links = {};
 const steps = [];
+// Fig. 5: the regions of Catch's sheet (ADR 0039), each 44 by 40 cells from its note, and what the page draws of them.
+const REGION = { width: 44, height: 40 };
+const notes = JSON.parse(readFileSync(example("catch"), "utf8")).circuit.notes;
+const map = { blocks: [], size: [0, 0] };
 const halfAdder = [];
 
 async function session(theme, viewport = { width: 1440, height: 900 }, scale = 2) {
@@ -33,9 +37,12 @@ async function session(theme, viewport = { width: 1440, height: 900 }, scale = 2
   const button = (name) => page.getByRole("button", { name, exact: true });
   const inspector = page.getByRole("complementary", { name: "Inspector" });
   const readout = (name) => page.getByRole("list", { name: "Inputs and outputs" }).getByText(new RegExp(`^${name}:`));
+  // A grid point on screen at the view the canvas reports: a large sheet opens framed (ADR 0033), a note's jump moves it.
   const at = async (x, y) => {
-    const box = await page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
-    return { x: box.x + ORIGIN + x * CELL, y: box.y + ORIGIN + y * CELL };
+    const host = page.getByRole("main", { name: "Circuit canvas" });
+    const box = await host.boundingBox();
+    const [x0, y0, zoom] = ((await host.getAttribute("data-view")) ?? `${ORIGIN} ${ORIGIN} 1`).split(" ").map(Number);
+    return { x: box.x + x0 + x * CELL * zoom, y: box.y + y0 + y * CELL * zoom };
   };
   const click = async (x, y) => {
     const p = await at(x, y);
@@ -69,7 +76,7 @@ async function session(theme, viewport = { width: 1440, height: 900 }, scale = 2
     await page.waitForTimeout(200);
     links[name] = new URL(await page.evaluate(() => navigator.clipboard.readText())).hash.slice(1);
   };
-  return { context, page, button, inspector, readout, click, drag, open, shot, link };
+  return { context, page, button, inspector, readout, at, click, drag, open, shot, link };
 }
 
 for (const theme of ["dark", "light"]) {
@@ -107,7 +114,7 @@ for (const theme of ["dark", "light"]) {
 
   // The program editor: the count-down example from docs/reference-cpu.md, assembled.
   await open(example("reference-cpu"));
-  await click(24.5, 16);
+  await click(104.5, 29); // the program ROM at (102,27), in Fetch
   const source = inspector.getByLabel("Assembly", { exact: true });
   await source.fill(
     ["; count down from 10", "        LDI 10", "loop:   OUT", "        SBI 1", "        JZ done", "        JMP loop", "done:   OUT", "        HLT"].join("\n"),
@@ -126,7 +133,7 @@ for (const theme of ["dark", "light"]) {
 
   // A challenge: the reference full adder, A and Cin on, checked by the engine.
   await open(solution("04-full-adder"));
-  const challenge = page.getByRole("region", { name: "CHALLENGE", exact: true });
+  const challenge = page.getByRole("region", { name: "Challenge", exact: true });
   await challenge.getByRole("button", { name: "Open Full adder" }).click();
   await page.waitForTimeout(300);
   await click(30, 30);
@@ -169,15 +176,37 @@ for (const theme of ["dark", "light"]) {
   await loop.shot("unstable-status", { x: 0, y: bar.y - 4, width: 490, height: bar.height + 8 }); // the message, not the whole bar
   await loop.context.close();
 
-  // The whole CPU, running, fitted to a wide canvas.
+  // The whole CPU, running, fitted to the canvas and cropped to its regions (ADR 0039), each outlined from its note.
   const wide = await session(theme, { width: 2560, height: 1240 }, 1.5);
   await wide.open(example("catch"));
+  const sheet = async () => {
+    const corners = await Promise.all(notes.map(async (n) => [await wide.at(n.position.x, n.position.y), await wide.at(n.position.x + REGION.width, n.position.y + REGION.height)]));
+    const pad = (await wide.at(1, 0)).x - (await wide.at(0, 0)).x;
+    const x = Math.min(...corners.map(([a]) => a.x)) - pad;
+    const y = Math.min(...corners.map(([a]) => a.y)) - pad;
+    const clip = { x, y, width: Math.max(...corners.map(([, b]) => b.x)) + pad - x, height: Math.max(...corners.map(([, b]) => b.y)) + pad - y };
+    // Fit frames the parts and wires, not the notes, so the titles of the top row could fall outside the canvas.
+    const canvas = await wide.page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
+    if (x < canvas.x || y < canvas.y || x + clip.width > canvas.x + canvas.width || y + clip.height > canvas.y + canvas.height) {
+      throw new Error(`Fig. 5: the regions do not fit the canvas at this view (${JSON.stringify(clip)} in ${JSON.stringify(canvas)})`);
+    }
+    const pct = (v) => `${(100 * v).toFixed(1)}%`;
+    map.blocks = corners.map(([a, b]) => `--l: ${pct((a.x - x) / clip.width)}; --t: ${pct((a.y - y) / clip.height)}; --w: ${pct((b.x - a.x) / clip.width)}; --h: ${pct((b.y - a.y) / clip.height)}`);
+    map.size = [Math.round(clip.width * 1.5), Math.round(clip.height * 1.5)];
+    return clip;
+  };
   // The whole CPU from Reset, one frame per clock cycle: setup, the paddle drawn, the first block
   // drawn. A keyframe every 16 frames keeps it small and any frame quick to seek to.
-  {
+  // Fit, then one step out: room for the notes above the parts.
+  const frame = async () => {
     await wide.button("Fit").click();
+    await wide.button("Zoom out").click();
+    await wide.page.waitForTimeout(200);
+  };
+  {
+    await frame();
     await wide.page.addStyleTag({ content: ".zoom-controls { visibility: hidden; }" });
-    const box = await wide.page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
+    const box = await sheet();
     const counter = wide.page.getByText(/^Cycle \d+,/);
     const frames = [];
     for (let k = 0; k < 64; k++) {
@@ -203,13 +232,12 @@ for (const theme of ["dark", "light"]) {
     await wide.open(example("catch"));
   }
   await wide.page.getByLabel("Speed").selectOption("10000");
-  await wide.button("Fit").click();
+  await frame();
   await wide.button("Run").click();
   await wide.page.waitForTimeout(4000);
   await wide.button("Pause").click();
   await wide.page.addStyleTag({ content: ".zoom-controls { visibility: hidden; }" }); // view chrome, not circuit
-  const canvas = await wide.page.getByRole("main", { name: "Circuit canvas" }).boundingBox();
-  await wide.shot("cpu", canvas);
+  await wide.shot("cpu", await sheet());
   await wide.context.close();
 }
 // The half adder in all four states, at 4x, for Fig. 2: the crop starts a cell above and left of
@@ -311,16 +339,20 @@ const sense = (png, high, grid) =>
     [`data:image/png;base64,${png.toString("base64")}`, high, grid],
   );
 for (const theme of ["dark", "light"]) {
-  const { context, page, readout, open, click } = await session(theme, { width: 1440, height: 900 }, 3);
+  const { context, page, readout, open, at, click } = await session(theme, { width: 1440, height: 900 }, 3);
   await open(example("catch"));
+  // The Devices region at 100%, from its note (ADR 0039).
+  await page.getByRole("list", { name: "On this sheet" }).getByRole("button", { name: "Devices", exact: true }).click();
+  await page.waitForTimeout(300);
   await page.getByLabel("Speed").selectOption("1000");
   // Buttons pressed with a click event alone: a pointer press outside the canvas takes the keys back.
   const press = (name) => page.getByRole("button", { name, exact: true }).dispatchEvent("click");
   const high = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--signal-high").trim());
-  const clip = { x: 430, y: 46, width: 576, height: 259 }; // the digits, the keyboard and the screen, a grid pitch inside each edge
-  const narrow = { x: 662, y: 76, width: 340, height: 192 }; // phones: the screen with its ports and name
-  const screenArea = { x: 680, y: 92, width: 305, height: 145 }; // the screen part, for reading its pixels
-  await click(14, 10); // the keyboard at (12,9) takes the keys
+  const corner = await at(19, 8); // the screen at (19,8) in Devices
+  const clip = { x: corner.x - 4 * CELL, y: corner.y - 2 * CELL, width: 464, height: 209 }; // the screen with the labels at its ports and its name
+  const narrow = { x: corner.x - 18, y: corner.y - 16, width: 340, height: 192 }; // phones: the screen with its ports and name
+  const screenArea = { ...corner, width: 305, height: 145 }; // the screen part, for reading its pixels
+  await click(36, 34); // the keyboard at (34,33) takes the keys
   let grid = null;
   let held = null;
   const frames = [];
@@ -392,5 +424,19 @@ const rows = order.map((name) => halfAdder.find(([n]) => n === name)).map(([name
 page = page.replace(/<tbody data-ha-rows>[\s\S]*?<\/tbody>/, `<tbody data-ha-rows>${rows.join("")}</tbody>`);
 if (steps.length !== 64) throw new Error(`steps: ${steps.length} frames, not 64`);
 page = page.replace(/data-steps="[^"]*"/, `data-steps="${steps.join(";")}"`);
+// Fig. 5's outlines and names: one per region, in the order of the sheet's notes.
+if (map.blocks.length !== notes.length) throw new Error(`map: ${map.blocks.length} outlines`);
+// Each rewrite must find its place: a page that drifted would otherwise keep a stale outline, list or size.
+const rewrite = (text, re, to) => {
+  if (!re.test(text)) throw new Error(`nothing matches ${re}`);
+  return text.replace(re, to);
+};
+const items = (indent, list) => list.map((li) => `\n${" ".repeat(indent)}${li}`).join("");
+page = rewrite(page, /(<ol class="blocks"[^>]*>)[\s\S]*?(\s*<\/ol>)/, (_, open, close) => open + items(20, map.blocks.map((style, i) => `<li style="${style}">${i + 1}</li>`)) + close);
+page = rewrite(page, /(<ol class="key"[^>]*>)[\s\S]*?(\s*<\/ol>)/, (_, open, close) => open + items(18, notes.map((n) => `<li>${n.text.split("\n")[0]}</li>`)) + close);
+page = rewrite(page, /(srcset="\.\/shots\/cpu-light\.png" \/>\s*<img\s+src="\.\/shots\/cpu-dark\.png"\s+width=")\d+("\s+height=")\d+/, (_, a, b) => `${a}${map.size[0]}${b}${map.size[1]}`);
 writeFileSync(html, page);
+// The map is sized to fit the window by its picture's aspect.
+const css = here("../about/landing.css");
+writeFileSync(css, rewrite(readFileSync(css, "utf8"), /(\(100vh - 300px\) \* )\d+ \/ \d+/, `$1${map.size[0]} / ${map.size[1]}`));
 console.log("links:", Object.fromEntries(Object.entries(links).map(([k, v]) => [k, v.length])));

@@ -765,7 +765,13 @@ across, joined by net labels (the reference CPU opens at about 34%, the
 second at about 26%); a test checks every part, tag and route lies in its
 region and no wire falls back to the plain path, and another that the
 engine joins the same ports as before. Catch's link grew to about 9,300
-characters (ADR 0039, amended).
+characters (ADR 0039, amended). Step 5 is done, and with it increment 2:
+the about page's Fig. 5 outlines the CPU's eight regions and names them
+as their notes do, its shots, CPU recording and links are made again by
+`landing-shots.mjs`, the hero recording shows Catch's screen alone (the
+regions no longer put the digits and keyboard beside it), and the text
+says twelve challenges, two reference CPUs, the push button, wider
+gates, the tri-state buffer and notes.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
@@ -789,23 +795,17 @@ Rough edges still open:
   steps of all its runs ("30 of 30 steps") without naming runs.
 - A component added from another file under a `bench-` ID cannot be used
   in a bench challenge: the check refuses it as unknown (ADR 0034).
-- The about page (`apps/web/about/index.html`) still says nine challenges
-  and lists 01 to 09, its list of parts has no tri-state buffer, and it
-  names challenges for the CPU and four-state signals as still to come.
 - A component made by Make component can cover parts below it (ADR 0016).
 - Make component is offered only for two or more selected items.
 - The readout for screen readers does not list memories or screens.
 - The program editor is offered for 16-bit ROMs only, the reference CPU's
   word size; other machines would need their own assembler (ADR 0019).
-- What Catch showed the reference CPU lacks, for a later richer-CPU ADR
-  (ADR 0023): bit operations, to draw single pixels rather than whole
-  bytes; and a call, so drawing code is shared rather than repeated.
 - Catch reads `KEY` once per step, so a quick tap can be missed while
   blocks fall slowly, and a held key moves the paddle several lanes in a
   moment once they fall fast. Moving only on a new press would fix it, at
   the cost of tapping once per lane.
 
-Fixed since: the reference CPU's sheet, dense with long wires, is laid
+Fixed since: the about page is current again (ADR 0039); the bit operations and the call Catch showed the reference CPU lacks are in Reference CPU 2 (ADR 0036); the reference CPU's sheet, dense with long wires, is laid
 out in regions a note's jump shows at 100% (ADR 0039); routing keeps clear of label tags (ADR 0039); deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
 amended); a click on a label's tag selects it; below 900px the inspector
 moves under the canvas; Make component turns each net crossing the

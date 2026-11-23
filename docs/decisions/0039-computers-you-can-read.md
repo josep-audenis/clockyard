@@ -266,3 +266,17 @@ What there is:
   see `docs/performance.md`, section 15.
 - **Captions are not obstacles,** so a few labels sit over a part's
   caption. Left as it is.
+
+## Amendment (2026-11-23): the about page (step 5)
+
+- **The hero recording shows Catch's screen alone,** with the labels at
+  its ports and its name, cropped from the Devices region at 100%. The
+  regions stack the screen, the digits and the keyboard, so the old crop
+  of all three side by side no longer exists; laying Devices out to bring
+  it back did not fit the region's labels. The phone crop was already the
+  screen alone.
+- **Fig. 5's outlines and names come from the notes:** `landing-shots.mjs`
+  crops the shot to the regions and writes each outline and its title
+  into the page, so they cannot drift from the sheet. The page's own
+  annotation of which regions an instruction uses is still written by
+  hand.
