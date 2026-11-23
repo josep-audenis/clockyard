@@ -230,36 +230,18 @@ export type NetView = {
   wireNets: Record<string, number>;
   wireWidths: Record<string, number>;
   netDrivers: (string | null)[];
-  /** Part ID → port → net: where each tri-state buffer and each instance's output pin drives (ADR 0035). */
-  portNets?: Record<string, Record<string, number>>;
-  /** The nets several tri-state buffers share (ADR 0035). */
-  buses?: number[];
+  /** Each net several tri-state buffers share → the top-level parts that own its buffers (ADRs 0035, 0040). */
+  busDrivers?: Record<number, string[]>;
 };
 
 /**
  * Whether making a component of `inside` would split a bus (ADR 0035 item 7): some of its drivers inside and some
  * left out. Such a bus would have to cross the component's edge in both directions, and pins have one. The engine
- * says which nets are buses. On one, the drivers are the tri-state buffers and the instances' output pins; an
- * instance reports only its output pins.
- * shortcut: an instance that only reads the bus through a pin wired straight to an output pin has that output on
- * the bus net too, and is counted as a driver: selecting it without the buffers is refused, and so is selecting
- * every buffer without it, though the message asks for just that. Have the engine name each bus's drivers if that
- * gets in the way.
+ * names each bus's drivers, the parts that own its buffers (ADR 0040): a component whose output only follows a bus
+ * through its pins is not one.
  */
-function splitsBus(circuit: Circuit, inside: Set<string>, nets: NetView): boolean {
-  const buses = new Set(nets.buses);
-  const drivers = new Map<number, { in: number; out: number }>();
-  for (const part of circuit.components) {
-    const ports = nets.portNets?.[part.id];
-    const driven = part.kind === "tri" ? [ports?.out] : part.kind === "custom" ? Object.values(ports ?? {}) : [];
-    for (const net of driven) {
-      if (net === undefined || !buses.has(net)) continue;
-      const count = drivers.get(net) ?? { in: 0, out: 0 };
-      count[inside.has(part.id) ? "in" : "out"]++;
-      drivers.set(net, count);
-    }
-  }
-  return [...drivers.values()].some((count) => count.in > 0 && count.out > 0);
+function splitsBus(inside: Set<string>, nets: NetView): boolean {
+  return Object.values(nets.busDrivers ?? {}).some((parts) => parts.some((p) => inside.has(p)) && parts.some((p) => !inside.has(p)));
 }
 /** The engine's state for Make component: `nets` is null when the circuit did not load (it has errors). */
 export type EngineView = { stale: boolean; nets: NetView | null };
@@ -294,12 +276,27 @@ function crossingPins(circuit: Circuit, inside: Set<string>, crossing: Wire[], n
     });
   if (!nets || crossing.length === 0) return { pins, inner, outer };
   const within = (end: Endpoint) => inside.has(endOwner(end));
-  const groups = new Map<number, Wire[]>();
+  const parts = new Map(circuit.components.map((c) => [c.id, c]));
+  // A crossing that leaves from an inside part's output on a net driven from outside is a pass-through: a
+  // component's output pin wired straight to its input (ADR 0040). It gets an output pin of its own, apart from the
+  // input pin the rest of its net takes, or one pin would join the inside output to the outside driver.
+  const through = (net: number, w: Wire) => {
+    const a = within(w.from) ? w.from : w.to;
+    const driver = nets.netDrivers[net] ?? null;
+    const part = isJunction(a) ? undefined : parts.get(a.component);
+    return !isJunction(a) && part !== undefined && (driver === null || !inside.has(driver)) && a.port in layoutOf(part).outputs;
+  };
+  const groups = new Map<string, { output: boolean; wires: Wire[] }>();
   for (const w of crossing) {
     const net = nets.wireNets[w.id] ?? 0;
-    if (net !== 0) groups.set(net, [...(groups.get(net) ?? []), w]);
+    if (net === 0) continue;
+    const driver = nets.netDrivers[net] ?? null;
+    const passes = through(net, w);
+    const key = `${net}${passes ? "+" : ""}`;
+    const group = groups.get(key) ?? { output: passes || (driver !== null && inside.has(driver)), wires: [] };
+    group.wires.push(w);
+    groups.set(key, group);
   }
-  const parts = new Map(circuit.components.map((c) => [c.id, c]));
   const components = circuit.components.filter((c) => inside.has(c.id));
   const junctions = circuit.junctions.filter((j) => inside.has(j.id));
   const left = Math.min(...[...components, ...junctions].map((item) => item.position.x));
@@ -314,12 +311,10 @@ function crossingPins(circuit: Circuit, inside: Set<string>, crossing: Wire[], n
   const far = (w: Wire) => (within(w.from) ? w.to : w.from);
   const rowOf = (w: Wire) => Math.round(pointOf(near(w))?.y ?? top + 1);
   const counts = { in: 0, out: 0 };
-  const sorted = [...groups].sort(([, a], [, b]) => rowOf(a[0] as Wire) - rowOf(b[0] as Wire));
-  for (const [net, group] of sorted) {
+  const sorted = [...groups.values()].sort((a, b) => rowOf(a.wires[0] as Wire) - rowOf(b.wires[0] as Wire));
+  for (const { output, wires: group } of sorted) {
     const [first] = group;
     if (!first) continue;
-    const driver = nets.netDrivers[net] ?? null;
-    const output = driver !== null && inside.has(driver);
     // Named from where the first crossing went: a labelled switch or LED, or a net label; else in1, out1, …
     const end = far(first);
     const farPart = isJunction(end) ? undefined : parts.get(end.component);
@@ -610,7 +605,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
     if (crossing.length > 0 && !engine.nets) return "Fix the circuit's errors first: wires crossing the selection need a working circuit.";
     // A bus joined by labels crosses no wire, so the engine's word is waited for here too.
     if (engine.stale && circuit.components.some((c) => c.kind === "tri")) return "Wait for the simulation to catch up, then try again.";
-    if (engine.nets && splitsBus(circuit, inside, engine.nets)) {
+    if (engine.nets && splitsBus(inside, engine.nets)) {
       return "A shared bus would be split: select every tri-state buffer on it, or none of them.";
     }
     const added = crossingPins(circuit, inside, crossing, engine.nets, new Set(names));
