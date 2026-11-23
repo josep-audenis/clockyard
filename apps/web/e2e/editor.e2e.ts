@@ -957,7 +957,7 @@ test("make a component from a selection, place another from Chips, open it on it
   await drag(page, at(9, 1), at(12, 1));
 
   await drag(page, at(-1, -1), at(15, 4)); // select it all
-  await inspector.getByRole("textbox", { name: "Component name" }).fill("Inverter");
+  await inspector.getByRole("textbox", { name: "Name of the new component" }).fill("Inverter");
   await inspector.getByRole("button", { name: "Make component" }).click();
   await expect(inspector).toContainText("Inverter");
   await expect(readout(page, "Switch In")).toHaveCount(0); // the switch now lives inside the component
@@ -1000,7 +1000,7 @@ test("make a component of the middle of a circuit: wires across the selection's 
 
   // Only the two NOTs: the wires in and out cross the selection's edge (ADR 0016).
   await drag(page, at(5, -1), at(16, 3));
-  await inspector.getByRole("textbox", { name: "Component name" }).fill("Buffer");
+  await inspector.getByRole("textbox", { name: "Name of the new component" }).fill("Buffer");
   await inspector.getByRole("button", { name: "Make component" }).click();
   await expect(inspector).toContainText("Buffer");
   await expect(status(page)).toContainText("Settled");

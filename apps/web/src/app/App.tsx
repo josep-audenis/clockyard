@@ -1972,7 +1972,7 @@ function MakeComponent({ count }: { count: number }) {
       <p className="type-body inspector-empty">{count === 1 ? "1 part selected." : `${count} items selected.`}</p>
       <div className="field">
         <label className="field-label" htmlFor={`${id}-name`}>
-          Component name
+          Name of the new component
         </label>
         <input
           id={`${id}-name`}

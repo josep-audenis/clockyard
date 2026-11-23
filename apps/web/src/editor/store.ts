@@ -644,7 +644,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
     setDefinitionLayouts([...liveDefinitions(state), definition]);
     const rest = { components: [], junctions: circuit.junctions.filter((j) => !inside.has(j.id)), wires: [], notes: [] };
     const boxes = [
-      ...circuit.components.filter((c) => !inside.has(c.id)).map((c) => ({ ...c.position, ...layoutOf(c) })),
+      ...circuit.components.filter((c) => !inside.has(c.id)).map((c) => ({ ...c.position, width: layoutOf(c).width, height: layoutOf(c).height })),
       ...rest.junctions.map((j) => ({ ...j.position, width: 0, height: 0 })),
       ...circuit.notes.map((n) => ({ ...n.position, ...noteSize(n.text) })),
     ];
