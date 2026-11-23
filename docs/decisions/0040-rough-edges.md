@@ -85,10 +85,10 @@ close:
    counts as one).
 
 4. **The readout lists memories and screens,** after the registers:
-   - a ROM: `ROM Program: address 3, word 4611 (0x1203)`, from its `addr` and
+   - a ROM: `ROM Program: address 3 (0x03), word 4611 (0x1203)`, from its `addr` and
      `out` nets, named as the readout names other parts (its kind and
      label, or "ROM 1");
-   - a RAM: `RAM 1: address 12 (0x0c), data 7 (0x07)`, from its `addr`
+   - a RAM: `RAM 1: address 12 (0x0C), data 7 (0x07)`, from its `addr`
      and `out` nets;
    - a screen: `Screen 1: 18 of 512 pixels on`, counted from the words the
      editor already reads to draw it; a pixel whose bit is unknown is not
@@ -152,8 +152,11 @@ close:
       the placement, Vitest (a lone gate with crossings becomes a chip; an
       instance taller than its selection lands below the parts beside it,
       overlapping none).
-   3. **The readout,** with Vitest for the three new rows (a ROM, a RAM, a
-      screen with some pixels on, and each while stale).
+   3. **The readout,** with Vitest for the screen's count (some pixels on,
+      an `X` and a `Z` not counted), and Playwright for the rows on Catch:
+      a ROM, a RAM and a screen, and the ROM's address moving on a step.
+      The app has no React test setup, so the rows are checked in the
+      browser (amended in step 3).
    4. **Bench challenges in parts,** with Vitest for the pass text and the
       split texts; the roadmap's list reclassified, the increment marked
       done, and the Playwright target: Make component on one gate gives a

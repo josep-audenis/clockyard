@@ -18,6 +18,7 @@ import {
   MAX_INPUTS,
   takesInputs,
   screenSize,
+  pixelsOn,
   MAX_SOURCE,
   takesWidth,
   widthOf,
@@ -2694,8 +2695,8 @@ function statefulDefinitions(definitions: ReturnType<typeof liveDefinitions>): S
 
 /**
  * The canvas is pixels only; this lists the open sheet's states for screen readers (and browser tests): the clock,
- * switches and keyboards, LEDs and seven-segment displays, flip-flops, and each component holding state by its outputs
- * (ADR 0033). Memories and screens are not listed: their contents are more than a row should read out.
+ * switches and keyboards, LEDs and seven-segment displays, flip-flops, each component holding state by its outputs
+ * (ADR 0033), each ROM and RAM by its address and the word there, and each screen by how many pixels are on (ADR 0040).
  */
 function Readout() {
   const circuit = useEditor((s) => s.circuit);
@@ -2711,11 +2712,16 @@ function Readout() {
   // A bit the engine does not know reads X or Z (ADR 0035); "unknown" below means the engine has not reported yet.
   const hidden = useSim((s) => s.unknown);
   const stale = useSim((s) => s.stale);
-  const value = (part: CircuitComponent, port: string) => {
+  const value = (part: CircuitComponent, port: string, width = widthOf(part)) => {
     const net = loaded?.portNets[part.id]?.[port];
     const bits = net === undefined ? undefined : nets?.[net];
-    return stale || net === undefined || bits === undefined ? "unknown" : showValue(bits, widthOf(part), hidden[net] ?? 0);
+    return stale || net === undefined || bits === undefined ? "unknown" : showValue(bits, width, hidden[net] ?? 0);
   };
+  // ADR 0040: a memory's address and the word there now, and a screen's lit pixels from the words read to draw it.
+  const memories = components.filter((c) => c.kind === "rom" || c.kind === "ram");
+  const screens = components.filter((c) => c.kind === "screen");
+  const memory = useSim((s) => s.memory);
+  const memoryUnknown = useSim((s) => s.memoryUnknown);
   // Inputs first, then outputs (ADR 0021: a keyboard is read as a switch, a seven-segment display as an LED), then what
   // holds state.
   const clock = components.find((c) => c.kind === "clock");
@@ -2770,6 +2776,15 @@ function Readout() {
         {registers.map(({ part, pin, name }) => (
           <li key={`${part.id}/${pin.id}`}>{`${names.get(part.id)} ${name}: ${pinValue(part, pin)}`}</li>
         ))}
+        {memories.map((c) => (
+          <li key={c.id}>
+            {`${names.get(c.id)}: address ${value(c, "addr", c.props.addressWidth ?? DEFAULT_ADDRESS)}, ${c.kind === "rom" ? "word" : "data"} ${value(c, "out")}`}
+          </li>
+        ))}
+        {screens.map((c) => {
+          const words = memory[c.id];
+          return <li key={c.id}>{`${names.get(c.id)}: ${stale || !words ? "unknown" : pixelsOn(words, memoryUnknown[c.id] ?? [], c.props)}`}</li>;
+        })}
         {/* ADR 0038: the sheet's notes, which show only on the canvas, last. */}
         {circuit.notes.map((n) => (
           <li key={n.id}>{`Text: ${n.text}`}</li>

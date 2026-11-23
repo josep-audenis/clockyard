@@ -780,6 +780,8 @@ wired straight to an input, where it used to get one pin for both.
 Step 2 is done: Make component is offered under a single part's
 properties (not a switch or LED), and its chip is stepped down until it
 keeps a cell clear of every part, junction and note left on the sheet.
+Step 3 is done: the readout lists each ROM and RAM by its address and the
+word there now, and each screen by how many of its pixels are on.
 Rough edges still open:
 
 - Wires kept after an edit can stay longer than needed until the file is
@@ -802,7 +804,6 @@ Rough edges still open:
 - Make component on a pass-through whose output reaches the selection's
   edge through an inside junction joins it to the input pin, which the
   engine refuses as two drivers (ADR 0040, amended).
-- The readout for screen readers does not list memories or screens.
 - The program editor is offered for 16-bit ROMs only, the reference CPU's
   word size; other machines would need their own assembler (ADR 0019).
 - Catch reads `KEY` once per step, so a quick tap can be missed while
@@ -810,7 +811,7 @@ Rough edges still open:
   moment once they fall fast. Moving only on a new press would fix it, at
   the cost of tapping once per lane.
 
-Fixed since: Make component's chip no longer covers parts left beside it, and it is offered for a single part (ADR 0040); Make component no longer counts a component that passes a bus through as one of its drivers (ADR 0040); the about page is current again (ADR 0039); the bit operations and the call Catch showed the reference CPU lacks are in Reference CPU 2 (ADR 0036); the reference CPU's sheet, dense with long wires, is laid
+Fixed since: the readout lists memories and screens (ADR 0040); Make component's chip no longer covers parts left beside it, and it is offered for a single part (ADR 0040); Make component no longer counts a component that passes a bus through as one of its drivers (ADR 0040); the about page is current again (ADR 0039); the bit operations and the call Catch showed the reference CPU lacks are in Reference CPU 2 (ADR 0036); the reference CPU's sheet, dense with long wires, is laid
 out in regions a note's jump shows at 100% (ADR 0039); routing keeps clear of label tags (ADR 0039); deleting a pin no longer leaves `unknownPort` errors (ADR 0013,
 amended); a click on a label's tag selects it; below 900px the inspector
 moves under the canvas; Make component turns each net crossing the

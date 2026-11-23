@@ -2305,3 +2305,16 @@ test("the program editor marks the word at the ROM's address, which moves on aft
   await expect.poll(() => listing.evaluate((e) => e.scrollTop)).toBeGreaterThan(0);
   expect(await inspector.evaluate((e) => e.scrollTop)).toBe(inspectorTop);
 });
+
+test("the readout lists each memory's address and word, and a screen's lit pixels (ADR 0040)", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-testid="import-file"]').setInputFiles(example("catch"));
+  await expect(counter(page)).toHaveText("Cycle 0, clock low");
+  await expect(readout(page, "ROM Program")).toHaveText(/^ROM Program: address 0 \(0x00\), word \d+ \(0x[0-9A-F]{4}\)$/);
+  await expect(readout(page, "RAM Data")).toHaveText(/^RAM Data: address \d+ \(0x[0-9A-F]{2}\), data \d+ \(0x[0-9A-F]{2}\)$/);
+  await expect(readout(page, "Screen")).toHaveText(/^Screen: \d+ of \d+ pixels on$/);
+  // Stepping moves the program on: the ROM's address follows the PC.
+  await page.getByRole("button", { name: "Step", exact: true }).click();
+  await page.getByRole("button", { name: "Step", exact: true }).click();
+  await expect(readout(page, "ROM Program")).toHaveText(/^ROM Program: address [1-9]\d* \(0x[0-9A-F]{2}\)/);
+});

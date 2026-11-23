@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { fieldRanges, fieldsProblem, hex, litPixels, markedRow, notesInOrder, parseValue, project, screenSize, showValue, signalState, withoutDeletedPins, type Circuit } from "./document";
+import { fieldRanges, fieldsProblem, hex, litPixels, pixelsOn, markedRow, notesInOrder, parseValue, project, screenSize, showValue, signalState, withoutDeletedPins, type Circuit } from "./document";
 
 test("projection keeps connectivity and widths, junctions included, and drops geometry and labels", () => {
   const circuit: Circuit = {
@@ -190,4 +190,13 @@ test("the listing marks the ROM's address, unless stale, unknown or past its row
   expect(markedRow(undefined, 0, false, 256)).toBeNull();
   expect(markedRow(255, 0, false, 256)).toBe(255);
   expect(markedRow(256, 0, false, 256)).toBeNull();
+});
+
+test("pixelsOn counts a screen's known lit pixels out of all it shows (ADR 0040)", () => {
+  // 8 columns of 8-bit words, 2 words: 0xA5 has four bits on, 0x01 one.
+  const props = { width: 8, columns: 8, addressWidth: 1 };
+  expect(pixelsOn([0xa5, 0x01], [], props)).toBe("5 of 16 pixels on");
+  // An unknown 1 (X) is not counted, nor an unknown 0 (Z).
+  expect(pixelsOn([0xa5, 0x01], [0x81, 0x02], props)).toBe("3 of 16 pixels on");
+  expect(pixelsOn([], [], props)).toBe("0 of 16 pixels on");
 });
