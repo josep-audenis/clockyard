@@ -229,7 +229,8 @@ What the engine has to work with:
 
    Memories and screens themselves are still not listed, since their
    contents are larger than a row should read out. The roadmap's rough
-   edge is narrowed to them, not dropped.
+   edge is narrowed to them, not dropped. (ADR 0040 later lists them, by
+   address and word, and by pixels on.)
 
    *As built:* `Simulator::load` and `load_keeping` add each top-level
    instance's output pins to `portNets`, by pin name, from the net of a

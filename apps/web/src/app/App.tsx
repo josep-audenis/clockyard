@@ -2695,8 +2695,8 @@ function statefulDefinitions(definitions: ReturnType<typeof liveDefinitions>): S
 
 /**
  * The canvas is pixels only; this lists the open sheet's states for screen readers (and browser tests): the clock,
- * switches and keyboards, LEDs and seven-segment displays, flip-flops, and each component holding state by its outputs
- * (ADR 0033). Memories and screens are not listed: their contents are more than a row should read out.
+ * switches and keyboards, LEDs and seven-segment displays, flip-flops, each component holding state by its outputs
+ * (ADR 0033), each ROM and RAM by its address and the word there, and each screen by how many pixels are on (ADR 0040).
  */
 function Readout() {
   const circuit = useEditor((s) => s.circuit);
