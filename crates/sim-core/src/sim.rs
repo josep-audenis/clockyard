@@ -1162,7 +1162,14 @@ impl Simulator {
     /// [`Simulator::net_drivers`] does; an instance whose output only follows
     /// the bus through its pins owns no buffer, so it is not one (ADR 0040).
     pub fn bus_drivers(&self) -> BTreeMap<u32, Vec<&str>> {
-        let owner = |net: &u32| top(&self.ids[self.prims[*net as usize - 1].part as usize]);
+        let owner = |net: &u32| {
+            let buffer = &self.prims[*net as usize - 1];
+            debug_assert!(
+                matches!(buffer.op, Op::Tri),
+                "a bus is resolved from buffers"
+            );
+            top(&self.ids[buffer.part as usize])
+        };
         let bus = |(p, prim): (usize, &Prim)| {
             matches!(prim.op, Op::Resolve).then(|| {
                 // Each input is a buffer's output net, and primitive `p` drives net `p + 1`.

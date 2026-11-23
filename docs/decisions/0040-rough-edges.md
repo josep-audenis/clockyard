@@ -186,3 +186,15 @@ close:
   for them.
 - **Left out:** a free-space search for the instance, a picture in words
   for screens, and the out-of-scope items above.
+
+## Amendment (2026-11-23): outputs wired straight through (step 1)
+
+Wrapping a component whose output pin is wired straight to its input
+(a pass-through) gave one input pin joined to both, which the engine
+refuses as two drivers. ADR 0016 chooses a crossing pin's direction from
+where its net's driver is; a pass-through's net is driven from outside,
+yet its output leaves the selection too. So a crossing that leaves from an
+inside part's output port, on a net driven from outside, gets an output
+pin of its own, one per such port; the rest of the net keeps its input
+pin. An output that reaches the edge through an inside junction is not
+seen as one yet, and stays a rough edge.

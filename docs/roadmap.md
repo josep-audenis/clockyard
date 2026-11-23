@@ -797,6 +797,9 @@ Rough edges still open:
 - A component added from another file under a `bench-` ID cannot be used
   in a bench challenge: the check refuses it as unknown (ADR 0034).
 - A component made by Make component can cover parts below it (ADR 0016).
+- Make component on a pass-through whose output reaches the selection's
+  edge through an inside junction joins it to the input pin, which the
+  engine refuses as two drivers (ADR 0040, amended).
 - Make component is offered only for two or more selected items.
 - The readout for screen readers does not list memories or screens.
 - The program editor is offered for 16-bit ROMs only, the reference CPU's

@@ -277,7 +277,7 @@ type Result =
       wireWidths: Record<string, number>; // per wire: undriven nets all share net 0
       portNets: Record<string, Record<string, number>>; // part → port → net; an instance's output pins by name (ADR 0033)
       netDrivers: (string | null)[];      // net → top-level part driving it, null for net 0
-      buses: number[];                    // the nets several tri-state buffers share (ADR 0035)
+      busDrivers: Record<number, string[]>; // bus net → top-level parts owning its buffers (ADRs 0035, 0040)
       diagnostics: Diagnostic[] }
   | { type: "state"; nets: Uint32Array; unknown: Uint32Array; diagnostics: Diagnostic[]; // nets each cut to its width;
       time: number; running: boolean }   // unknown bits beside them, empty while none (ADR 0035); ticks; whether a run is under way

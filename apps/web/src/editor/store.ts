@@ -279,20 +279,19 @@ function crossingPins(circuit: Circuit, inside: Set<string>, crossing: Wire[], n
   const parts = new Map(circuit.components.map((c) => [c.id, c]));
   // A crossing that leaves from an inside part's output on a net driven from outside is a pass-through: a
   // component's output pin wired straight to its input (ADR 0040). It gets an output pin of its own, apart from the
-  // input pin the rest of its net takes, or one pin would join the inside output to the outside driver.
-  const through = (net: number, w: Wire) => {
-    const a = within(w.from) ? w.from : w.to;
-    const driver = nets.netDrivers[net] ?? null;
-    const part = isJunction(a) ? undefined : parts.get(a.component);
-    return !isJunction(a) && part !== undefined && (driver === null || !inside.has(driver)) && a.port in layoutOf(part).outputs;
-  };
+  // input pin the rest of its net takes, or one pin would join the inside output to the outside driver. Each such
+  // output gets its own: two on one net would otherwise be joined through one pin.
+  // shortcut: an output reaching the edge through an inside junction is not seen as one, and still shares the
+  // input pin (multipleDrivers on load); follow the junction to its output port if that comes up.
   const groups = new Map<string, { output: boolean; wires: Wire[] }>();
   for (const w of crossing) {
     const net = nets.wireNets[w.id] ?? 0;
     if (net === 0) continue;
     const driver = nets.netDrivers[net] ?? null;
-    const passes = through(net, w);
-    const key = `${net}${passes ? "+" : ""}`;
+    const a = within(w.from) ? w.from : w.to;
+    const part = isJunction(a) ? undefined : parts.get(a.component);
+    const passes = !isJunction(a) && part !== undefined && !inside.has(driver ?? "") && a.port in layoutOf(part).outputs;
+    const key = passes && !isJunction(a) ? `${net}+${a.component}.${a.port}` : `${net}`;
     const group = groups.get(key) ?? { output: passes || (driver !== null && inside.has(driver)), wires: [] };
     group.wires.push(w);
     groups.set(key, group);
