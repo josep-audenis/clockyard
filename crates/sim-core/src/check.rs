@@ -26,9 +26,11 @@ const DUT: &str = "dut";
 pub struct Challenge {
     /// The ID of the definition to build, fixed by the starter document.
     pub definition: String,
-    /// The input pins it must have: the bench's switches.
+    /// The definition's input pins, by name and width. On the challenge's own
+    /// bench each becomes a switch that a step's `set` names.
     pub inputs: Vec<PinSpec>,
-    /// The output pins it must have: the bench's LEDs.
+    /// The definition's output pins, by name and width. On the challenge's own
+    /// bench each becomes an LED that a step's `expect` names.
     pub outputs: Vec<PinSpec>,
     /// The primitive kinds the definition may be built from, flattened; absent allows any.
     #[serde(default)]
@@ -72,10 +74,12 @@ pub struct PinSpec {
 /// `memory`.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Step {
-    /// Inputs to set, by pin name; the others keep their values.
+    /// Inputs to set, by pin name, or on a bench by switch ID; the others keep
+    /// their values.
     #[serde(default)]
     pub set: BTreeMap<String, u32>,
-    /// Outputs to compare, by pin name, once the circuit settles.
+    /// Outputs to compare, by pin name, or on a bench by LED ID, once the
+    /// circuit settles after any cycles.
     #[serde(default)]
     pub expect: BTreeMap<String, u32>,
     /// Clock cycles to run: the bench's `clk` switch set to 1, then to 0.
@@ -110,7 +114,7 @@ pub struct Reading {
 /// An output that read other than the step expects.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Mismatch {
-    /// The output pin, or a memory byte such as `ram[16]`.
+    /// The output pin or bench LED, or a memory byte such as `ram[16]`.
     pub name: String,
     /// What the step expects.
     pub expected: u32,
@@ -141,9 +145,10 @@ pub enum Report {
         /// The run's name, on a bench.
         #[serde(skip_serializing_if = "Option::is_none")]
         run: Option<String>,
-        /// The step's 0-based index in its run.
+        /// The step's 0-based index in its run, or in `steps` without a bench.
         step: usize,
-        /// Every input pin's value at that step.
+        /// The inputs' values at that step: every input pin, or on a bench each
+        /// input the run's steps have set so far.
         inputs: Vec<Reading>,
         /// The outputs and memory bytes that differ.
         mismatches: Vec<Mismatch>,

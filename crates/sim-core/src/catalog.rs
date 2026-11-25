@@ -59,7 +59,8 @@ pub enum Kind {
     Seg7,
     /// A RAM whose words are its pixels (ADR 0021).
     Screen,
-    /// A switch with an 8-bit `out`, the key held (ADR 0021).
+    /// A switch with an 8-bit `out`: the code of the key held, or 0 when none
+    /// is (ADR 0021).
     Keyboard,
     /// A tri-state buffer (ADR 0035): `out` is `in` while `en` is 1, and drives nothing while it is 0.
     Tri,

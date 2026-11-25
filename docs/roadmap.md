@@ -821,7 +821,7 @@ cannot pass unrun. Step 2 is done: `sim-core` warns on a public item
 without documentation, which Clippy's `-D warnings` makes an error, and
 its 96 undocumented items now say what they mean in the simulation.
 `cargo rustdoc -p sim-core -- -D warnings` runs in `pnpm verify` after the
-tests, about 1.5 s, so a broken doc link fails it too. Next is step 3,
+tests, a second or two, so a broken doc link fails it too. Next is step 3,
 the license check.
 Rough edges still open, each by design (ADR 0040):
 

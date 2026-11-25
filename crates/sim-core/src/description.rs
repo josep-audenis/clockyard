@@ -33,9 +33,9 @@ pub struct DefinitionDesc {
     pub junctions: Vec<JunctionDesc>,
     /// The wires inside it.
     pub connections: Vec<Connection>,
-    /// Its input pins, in port order: switches inside, driven from outside.
+    /// Its input pins: switches inside, driven from outside.
     pub inputs: Vec<PinDesc>,
-    /// Its output pins, in port order: LEDs inside, read from outside.
+    /// Its output pins: LEDs inside, read from outside.
     pub outputs: Vec<PinDesc>,
 }
 
@@ -343,7 +343,8 @@ pub enum Severity {
 #[serde(rename_all = "camelCase")]
 pub enum Code {
     // Validation
-    /// Two parts, junctions or wires on one sheet share an ID.
+    /// Two parts or junctions on one sheet, two wires on one sheet, or two
+    /// definitions share an ID.
     DuplicateId,
     /// A part's kind is not in the catalog.
     UnknownKind,
@@ -353,23 +354,27 @@ pub enum Code {
     UnknownJunction,
     /// A wire names a port the part does not have.
     UnknownPort,
-    /// Outputs drive one net with nothing reading it, and they may not share it.
+    /// Outputs drive one net that nothing reads, and not all of them are
+    /// tri-state buffers (ADR 0035).
     OutputToOutput,
     /// Inputs are joined with nothing driving them.
     InputToInput,
-    /// Outputs drive one net that is read, and they may not share it.
+    /// Outputs drive one net that is read, and not all of them are tri-state
+    /// buffers (ADR 0035).
     MultipleDrivers,
-    /// A warning: an input with no wire reads 0.
+    /// A warning: an input that nothing drives, which reads 0.
     UnconnectedInput,
     /// A `custom` part names a definition that is not there.
     UnknownDefinition,
     /// A definition contains itself, directly or through others (ADR 0012).
     RecursiveDefinition,
-    /// A definition's pin names no switch or LED of the right kind inside it.
+    /// A definition's pin has no name, shares a name or a part with another pin,
+    /// or names no switch (input) or LED (output) inside it.
     InvalidPin,
-    /// The circuit, once custom parts are expanded, has too many parts or memory words.
+    /// The circuit, once custom parts are expanded, has too many parts, junctions
+    /// and wires, or memory words.
     TooLarge,
-    /// An ID the engine cannot use, such as one containing `/`.
+    /// An ID containing `/`, which separates instance paths.
     InvalidId,
     /// Ports of different widths share a net (ADR 0014).
     WidthMismatch,
