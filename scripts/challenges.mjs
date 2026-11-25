@@ -351,7 +351,7 @@ function shifter() {
       components: [
         ...pins([["A", 8], ["right", 1]], [["Y", 8], ["C", 1]], 44),
         part("sa", "split", 6, 0, { fields: ones(8) }),
-        part("nr", "not", 8, 10),
+        part("nr", "not", 8, 12),
         ...parts,
         part("m", "merge", 36, 0, { fields: ones(8) }),
       ],

@@ -1,8 +1,8 @@
 # Challenges
 
 The challenges of ADRs 0025, 0034 and 0041, each a custom component to
-build. Do not edit these files by hand: `node scripts/challenges.mjs` writes them, and
-`pnpm verify` fails if they are out of date.
+build. Do not edit these files by hand: `node scripts/challenges.mjs`
+writes them, and `pnpm verify` fails if they are out of date.
 
 - `NN-name.json`: the challenge. Its title and text, the definition to
   build, its pins (by part ID) and widths, the parts it allows, and its

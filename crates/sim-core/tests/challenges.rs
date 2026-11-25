@@ -360,9 +360,12 @@ fn plausible_wrong_circuits_fail() {
         .rewire(("m", "f3"), ("g2", "out"))
         .fails();
 
-    // A shifter whose C going left is bit 6, and one whose bit 7 going left is bit 7.
+    // A shifter whose C is bit 6 going left or bit 1 going right, and one whose bit 7 going left is bit 7.
     Mutant::new("14-shifter")
         .rewire(("l8", "a"), ("sa", "f6"))
+        .fails();
+    Mutant::new("14-shifter")
+        .rewire(("r8", "a"), ("sa", "f1"))
         .fails();
     Mutant::new("14-shifter")
         .rewire(("l7", "a"), ("sa", "f7"))

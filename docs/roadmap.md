@@ -794,7 +794,8 @@ draws on Reference CPU 2. Step 1 is done:
 challenge 13, a decoder of the high byte to one line for each word `0xF0`
 to `0xFF`, and 14, a shifter for `SHL` and `SHR`, each checked on every
 input, with miswired circuits that fail. The native tests' projection now
-carries a gate's `inputCount`, as the editor's does. Step 2, the stack, is
+carries a gate's `inputCount`, as the editor's does, and the README's
+table lists both. Step 2, the stack, is
 next.
 Rough edges still open, each by design (ADR 0040):
 
