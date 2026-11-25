@@ -698,7 +698,7 @@ fn the_cut_cpu_and_the_display_on_their_benches_run_as_specified() {
 
 #[test]
 fn every_bench_file_is_a_circuit_that_loads_with_its_slot_empty() {
-    for slot in ["cpu", "program", "display"] {
+    for slot in ["cpu", "program", "display", "cpu2"] {
         let path = format!(
             "{}/../../challenges/benches/{slot}.clockyard.json",
             env!("CARGO_MANIFEST_DIR")

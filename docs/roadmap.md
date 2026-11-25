@@ -798,7 +798,12 @@ carries a gate's `inputCount`, as the editor's does, and the README's
 table lists both. Step 2 is done: challenge 15, a stack of 16 bytes and a
 4-bit pointer, checked through seventeen pushes, pops past empty, steps
 that change nothing and inputs changed while `clk` is high, with four
-miswired stacks that fail. Step 3, the `cpu2` bench, is next.
+miswired stacks that fail. Step 3 is done: the `cpu2` bench, the program
+bench round Reference CPU 2 cut along its memory boundary, from the parts
+and wires the example adds, now in `scripts/cpu2-pieces.mjs`, which both
+import; the example regenerates unchanged. `cpu2.rs` runs its model against
+the cut CPU on the bench, cycle by cycle, for the specification's examples
+and 40 random programs. Step 4, challenge 16, is next.
 Rough edges still open, each by design (ADR 0040):
 
 - Wires kept after an edit can stay longer than needed until the file is
