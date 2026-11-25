@@ -7,7 +7,7 @@
 // app's production npm packages. Dev-only: every workspace's dev npm packages. Both lists take in more than
 // reaches the output (proc-macro crates, type-only packages); they are held to the shipped list, the safe side.
 import { execSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const root = (path) => new URL(`../${path}`, import.meta.url);
@@ -86,7 +86,7 @@ const run = (command) => execSync(command, { cwd: root(""), encoding: "utf8", ma
 /** The crates sim-wasm is built from for wasm32, without the project's own (their license is the repository's). */
 function crates() {
   const meta = JSON.parse(
-    run("cargo metadata --format-version 1 --filter-platform wasm32-unknown-unknown --manifest-path crates/sim-wasm/Cargo.toml"),
+    run("cargo metadata --locked --format-version 1 --filter-platform wasm32-unknown-unknown --manifest-path crates/sim-wasm/Cargo.toml"),
   );
   const packages = new Map(meta.packages.map((p) => [p.id, p]));
   const nodes = new Map(meta.resolve.nodes.map((n) => [n.id, n]));
@@ -116,8 +116,9 @@ function npm(flag) {
 
 /** A package's license texts: its own files, or for a package that ships none, the text kept in scripts/license-texts. */
 function texts(p) {
+  if (!existsSync(p.dir)) return [];
   const files = readdirSync(p.dir)
-    .filter((f) => LICENSE_FILE.test(f))
+    .filter((f) => LICENSE_FILE.test(f) && statSync(join(p.dir, f)).isFile())
     .sort();
   if (files.length > 0) return files.map((f) => [f, readFileSync(join(p.dir, f), "utf8")]);
   const kept = `scripts/license-texts/${p.name.replace("/", "+")}.txt`;

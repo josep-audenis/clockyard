@@ -821,8 +821,8 @@ cannot pass unrun. Step 2 is done: `sim-core` warns on a public item
 without documentation, which Clippy's `-D warnings` makes an error, and
 its 96 undocumented items now say what they mean in the simulation.
 `cargo rustdoc -p sim-core -- -D warnings` runs in `pnpm verify` after the
-tests, a second or two, so a broken doc link fails it too. Next is step 3,
-the license check. Step 3 is done: `scripts/licenses.mjs` holds every
+tests, a second or two, so a broken doc link fails it too. Step 3, the
+license check, is done: `scripts/licenses.mjs` holds every
 crate the WASM module is built from and every production npm package to
 the shipped allowlist, and the dev-only packages to theirs, from
 `cargo metadata` and `pnpm licenses list`, and fails on any other

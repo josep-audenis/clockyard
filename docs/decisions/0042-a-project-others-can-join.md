@@ -202,7 +202,7 @@ What there is today:
    ships, carries no license file, though its `package.json` says MIT.
    Its upstream text, the MIT license with Vlad Shilov's copyright, is
    kept in `scripts/license-texts/@pixi+colord.txt`, and the notices file
-   says where it came from. A shipped package with no file of its own and
+   marks it as kept there. A shipped package with no file of its own and
    none kept there still fails the check; a kept text is added only with
    the package's own source for it. The check reads its expressions with a
    small reader that tests itself each run, and the whole check takes
