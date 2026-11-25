@@ -137,8 +137,6 @@ const kept = first
 const keptPairs = firstPairs.filter(([from, to]) => !moved.has(`${from}>${to}`));
 if (keptPairs.length !== firstPairs.length - moved.size) throw new Error("a wire to replace is not on the first CPU's sheet");
 
-
-
 /** Names of the nets that cross regions here and not on the first CPU's sheet. */
 const names2 = {
   ...names,

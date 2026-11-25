@@ -351,11 +351,11 @@ const programDefinition = (data = [], source) => ({
  * `slot` is the part under test: with "cpu" the CPU is the user's; with "program" the ROM is their
  * component; with "display" their component drives the screen where the bench's own register would.
  */
-function benchSheet(slot) {
+function benchSheet(bench) {
   const own = (id, definition, x, y, props) => chip(id, BENCH + definition, x, y, props);
   // The cpu2 bench (ADR 0041) is the program bench round Reference CPU 2.
-  const cpuId = slot === "cpu2" ? "cpu2" : "cpu";
-  if (slot === "cpu2") slot = "program";
+  const cpuId = bench === "cpu2" ? "cpu2" : "cpu";
+  const slot = bench === "cpu2" ? "program" : bench;
   const mux = (id, x, label) => own(id, "mux8", x, 44, { label });
   const components = [
     part("clk", "switch", 0, 10, { label: "Clock" }),
@@ -468,7 +468,7 @@ const benchBlocks = blocks.map((d) => plain(prefixed(BENCH, d)));
 const benchCpu = plain(cpuDefinition(`${BENCH}cpu`, BENCH));
 /** Reference CPU 2 as the cpu2 bench provides it, and the 4-bit register its stack pointer is. */
 const benchCpu2 = plain(cpu2Definition(`${BENCH}cpu2`, BENCH));
-const benchReg4 = prefixed(BENCH, register("reg4", "Register 4", 4));
+const benchReg4 = plain(prefixed(BENCH, register("reg4", "Register 4", 4)));
 const cpu = cpuDefinition("cpu", "");
 const display = displayDefinition("reg8");
 const only = (...ids) => benchBlocks.filter((d) => ids.includes(d.id.slice(BENCH.length)));
