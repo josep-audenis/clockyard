@@ -93,9 +93,9 @@ clockyard/
 
 ## Getting started
 
-Prerequisites: Node.js 22.13+, pnpm 10, a stable Rust toolchain with the
-`wasm32-unknown-unknown` target, and the `wasm-bindgen` CLI matching the crate
-pin:
+Prerequisites: Node.js 22.18+ or 24.2+, pnpm 10, a stable Rust toolchain with
+the `wasm32-unknown-unknown` target, and the `wasm-bindgen` CLI matching the
+crate pin:
 
 ```bash
 rustup target add wasm32-unknown-unknown

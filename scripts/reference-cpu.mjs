@@ -694,6 +694,8 @@ export function emit(script, files) {
 }
 
 // Importing this file (as scripts/reference-cpu-2.mjs does) writes nothing.
+// A Node without import.meta.main would skip the block below, and --check would pass unrun.
+if (import.meta.main === undefined) throw new Error("this script needs Node 22.18 or 24.2 or later");
 if (import.meta.main) {
   emit("reference-cpu.mjs", [
     ["reference-cpu", document],

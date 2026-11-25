@@ -811,8 +811,13 @@ and each run allows 3,800. The whole check takes about 0.2 s in the
 browser. Step 5 is done, and with it increment 4: the about page lists
 sixteen challenges, the README counts them, and the target in Playwright:
 each of challenges 13 to 16 fails its starter and passes its solution
-through the Check button. Next is increment 5, a project others can join,
-with its own ADR.
+through the Check button.
+
+Increment 5, a project others can join, is planned in ADR 0042 in five
+steps. Step 1 is done: `package.json` asks for Node 22.18 or later on 22,
+or 24.2 or later, the versions with `import.meta.main`, and the two
+reference-CPU generators throw on a Node without it, so their `--check`
+cannot pass unrun. Next is step 2, `sim-core` documented.
 Rough edges still open, each by design (ADR 0040):
 
 - Wires kept after an edit can stay longer than needed until the file is
