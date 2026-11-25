@@ -822,7 +822,15 @@ without documentation, which Clippy's `-D warnings` makes an error, and
 its 96 undocumented items now say what they mean in the simulation.
 `cargo rustdoc -p sim-core -- -D warnings` runs in `pnpm verify` after the
 tests, a second or two, so a broken doc link fails it too. Next is step 3,
-the license check.
+the license check. Step 3 is done: `scripts/licenses.mjs` holds every
+crate the WASM module is built from and every production npm package to
+the shipped allowlist, and the dev-only packages to theirs, from
+`cargo metadata` and `pnpm licenses list`, and fails on any other
+license. It writes `apps/web/public/third-party-licenses.txt` with each
+shipped package's license texts, the fonts' OFL among them; the build
+carries it and the about page's footer links to it. `pnpm verify` runs
+its `--check` after the generators'. Next is step 4, the contributor
+docs and community files.
 Rough edges still open, each by design (ADR 0040):
 
 - Wires kept after an edit can stay longer than needed until the file is
