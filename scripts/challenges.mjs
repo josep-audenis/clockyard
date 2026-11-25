@@ -12,6 +12,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { computers, program } from "./computer.mjs";
+import { register as pieceRegister } from "./cpu-pieces.mjs";
 import { cpuRuns, displayRuns, programRuns, SUM } from "./cpu-runs.mjs";
 
 const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
@@ -361,6 +362,118 @@ function shifter() {
   };
 }
 
+/** The 4-bit register challenge 15 provides: Reference CPU 2's own, d, en and clk to q. */
+const reg4 = pieceRegister("reg4", "4-bit register", 4);
+
+/**
+ * Challenge 15 (ADR 0041): 16 bytes in a RAM, and a 4-bit pointer. Two chains of full adders give sp + 1 and
+ * sp - 1 (sp + 15) at all times; the pointer takes one on a push or a pop, and the RAM is addressed at sp for a
+ * push and at sp - 1 otherwise, so top is the last byte pushed.
+ */
+function stack() {
+  const bits = [0, 1, 2, 3];
+  // A 4-bit choice from gates: `${id}` is `on` where `select` is 1, else `off`.
+  const choose = (id, select, on, off, x, y) => ({
+    parts: [
+      part(`${id}w`, "merge", x, y, { fields: ones(4) }),
+      part(`${id}n`, "not", x + 4, y + 8, { width: 4 }),
+      part(`${id}1`, "and", x + 10, y, { width: 4 }),
+      part(`${id}2`, "and", x + 10, y + 6, { width: 4 }),
+      part(id, "or", x + 16, y + 3, { width: 4 }),
+    ],
+    pairs: [
+      ...bits.map((i) => [select, `${id}w.f${i}`]),
+      [`${id}w.out`, `${id}n.in`],
+      [on, `${id}1.a`],
+      [`${id}w.out`, `${id}1.b`],
+      [off, `${id}2.a`],
+      [`${id}n.out`, `${id}2.b`],
+      [`${id}1.out`, `${id}.a`],
+      [`${id}2.out`, `${id}.b`],
+    ],
+  });
+  const next = choose("nx", "pop.out", "md.out", "mi.out", 50, 0);
+  const address = choose("ad", "push.out", "spr.q", "md.out", 50, 20);
+  const chain = (id, b, cin, x) =>
+    bits.flatMap((i) => [
+      [`ss.f${i}`, `${id}${i}.A`],
+      [b, `${id}${i}.B`],
+      [i === 0 ? cin : `${id}${i - 1}.Cout`, `${id}${i}.Cin`],
+      [`${id}${i}.S`, `m${id}.f${i}`],
+    ]);
+  return {
+    id: "stack",
+    name: "Stack",
+    circuit: {
+      components: [
+        ...pins([["clk", 1], ["push", 1], ["pop", 1], ["din", 8]], [["top", 8], ["sp", 4]], 96),
+        // 0 and 1 from gates: pop and not pop is 0, whatever pop is.
+        part("np", "not", 8, 20),
+        part("zero", "and", 14, 18),
+        part("one", "not", 20, 24),
+        part("en", "or", 8, 28),
+        chip("spr", "reg4", 26, 26),
+        part("ss", "split", 34, 0, { fields: ones(4) }),
+        ...bits.map((i) => chip(`i${i}`, "full-adder", 40, i * 8)),
+        ...bits.map((i) => chip(`d${i}`, "full-adder", 40, 34 + i * 8)),
+        part("mi", "merge", 46, 8, { fields: ones(4) }),
+        part("md", "merge", 46, 40, { fields: ones(4) }),
+        ...next.parts,
+        ...address.parts,
+        part("ram", "ram", 80, 20, { width: 8, addressWidth: 4 }),
+      ],
+      junctions: [],
+      wires: wires([
+        ["pop.out", "np.in"],
+        ["pop.out", "zero.a"],
+        ["np.out", "zero.b"],
+        ["zero.out", "one.in"],
+        ["push.out", "en.a"],
+        ["pop.out", "en.b"],
+        ["nx.out", "spr.d"],
+        ["en.out", "spr.en"],
+        ["clk.out", "spr.clk"],
+        ["spr.q", "ss.in"],
+        ["spr.q", "sp.in"],
+        // sp + 1 is sp + 0 with a carry in; sp - 1 is sp + 15.
+        ...chain("i", "zero.out", "one.out"),
+        ...chain("d", "one.out", "zero.out"),
+        ...next.pairs,
+        ...address.pairs,
+        ["ad.out", "ram.addr"],
+        ["din.out", "ram.din"],
+        ["push.out", "ram.we"],
+        ["clk.out", "ram.clk"],
+        ["ram.out", "top.in"],
+      ]),
+    },
+  };
+}
+
+/**
+ * Challenge 15's steps, from a model of the stack. As `clocked`, but with two outputs: sp always, and top while
+ * push is 0 (a push addresses the RAM at sp, so top shows that byte instead).
+ */
+function stackSteps(ops) {
+  const inputs = { push: 0, pop: 0, din: 0 };
+  const bytes = Array(16).fill(0);
+  let sp = 0;
+  const expect = () => ({ sp, ...(inputs.push ? {} : { top: bytes[(sp + 15) % 16] }) });
+  return ops.flatMap((op) => {
+    if (op !== P && !op.high) {
+      Object.assign(inputs, op);
+      return [{ set: op, expect: expect() }];
+    }
+    if (inputs.push && inputs.pop) throw new Error("push and pop are never 1 together");
+    if (inputs.push) bytes[sp] = inputs.din;
+    if (inputs.push) sp = (sp + 1) % 16;
+    if (inputs.pop) sp = (sp + 15) % 16;
+    const rise = { set: { clk: 1 }, expect: expect() };
+    if (op.high) Object.assign(inputs, op.high);
+    return [rise, ...(op.high ? [{ set: op.high, expect: expect() }] : []), { set: { clk: 0 }, expect: expect() }];
+  });
+}
+
 function aluSteps() {
   const edges = [
     [0, 0, 0],
@@ -574,6 +687,41 @@ const challenges = [
     definition: decoder(),
     // Every byte, so each line is checked against all the others.
     steps: Array.from({ length: 256 }, (_, hi) => ({ set: { hi }, expect: { y: hi >= 0xf0 ? 1 << (hi - 0xf0) : 0 } })),
+  },
+  {
+    file: "15-stack",
+    title: "Stack",
+    text: "Build Reference CPU 2's return stack: 16 bytes and a 4-bit pointer, sp, which starts at 0 with every byte 0. At a rising edge of clk with push 1, din is written at sp and sp goes up by 1; with pop 1, sp goes down by 1. sp wraps from 15 to 0 and from 0 to 15, so a seventeenth push writes over the first byte. While push is 0, top is the byte at sp - 1: the last byte pushed, as RET reads it. While push is 1, top is not checked, since a RAM has one address and a push needs it at sp. push and pop are never 1 together. A 4-bit register and a full adder are provided.",
+    parts: [...GATES, "dff", "split", "merge", "ram"],
+    definition: stack(),
+    given: [reg4, fullAdder],
+    steps: stackSteps([
+      { din: 0x11 },
+      P,
+      // Pushes, each a new byte, past sixteen: the seventeenth writes over the first, at 0.
+      { push: 1 },
+      ...Array.from({ length: 17 }, (_, i) => [{ din: 0x20 + i * 13 }, P]).flat(),
+      { push: 0 },
+      // Neither line: nothing moves.
+      ...pulses(2),
+      // A push whose din changes while clk is high: the byte sampled at the edge stays, as top shows next.
+      { push: 1, din: 0x5a },
+      { high: { din: 0xa5 } },
+      { push: 0 },
+      // Pops past empty, round to where it started, then a push and a pop on the same byte.
+      { pop: 1 },
+      ...pulses(18),
+      { pop: 0, din: 0x77 },
+      { push: 1 },
+      P,
+      { push: 0 },
+      { pop: 1 },
+      P,
+      { pop: 0 },
+      // pop rising while clk is high is no edge.
+      { high: { pop: 1 } },
+      { pop: 0 },
+    ]),
   },
   {
     file: "14-shifter",

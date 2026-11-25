@@ -52,6 +52,7 @@ holds the cut CPU and the display, on their benches, to the same model of
 | `12-display` | `clk`, `addr[8]`, `dout[8]`, `we` → `sptr[8]`, `swe` | gates, dff, split, merge (8-bit register provided; the CPU on the bench) |
 | `13-decoder` | `hi[8]` → `y[16]`: one line for each word `0xF0` to `0xFF` | gates, split, merge |
 | `14-shifter` | `A[8]`, `right` → `Y[8]`, `C`: `SHL` and `SHR` | gates, split, merge |
+| `15-stack` | `clk`, `push`, `pop`, `din[8]` → `top[8]`, `sp[4]`: 16 bytes pushed and popped | gates, dff, split, merge, ram (4-bit register and full adder provided) |
 
 A clocked challenge changes its data inputs with `clk` low, and nothing
 else in the step that raises `clk`, so every edge samples settled inputs.

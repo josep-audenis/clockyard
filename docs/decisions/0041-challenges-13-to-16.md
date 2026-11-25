@@ -183,6 +183,16 @@ What exists to build on:
    5. The Playwright target, the about page, the README's table and the
       roadmap.
 
+   *As built (step 1):* the README's table gains each challenge with its
+   step, and the Playwright test of each starter and solution grows with
+   them. The native tests' projection carries a gate's `inputCount`.
+
+   *As built (step 2):* the stack's solution keeps `sp + 1` and `sp − 1`
+   from two chains of full adders at all times, and chooses between them
+   with gates. A pointer that stops at 15 is not among its miswired
+   stacks, since no one wire makes it; those that fail write at `sp − 1`,
+   ignore a pop, count up on a pop, or read `top` at `sp`.
+
 ## Alternatives considered
 
 - **The decoder as a 4-to-16 line decoder of `which` alone,** or a 3-to-8

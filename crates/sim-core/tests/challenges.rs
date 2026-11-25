@@ -69,7 +69,7 @@ fn refusal(report: Report) -> String {
 }
 
 #[test]
-fn there_are_fourteen_challenges() {
+fn there_are_fifteen_challenges() {
     assert_eq!(
         all(),
         [
@@ -86,7 +86,8 @@ fn there_are_fourteen_challenges() {
             "11-program",
             "12-display",
             "13-decoder",
-            "14-shifter"
+            "14-shifter",
+            "15-stack"
         ]
     );
 }
@@ -369,6 +370,21 @@ fn plausible_wrong_circuits_fail() {
         .fails();
     Mutant::new("14-shifter")
         .rewire(("l7", "a"), ("sa", "f7"))
+        .fails();
+
+    // A stack that writes at sp - 1, one whose pop does not move the pointer, one whose pointer goes up on a pop,
+    // and one whose top is the byte at sp.
+    Mutant::new("15-stack")
+        .rewire(("ram", "addr"), ("md", "out"))
+        .fails();
+    Mutant::new("15-stack")
+        .rewire(("spr", "en"), ("push", "out"))
+        .fails();
+    Mutant::new("15-stack")
+        .rewire(("nx1", "a"), ("mi", "out"))
+        .fails();
+    Mutant::new("15-stack")
+        .rewire(("ad2", "a"), ("spr", "q"))
         .fails();
 }
 
