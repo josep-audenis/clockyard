@@ -342,9 +342,13 @@ video.loop { display: block; width: 100%; height: auto; }
   padding: 0;
   counter-reset: rung;
   display: grid;
-  grid-template-columns: repeat(9, 1fr);
+  grid-template-columns: repeat(8, 1fr);
 }
 .ladder { grid-template-rows: auto auto; }
+/* Two rows of eight: the wire ends at each row's last rung. */
+@media (min-width: 1081px) {
+  .ladder li:nth-child(8n)::before { width: 0; }
+}
 .ladder li { counter-increment: rung; position: relative; padding: 24px 10px 0 0; display: grid; grid-row: span 2; grid-template-rows: subgrid; row-gap: 4px; align-content: start; }
 .ladder li::before { content: ""; position: absolute; top: 7px; left: 0; right: 0; height: 2px; background: var(--signal-low); }
 .ladder li:last-child::before { width: 0; }

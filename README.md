@@ -18,9 +18,10 @@ Everything runs locally in your browser. No accounts, no servers, no cloud.
 > tri-state buffers, custom components, clocks, flip-flops and memories, and
 > run the bundled 8-bit reference CPUs, programmed in their own assembly, with
 > a keyboard, screen and hex display mapped into memory, and play Catch and
-> Catch 2, small games running on them. Take on twelve challenges, from an
-> inverter to a CPU of your own. Projects stay in the browser, and a circuit
-> can be shared as a file or as a link that carries it whole, with no server.
+> Catch 2, small games running on them. Take on sixteen challenges, from an
+> inverter to a CPU of your own and a program that draws on the second
+> reference CPU. Projects stay in the browser, and a circuit can be shared as
+> a file or as a link that carries it whole, with no server.
 > See the [roadmap](docs/roadmap.md).
 
 ## Why
