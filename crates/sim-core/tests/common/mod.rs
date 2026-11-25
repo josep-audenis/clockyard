@@ -2,6 +2,8 @@
 //! that run the bundled examples. Each test crate uses only some of it.
 #![allow(dead_code)]
 
+pub mod cpu2;
+
 use serde::Deserialize;
 use sim_core::description::{ComponentDesc, Connection, DefinitionDesc, JunctionDesc, PinDesc};
 use sim_core::{CircuitDescription, Simulator};

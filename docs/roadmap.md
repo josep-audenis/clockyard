@@ -803,7 +803,12 @@ bench round Reference CPU 2 cut along its memory boundary, from the parts
 and wires the example adds, now in `scripts/cpu2-pieces.mjs`, which both
 import; the example regenerates unchanged. `cpu2.rs` runs its model against
 the cut CPU on the bench, cycle by cycle, for the specification's examples
-and 40 random programs. Step 4, challenge 16, is next.
+and 40 random programs. Step 4 is done: challenge 16, a program for
+Reference CPU 2 that lights the pixels at column 3i, row 2i for a key of 1
+to 16, checked by every byte of the screen in five runs. A run may now take
+4,000 cycles, not 1,000; the reference program takes 1,852 for 16 pixels,
+and each run allows 3,800. The whole check takes about 0.2 s in the
+browser. Step 5, the target, the about page and the docs, is next.
 Rough edges still open, each by design (ADR 0040):
 
 - Wires kept after an edit can stay longer than needed until the file is

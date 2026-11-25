@@ -79,8 +79,9 @@ pub struct Step {
     pub memory: BTreeMap<String, BTreeMap<u32, u32>>,
 }
 
-/// No run may ask for more cycles than this, so a check's time is bounded (ADR 0034 item 4).
-pub const MAX_RUN_CYCLES: u32 = 1000;
+/// No run may ask for more cycles than this, so a check's time is bounded (ADR 0034 item 4, amended by ADR 0041:
+/// challenge 16 draws sixteen pixels through a routine).
+pub const MAX_RUN_CYCLES: u32 = 4000;
 /// IDs of the definitions a bench owns start with this: a check always takes them from the bench.
 pub const BENCH_PREFIX: &str = "bench-";
 /// The bench's clock switch and program ROM, by part ID.

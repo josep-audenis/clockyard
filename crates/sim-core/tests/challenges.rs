@@ -4,6 +4,7 @@
 
 mod common;
 
+use common::cpu2::Model;
 use common::description;
 use sim_core::CircuitDescription;
 use sim_core::check::{Challenge, Mismatch, Reading, Report, check, check_on};
@@ -69,7 +70,7 @@ fn refusal(report: Report) -> String {
 }
 
 #[test]
-fn there_are_fifteen_challenges() {
+fn there_are_sixteen_challenges() {
     assert_eq!(
         all(),
         [
@@ -87,7 +88,8 @@ fn there_are_fifteen_challenges() {
             "12-display",
             "13-decoder",
             "14-shifter",
-            "15-stack"
+            "15-stack",
+            "16-drawing"
         ]
     );
 }
@@ -572,8 +574,8 @@ fn a_bench_check_refuses_what_it_cannot_run_and_says_why() {
     let faults = [
         (serde_json::json!([]), "it has no runs"),
         (
-            serde_json::json!([{ "name": "Long", "steps": [{ "cycles": 600 }, { "cycles": 401 }] }]),
-            "run Long asks for more than 1000 cycles",
+            serde_json::json!([{ "name": "Long", "steps": [{ "cycles": 2400 }, { "cycles": 1601 }] }]),
+            "run Long asks for more than 4000 cycles",
         ),
         (
             serde_json::json!([{ "name": "Lamp", "steps": [{ "expect": { "lamp": 1 } }] }]),
@@ -1044,4 +1046,120 @@ fn a_part_built_from_a_definition_the_user_added_under_a_bench_id_is_refused() {
         refusal(report(&document, &c)),
         "The circuit has errors to fix first: display/r refers to unknown definition 'bench-reg8-2'"
     );
+}
+
+// --- Challenge 16 (ADR 0041) ------------------------------------------------------------
+
+/// The `program` ROM of a bench challenge's solution: its words, and its source as assembled.
+fn program_rom(name: &str) -> (Vec<u16>, Vec<u16>) {
+    let document: serde_json::Value =
+        serde_json::from_str(&read(&format!("solutions/{name}.clockyard.json")))
+            .expect("a document");
+    let rom = document["definitions"]
+        .as_array()
+        .expect("definitions")
+        .iter()
+        .find(|d| d["id"] == "program")
+        .and_then(|d| {
+            d["circuit"]["components"]
+                .as_array()?
+                .iter()
+                .find(|c| c["kind"] == "rom")
+        })
+        .expect("the program's ROM");
+    let data = rom["props"]["data"]
+        .as_array()
+        .expect("words")
+        .iter()
+        .map(|w| w.as_u64().expect("a word") as u16)
+        .collect();
+    (
+        data,
+        words_of(rom["props"]["source"].as_str().expect("its source")),
+    )
+}
+
+/// `words` run on Reference CPU 2's model with `key` held: the cycles to its halt, and its screen.
+fn drawn(words: &[u16], key: u8) -> (u32, Vec<u8>) {
+    let mut model = Model::new(words);
+    model.key = key;
+    let mut cycles = 0;
+    while !model.state.h {
+        assert!(cycles < 10_000, "the program halts");
+        model.cycle();
+        cycles += 1;
+    }
+    (cycles, model.state.screen.clone())
+}
+
+/// A copy of challenge 16's solution with `source` assembled into its program ROM.
+fn drawing(source: &str) -> CircuitDescription {
+    let mut document = solution("16-drawing");
+    let program = document
+        .definitions
+        .iter_mut()
+        .find(|d| d.id == "program")
+        .unwrap();
+    let rom = program
+        .components
+        .iter_mut()
+        .find(|c| c.kind == "rom")
+        .unwrap();
+    rom.data = Some(words_of(source).iter().map(|&w| f64::from(w)).collect());
+    document
+}
+
+#[test]
+fn the_drawing_solution_is_as_assembled_and_the_budget_is_twice_its_count_on_the_model() {
+    let c = challenge("16-drawing");
+    let (words, assembled) = program_rom("16-drawing");
+    assert_eq!(words, assembled, "the ROM holds its source as assembled");
+
+    // On the model, each run's key gives the run's picture, inside its budget.
+    let budget = c.runs[0].steps[1].cycles;
+    let mut longest = 0;
+    for run in &c.runs {
+        assert_eq!(
+            run.steps[1].cycles, budget,
+            "{}: one budget for every run",
+            run.name
+        );
+        let key = run.steps[0].set["key"];
+        let (cycles, screen) = drawn(&words, key as u8);
+        let expected: Vec<u8> = (0..256)
+            .map(|i| run.steps[1].memory["screen"][&i] as u8)
+            .collect();
+        assert_eq!(screen, expected, "{}", run.name);
+        longest = longest.max(cycles);
+    }
+    // Twice the count for 16 pixels, rounded up to a hundred (ADR 0041 item 7), and within the cap.
+    assert_eq!(
+        budget,
+        (2 * longest).div_ceil(100) * 100,
+        "the reference takes {longest} cycles"
+    );
+    let total: u32 = c.runs[0].steps.iter().map(|s| s.cycles).sum();
+    assert!(total <= sim_core::check::MAX_RUN_CYCLES, "{total} cycles");
+}
+
+#[test]
+fn the_drawing_challenge_takes_a_program_without_a_call_and_fails_a_pixel_too_many() {
+    let c = challenge("16-drawing");
+    // The same pixels with no routine: the column and row kept in RAM, the byte and the mask worked out inline.
+    let inline = "LDA 0xFF\nSTA 0\nLDI 0\nSTA 1\nSTA 2\nnext: LDA 2\nSHL\nSHL\nSHL\nSTA 3\nLDA 1\nSHR\nSHR\nSHR\nADD 3\nSTA 0xFE\nLDA 1\nANI 7\nSTA 4\nLDI 0x80\nshift: STA 5\nLDA 4\nJZ done\nSBI 1\nSTA 4\nLDA 5\nSHR\nJMP shift\ndone: LDA 5\nOR 0xFD\nSTA 0xFD\nLDA 1\nADI 3\nSTA 1\nLDA 2\nADI 2\nSTA 2\nLDA 0\nSBI 1\nSTA 0\nJNZ next\nHLT";
+    assert_eq!(
+        report(&drawing(inline), &c),
+        Report::Passed { steps: steps(&c) }
+    );
+    // One pixel more than the key asks for: the loop's count starts at the key plus 1.
+    let more = inline.replacen("LDA 0xFF\nSTA 0", "LDA 0xFF\nADI 1\nSTA 0", 1);
+    match report(&drawing(&more), &c) {
+        Report::Failed { run, .. } => assert_eq!(run.as_deref(), Some("1 pixel")),
+        other => panic!("expected a failed run, got {other:?}"),
+    }
+    // A program that never halts fails by its budget.
+    match report(&drawing("loop: JMP loop"), &c) {
+        Report::Failed { mismatches, .. } => assert_eq!(mismatches[0].name, "halt"),
+        other => panic!("expected a failed run, got {other:?}"),
+    }
 }

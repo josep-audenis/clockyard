@@ -13,7 +13,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { computers, program } from "./computer.mjs";
 import { register as pieceRegister } from "./cpu-pieces.mjs";
-import { cpuRuns, displayRuns, programRuns, SUM } from "./cpu-runs.mjs";
+import { cpuRuns, DIAGONAL, displayRuns, DRAW_CYCLES, drawRuns, programRuns, SUM } from "./cpu-runs.mjs";
+import { assemble as assemble2 } from "./reference-cpu-2.mjs";
 
 const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 
@@ -779,6 +780,20 @@ const INSTRUCTIONS = [
   "B OUT: out = A",
   "C HLT: halt",
 ].join("\n");
+// What Reference CPU 2 adds (docs/reference-cpu-2.md), for challenge 16.
+const INSTRUCTIONS_2 = [
+  "D JNZ n: PC = n if not Z",
+  "F0 AND n: A = A and RAM[n]",
+  "F1 OR n: A = A or RAM[n]",
+  "F2 XOR n: A = A xor RAM[n]",
+  "F3 ANI n: A = A and n",
+  "F4 ORI n: A = A or n",
+  "F5 XRI n: A = A xor n",
+  "F6 SHL: A shifted left one bit, C = the old bit 7",
+  "F7 SHR: A shifted right one bit, C = the old bit 0",
+  "F8 CALL n: push PC, PC = n",
+  "F9 RET: pop PC",
+].join("\n");
 const benchChallenges = [
   {
     file: "10-cpu",
@@ -828,6 +843,29 @@ const benchChallenges = [
     ].join("\n\n"),
     parts: [...GATES, "dff", "split", "merge"],
     runs: displayRuns,
+  },
+  {
+    file: "16-drawing",
+    slot: "cpu2",
+    title: "Drawing",
+    // The reference: a loop that calls plot once a pixel.
+    reference: program(assemble2(DIAGONAL), DIAGONAL),
+    text: [
+      "Write a program for Reference CPU 2 that draws. It reads a number n from 1 to 16 at address 0xFF, lights the pixels at column 3i, row 2i for i from 0 to n - 1, and halts " +
+        `within ${DRAW_CYCLES.toLocaleString("en")} clock cycles. Every other pixel stays dark: 2 lights column 0, row 0 and column 3, row 2.`,
+      "Write a routine that lights one pixel from a column and a row, and CALL it once for each. The check reads only the screen and whether the CPU halted, so it cannot see a CALL: a program without one that draws the same pixels passes too.",
+      "Open Program, select its ROM, write the program in assembly, and press Assemble.",
+      `The first CPU's instructions:\n${INSTRUCTIONS}`,
+      `And what Reference CPU 2 adds:\n${INSTRUCTIONS_2}`,
+      "n is a number, such as 16 or 0xFF. RAM[n] is a byte of memory you can use, for n from 0 to 0xEF; every byte starts at 0, and so does A. " +
+        "Z is set when A becomes 0, by a load, an addition, a subtraction, a logic instruction or a shift. C is set by an addition that carries, a subtraction that borrows nothing, or a shift. " +
+        "CALL and RET keep A, Z and C; the return addresses go on a stack of their own, 16 deep.",
+      "The screen is 64 pixels wide and 32 high, in 256 bytes, eight to a row: the pixel at column x, row y is in byte y × 8 + x / 8, rounded down, at bit 7 - x mod 8, so the most significant bit is the leftmost pixel. " +
+        "A store to 0xFE sets SPTR, the byte to draw. 0xFD is the byte SPTR points to: a load reads it, a store writes it.",
+      "The main sheet is the computer: set Key, then step the Clock switch or wire a clock in to watch your program draw.",
+    ].join("\n\n"),
+    parts: ["rom"],
+    runs: drawRuns,
   },
 ];
 for (const c of benchChallenges) {

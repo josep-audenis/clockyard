@@ -190,3 +190,87 @@ const DRAWINGS = [
   },
 ];
 export const displayRuns = DRAWINGS.map(({ name, source, words }) => run(name, words, undefined, { source }));
+
+// Challenge 16 (ADR 0041): a program for Reference CPU 2 that lights the pixels at column 3i, row 2i, for i from 0
+// to the key - 1. The expected screen is the picture itself, not a model's run. The reference program calls a
+// routine, plot, once a pixel; scripts/reference-cpu-2.mjs's assembler makes its words, and
+// crates/sim-core/tests/challenges.rs holds them to crates/asm and runs them on Reference CPU 2's model.
+export const DIAGONAL = [
+  "; Lights the pixels at column 3i, row 2i, for i from 0 to the key - 1, then halts.",
+  "; RAM: 0 the pixels left, 1 the column, 2 the row, 3 to 5 plot's scratch.",
+  "",
+  "        LDA 0xFF        ; KEY: how many pixels",
+  "        STA 0",
+  "        LDI 0",
+  "        STA 1",
+  "        STA 2",
+  "next:   CALL plot",
+  "        LDA 1",
+  "        ADI 3",
+  "        STA 1",
+  "        LDA 2",
+  "        ADI 2",
+  "        STA 2",
+  "        LDA 0",
+  "        SBI 1",
+  "        STA 0",
+  "        JNZ next",
+  "        HLT",
+  "",
+  "; plot: lights the pixel at column RAM[1], row RAM[2].",
+  "plot:   LDA 2",
+  "        SHL",
+  "        SHL",
+  "        SHL",
+  "        STA 3           ; row * 8",
+  "        LDA 1",
+  "        SHR",
+  "        SHR",
+  "        SHR             ; column / 8",
+  "        ADD 3",
+  "        STA 0xFE        ; SPTR: the screen byte",
+  "        LDA 1",
+  "        ANI 7",
+  "        STA 4           ; how far right in the byte",
+  "        LDI 0x80        ; the leftmost pixel",
+  "        STA 5",
+  "        LDA 4",
+  "        JZ done",
+  "shift:  LDA 5           ; one place right, as many times as the offset",
+  "        SHR",
+  "        STA 5",
+  "        LDA 4",
+  "        SBI 1",
+  "        STA 4",
+  "        JNZ shift",
+  "done:   LDA 5",
+  "        OR 0xFD         ; SDATA: the pixels already there",
+  "        STA 0xFD",
+  "        RET"
+].join("\n");
+
+/**
+ * Cycles a run allows the program to halt in: twice the reference program's count for 16 pixels, rounded up to a
+ * hundred. challenges.rs fails if this is not what the model makes of it.
+ */
+export const DRAW_CYCLES = 3800;
+
+/** The screen's 256 bytes once the first `n` pixels are lit. */
+export function picture(n) {
+  const bytes = Array(256).fill(0);
+  for (let i = 0; i < n; i++) bytes[16 * i + ((3 * i) >> 3)] |= 0x80 >> ((3 * i) & 7);
+  return Object.fromEntries(bytes.map((b, i) => [i, b]));
+}
+
+/** A run of challenge 16: the key, then cycles until the CPU halts, then the whole screen; four more change nothing. */
+export const drawRuns = [1, 2, 7, 8, 16].map((n) => {
+  const memory = { screen: picture(n) };
+  return {
+    name: `${n} pixel${n > 1 ? "s" : ""}`,
+    steps: [
+      { set: { key: n }, cycles: 2, expect: { fetch: 1, halt: 0 } },
+      { cycles: DRAW_CYCLES, until: "halt", memory },
+      { cycles: 4, expect: { halt: 1, fetch: 0 }, memory },
+    ],
+  };
+});
