@@ -347,7 +347,7 @@
           <div class="wrap">
             <h3 id="l4">Challenges</h3>
             <p class="layer-lede narrow">
-              Twelve challenges climb from an inverter to a CPU of your own, a program for it, and its screen. Each asks for a component with named pins. <em>Check</em> runs it on a test bench inside the
+              Sixteen challenges climb from an inverter to a CPU of your own, a program for it and its screen, then to the pieces of the second CPU: a decoder, a shifter, a stack, and a program that draws through a routine. Each asks for a component with named pins. <em>Check</em> runs it on a test bench inside the
               engine, and any circuit built from the allowed parts that behaves correctly passes. When one fails, you see which step failed, the inputs
               it set, and which outputs were wrong.
             </p>
@@ -364,6 +364,10 @@
               <li data-challenge="10-cpu"><span>CPU</span><small><span class="visually-hidden">Parts: </span>gates, D flip-flops, splitters, mergers, ROMs</small></li>
               <li data-challenge="11-program"><span>Program</span><small><span class="visually-hidden">Parts: </span>assembly, in the CPU's ROM</small></li>
               <li data-challenge="12-display"><span>Display</span><small><span class="visually-hidden">Parts: </span>gates, D flip-flops, splitters, mergers</small></li>
+              <li data-challenge="13-decoder"><span>Instruction decoder</span><small><span class="visually-hidden">Parts: </span>gates, splitters, mergers</small></li>
+              <li data-challenge="14-shifter"><span>Shifter</span><small><span class="visually-hidden">Parts: </span>gates, splitters, mergers</small></li>
+              <li data-challenge="15-stack"><span>Stack</span><small><span class="visually-hidden">Parts: </span>gates, D flip-flops, splitters, mergers, RAM, a 4-bit register, a full adder</small></li>
+              <li data-challenge="16-drawing"><span>Drawing</span><small><span class="visually-hidden">Parts: </span>assembly, in the second CPU's ROM</small></li>
             </ol>
             <p class="ladder-note">Under each name, the parts it allows. A rung turns green here once you pass it in this browser. Open them from <em>Challenges</em> in the editor's parts panel. The CPU's own ALU is region 8 of Fig. 5.</p>
             <div class="checks">
@@ -507,9 +511,9 @@
               <li class="done"><span class="visually-hidden">Done: </span><span class="ph">Phase 4</span><span class="pt">A programmable 8-bit computer and its assembler</span></li>
               <li class="done"><span class="visually-hidden">Done: </span><span class="ph">Phase 5</span><span class="pt">The sandbox: devices, a game, links, challenges, waveforms, examples, components from other files</span></li>
               <li class="done"><span class="visually-hidden">Done: </span><span class="ph">Phase 6</span><span class="pt">Projects saved in the browser, autosave, a component library, challenge progress, benchmarks, editing a running circuit, the CPU challenges, tri-state buses and a second CPU</span></li>
-              <li class="now"><span class="visually-hidden">In progress: </span><span class="ph">Phase 7</span><span class="pt">Push buttons, gates of up to eight inputs, notes on the canvas, and CPUs laid out to read</span></li>
+              <li class="now"><span class="visually-hidden">In progress: </span><span class="ph">Phase 7</span><span class="pt">Push buttons, gates of up to eight inputs, notes on the canvas, CPUs laid out to read, rough edges closed, and challenges 13 to 16</span></li>
             </ol>
-            <p class="note">Pre-alpha, as of November 2026. A filled dot is done; a ring is in progress. Phase 7 continues with rough edges, challenges 13 to 16, and making the project easier for others to join. The <a href="https://github.com/josep-audenis/clockyard/blob/main/docs/roadmap.md">roadmap</a> has the details.</p>
+            <p class="note">Pre-alpha, as of November 2026. A filled dot is done; a ring is in progress. Phase 7 continues with making the project easier for others to join. The <a href="https://github.com/josep-audenis/clockyard/blob/main/docs/roadmap.md">roadmap</a> has the details.</p>
           </section>
         </div>
       </section>

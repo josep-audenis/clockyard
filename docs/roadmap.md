@@ -808,7 +808,11 @@ Reference CPU 2 that lights the pixels at column 3i, row 2i for a key of 1
 to 16, checked by every byte of the screen in five runs. A run may now take
 4,000 cycles, not 1,000; the reference program takes 1,852 for 16 pixels,
 and each run allows 3,800. The whole check takes about 0.2 s in the
-browser. Step 5, the target, the about page and the docs, is next.
+browser. Step 5 is done, and with it increment 4: the about page lists
+sixteen challenges, the README counts them, and the target in Playwright:
+each of challenges 13 to 16 fails its starter and passes its solution
+through the Check button. Next is increment 5, a project others can join,
+with its own ADR.
 Rough edges still open, each by design (ADR 0040):
 
 - Wires kept after an edit can stay longer than needed until the file is
