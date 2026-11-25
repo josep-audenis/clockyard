@@ -1,6 +1,6 @@
 # 0041. Challenges 13 to 16: a decoder, a shifter, a stack, and a program that draws with `CALL`
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-23
 - Depends on: ADR 0037 (the Phase 7 plan, increment 4); ADR 0025
   (challenges 1 to 9, built in code); ADR 0034 (bench challenges, runs and
