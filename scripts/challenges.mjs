@@ -290,6 +290,77 @@ function alu() {
   };
 }
 
+/**
+ * Challenge 13 (ADR 0041): one line for each word 0xF0 to 0xFF. Line k is an 8-input AND of the high nibble's
+ * four bits and the low nibble's bits, each as it is in k or through a NOT.
+ */
+function decoder() {
+  const lines = Array.from({ length: 16 }, (_, k) => k);
+  const low = (k, j) => ((k >> j) & 1 ? `s.f${j}` : `n${j}.out`);
+  return {
+    id: "decoder",
+    name: "Decoder",
+    circuit: {
+      components: [
+        ...pins([["hi", 8]], [["y", 16]], 56),
+        part("s", "split", 6, 0, { fields: ones(8) }),
+        ...[0, 1, 2, 3].map((j) => part(`n${j}`, "not", 14, j * 4)),
+        ...lines.map((k) => part(`g${k}`, "and", 22 + (k >> 3) * 10, (k % 8) * 18, { inputCount: 8 })),
+        part("m", "merge", 46, 0, { fields: ones(16) }),
+      ],
+      junctions: [],
+      wires: wires([
+        ["hi.out", "s.in"],
+        ...[0, 1, 2, 3].map((j) => [`s.f${j}`, `n${j}.in`]),
+        ...lines.flatMap((k) => [
+          ...[4, 5, 6, 7].map((j, i) => [`s.f${j}`, `g${k}.${"abcd"[i]}`]),
+          ...[0, 1, 2, 3].map((j, i) => [low(k, j), `g${k}.${"efgh"[i]}`]),
+          [`g${k}.out`, `m.f${k}`],
+        ]),
+        ["m.out", "y.in"],
+      ]),
+    },
+  };
+}
+
+/**
+ * Challenge 14 (ADR 0041): SHL with right 0, SHR with right 1. Bit k of Y is bit k - 1 of A going left, or bit
+ * k + 1 going right; C is the bit that drops out, bit 7 or bit 0.
+ */
+function shifter() {
+  // Each output bit, and C, as [the bit of A going left, the bit going right]; null where none comes in.
+  const sources = [...Array.from({ length: 8 }, (_, k) => [k > 0 ? k - 1 : null, k < 7 ? k + 1 : null]), [7, 0]];
+  const target = (k) => (k < 8 ? `m.f${k}` : "C.in");
+  const parts = [];
+  const pairs = [["A.out", "sa.in"], ["right.out", "nr.in"], ["m.out", "Y.in"]];
+  sources.forEach(([l, r], k) => {
+    const y = k * 6;
+    if (l !== null) parts.push(part(`l${k}`, "and", 16, y));
+    if (r !== null) parts.push(part(`r${k}`, "and", 22, y));
+    if (l !== null) pairs.push([`sa.f${l}`, `l${k}.a`], ["nr.out", `l${k}.b`]);
+    if (r !== null) pairs.push([`sa.f${r}`, `r${k}.a`], ["right.out", `r${k}.b`]);
+    if (l !== null && r !== null) {
+      parts.push(part(`o${k}`, "or", 28, y));
+      pairs.push([`l${k}.out`, `o${k}.a`], [`r${k}.out`, `o${k}.b`], [`o${k}.out`, target(k)]);
+    } else pairs.push([`${l !== null ? "l" : "r"}${k}.out`, target(k)]);
+  });
+  return {
+    id: "shifter",
+    name: "Shifter",
+    circuit: {
+      components: [
+        ...pins([["A", 8], ["right", 1]], [["Y", 8], ["C", 1]], 44),
+        part("sa", "split", 6, 0, { fields: ones(8) }),
+        part("nr", "not", 8, 12),
+        ...parts,
+        part("m", "merge", 36, 0, { fields: ones(8) }),
+      ],
+      junctions: [],
+      wires: wires(pairs),
+    },
+  };
+}
+
 function aluSteps() {
   const edges = [
     [0, 0, 0],
@@ -494,6 +565,28 @@ const challenges = [
     definition: alu(),
     given: [adder8(), fullAdder],
     steps: aluSteps(),
+  },
+  {
+    file: "13-decoder",
+    title: "Instruction decoder",
+    text: "Decode an instruction's high byte, bits 15 to 8 of a Reference CPU 2 word: bit k of y is 1 when hi is 0xF0 + k, and every bit of y is 0 for any other byte. Opcode 0xF with k in bits 11 to 8 is one of the CPU's ten instructions under that opcode, AND to RET (k from 0 to 9), or a reserved word (10 to 15). Reference CPU 2 decodes with a control ROM; here gates do it, and a ROM is not allowed.",
+    parts: [...GATES, "split", "merge"],
+    definition: decoder(),
+    // Every byte, so each line is checked against all the others.
+    steps: Array.from({ length: 256 }, (_, hi) => ({ set: { hi }, expect: { y: hi >= 0xf0 ? 1 << (hi - 0xf0) : 0 } })),
+  },
+  {
+    file: "14-shifter",
+    title: "Shifter",
+    text: "Shift a byte one bit, as Reference CPU 2's SHL and SHR do. With right 0, Y is A shifted left: each bit moves up one place, bit 0 becomes 0, and C is the old bit 7. With right 1, Y is A shifted right: each bit moves down one place, bit 7 becomes 0, and C is the old bit 0. No multiplexer is provided: choose between the two with gates.",
+    parts: [...GATES, "split", "merge"],
+    definition: shifter(),
+    steps: [0, 1].flatMap((right) =>
+      Array.from({ length: 256 }, (_, A) => ({
+        set: { A, right },
+        expect: right ? { Y: A >> 1, C: A & 1 } : { Y: (A << 1) & 255, C: A >> 7 },
+      })),
+    ),
   },
 ];
 

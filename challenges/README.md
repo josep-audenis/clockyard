@@ -1,8 +1,8 @@
 # Challenges
 
-The challenges of ADR 0025, each a custom component to build. Do not edit
-these files by hand: `node scripts/challenges.mjs` writes them, and
-`pnpm verify` fails if they are out of date.
+The challenges of ADRs 0025, 0034 and 0041, each a custom component to
+build. Do not edit these files by hand: `node scripts/challenges.mjs`
+writes them, and `pnpm verify` fails if they are out of date.
 
 - `NN-name.json`: the challenge. Its title and text, the definition to
   build, its pins (by part ID) and widths, the parts it allows, and its
@@ -50,6 +50,8 @@ holds the cut CPU and the display, on their benches, to the same model of
 | `10-cpu` | `clk`, `instr[16]`, `din[8]` → `pc[8]`, `addr[8]`, `dout[8]`, `we`, `out[8]`, `halt`, `fetch` | gates, dff, split, merge, rom (registers, multiplexer and 8-bit adder provided) |
 | `11-program` | `addr[8]` → `word[16]`: a program in its ROM | rom (the CPU provided on the bench) |
 | `12-display` | `clk`, `addr[8]`, `dout[8]`, `we` → `sptr[8]`, `swe` | gates, dff, split, merge (8-bit register provided; the CPU on the bench) |
+| `13-decoder` | `hi[8]` → `y[16]`: one line for each word `0xF0` to `0xFF` | gates, split, merge |
+| `14-shifter` | `A[8]`, `right` → `Y[8]`, `C`: `SHL` and `SHR` | gates, split, merge |
 
 A clocked challenge changes its data inputs with `clk` low, and nothing
 else in the step that raises `clk`, so every edge samples settled inputs.

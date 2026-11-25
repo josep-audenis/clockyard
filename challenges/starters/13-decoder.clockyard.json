@@ -1,0 +1,53 @@
+{
+  "format": "clockyard",
+  "version": 10,
+  "metadata": {
+    "name": "Instruction decoder",
+    "createdAt": "2026-11-15T12:00:00.000Z",
+    "modifiedAt": "2026-11-15T12:00:00.000Z",
+    "challenge": "13-decoder"
+  },
+  "circuit": {
+    "components": [],
+    "junctions": [],
+    "wires": []
+  },
+  "definitions": [
+    {
+      "id": "decoder",
+      "name": "Decoder",
+      "circuit": {
+        "components": [
+          {
+            "id": "hi",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "hi",
+              "width": 8
+            }
+          },
+          {
+            "id": "y",
+            "kind": "led",
+            "position": {
+              "x": 56,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "y",
+              "width": 16
+            }
+          }
+        ],
+        "junctions": [],
+        "wires": []
+      }
+    }
+  ]
+}

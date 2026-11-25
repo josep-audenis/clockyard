@@ -790,7 +790,13 @@ gives a chip clear of the part below it, and challenge 10 shows its text
 in paragraphs (the readout's part, the reference CPU's ROM and RAM, is
 step 3's test on Catch). Increment 4, challenges 13 to 16, is
 ADR 0041 (accepted): a decoder, a shifter, a stack, and a program that
-draws on Reference CPU 2. Step 1, challenges 13 and 14, is next.
+draws on Reference CPU 2. Step 1 is done:
+challenge 13, a decoder of the high byte to one line for each word `0xF0`
+to `0xFF`, and 14, a shifter for `SHL` and `SHR`, each checked on every
+input, with miswired circuits that fail. The native tests' projection now
+carries a gate's `inputCount`, as the editor's does, and the README's
+table lists both. Step 2, the stack, is
+next.
 Rough edges still open, each by design (ADR 0040):
 
 - Wires kept after an edit can stay longer than needed until the file is
