@@ -788,7 +788,9 @@ runs; the rough edges left are each marked by design, the rest moved to
 out of scope; and the target in Playwright: Make component on one gate
 gives a chip clear of the part below it, and challenge 10 shows its text
 in paragraphs (the readout's part, the reference CPU's ROM and RAM, is
-step 3's test on Catch). Next is increment 4, challenges 13 to 16, with its own ADR.
+step 3's test on Catch). Increment 4, challenges 13 to 16, is
+ADR 0041 (accepted): a decoder, a shifter, a stack, and a program that
+draws on Reference CPU 2. Step 1, challenges 13 and 14, is next.
 Rough edges still open, each by design (ADR 0040):
 
 - Wires kept after an edit can stay longer than needed until the file is

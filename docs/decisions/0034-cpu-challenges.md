@@ -1,6 +1,6 @@
 # 0034. Challenges 10 to 12: a CPU, a program and a screen, checked on computer benches
 
-- Status: Accepted
+- Status: Accepted; amended by ADR 0041 (the run cycle limit)
 - Date: 2026-11-20
 - Depends on: ADR 0028 (Phase 6 plan, increment 4; its target is amended
   here); ADR 0025 (challenges, whose item 7 left these three for this ADR,
