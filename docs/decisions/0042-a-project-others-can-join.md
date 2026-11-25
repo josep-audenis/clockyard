@@ -1,6 +1,6 @@
 # 0042. A project others can join: contributor docs, community files, a license check, and a documented core
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-25
 - Depends on: ADR 0037 (the Phase 7 plan, increment 5); ADR 0009 (local
   checks instead of hosted CI); brief §13
@@ -147,12 +147,13 @@ What there is today:
      `config.yml` that points design questions to the docs.
    - `.github/pull_request_template.md`: what changed and why, the ADR if
      there is one, the docs kept in step, and that `pnpm verify` passed.
-   - **Open for the owner:** how reports reach them. A report must not go
-     through an address made up here. GitHub's private vulnerability
-     reporting covers security, once switched on in the repository's
-     settings, which only the owner can do. For conduct reports the owner
-     names a channel when accepting this ADR, or chooses GitHub's
-     moderation and private reporting alone.
+   - **How reports reach the owner: GitHub alone,** chosen by the owner on
+     accepting this ADR. No address is made up here. Security reports go
+     through GitHub's private vulnerability reporting, which the owner
+     switches on in the repository's settings. Conduct reports go through
+     GitHub's own tools: private vulnerability reporting for anything that
+     must stay private, and GitHub's moderation and report-abuse for the
+     rest.
 
 5. **Contributor docs brought up to date.**
    - `CONTRIBUTING.md` rewritten from the project as it is:
@@ -221,6 +222,5 @@ What there is today:
 - A dependency under a new license stops the push until an ADR decides it.
 - `third-party-licenses.txt` changes when a shipped dependency changes, and
   is regenerated like the examples.
-- The owner switches on private vulnerability reporting and names the
-  conduct channel; nothing here does either.
+- The owner switches on private vulnerability reporting; nothing here does.
 - Phase 7 is done when step 5 is. What comes after is not decided here.
