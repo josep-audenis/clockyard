@@ -73,7 +73,7 @@ only renders what the engine reports. Details: [architecture](docs/architecture.
 | Canvas | PixiJS |
 | State | Zustand (document store) |
 | Engine | Rust → WebAssembly via `wasm-bindgen`, hosted in a Web Worker |
-| Storage | JSON project files; IndexedDB later |
+| Storage | Projects in the browser's IndexedDB, as JSON project files ([ADR 0029](docs/decisions/0029-local-persistence.md)) |
 | Tooling | pnpm, Cargo, Vitest, Playwright, ESLint, rustfmt, Clippy, pre-push hook |
 
 Exact versions are pinned in `package.json` and `Cargo.toml` (see
@@ -86,8 +86,11 @@ clockyard/
 ├── apps/web/          Browser app (React + PixiJS + worker)
 ├── crates/sim-core/   Pure Rust simulation engine
 ├── crates/sim-wasm/   WASM adapter over sim-core
+├── crates/asm/        Assembler for the reference CPUs' programs
 ├── examples/          Example project files (also test fixtures)
 ├── challenges/        Challenges, their solutions and starters (ADR 0025)
+├── benchmarks/        Benchmark circuits (ADR 0030)
+├── scripts/           Generators, the WASM build and the license check
 └── docs/              Architecture, simulation model, roadmap, ADRs, project brief
 ```
 
@@ -115,15 +118,12 @@ pnpm install
 pnpm dev
 ```
 
-For the browser tests, install Chromium for Playwright once:
-
-```bash
-pnpm --filter web exec playwright install chromium
-```
-
 `pnpm dev` builds the WASM engine and starts Vite at http://localhost:5173.
 After changing Rust code, run `pnpm wasm` (the page reloads). `pnpm build`
 produces a static site in `apps/web/dist`.
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the full setup, with the browser
+tests, and every check `pnpm verify` runs.
 
 ## Documentation
 
@@ -132,7 +132,8 @@ produces a static site in `apps/web/dist`.
 - [Simulation model](docs/simulation-model.md) — signals, settling, clocks, determinism
 - [Roadmap](docs/roadmap.md) — phases and acceptance criteria
 - [Decisions](docs/decisions/) — architecture decision records
-- [Contributing](CONTRIBUTING.md)
+- [Contributing](CONTRIBUTING.md), the [code of conduct](CODE_OF_CONDUCT.md) and
+  the [security policy](SECURITY.md)
 
 ## Inspirations
 
@@ -147,7 +148,9 @@ Dual-licensed under either of
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 - MIT license ([LICENSE-MIT](LICENSE-MIT))
 
-at your option.
+at your option. The packages it ships keep their own licenses, listed with
+their texts in `third-party-licenses.txt`, which the build carries; the IBM
+Plex fonts are under the SIL Open Font License 1.1.
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be

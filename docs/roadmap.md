@@ -829,8 +829,13 @@ the shipped allowlist, and the dev-only packages to theirs, from
 license. It writes `apps/web/public/third-party-licenses.txt` with each
 shipped package's license texts, the fonts' OFL among them; the build
 carries it and the about page's footer links to it. `pnpm verify` runs
-its `--check` after the generators'. Next is step 4, the contributor
-docs and community files.
+its `--check` after the generators'. Step 4 is done: `CONTRIBUTING.md`
+is rewritten from the project as it is, with the setup, every check
+`pnpm verify` runs, the generated files and how a change is made; the
+README's storage row, layout and setup are brought up to date; and there
+are a code of conduct (the Contributor Covenant 2.1, by link), a security
+policy, issue templates and a pull request template, with reports going
+through GitHub alone. Next is step 5, the two fresh-clone runs.
 Rough edges still open, each by design (ADR 0040):
 
 - Wires kept after an edit can stay longer than needed until the file is

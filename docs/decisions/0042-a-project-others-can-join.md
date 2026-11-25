@@ -209,6 +209,15 @@ What there is today:
    about a second. The notices file is some 210 KB, fetched only from the
    about page's link.
 
+   *As built (step 4):* conduct reports that should stay private go
+   through the same private report as security ones, from the Security
+   tab, saying they are about conduct; abusive content can also go to
+   GitHub's own *Report content*. The README's setup points to
+   `CONTRIBUTING.md` for the rest, and its layout gains `crates/asm`,
+   `benchmarks/` and `scripts/`. `CONTRIBUTING.md` installs pnpm through
+   Corepack, or npm where Corepack is missing, and gives Playwright's
+   `--with-deps` for Linux; step 5's runs test both.
+
 ## Alternatives considered
 
 - **Hosted CI now,** so a Linux run happens on every push. ADR 0009 chose
