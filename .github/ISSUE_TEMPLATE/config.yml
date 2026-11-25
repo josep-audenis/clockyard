@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: How the simulation works
+    url: https://github.com/josep-audenis/clockyard/blob/main/docs/simulation-model.md
+    about: Signals, settling, clocks and memories, before asking why a circuit behaves as it does.
+  - name: Design decisions
+    url: https://github.com/josep-audenis/clockyard/tree/main/docs/decisions
+    about: Why Clockyard is built the way it is, one decision record each.
+  - name: Report a security problem
+    url: https://github.com/josep-audenis/clockyard/security/policy
+    about: Privately, never in an issue.
