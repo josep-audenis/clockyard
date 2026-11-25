@@ -704,11 +704,11 @@ const challenges = [
       { push: 0 },
       // Neither line: nothing moves.
       ...pulses(2),
-      // A push whose din changes while clk is high: the byte sampled at the edge stays, as top shows next.
+      // A push whose din changes while clk is high: a write then would land at the new sp, read back when the pops reach it.
       { push: 1, din: 0x5a },
       { high: { din: 0xa5 } },
       { push: 0 },
-      // Pops past empty, round to where it started, then a push and a pop on the same byte.
+      // Pops past empty, round to 0, then a push and a pop on the same byte.
       { pop: 1 },
       ...pulses(18),
       { pop: 0, din: 0x77 },

@@ -56,5 +56,5 @@ holds the cut CPU and the display, on their benches, to the same model of
 
 A clocked challenge changes its data inputs with `clk` low, and nothing
 else in the step that raises `clk`, so every edge samples settled inputs.
-One pulse also changes an input while `clk` is high, which must change
+Some pulses also change an input while `clk` is high, which must change
 nothing.

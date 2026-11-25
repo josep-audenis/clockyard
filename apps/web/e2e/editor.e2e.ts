@@ -2363,7 +2363,7 @@ test("challenges 13 to 15: each starter fails and each solution passes (ADR 0041
   for (const [button, name, title, steps, failure] of [
     ["13. Instruction decoder", "13-decoder", "Instruction decoder", 256, /^Step 241 of 256 failed\. With hi = /],
     ["14. Shifter", "14-shifter", "Shifter", 512, /^Step 2 of 512 failed\. With A = 1, right = 0: /],
-    ["15. Stack", "15-stack", "Stack", 115, /^Step \d+ of 115 failed\. /],
+    ["15. Stack", "15-stack", "Stack", 115, /^Step 6 of 115 failed\. .*sp should be 1 but is 0\.$/],
   ] as const) {
     await openTab(page, "Learn");
     await challenges(page).getByRole("button", { name: button }).click();
