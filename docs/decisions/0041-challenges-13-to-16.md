@@ -193,6 +193,15 @@ What exists to build on:
    stacks, since no one wire makes it; those that fail write at `sp − 1`,
    ignore a pop, count up on a pop, or read `top` at `sp`.
 
+   *As built (step 3):* `scripts/cpu2-pieces.mjs` holds Reference CPU 2's
+   control ROM and the parts and wires it adds to the first CPU, which the
+   example places in its regions and `computer.mjs` adds to the first CPU's
+   cut, below its parts. In the cut the `pc` register is `pcr`, as in `cpu`,
+   and the SP LED is left out, since an LED inside a definition is a pin.
+   The bench owns `bench-cpu2` and `bench-reg4`; its sheet is the `program`
+   bench's with that CPU. `cpu2.rs` holds it to the model over the
+   specification's examples and 40 random programs, 128 cycles each.
+
 ## Alternatives considered
 
 - **The decoder as a 4-to-16 line decoder of `which` alone,** or a 3-to-8

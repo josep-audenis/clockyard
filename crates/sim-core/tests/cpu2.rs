@@ -959,3 +959,125 @@ fn a_catch_needs_the_paddle_under_both_of_the_blocks_columns() {
         );
     }
 }
+
+// --- The cut CPU on its bench (ADR 0041) ------------------------------------------------
+
+/// `challenges/benches/cpu2.clockyard.json` with `program` in the ROM of its `program` slot, loaded
+/// without warnings.
+fn bench(program: &[u16]) -> Simulator {
+    let path = format!(
+        "{}/../../challenges/benches/cpu2.clockyard.json",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
+    let mut document: Value = serde_json::from_str(&text).expect("valid project file");
+    let slot = document["definitions"]
+        .as_array_mut()
+        .expect("definitions")
+        .iter_mut()
+        .find(|d| d["id"] == "program")
+        .expect("the program slot");
+    let rom = slot["circuit"]["components"]
+        .as_array_mut()
+        .expect("components")
+        .iter_mut()
+        .find(|c| c["id"] == "rom")
+        .expect("the slot's ROM");
+    rom["props"]["data"] = json!(program);
+    let (sim, warnings) =
+        Simulator::load(&description(&document.to_string())).expect("valid circuit");
+    assert_eq!(warnings, vec![], "the bench loads without warnings");
+    sim
+}
+
+/// What the bench holds: the CPU's registers and stack inside the `cpu` instance, the bench's LEDs
+/// on its outputs, and the memories and device registers on the bench sheet.
+fn read_bench(sim: &Simulator) -> State {
+    assert!(sim.unknown().iter().all(|&u| u == 0), "every net is known");
+    let q = |id: &str| value(sim, id, "q");
+    let led = |id: &str| value(sim, id, "in");
+    let t = q("cpu/t/r") == 1;
+    let h = led("halt") == 1;
+    assert_eq!(h, q("cpu/h/r") == 1, "the halt pin shows H");
+    assert_eq!(led("fetch") == 1, !t && !h, "Fetch = ¬T ∧ ¬H");
+    let bytes = |id: &str| -> Vec<u8> {
+        let words = sim
+            .memory(id)
+            .unwrap_or_else(|| panic!("the bench has {id}"));
+        words.iter().map(|&w| w as u8).collect()
+    };
+    State {
+        pc: q("cpu/pcr/r") as u8,
+        ir: (q("cpu/irh/r") << 8 | q("cpu/irl/r")) as u16,
+        a: q("cpu/a/r") as u8,
+        out: led("out") as u8,
+        z: q("cpu/z/r") == 1,
+        c: q("cpu/c/r") == 1,
+        t,
+        h,
+        sp: q("cpu/sp/r") as u8,
+        stack: bytes("cpu/stack").try_into().expect("16 stack bytes"),
+        ram: bytes("ram"),
+        sptr: q("sptr/r") as u8,
+        hex: q("hex/r") as u8,
+        screen: bytes("screen"),
+    }
+}
+
+/// The program run on the bench and on the model, a cycle at a time, the clock a switch set to 1,
+/// then to 0, with the key set while it is low, as a challenge's steps do it.
+fn check_bench(program: &[u16], cycles: usize, keys: impl Fn(usize) -> u8) {
+    let mut sim = bench(program);
+    let mut model = Model::new(program);
+    assert_eq!(read_bench(&sim), model.state, "after reset");
+    for cycle in 1..=cycles {
+        model.key = keys(cycle);
+        for (id, value) in [("key", u32::from(model.key)), ("clk", 1), ("clk", 0)] {
+            assert_eq!(sim.set_input(id, value).expect("a switch"), None, "settles");
+        }
+        model.cycle();
+        assert_eq!(
+            read_bench(&sim),
+            model.state,
+            "after cycle {cycle} of {program:04X?}"
+        );
+    }
+}
+
+#[test]
+fn the_cut_cpu_on_its_bench_runs_as_specified() {
+    // The specification's examples, and the example's own program, run to their halt and past it.
+    for source in [
+        "LDI 5\nCALL twice\nCALL twice\nOUT\nHLT\ntwice: SHL\nRET",
+        "LDI 25\nSTA 0xFE\nLDA 0xFD\nORI 0b00100000\nSTA 0xFD\nHLT",
+        "LDA 0xFF\nSTA 0\nLDI 0\nSTA 1\nloop: LDA 0\nSHR\nSTA 0\nJC one\nJMP next\none: LDA 1\nADI 1\nSTA 1\nnext: LDA 0\nJNZ loop\nLDA 1\nOUT\nHLT",
+        "LDI 0x2A\nSTA 0xFC\nLDI 7\nSTA 0xFE\nLDI 0x81\nSTA 0xFD\nLDA 0xFD\nXOR 0xFC\nAND 0xFE\nOR 0xFF\nOUT\nHLT",
+    ] {
+        check_bench(&assemble(source), 200, |_| 0x41);
+    }
+    // Random words, as `random_programs_run_as_specified` makes them, fewer: a bench cycle is two settles.
+    let mut seed: u64 = 0x9E37_79B9_7F4A_7C15;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed
+    };
+    for i in 0..40u64 {
+        let window = if i % 2 == 0 { 0xFFFF } else { 0xF00F };
+        let io = if i % 4 == 3 { 0x00F0 } else { 0 };
+        let program: Vec<u16> = (0..256)
+            .map(|_| {
+                let word = (next() as u16 & window) | io;
+                match (i % 3, next() % 4) {
+                    (0, 0) => 0xD000 | word & 0x0FFF,
+                    (0, 1 | 2) => 0xF000 | word & 0x0FFF,
+                    _ => word,
+                }
+            })
+            .collect();
+        let keys =
+            move |cycle: usize| ((cycle as u64 / 3 + i).wrapping_mul(0x9E37_79B9) >> 8) as u8;
+        check_bench(&program, 128, keys);
+    }
+}

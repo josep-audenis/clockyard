@@ -19,6 +19,9 @@ writes them, and `pnpm verify` fails if they are out of date.
   ROM, or the `display` that drives the screen. The slot's definition is
   empty (its pins only; an empty ROM for `program`). Definitions the bench
   owns have IDs starting `bench-`.
+- `benches/cpu2`: the `program` bench round Reference CPU 2 (ADR 0041), its
+  CPU cut the same way, with the return stack inside it. No challenge uses it
+  yet; challenge 16 will.
 - `solutions/10-cpu`, `11-program` and `12-display` are those benches with
   the reference part in the slot: the reference CPU cut along its memory
   boundary, a program that sums 1 to the key, and the screen interface. A

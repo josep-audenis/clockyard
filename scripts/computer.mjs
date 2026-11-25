@@ -5,7 +5,8 @@
 // The CPU's insides are those of scripts/reference-cpu.mjs, part for part; crates/sim-core/tests/cpu.rs
 // holds both circuits to the same model of docs/reference-cpu.md.
 
-import { blocks, chip, control, field, IO, io, iodec, ones, part, wires } from "./cpu-pieces.mjs";
+import { blocks, chip, control, field, IO, io, iodec, ones, part, register, wires } from "./cpu-pieces.mjs";
+import { addedPairs, addedParts, CONTROL2, control2, moved } from "./cpu2-pieces.mjs";
 
 /** Definitions the bench owns carry this prefix (ADR 0034 item 3): a check always takes them from the bench file. */
 export const BENCH = "bench-";
@@ -41,6 +42,12 @@ const output = (id, x, y, width = 1) => ({ ...pin(id, "led", x, y, width), pin: 
  * `blocks` prefixes the building blocks' definition IDs.
  */
 function cpuDefinition(id, blocksPrefix) {
+  const { components, pairs } = cpuParts(blocksPrefix);
+  return { id, name: "CPU", circuit: { components, junctions: [], wires: wires(pairs) } };
+}
+
+/** The cut CPU's parts and its wires as "part.port" pairs, before the wires are numbered. */
+function cpuParts(blocksPrefix) {
   const block = (partId, definition, x, y, props) => chip(partId, blocksPrefix + definition, x, y, props);
   const components = [
     input("clk", -12, 13),
@@ -111,7 +118,7 @@ function cpuDefinition(id, blocksPrefix) {
     block("outr", "reg8", 130, 0, { label: "OUT" }),
   ];
   const clocked = ["irl", "irh", "pcr", "t", "h", "a", "z", "c", "outr"];
-  const inside = wires([
+  const pairs = [
     ["clk.out", "one.a"],
     ["clk.out", "one.b"],
     ["clk.out", "zero.a"],
@@ -220,8 +227,36 @@ function cpuDefinition(id, blocksPrefix) {
     ["a.q", "outr.d"],
     ["outen.out", "outr.en"],
     ["outr.q", "out.in"],
-  ]);
-  return { id, name: "CPU", circuit: { components, junctions: [], wires: inside } };
+  ];
+  return { components, pairs };
+}
+
+/**
+ * Reference CPU 2 cut the same way (ADR 0041 item 6), with the same pins: the first CPU's cut with the parts and
+ * wires the example adds to the first CPU's sheet. The example's `pc` register is `pcr` here, and its SP LED is
+ * left out, since an LED inside a definition is a pin. The parts added sit below the first CPU's.
+ */
+function cpu2Definition(id, blocksPrefix) {
+  const { components, pairs } = cpuParts(blocksPrefix);
+  const rename = (end) => end.replace(/^pc\./, "pcr.");
+  const added = addedParts(() => [0, 0])
+    .filter((c) => c.id !== "spled")
+    .map((c, i) => ({
+      ...c,
+      ...(c.definition && { definition: blocksPrefix + c.definition }),
+      position: { x: (i % 12) * 14, y: 70 + Math.floor(i / 12) * 14 },
+    }));
+  const first = components
+    .filter((c) => c.id !== "opsplit")
+    .map((c) => {
+      if (c.id === "ctl") return { ...c, props: { label: "Control", width: CONTROL2.length, addressWidth: 8, data: control2 } };
+      if (c.id === "cs") return { ...c, props: { fields: ones(CONTROL2.length) } };
+      return c;
+    });
+  const kept = pairs.filter(([from, to]) => !moved.has(`${from.replace(/^pcr\./, "pc.")}>${to.replace(/^pcr\./, "pc.")}`));
+  if (kept.length !== pairs.length - moved.size) throw new Error("a wire Reference CPU 2 replaces is not on the cut CPU");
+  const more = addedPairs.filter(([from, to]) => !`${from} ${to}`.includes("spled.")).map(([from, to]) => [rename(from), rename(to)]);
+  return { id, name: "CPU 2", circuit: { components: [...first, ...added], junctions: [], wires: wires([...kept, ...more]) } };
 }
 
 // --- The screen interface --------------------------------------------------------
@@ -316,8 +351,11 @@ const programDefinition = (data = [], source) => ({
  * `slot` is the part under test: with "cpu" the CPU is the user's; with "program" the ROM is their
  * component; with "display" their component drives the screen where the bench's own register would.
  */
-function benchSheet(slot) {
+function benchSheet(bench) {
   const own = (id, definition, x, y, props) => chip(id, BENCH + definition, x, y, props);
+  // The cpu2 bench (ADR 0041) is the program bench round Reference CPU 2.
+  const cpuId = bench === "cpu2" ? "cpu2" : "cpu";
+  const slot = bench === "cpu2" ? "program" : bench;
   const mux = (id, x, label) => own(id, "mux8", x, 44, { label });
   const components = [
     part("clk", "switch", 0, 10, { label: "Clock" }),
@@ -325,7 +363,7 @@ function benchSheet(slot) {
     part("zero", "xor", 6, 44),
     part("zero8", "merge", 12, 44, { fields: ones(8) }),
     slot === "program" ? chip("program", "program", 10, 2, { label: "Program" }) : part("rom", "rom", 10, 2, { label: "Program", width: 16 }),
-    slot === "cpu" ? chip("cpu", "cpu", 24, 4, { label: "CPU" }) : own("cpu", "cpu", 24, 4, { label: "CPU" }),
+    slot === "cpu" ? chip("cpu", "cpu", 24, 4, { label: "CPU" }) : own("cpu", cpuId, 24, 4, { label: cpuId === "cpu2" ? "CPU 2" : "CPU" }),
     part("out", "led", 40, 0, { label: "Output", width: 8 }),
     part("fetch", "led", 40, 6, { label: "Fetch" }),
     part("halt", "led", 40, 10, { label: "Halted" }),
@@ -428,6 +466,9 @@ const block = (id) => blocks.find((d) => d.id === id);
 const benchBlocks = blocks.map((d) => plain(prefixed(BENCH, d)));
 /** The CPU the bench provides, built from the bench's own blocks. */
 const benchCpu = plain(cpuDefinition(`${BENCH}cpu`, BENCH));
+/** Reference CPU 2 as the cpu2 bench provides it, and the 4-bit register its stack pointer is. */
+const benchCpu2 = plain(cpu2Definition(`${BENCH}cpu2`, BENCH));
+const benchReg4 = plain(prefixed(BENCH, register("reg4", "Register 4", 4)));
 const cpu = cpuDefinition("cpu", "");
 const display = displayDefinition("reg8");
 const only = (...ids) => benchBlocks.filter((d) => ids.includes(d.id.slice(BENCH.length)));
@@ -440,6 +481,7 @@ export const computers = {
   cpu: { sheet: benchSheet("cpu"), reference: plain(cpu), empty: plain(pinsOnly(cpu)), given: blocks, owned: only("mux8", "reg8") },
   program: { sheet: benchSheet("program"), reference: null, empty: plain(programDefinition()), given: [], owned: [benchCpu, ...benchBlocks] },
   display: { sheet: benchSheet("display"), reference: plain(display), empty: plain(pinsOnly(display)), given: [block("reg8")], owned: [benchCpu, ...benchBlocks] },
+  cpu2: { sheet: benchSheet("cpu2"), reference: null, empty: plain(programDefinition()), given: [], owned: [benchCpu2, ...benchBlocks, benchReg4] },
 };
 /** The `program` component with `data` in its ROM, and `source` as the program editor shows it. */
 export const program = (data, source) => plain(programDefinition(data, source));
