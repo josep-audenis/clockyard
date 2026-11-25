@@ -237,6 +237,8 @@ const game = {
   },
 };
 
+// A Node without import.meta.main would skip the block below, and --check would pass unrun.
+if (import.meta.main === undefined) throw new Error("this script needs Node 22.18 or 24.2 or later");
 if (import.meta.main) {
   emit("reference-cpu-2.mjs", [
     ["reference-cpu-2", document],
