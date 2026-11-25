@@ -6,7 +6,7 @@ if (!entry) throw new Error("the inverter challenge is missing");
 const inverter = entry.challenge;
 
 test("every bundled challenge is listed in order, with a starter on its definition", () => {
-  expect(CHALLENGES.map((c) => c.name)).toEqual(["01-inverter", "02-xor", "03-half-adder", "04-full-adder", "05-adder8", "06-register", "07-register8", "08-counter8", "09-alu", "10-cpu", "11-program", "12-display", "13-decoder", "14-shifter", "15-stack"]);
+  expect(CHALLENGES.map((c) => c.name)).toEqual(["01-inverter", "02-xor", "03-half-adder", "04-full-adder", "05-adder8", "06-register", "07-register8", "08-counter8", "09-alu", "10-cpu", "11-program", "12-display", "13-decoder", "14-shifter", "15-stack", "16-drawing"]);
   for (const { name, challenge } of CHALLENGES) {
     const document = starterDocument(name, "2026-11-15T13:00:00.000Z");
     expect(document.metadata).toEqual({ name: challenge.title, createdAt: "2026-11-15T13:00:00.000Z", modifiedAt: "2026-11-15T13:00:00.000Z", challenge: name });
@@ -88,7 +88,7 @@ test("a value with unknown bits is written with X and Z digits (ADR 0035)", () =
 
 test("a bench challenge's text comes in paragraphs, its instructions one to a line; the others are one paragraph (ADR 0040)", () => {
   const text = (name: string) => findChallenge(name)?.challenge.text ?? "";
-  for (const name of ["10-cpu", "11-program", "12-display"]) expect(text(name).split("\n\n").length).toBeGreaterThan(2);
+  for (const name of ["10-cpu", "11-program", "12-display", "16-drawing"]) expect(text(name).split("\n\n").length).toBeGreaterThan(2);
   expect(text("10-cpu")).toContain("The opcodes:\n0 NOP: nothing\n1 LDI n: A = n\n");
   expect(text("11-program")).toContain("The instructions:\n0 NOP: nothing\n");
   for (const { name, challenge } of CHALLENGES) if (!challenge.bench) expect(challenge.text, name).not.toContain("\n");

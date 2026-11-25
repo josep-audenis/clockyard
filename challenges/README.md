@@ -20,8 +20,9 @@ writes them, and `pnpm verify` fails if they are out of date.
   empty (its pins only; an empty ROM for `program`). Definitions the bench
   owns have IDs starting `bench-`.
 - `benches/cpu2`: the `program` bench round Reference CPU 2 (ADR 0041), its
-  CPU cut the same way, with the return stack inside it. No challenge uses it
-  yet; challenge 16 will.
+  CPU cut the same way, with the return stack inside it, for challenge 16.
+  Its solution, `solutions/16-drawing`, is a program that calls a routine once
+  a pixel; the expected screens are the picture itself.
 - `solutions/10-cpu`, `11-program` and `12-display` are those benches with
   the reference part in the slot: the reference CPU cut along its memory
   boundary, a program that sums 1 to the key, and the screen interface. A
@@ -56,6 +57,7 @@ holds the cut CPU and the display, on their benches, to the same model of
 | `13-decoder` | `hi[8]` → `y[16]`: one line for each word `0xF0` to `0xFF` | gates, split, merge |
 | `14-shifter` | `A[8]`, `right` → `Y[8]`, `C`: `SHL` and `SHR` | gates, split, merge |
 | `15-stack` | `clk`, `push`, `pop`, `din[8]` → `top[8]`, `sp[4]`: 16 bytes pushed and popped | gates, dff, split, merge, ram (4-bit register and full adder provided) |
+| `16-drawing` | `addr[8]` → `word[16]`: a program for Reference CPU 2 that draws | rom (Reference CPU 2 provided on the bench) |
 
 A clocked challenge changes its data inputs with `clk` low, and nothing
 else in the step that raises `clk`, so every edge samples settled inputs.

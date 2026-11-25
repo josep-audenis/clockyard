@@ -202,6 +202,19 @@ What exists to build on:
    bench's with that CPU. `cpu2.rs` holds it to the model over the
    specification's examples and 40 random programs, 128 cycles each.
 
+   *As built (step 4):* challenge 16, `16-drawing`, with five runs, keys 1,
+   2, 7, 8 and 16. The reference program's routine, `plot`, shifts the mask
+   in a loop of seven instructions a bit, ending in `JNZ`; it takes 1,852
+   cycles for 16 pixels, so each run allows 3,800 (`DRAW_CYCLES` in
+   `scripts/cpu-runs.mjs`). That one count, for 16 pixels, is what is
+   written by hand and held to the model, not one count a key as item 7
+   says: the budget comes from it alone. Its words come from `reference-cpu-2.mjs`'s
+   assembler, which `challenges.rs` holds to `crates/asm`. The model moved to
+   `tests/common/cpu2.rs`. Each run's second step names no LED to expect:
+   `until` already fails it on `halt`, and naming `halt` again repeated the
+   mismatch. The check of all five runs took 0.2 s in Playwright's Chromium,
+   well under item 7's second, so the keys stay.
+
 ## Alternatives considered
 
 - **The decoder as a 4-to-16 line decoder of `which` alone,** or a 3-to-8

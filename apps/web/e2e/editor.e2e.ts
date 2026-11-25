@@ -2375,3 +2375,17 @@ test("challenges 13 to 15: each starter fails and each solution passes (ADR 0041
     await expect(checked(page)).toHaveText(`Passed, ${steps} of ${steps} steps.`);
   }
 });
+
+test("challenge 16: the starter never halts, and the reference drawing passes every run on Reference CPU 2 (ADR 0041)", async ({ page }) => {
+  await page.goto("/");
+  await openTab(page, "Learn");
+  await challenges(page).getByRole("button", { name: "16. Drawing" }).click();
+  await expect(challenge(page)).toContainText("Write a program for Reference CPU 2 that draws");
+  await challenge(page).getByRole("button", { name: "Check" }).click();
+  await expect(checked(page)).toHaveText("Run 1 pixel, step 2 of 3 failed. With key = 1: halt should be 1 but is 0; screen byte 0 should be 128 but is 0.");
+
+  await page.locator('[data-testid="import-file"]').setInputFiles(solution("16-drawing"));
+  await expect(page.getByLabel("Project name")).toHaveValue("Drawing: solution");
+  await challenge(page).getByRole("button", { name: "Check" }).click();
+  await expect(checked(page)).toHaveText("Passed all 5 runs, 15 steps: 1 pixel; 2 pixels; 7 pixels; 8 pixels; 16 pixels.");
+});
