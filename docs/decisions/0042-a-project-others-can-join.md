@@ -126,9 +126,7 @@ What there is today:
      the about page's footer links to it. `--check` fails if the file is
      out of date, as the other generators' files do. A shipped package with
      no license file in its directory fails the check.
-   - Line endings: license texts are read with `
-` made `
-`, and
+   - Line endings: license texts are read with each CRLF made LF, and
      `--check` compares the same way, as the other generators do, so a
      checkout with `core.autocrlf` and one without agree.
    - The list of shipped packages is the same on Windows and Linux (the
