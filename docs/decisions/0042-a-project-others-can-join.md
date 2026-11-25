@@ -40,7 +40,9 @@ What there is today:
   - Nothing checks any of this, and the fonts' OFL text does not travel
     with the build.
 - **`sim-core`** has 96 public items without documentation
-  (`-W missing_docs`). `cargo doc` is not run.
+  (`-W missing_docs`). `cargo doc` is not run, and with warnings as errors
+  it fails today: a public doc links to a private item
+  (`crates/sim-core/src/description.rs`, `ComponentDesc::widths`).
 - **Generators.** `scripts/reference-cpu.mjs` and `reference-cpu-2.mjs`
   write their files only `if (import.meta.main)`, which Node has from 22.18
   and 24.2. `package.json` asks for Node 22.13 or later. On 22.13 to 22.17,
@@ -56,8 +58,9 @@ What there is today:
    - `package.json`'s `engines.node` becomes `^22.18.0 || >=24.2.0`, the
      versions with `import.meta.main`.
    - Each script that tests `import.meta.main` first throws if it is
-     `undefined`: "this script needs Node 22.18 or 24.2 or later". Run
-     directly on an older Node, it fails, and `pnpm verify` stops.
+     `undefined`: "this script needs Node 22.18 or 24.2 or later". So a
+     script run on an older Node fails at once, and `pnpm verify` stops.
+     `challenges.mjs` imports both, so it fails the same way.
    - `scripts/challenges.mjs` and `benchmarks.mjs` run on import and
      already check for real; they are unchanged.
 
@@ -70,7 +73,8 @@ What there is today:
      after `--`, with no environment variable, so the same command runs in
      PowerShell and in a POSIX shell.
    - The 96 items are documented by what they mean in the simulation, from
-     `docs/simulation-model.md`, not by restating their names.
+     `docs/simulation-model.md`, not by restating their names; existing doc
+     links that fail, such as the one to a private item, are fixed first.
    - `asm` and `sim-wasm` are not in scope: the brief names the core as the
      part that could become a library.
 
@@ -80,8 +84,16 @@ What there is today:
      - `cargo metadata --format-version 1 --filter-platform
        wasm32-unknown-unknown`, walking the resolve graph from `sim-wasm`
        through normal dependencies: what the WASM module is built from;
-     - `pnpm licenses list --prod --json` for what the web build bundles,
+     - `pnpm licenses list --prod --json` for the web app's dependencies,
        and `pnpm licenses list --dev --json` for the tools.
+     - Both lists take in more than reaches the output: proc-macro crates
+       (`syn`, `serde_derive`, `wasm-bindgen-macro`, …) and type-only
+       packages (`@types/react`, `csstype`, …). That is deliberate: they
+       are held to the shipped list, the safe side, rather than sorted by
+       hand.
+     - The project's own crates (`sim-core`, `sim-wasm`, `asm`) are left
+       out of both the check and the notices: their license is the
+       repository's, `LICENSE-MIT` and `LICENSE-APACHE` at the root.
    - **Allowlists**, by SPDX expression:
      - shipped: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC,
        Unicode-3.0, Unlicense, Zlib, OFL-1.1. An `OR` passes if one side
@@ -90,18 +102,35 @@ What there is today:
        BlueOak-1.0.0. They are tools that never reach the output; MPL-2.0
        would need its files' sources offered if it were shipped, which is
        why it is not on the shipped list.
+     - **How an expression is read:** SPDX license IDs joined by `AND` and
+       `OR`, with parentheses honoured and `AND` binding tighter than `OR`.
+       Anything else fails as unknown and is named: `WITH`, the old
+       `MIT/Apache-2.0` slash form, `SEE LICENSE IN`, a missing license,
+       or pnpm's `Unknown`.
      - A package with no license, or one off its list, fails the check and
        names it. A new license is a decision for an ADR or an amendment,
        not a silent addition.
+     - **The fonts stay under the OFL.** They are not relicensed: they ship
+       beside the MIT OR Apache-2.0 code, which the OFL allows when their
+       copyright notice and license go with them and they are not sold on
+       their own. The notices file carries both.
    - **Names, not a snapshot.** The check compares licenses, not package
      lists, since the lists differ by platform (optional native packages).
    - **Notices travel with the build.** The script writes
      `apps/web/public/third-party-licenses.txt`: for each shipped package,
-     its name, version, license and the license text from its own
-     directory (`LICENSE*`, `LICENCE*`, `COPYING*`, `OFL*`). Vite copies it
-     into `dist/`; the about page's footer links to it. `--check` fails if
-     the file is out of date, as the other generators' files do. A shipped
-     package with no license file in its directory fails the check.
+     its name, version, license, and the text of every `LICENSE*`,
+     `LICENCE*`, `COPYING*`, `OFL*` and `NOTICE*` file in its own
+     directory (an Apache-2.0 `NOTICE` must travel with the work). The
+     directory is that of the crate's `manifest_path` for Rust, and the
+     package's `paths` entry from pnpm. Vite copies the file into `dist/`;
+     the about page's footer links to it. `--check` fails if the file is
+     out of date, as the other generators' files do. A shipped package with
+     no license file in its directory fails the check.
+   - Line endings: license texts are read with `
+` made `
+`, and
+     `--check` compares the same way, as the other generators do, so a
+     checkout with `core.autocrlf` and one without agree.
    - The list of shipped packages is the same on Windows and Linux (the
      prod tree has no optional native packages, and the Rust list is for
      one target), so the file is the same on both. Step 5's Linux run holds
@@ -143,8 +172,9 @@ What there is today:
        step, the roadmap updated, tests with the change;
      - what is out of scope, pointing at the roadmap's list;
      - licensing, as now, with the license check.
-   - The README's table: storage is IndexedDB with JSON files (ADR 0029),
-     and anything else stale there.
+   - The README: its table's storage row (IndexedDB with JSON files, ADR
+     0029), its Node requirement (22.13+ today; the new range), and
+     anything else stale there.
 
 6. **The target.** A fresh clone, set up by following `CONTRIBUTING.md`
    and nothing else, runs `pnpm verify` to the end:
