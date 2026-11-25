@@ -1,0 +1,647 @@
+{
+  "format": "clockyard",
+  "version": 10,
+  "metadata": {
+    "name": "Stack",
+    "createdAt": "2026-11-15T12:00:00.000Z",
+    "modifiedAt": "2026-11-15T12:00:00.000Z",
+    "challenge": "15-stack"
+  },
+  "circuit": {
+    "components": [],
+    "junctions": [],
+    "wires": []
+  },
+  "definitions": [
+    {
+      "id": "stack",
+      "name": "Stack",
+      "circuit": {
+        "components": [
+          {
+            "id": "clk",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "clk"
+            }
+          },
+          {
+            "id": "push",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "push"
+            }
+          },
+          {
+            "id": "pop",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {
+              "label": "pop"
+            }
+          },
+          {
+            "id": "din",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 12
+            },
+            "rotation": 0,
+            "props": {
+              "label": "din",
+              "width": 8
+            }
+          },
+          {
+            "id": "top",
+            "kind": "led",
+            "position": {
+              "x": 96,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "top",
+              "width": 8
+            }
+          },
+          {
+            "id": "sp",
+            "kind": "led",
+            "position": {
+              "x": 96,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "sp",
+              "width": 4
+            }
+          }
+        ],
+        "junctions": [],
+        "wires": []
+      }
+    },
+    {
+      "id": "reg4",
+      "name": "4-bit register",
+      "circuit": {
+        "components": [
+          {
+            "id": "d",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "d",
+              "width": 4
+            }
+          },
+          {
+            "id": "en",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "en"
+            }
+          },
+          {
+            "id": "clk",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 12
+            },
+            "rotation": 0,
+            "props": {
+              "label": "clk"
+            }
+          },
+          {
+            "id": "fill",
+            "kind": "merge",
+            "position": {
+              "x": 6,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "fields": [
+                1,
+                1,
+                1,
+                1
+              ]
+            }
+          },
+          {
+            "id": "ne",
+            "kind": "not",
+            "position": {
+              "x": 12,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {
+              "width": 4
+            }
+          },
+          {
+            "id": "g1",
+            "kind": "and",
+            "position": {
+              "x": 18,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "width": 4
+            }
+          },
+          {
+            "id": "g2",
+            "kind": "and",
+            "position": {
+              "x": 18,
+              "y": 6
+            },
+            "rotation": 0,
+            "props": {
+              "width": 4
+            }
+          },
+          {
+            "id": "g3",
+            "kind": "or",
+            "position": {
+              "x": 26,
+              "y": 2
+            },
+            "rotation": 0,
+            "props": {
+              "width": 4
+            }
+          },
+          {
+            "id": "r",
+            "kind": "dff",
+            "position": {
+              "x": 32,
+              "y": 2
+            },
+            "rotation": 0,
+            "props": {
+              "width": 4
+            }
+          },
+          {
+            "id": "q",
+            "kind": "led",
+            "position": {
+              "x": 42,
+              "y": 2
+            },
+            "rotation": 0,
+            "props": {
+              "label": "q",
+              "width": 4
+            }
+          }
+        ],
+        "junctions": [],
+        "wires": [
+          {
+            "id": "w0",
+            "from": {
+              "component": "en",
+              "port": "out"
+            },
+            "to": {
+              "component": "fill",
+              "port": "f0"
+            }
+          },
+          {
+            "id": "w1",
+            "from": {
+              "component": "en",
+              "port": "out"
+            },
+            "to": {
+              "component": "fill",
+              "port": "f1"
+            }
+          },
+          {
+            "id": "w2",
+            "from": {
+              "component": "en",
+              "port": "out"
+            },
+            "to": {
+              "component": "fill",
+              "port": "f2"
+            }
+          },
+          {
+            "id": "w3",
+            "from": {
+              "component": "en",
+              "port": "out"
+            },
+            "to": {
+              "component": "fill",
+              "port": "f3"
+            }
+          },
+          {
+            "id": "w4",
+            "from": {
+              "component": "fill",
+              "port": "out"
+            },
+            "to": {
+              "component": "ne",
+              "port": "in"
+            }
+          },
+          {
+            "id": "w5",
+            "from": {
+              "component": "d",
+              "port": "out"
+            },
+            "to": {
+              "component": "g1",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w6",
+            "from": {
+              "component": "fill",
+              "port": "out"
+            },
+            "to": {
+              "component": "g1",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w7",
+            "from": {
+              "component": "r",
+              "port": "q"
+            },
+            "to": {
+              "component": "g2",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w8",
+            "from": {
+              "component": "ne",
+              "port": "out"
+            },
+            "to": {
+              "component": "g2",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w9",
+            "from": {
+              "component": "g1",
+              "port": "out"
+            },
+            "to": {
+              "component": "g3",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w10",
+            "from": {
+              "component": "g2",
+              "port": "out"
+            },
+            "to": {
+              "component": "g3",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w11",
+            "from": {
+              "component": "g3",
+              "port": "out"
+            },
+            "to": {
+              "component": "r",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w12",
+            "from": {
+              "component": "clk",
+              "port": "out"
+            },
+            "to": {
+              "component": "r",
+              "port": "clk"
+            }
+          },
+          {
+            "id": "w13",
+            "from": {
+              "component": "r",
+              "port": "q"
+            },
+            "to": {
+              "component": "q",
+              "port": "in"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "full-adder",
+      "name": "Full adder",
+      "circuit": {
+        "components": [
+          {
+            "id": "A",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "A"
+            }
+          },
+          {
+            "id": "B",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "B"
+            }
+          },
+          {
+            "id": "Cin",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {
+              "label": "Cin"
+            }
+          },
+          {
+            "id": "S",
+            "kind": "led",
+            "position": {
+              "x": 30,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "S"
+            }
+          },
+          {
+            "id": "Cout",
+            "kind": "led",
+            "position": {
+              "x": 30,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "Cout"
+            }
+          },
+          {
+            "id": "x1",
+            "kind": "xor",
+            "position": {
+              "x": 8,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "x2",
+            "kind": "xor",
+            "position": {
+              "x": 18,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "n1",
+            "kind": "and",
+            "position": {
+              "x": 8,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "n2",
+            "kind": "and",
+            "position": {
+              "x": 18,
+              "y": 6
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "o",
+            "kind": "or",
+            "position": {
+              "x": 24,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {}
+          }
+        ],
+        "junctions": [],
+        "wires": [
+          {
+            "id": "w0",
+            "from": {
+              "component": "A",
+              "port": "out"
+            },
+            "to": {
+              "component": "x1",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w1",
+            "from": {
+              "component": "B",
+              "port": "out"
+            },
+            "to": {
+              "component": "x1",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w2",
+            "from": {
+              "component": "x1",
+              "port": "out"
+            },
+            "to": {
+              "component": "x2",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w3",
+            "from": {
+              "component": "Cin",
+              "port": "out"
+            },
+            "to": {
+              "component": "x2",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w4",
+            "from": {
+              "component": "x2",
+              "port": "out"
+            },
+            "to": {
+              "component": "S",
+              "port": "in"
+            }
+          },
+          {
+            "id": "w5",
+            "from": {
+              "component": "A",
+              "port": "out"
+            },
+            "to": {
+              "component": "n1",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w6",
+            "from": {
+              "component": "B",
+              "port": "out"
+            },
+            "to": {
+              "component": "n1",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w7",
+            "from": {
+              "component": "x1",
+              "port": "out"
+            },
+            "to": {
+              "component": "n2",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w8",
+            "from": {
+              "component": "Cin",
+              "port": "out"
+            },
+            "to": {
+              "component": "n2",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w9",
+            "from": {
+              "component": "n1",
+              "port": "out"
+            },
+            "to": {
+              "component": "o",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w10",
+            "from": {
+              "component": "n2",
+              "port": "out"
+            },
+            "to": {
+              "component": "o",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w11",
+            "from": {
+              "component": "o",
+              "port": "out"
+            },
+            "to": {
+              "component": "Cout",
+              "port": "in"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

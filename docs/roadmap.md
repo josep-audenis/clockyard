@@ -795,8 +795,10 @@ challenge 13, a decoder of the high byte to one line for each word `0xF0`
 to `0xFF`, and 14, a shifter for `SHL` and `SHR`, each checked on every
 input, with miswired circuits that fail. The native tests' projection now
 carries a gate's `inputCount`, as the editor's does, and the README's
-table lists both. Step 2, the stack, is
-next.
+table lists both. Step 2 is done: challenge 15, a stack of 16 bytes and a
+4-bit pointer, checked through seventeen pushes, pops past empty, steps
+that change nothing and inputs changed while `clk` is high, with four
+miswired stacks that fail. Step 3, the `cpu2` bench, is next.
 Rough edges still open, each by design (ADR 0040):
 
 - Wires kept after an edit can stay longer than needed until the file is
