@@ -859,9 +859,9 @@ const benchChallenges = [
       `And what Reference CPU 2 adds:\n${INSTRUCTIONS_2}`,
       "n is a number, such as 16 or 0xFF. RAM[n] is a byte of memory you can use, for n from 0 to 0xEF; every byte starts at 0, and so does A. " +
         "Z is set when A becomes 0, by a load, an addition, a subtraction, a logic instruction or a shift. C is set by an addition that carries, a subtraction that borrows nothing, or a shift. " +
-        "CALL and RET keep A, Z and C; the return addresses go on a stack of their own, 16 deep.",
+        "Z and C start at 0. CALL and RET keep A, Z and C; the return addresses go on a stack of their own, 16 deep.",
       "The screen is 64 pixels wide and 32 high, in 256 bytes, eight to a row: the pixel at column x, row y is in byte y × 8 + x / 8, rounded down, at bit 7 - x mod 8, so the most significant bit is the leftmost pixel. " +
-        "A store to 0xFE sets SPTR, the byte to draw. 0xFD is the byte SPTR points to: a load reads it, a store writes it.",
+        "A store to 0xFE sets SPTR, the byte to draw. 0xFD is the byte SPTR points to: an instruction that reads RAM[n] reads it, and a store writes it.",
       "The main sheet is the computer: set Key, then step the Clock switch or wire a clock in to watch your program draw.",
     ].join("\n\n"),
     parts: ["rom"],

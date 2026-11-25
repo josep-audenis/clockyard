@@ -206,7 +206,9 @@ What exists to build on:
    2, 7, 8 and 16. The reference program's routine, `plot`, shifts the mask
    in a loop of seven instructions a bit, ending in `JNZ`; it takes 1,852
    cycles for 16 pixels, so each run allows 3,800 (`DRAW_CYCLES` in
-   `scripts/cpu-runs.mjs`). Its words come from `reference-cpu-2.mjs`'s
+   `scripts/cpu-runs.mjs`). That one count, for 16 pixels, is what is
+   written by hand and held to the model, not one count a key as item 7
+   says: the budget comes from it alone. Its words come from `reference-cpu-2.mjs`'s
    assembler, which `challenges.rs` holds to `crates/asm`. The model moved to
    `tests/common/cpu2.rs`. Each run's second step names no LED to expect:
    `until` already fails it on `halt`, and naming `halt` again repeated the
