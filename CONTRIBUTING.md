@@ -37,6 +37,13 @@ You need Git, and:
    rustup target add wasm32-unknown-unknown
    ```
 
+   Cargo also needs a C linker. On Windows that is the Visual Studio C++ Build
+   Tools: rustup offers to install them, so accept. On Ubuntu:
+
+   ```bash
+   sudo apt install build-essential
+   ```
+
 2. **The `wasm-bindgen` CLI** at exactly the version `crates/sim-wasm/Cargo.toml`
    pins (`wasm-bindgen = "=0.2.130"` today; `pnpm wasm` says so if they differ):
 
@@ -46,7 +53,9 @@ You need Git, and:
 
 3. **Node.js** 22.18 or later on 22, or 24.2 or later, the range `package.json`
    gives in `engines`. The generators need `import.meta.main`, and refuse to run
-   without it.
+   without it. Install the LTS from [nodejs.org](https://nodejs.org), or use a
+   version manager such as fnm or nvm; distribution packages, such as Ubuntu's
+   `nodejs`, are older than 22.18.
 
 4. **pnpm** 10, the version `package.json` names in `packageManager`. With
    Corepack, which Node 22 and 24 include:
@@ -55,11 +64,14 @@ You need Git, and:
    corepack enable
    ```
 
-   Or without it:
+   Or without it (Node 25 and later no longer include Corepack):
 
    ```bash
    npm install -g pnpm@10.28.1
    ```
+
+   Either may need an administrator shell on Windows, or `sudo` on Linux with a
+   system-wide Node.
 
 5. **The dependencies**, from the repository's root. This also points Git at
    the repository's hooks (`.githooks/`):
@@ -131,8 +143,8 @@ by hand: change the script, run it, and commit both.
 |--------|--------|
 | `node scripts/reference-cpu.mjs` | `examples/reference-cpu.clockyard.json`, `examples/catch.clockyard.json` |
 | `node scripts/reference-cpu-2.mjs` | `examples/reference-cpu-2.clockyard.json`, `examples/catch-2.clockyard.json` |
-| `node scripts/challenges.mjs` | `challenges/`: the challenges, their benches, solutions and starters |
-| `node scripts/benchmarks.mjs` | `benchmarks/` (`--all` writes every size to the ignored `benchmarks/generated/`) |
+| `node scripts/challenges.mjs` | `challenges/`, but not its README: the challenges, their benches, solutions and starters |
+| `node scripts/benchmarks.mjs` | `benchmarks/*-1k.clockyard.json` (`--all` writes every size to the ignored `benchmarks/generated/`) |
 | `node scripts/licenses.mjs` | `apps/web/public/third-party-licenses.txt` |
 
 ## Making a change
@@ -165,8 +177,9 @@ accounts or network calls with user data, among others.
 ## Tests
 
 - Engine: unit tests for every gate truth table, propagation, fan-out, order
-  independence, oscillation handling, clocking, elaboration. Property-based
-  tests where an invariant exists.
+  independence, oscillation handling, clocking, elaboration. Where an
+  invariant exists, tests over many random cases, such as programs run
+  against a model of the CPU.
 - Frontend: document editing, serialization, import validation, worker
   protocol.
 - End-to-end: Playwright for core browser workflows.

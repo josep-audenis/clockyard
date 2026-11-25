@@ -21,7 +21,7 @@ an issue.
 
 ## Supported versions
 
-Only `main`, and the site built from it, is supported. There are no releases
+Only `main` is supported. There are no releases
 yet.
 
 ## Reporting
