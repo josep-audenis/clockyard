@@ -5,6 +5,8 @@
 //! and compiled into a netlist by [`Simulator::load`], then settled with
 //! synchronous deltas as described in `docs/simulation-model.md`.
 
+#![warn(missing_docs)]
+
 pub mod catalog;
 pub mod check;
 pub mod description;

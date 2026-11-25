@@ -26,11 +26,16 @@ const DUT: &str = "dut";
 pub struct Challenge {
     /// The ID of the definition to build, fixed by the starter document.
     pub definition: String,
+    /// The definition's input pins, by name and width. On the challenge's own
+    /// bench each becomes a switch that a step's `set` names.
     pub inputs: Vec<PinSpec>,
+    /// The definition's output pins, by name and width. On the challenge's own
+    /// bench each becomes an LED that a step's `expect` names.
     pub outputs: Vec<PinSpec>,
     /// The primitive kinds the definition may be built from, flattened; absent allows any.
     #[serde(default)]
     pub parts: Option<Vec<String>>,
+    /// For a challenge on its own bench: the steps, run in order on one simulator.
     #[serde(default)]
     pub steps: Vec<Step>,
     /// For a challenge with a bench (ADR 0034): each run starts a fresh bench.
@@ -45,16 +50,21 @@ pub struct Challenge {
 /// the challenge supplies the program, and the steps.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Run {
+    /// What the run is called in a report.
     pub name: String,
+    /// The program ROM's words from address 0; absent leaves the bench's.
     #[serde(default)]
     pub words: Option<Vec<u32>>,
+    /// The steps, in order, on this run's bench.
     pub steps: Vec<Step>,
 }
 
 /// A pin by its part's ID, as instances name their ports (ADR 0013), and its width.
 #[derive(Clone, Debug, Deserialize)]
 pub struct PinSpec {
+    /// The pin's name.
     pub name: String,
+    /// Its width in bits.
     pub width: u32,
 }
 
@@ -64,8 +74,12 @@ pub struct PinSpec {
 /// `memory`.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Step {
+    /// Inputs to set, by pin name, or on a bench by switch ID; the others keep
+    /// their values.
     #[serde(default)]
     pub set: BTreeMap<String, u32>,
+    /// Outputs to compare, by pin name, or on a bench by LED ID, once the
+    /// circuit settles after any cycles.
     #[serde(default)]
     pub expect: BTreeMap<String, u32>,
     /// Clock cycles to run: the bench's `clk` switch set to 1, then to 0.
@@ -91,15 +105,20 @@ const BENCH_ROM: &str = "rom";
 /// A pin's value, in the challenge's pin order.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Reading {
+    /// The pin's name.
     pub name: String,
+    /// Its value.
     pub value: u32,
 }
 
 /// An output that read other than the step expects.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Mismatch {
+    /// The output pin or bench LED, or a memory byte such as `ram[16]`.
     pub name: String,
+    /// What the step expects.
     pub expected: u32,
+    /// What it read.
     pub got: u32,
     /// The bits of `got` that are not known (ADR 0035): `X` where `got` has a 1, `Z` where it has a 0.
     #[serde(skip_serializing_if = "is_zero")]
@@ -110,24 +129,36 @@ fn is_zero(n: &u32) -> bool {
     *n == 0
 }
 
+/// The outcome of a check, sent to the editor tagged by `result`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "result", rename_all = "camelCase")]
 pub enum Report {
     /// Every step passed.
-    Passed { steps: usize },
+    Passed {
+        /// How many steps ran, over every run.
+        steps: usize,
+    },
     /// The first step whose outputs differ: its 0-based index, every input's
     /// value at that point, and the outputs that differ.
     /// On a bench, `run` names the run, and a memory byte is named `ram[16]`.
     Failed {
+        /// The run's name, on a bench.
         #[serde(skip_serializing_if = "Option::is_none")]
         run: Option<String>,
+        /// The step's 0-based index in its run, or in `steps` without a bench.
         step: usize,
+        /// The inputs' values at that step: every input pin, or on a bench each
+        /// input the run's steps have set so far.
         inputs: Vec<Reading>,
+        /// The outputs and memory bytes that differ.
         mismatches: Vec<Mismatch>,
     },
     /// Why the bench could not run: a missing or mis-sized pin, a part not
     /// allowed, errors in the circuit, or a loop that did not settle.
-    Refused { reason: String },
+    Refused {
+        /// Why, in a sentence for the user.
+        reason: String,
+    },
 }
 
 fn refused(reason: String) -> Report {

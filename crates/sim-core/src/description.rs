@@ -9,10 +9,12 @@ use crate::elaborate::CUSTOM;
 /// Geometry-free circuit projected from the editable document.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct CircuitDescription {
+    /// The parts on the top sheet.
     pub components: Vec<ComponentDesc>,
     /// Junction points joining wires into one net (ADR 0010).
     #[serde(default)]
     pub junctions: Vec<JunctionDesc>,
+    /// The wires on the top sheet.
     pub connections: Vec<Connection>,
     /// Custom component definitions that `custom` parts refer to (ADR 0012).
     #[serde(default)]
@@ -22,24 +24,34 @@ pub struct CircuitDescription {
 /// A reusable circuit. Its pins are switches (inputs) and LEDs (outputs) inside it.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct DefinitionDesc {
+    /// The ID that `custom` parts name in their `definition`.
     pub id: String,
+    /// The parts inside it.
     pub components: Vec<ComponentDesc>,
+    /// The junctions inside it.
     #[serde(default)]
     pub junctions: Vec<JunctionDesc>,
+    /// The wires inside it.
     pub connections: Vec<Connection>,
+    /// Its input pins: switches inside, driven from outside.
     pub inputs: Vec<PinDesc>,
+    /// Its output pins: LEDs inside, read from outside.
     pub outputs: Vec<PinDesc>,
 }
 
 /// A pin: the port name instances show, and the switch or LED inside that it is.
 #[derive(Clone, Debug, Deserialize)]
 pub struct PinDesc {
+    /// The port name an instance shows.
     pub name: String,
+    /// The ID of the switch or LED inside the definition.
     pub component: String,
 }
 
+/// A point where wires meet and join one net (ADR 0010), or a net label.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct JunctionDesc {
+    /// Its document ID, which wire ends name.
     pub id: String,
     /// A net label (ADR 0015): junctions with the same name on one sheet are one
     /// net. Empty or absent means a plain junction.
@@ -56,16 +68,19 @@ pub struct JunctionDesc {
     pub width: Option<u32>,
 }
 
+/// A part: its kind and props, with no position.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ComponentDesc {
+    /// Its document ID, which wire ends and diagnostics name.
     pub id: String,
+    /// A catalog name ([`Kind::from_name`]) or `custom`.
     pub kind: String,
     /// For `custom` parts: the definition it is an instance of.
     #[serde(default)]
     pub definition: Option<String>,
     /// Port width of a switch, LED or gate (ADR 0014); absent means 1. A plain
     /// number, so a bad one (2.5, -1) is reported as `invalidWidth` by
-    /// [`ComponentDesc::widths`] rather than failing the whole description.
+    /// [`ComponentDesc::shape`] rather than failing the whole description.
     #[serde(default)]
     pub width: Option<f64>,
     /// Field widths of a split or merge, least significant first.
@@ -250,8 +265,11 @@ impl ComponentDesc {
 /// normalizes direction and joins wires that share a port or junction into nets.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Connection {
+    /// Its document ID, which diagnostics name.
     pub id: String,
+    /// One end.
     pub from: Endpoint,
+    /// The other end.
     pub to: Endpoint,
 }
 
@@ -259,8 +277,13 @@ pub struct Connection {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(try_from = "RawEnd")]
 pub enum Endpoint {
+    /// A component's port.
     Port(PortRef),
-    Junction { junction: String },
+    /// A junction, by ID.
+    Junction {
+        /// The junction's ID.
+        junction: String,
+    },
 }
 
 /// The fields a wire end may carry, so a malformed one gets a message that
@@ -295,42 +318,75 @@ impl TryFrom<RawEnd> for Endpoint {
     }
 }
 
+/// A port of a part, by the part's ID and the port's name (`a`, `out`, …).
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct PortRef {
+    /// The part's ID.
     pub component: String,
+    /// The port's name.
     pub port: String,
 }
 
+/// Whether a diagnostic stops what reported it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
+    /// The circuit does not load, or the tick, run or check stops.
     Error,
+    /// Reported, and the circuit runs on.
     Warning,
 }
 
+/// What a diagnostic is about, sent to the editor in camelCase (`docs/simulation-model.md`,
+/// Diagnostics).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Code {
     // Validation
+    /// Two parts or junctions on one sheet, two wires on one sheet, or two
+    /// definitions share an ID.
     DuplicateId,
+    /// A part's kind is not in the catalog.
     UnknownKind,
+    /// A wire names a part that is not there.
     UnknownComponent,
+    /// A wire names a junction that is not there.
     UnknownJunction,
+    /// A wire names a port the part does not have.
     UnknownPort,
+    /// Outputs drive one net that nothing reads, and not all of them are
+    /// tri-state buffers (ADR 0035).
     OutputToOutput,
+    /// Inputs are joined with nothing driving them.
     InputToInput,
+    /// Outputs drive one net that is read, and not all of them are tri-state
+    /// buffers (ADR 0035).
     MultipleDrivers,
+    /// A warning: an input that nothing drives, which reads 0.
     UnconnectedInput,
+    /// A `custom` part names a definition that is not there.
     UnknownDefinition,
+    /// A definition contains itself, directly or through others (ADR 0012).
     RecursiveDefinition,
+    /// A definition's pin has no name, shares a name or a part with another pin,
+    /// or names no switch (input) or LED (output) inside it.
     InvalidPin,
+    /// The circuit, once custom parts are expanded, has too many parts, junctions
+    /// and wires, or memory words.
     TooLarge,
+    /// An ID containing `/`, which separates instance paths.
     InvalidId,
+    /// Ports of different widths share a net (ADR 0014).
     WidthMismatch,
+    /// A width, field list, address width or input count out of range, or on a part
+    /// that takes none.
     InvalidWidth,
+    /// A warning: a net label that no other junction on its sheet carries (ADR 0015).
     UnmatchedLabel,
+    /// A ROM's words that do not fit it, or data on a part that holds none (ADR 0018).
     InvalidContents,
     // Runtime
+    /// A loop that did not settle within the delta limit: an error.
     Unstable,
     /// A warning: a loop that did not settle left outputs at `X` (ADR 0035).
     Unsettled,
@@ -339,9 +395,13 @@ pub enum Code {
 /// A problem pointing at the document IDs (components, wires) involved.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Diagnostic {
+    /// Whether it stops what reported it.
     pub severity: Severity,
+    /// What it is about.
     pub code: Code,
+    /// What is wrong, in a sentence for the user.
     pub message: String,
+    /// The document IDs it points at, for the editor to highlight.
     pub ids: Vec<String>,
 }
 

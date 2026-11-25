@@ -24,23 +24,43 @@ pub(crate) fn mask(width: u32) -> u32 {
 /// A built-in primitive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
+    /// An input the user sets: `out`, 1 to 32 bits.
     Switch,
+    /// An output the user sees: `in`, 1 to 32 bits.
     Led,
+    /// `out` is the bitwise NOT of `in`.
     Not,
+    /// `out` is the bitwise AND of its inputs, `a` to `h`.
     And,
+    /// `out` is the bitwise NAND of its inputs.
     Nand,
+    /// `out` is the bitwise OR of its inputs.
     Or,
+    /// `out` is the bitwise NOR of its inputs.
     Nor,
+    /// `out` is the bitwise XOR of its inputs: 1 where an odd number are 1.
     Xor,
+    /// `out` is the bitwise XNOR of its inputs.
     Xnor,
+    /// Splits `in` into fields `f0`, `f1`, …, least significant first.
     Split,
+    /// Joins fields `f0`, `f1`, …, least significant first, into `out`.
     Merge,
+    /// A 1-bit `out` at the global clock's level: low on even ticks, high on odd (ADR 0017).
     Clock,
+    /// A D flip-flop, or a register when wide: `q` takes `d` on a rising `clk`.
     Dff,
+    /// `out` is the word of `data` at `addr` (ADR 0018).
     Rom,
+    /// `out` is the word at `addr`; a rising `clk` writes `din` there while `we` is 1.
     Ram,
+    /// A seven-segment display: an LED with an 8-bit `seg`, bit 0 segment a to
+    /// bit 6 g, bit 7 the point (ADR 0021).
     Seg7,
+    /// A RAM whose words are its pixels (ADR 0021).
     Screen,
+    /// A switch with an 8-bit `out`: the code of the key held, or 0 when none
+    /// is (ADR 0021).
     Keyboard,
     /// A tri-state buffer (ADR 0035): `out` is `in` while `en` is 1, and drives nothing while it is 0.
     Tri,
@@ -51,12 +71,16 @@ pub enum Kind {
 /// One port of a part, with the width its props give it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Port {
+    /// Its name, which wire ends use: `in`, `out`, `a`, `f0`, ….
     pub name: Cow<'static, str>,
+    /// Its width in bits, 1 to 32.
     pub width: u32,
+    /// Whether the part drives it.
     pub output: bool,
 }
 
 impl Kind {
+    /// Every kind, in catalog order.
     pub const ALL: [Kind; 20] = [
         Kind::Switch,
         Kind::Led,
@@ -106,6 +130,7 @@ impl Kind {
         }
     }
 
+    /// The kind a description's name stands for, if it is in the catalog.
     pub fn from_name(name: &str) -> Option<Kind> {
         Kind::ALL.into_iter().find(|kind| kind.name() == name)
     }

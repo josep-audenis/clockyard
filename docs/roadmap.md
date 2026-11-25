@@ -817,7 +817,12 @@ Increment 5, a project others can join, is planned in ADR 0042 in five
 steps. Step 1 is done: `package.json` asks for Node 22.18 or later on 22,
 or 24.2 or later, the versions with `import.meta.main`, and the two
 reference-CPU generators throw on a Node without it, so their `--check`
-cannot pass unrun. Next is step 2, `sim-core` documented.
+cannot pass unrun. Step 2 is done: `sim-core` warns on a public item
+without documentation, which Clippy's `-D warnings` makes an error, and
+its 96 undocumented items now say what they mean in the simulation.
+`cargo rustdoc -p sim-core -- -D warnings` runs in `pnpm verify` after the
+tests, a second or two, so a broken doc link fails it too. Next is step 3,
+the license check.
 Rough edges still open, each by design (ADR 0040):
 
 - Wires kept after an edit can stay longer than needed until the file is
