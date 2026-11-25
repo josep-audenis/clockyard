@@ -193,6 +193,22 @@ What there is today:
    5. The two fresh-clone runs, fixes they call for, and the roadmap: Phase
       7 done.
 
+   *As built (step 1):* as planned; the README's Node line changed with
+   the range.
+
+   *As built (step 2):* as planned. The doc build takes a second or two.
+
+   *As built (step 3):* `@pixi/colord`, a fork of `colord` that `pixi.js`
+   ships, carries no license file, though its `package.json` says MIT.
+   Its upstream text, the MIT license with Vlad Shilov's copyright, is
+   kept in `scripts/license-texts/@pixi+colord.txt`, and the notices file
+   marks it as kept there. A shipped package with no file of its own and
+   none kept there still fails the check; a kept text is added only with
+   the package's own source for it. The check reads its expressions with a
+   small reader that tests itself each run, and the whole check takes
+   about a second. The notices file is some 210 KB, fetched only from the
+   about page's link.
+
 ## Alternatives considered
 
 - **Hosted CI now,** so a Linux run happens on every push. ADR 0009 chose
