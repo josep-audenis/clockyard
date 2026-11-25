@@ -2357,3 +2357,20 @@ test("rough edges (ADR 0040): Make component on one gate gives a chip clear of t
   expect(await paragraphs.count()).toBeGreaterThan(4);
   await expect(challenge(page).getByText(/^The opcodes:/)).toContainText("0 NOP: nothing");
 });
+
+test("challenges 13 and 14: each starter fails and each solution passes (ADR 0041)", async ({ page }) => {
+  await page.goto("/");
+  for (const [button, name, title, steps, failure] of [
+    ["13. Instruction decoder", "13-decoder", "Instruction decoder", 256, /^Step 241 of 256 failed\. With hi = /],
+    ["14. Shifter", "14-shifter", "Shifter", 512, /^Step 2 of 512 failed\. With A = 1, right = 0: /],
+  ] as const) {
+    await openTab(page, "Learn");
+    await challenges(page).getByRole("button", { name: button }).click();
+    await challenge(page).getByRole("button", { name: "Check" }).click();
+    await expect(checked(page)).toHaveText(failure);
+    await page.locator('[data-testid="import-file"]').setInputFiles(solution(name));
+    await expect(page.getByLabel("Project name")).toHaveValue(`${title}: solution`);
+    await challenge(page).getByRole("button", { name: "Check" }).click();
+    await expect(checked(page)).toHaveText(`Passed, ${steps} of ${steps} steps.`);
+  }
+});

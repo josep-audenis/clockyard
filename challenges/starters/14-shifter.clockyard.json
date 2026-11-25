@@ -1,0 +1,77 @@
+{
+  "format": "clockyard",
+  "version": 10,
+  "metadata": {
+    "name": "Shifter",
+    "createdAt": "2026-11-15T12:00:00.000Z",
+    "modifiedAt": "2026-11-15T12:00:00.000Z",
+    "challenge": "14-shifter"
+  },
+  "circuit": {
+    "components": [],
+    "junctions": [],
+    "wires": []
+  },
+  "definitions": [
+    {
+      "id": "shifter",
+      "name": "Shifter",
+      "circuit": {
+        "components": [
+          {
+            "id": "A",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "A",
+              "width": 8
+            }
+          },
+          {
+            "id": "right",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "right"
+            }
+          },
+          {
+            "id": "Y",
+            "kind": "led",
+            "position": {
+              "x": 44,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "Y",
+              "width": 8
+            }
+          },
+          {
+            "id": "C",
+            "kind": "led",
+            "position": {
+              "x": 44,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {
+              "label": "C"
+            }
+          }
+        ],
+        "junctions": [],
+        "wires": []
+      }
+    }
+  ]
+}

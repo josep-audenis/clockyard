@@ -36,7 +36,7 @@ struct Part {
     props: Props,
 }
 
-/// The props the editor projects to the engine (ADRs 0014, 0018); `label` and `source` stay in the editor.
+/// The props the editor projects to the engine (ADRs 0014, 0018, 0038); `label` and `source` stay in the editor.
 #[derive(Default, Deserialize)]
 struct Props {
     width: Option<f64>,
@@ -44,6 +44,8 @@ struct Props {
     #[serde(rename = "addressWidth")]
     address_width: Option<f64>,
     data: Option<Vec<f64>>,
+    #[serde(rename = "inputCount")]
+    input_count: Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -85,6 +87,7 @@ pub fn description(text: &str) -> CircuitDescription {
                 fields: p.props.fields.clone(),
                 address_width: p.props.address_width,
                 data: p.props.data.clone(),
+                input_count: p.props.input_count,
                 ..p.desc.clone()
             })
             .collect::<Vec<_>>()

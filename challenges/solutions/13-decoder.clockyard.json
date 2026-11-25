@@ -1,0 +1,1986 @@
+{
+  "format": "clockyard",
+  "version": 10,
+  "metadata": {
+    "name": "Instruction decoder: solution",
+    "createdAt": "2026-11-15T12:00:00.000Z",
+    "modifiedAt": "2026-11-15T12:00:00.000Z",
+    "challenge": "13-decoder"
+  },
+  "circuit": {
+    "components": [],
+    "junctions": [],
+    "wires": []
+  },
+  "definitions": [
+    {
+      "id": "decoder",
+      "name": "Decoder",
+      "circuit": {
+        "components": [
+          {
+            "id": "hi",
+            "kind": "switch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "hi",
+              "width": 8
+            }
+          },
+          {
+            "id": "y",
+            "kind": "led",
+            "position": {
+              "x": 56,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "label": "y",
+              "width": 16
+            }
+          },
+          {
+            "id": "s",
+            "kind": "split",
+            "position": {
+              "x": 6,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "fields": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ]
+            }
+          },
+          {
+            "id": "n0",
+            "kind": "not",
+            "position": {
+              "x": 14,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "n1",
+            "kind": "not",
+            "position": {
+              "x": 14,
+              "y": 4
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "n2",
+            "kind": "not",
+            "position": {
+              "x": 14,
+              "y": 8
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "n3",
+            "kind": "not",
+            "position": {
+              "x": 14,
+              "y": 12
+            },
+            "rotation": 0,
+            "props": {}
+          },
+          {
+            "id": "g0",
+            "kind": "and",
+            "position": {
+              "x": 22,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g1",
+            "kind": "and",
+            "position": {
+              "x": 22,
+              "y": 18
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g2",
+            "kind": "and",
+            "position": {
+              "x": 22,
+              "y": 36
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g3",
+            "kind": "and",
+            "position": {
+              "x": 22,
+              "y": 54
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g4",
+            "kind": "and",
+            "position": {
+              "x": 22,
+              "y": 72
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g5",
+            "kind": "and",
+            "position": {
+              "x": 22,
+              "y": 90
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g6",
+            "kind": "and",
+            "position": {
+              "x": 22,
+              "y": 108
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g7",
+            "kind": "and",
+            "position": {
+              "x": 22,
+              "y": 126
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g8",
+            "kind": "and",
+            "position": {
+              "x": 32,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g9",
+            "kind": "and",
+            "position": {
+              "x": 32,
+              "y": 18
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g10",
+            "kind": "and",
+            "position": {
+              "x": 32,
+              "y": 36
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g11",
+            "kind": "and",
+            "position": {
+              "x": 32,
+              "y": 54
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g12",
+            "kind": "and",
+            "position": {
+              "x": 32,
+              "y": 72
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g13",
+            "kind": "and",
+            "position": {
+              "x": 32,
+              "y": 90
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g14",
+            "kind": "and",
+            "position": {
+              "x": 32,
+              "y": 108
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "g15",
+            "kind": "and",
+            "position": {
+              "x": 32,
+              "y": 126
+            },
+            "rotation": 0,
+            "props": {
+              "inputCount": 8
+            }
+          },
+          {
+            "id": "m",
+            "kind": "merge",
+            "position": {
+              "x": 46,
+              "y": 0
+            },
+            "rotation": 0,
+            "props": {
+              "fields": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ]
+            }
+          }
+        ],
+        "junctions": [],
+        "wires": [
+          {
+            "id": "w0",
+            "from": {
+              "component": "hi",
+              "port": "out"
+            },
+            "to": {
+              "component": "s",
+              "port": "in"
+            }
+          },
+          {
+            "id": "w1",
+            "from": {
+              "component": "s",
+              "port": "f0"
+            },
+            "to": {
+              "component": "n0",
+              "port": "in"
+            }
+          },
+          {
+            "id": "w2",
+            "from": {
+              "component": "s",
+              "port": "f1"
+            },
+            "to": {
+              "component": "n1",
+              "port": "in"
+            }
+          },
+          {
+            "id": "w3",
+            "from": {
+              "component": "s",
+              "port": "f2"
+            },
+            "to": {
+              "component": "n2",
+              "port": "in"
+            }
+          },
+          {
+            "id": "w4",
+            "from": {
+              "component": "s",
+              "port": "f3"
+            },
+            "to": {
+              "component": "n3",
+              "port": "in"
+            }
+          },
+          {
+            "id": "w5",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g0",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w6",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g0",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w7",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g0",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w8",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g0",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w9",
+            "from": {
+              "component": "n0",
+              "port": "out"
+            },
+            "to": {
+              "component": "g0",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w10",
+            "from": {
+              "component": "n1",
+              "port": "out"
+            },
+            "to": {
+              "component": "g0",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w11",
+            "from": {
+              "component": "n2",
+              "port": "out"
+            },
+            "to": {
+              "component": "g0",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w12",
+            "from": {
+              "component": "n3",
+              "port": "out"
+            },
+            "to": {
+              "component": "g0",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w13",
+            "from": {
+              "component": "g0",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f0"
+            }
+          },
+          {
+            "id": "w14",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g1",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w15",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g1",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w16",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g1",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w17",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g1",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w18",
+            "from": {
+              "component": "s",
+              "port": "f0"
+            },
+            "to": {
+              "component": "g1",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w19",
+            "from": {
+              "component": "n1",
+              "port": "out"
+            },
+            "to": {
+              "component": "g1",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w20",
+            "from": {
+              "component": "n2",
+              "port": "out"
+            },
+            "to": {
+              "component": "g1",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w21",
+            "from": {
+              "component": "n3",
+              "port": "out"
+            },
+            "to": {
+              "component": "g1",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w22",
+            "from": {
+              "component": "g1",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f1"
+            }
+          },
+          {
+            "id": "w23",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g2",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w24",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g2",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w25",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g2",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w26",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g2",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w27",
+            "from": {
+              "component": "n0",
+              "port": "out"
+            },
+            "to": {
+              "component": "g2",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w28",
+            "from": {
+              "component": "s",
+              "port": "f1"
+            },
+            "to": {
+              "component": "g2",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w29",
+            "from": {
+              "component": "n2",
+              "port": "out"
+            },
+            "to": {
+              "component": "g2",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w30",
+            "from": {
+              "component": "n3",
+              "port": "out"
+            },
+            "to": {
+              "component": "g2",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w31",
+            "from": {
+              "component": "g2",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f2"
+            }
+          },
+          {
+            "id": "w32",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g3",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w33",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g3",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w34",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g3",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w35",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g3",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w36",
+            "from": {
+              "component": "s",
+              "port": "f0"
+            },
+            "to": {
+              "component": "g3",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w37",
+            "from": {
+              "component": "s",
+              "port": "f1"
+            },
+            "to": {
+              "component": "g3",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w38",
+            "from": {
+              "component": "n2",
+              "port": "out"
+            },
+            "to": {
+              "component": "g3",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w39",
+            "from": {
+              "component": "n3",
+              "port": "out"
+            },
+            "to": {
+              "component": "g3",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w40",
+            "from": {
+              "component": "g3",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f3"
+            }
+          },
+          {
+            "id": "w41",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g4",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w42",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g4",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w43",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g4",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w44",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g4",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w45",
+            "from": {
+              "component": "n0",
+              "port": "out"
+            },
+            "to": {
+              "component": "g4",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w46",
+            "from": {
+              "component": "n1",
+              "port": "out"
+            },
+            "to": {
+              "component": "g4",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w47",
+            "from": {
+              "component": "s",
+              "port": "f2"
+            },
+            "to": {
+              "component": "g4",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w48",
+            "from": {
+              "component": "n3",
+              "port": "out"
+            },
+            "to": {
+              "component": "g4",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w49",
+            "from": {
+              "component": "g4",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f4"
+            }
+          },
+          {
+            "id": "w50",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g5",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w51",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g5",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w52",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g5",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w53",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g5",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w54",
+            "from": {
+              "component": "s",
+              "port": "f0"
+            },
+            "to": {
+              "component": "g5",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w55",
+            "from": {
+              "component": "n1",
+              "port": "out"
+            },
+            "to": {
+              "component": "g5",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w56",
+            "from": {
+              "component": "s",
+              "port": "f2"
+            },
+            "to": {
+              "component": "g5",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w57",
+            "from": {
+              "component": "n3",
+              "port": "out"
+            },
+            "to": {
+              "component": "g5",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w58",
+            "from": {
+              "component": "g5",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f5"
+            }
+          },
+          {
+            "id": "w59",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g6",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w60",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g6",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w61",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g6",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w62",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g6",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w63",
+            "from": {
+              "component": "n0",
+              "port": "out"
+            },
+            "to": {
+              "component": "g6",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w64",
+            "from": {
+              "component": "s",
+              "port": "f1"
+            },
+            "to": {
+              "component": "g6",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w65",
+            "from": {
+              "component": "s",
+              "port": "f2"
+            },
+            "to": {
+              "component": "g6",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w66",
+            "from": {
+              "component": "n3",
+              "port": "out"
+            },
+            "to": {
+              "component": "g6",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w67",
+            "from": {
+              "component": "g6",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f6"
+            }
+          },
+          {
+            "id": "w68",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g7",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w69",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g7",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w70",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g7",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w71",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g7",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w72",
+            "from": {
+              "component": "s",
+              "port": "f0"
+            },
+            "to": {
+              "component": "g7",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w73",
+            "from": {
+              "component": "s",
+              "port": "f1"
+            },
+            "to": {
+              "component": "g7",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w74",
+            "from": {
+              "component": "s",
+              "port": "f2"
+            },
+            "to": {
+              "component": "g7",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w75",
+            "from": {
+              "component": "n3",
+              "port": "out"
+            },
+            "to": {
+              "component": "g7",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w76",
+            "from": {
+              "component": "g7",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f7"
+            }
+          },
+          {
+            "id": "w77",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g8",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w78",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g8",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w79",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g8",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w80",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g8",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w81",
+            "from": {
+              "component": "n0",
+              "port": "out"
+            },
+            "to": {
+              "component": "g8",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w82",
+            "from": {
+              "component": "n1",
+              "port": "out"
+            },
+            "to": {
+              "component": "g8",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w83",
+            "from": {
+              "component": "n2",
+              "port": "out"
+            },
+            "to": {
+              "component": "g8",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w84",
+            "from": {
+              "component": "s",
+              "port": "f3"
+            },
+            "to": {
+              "component": "g8",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w85",
+            "from": {
+              "component": "g8",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f8"
+            }
+          },
+          {
+            "id": "w86",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g9",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w87",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g9",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w88",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g9",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w89",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g9",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w90",
+            "from": {
+              "component": "s",
+              "port": "f0"
+            },
+            "to": {
+              "component": "g9",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w91",
+            "from": {
+              "component": "n1",
+              "port": "out"
+            },
+            "to": {
+              "component": "g9",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w92",
+            "from": {
+              "component": "n2",
+              "port": "out"
+            },
+            "to": {
+              "component": "g9",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w93",
+            "from": {
+              "component": "s",
+              "port": "f3"
+            },
+            "to": {
+              "component": "g9",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w94",
+            "from": {
+              "component": "g9",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f9"
+            }
+          },
+          {
+            "id": "w95",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g10",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w96",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g10",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w97",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g10",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w98",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g10",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w99",
+            "from": {
+              "component": "n0",
+              "port": "out"
+            },
+            "to": {
+              "component": "g10",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w100",
+            "from": {
+              "component": "s",
+              "port": "f1"
+            },
+            "to": {
+              "component": "g10",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w101",
+            "from": {
+              "component": "n2",
+              "port": "out"
+            },
+            "to": {
+              "component": "g10",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w102",
+            "from": {
+              "component": "s",
+              "port": "f3"
+            },
+            "to": {
+              "component": "g10",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w103",
+            "from": {
+              "component": "g10",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f10"
+            }
+          },
+          {
+            "id": "w104",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g11",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w105",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g11",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w106",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g11",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w107",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g11",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w108",
+            "from": {
+              "component": "s",
+              "port": "f0"
+            },
+            "to": {
+              "component": "g11",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w109",
+            "from": {
+              "component": "s",
+              "port": "f1"
+            },
+            "to": {
+              "component": "g11",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w110",
+            "from": {
+              "component": "n2",
+              "port": "out"
+            },
+            "to": {
+              "component": "g11",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w111",
+            "from": {
+              "component": "s",
+              "port": "f3"
+            },
+            "to": {
+              "component": "g11",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w112",
+            "from": {
+              "component": "g11",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f11"
+            }
+          },
+          {
+            "id": "w113",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g12",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w114",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g12",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w115",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g12",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w116",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g12",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w117",
+            "from": {
+              "component": "n0",
+              "port": "out"
+            },
+            "to": {
+              "component": "g12",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w118",
+            "from": {
+              "component": "n1",
+              "port": "out"
+            },
+            "to": {
+              "component": "g12",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w119",
+            "from": {
+              "component": "s",
+              "port": "f2"
+            },
+            "to": {
+              "component": "g12",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w120",
+            "from": {
+              "component": "s",
+              "port": "f3"
+            },
+            "to": {
+              "component": "g12",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w121",
+            "from": {
+              "component": "g12",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f12"
+            }
+          },
+          {
+            "id": "w122",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g13",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w123",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g13",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w124",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g13",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w125",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g13",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w126",
+            "from": {
+              "component": "s",
+              "port": "f0"
+            },
+            "to": {
+              "component": "g13",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w127",
+            "from": {
+              "component": "n1",
+              "port": "out"
+            },
+            "to": {
+              "component": "g13",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w128",
+            "from": {
+              "component": "s",
+              "port": "f2"
+            },
+            "to": {
+              "component": "g13",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w129",
+            "from": {
+              "component": "s",
+              "port": "f3"
+            },
+            "to": {
+              "component": "g13",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w130",
+            "from": {
+              "component": "g13",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f13"
+            }
+          },
+          {
+            "id": "w131",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g14",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w132",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g14",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w133",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g14",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w134",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g14",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w135",
+            "from": {
+              "component": "n0",
+              "port": "out"
+            },
+            "to": {
+              "component": "g14",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w136",
+            "from": {
+              "component": "s",
+              "port": "f1"
+            },
+            "to": {
+              "component": "g14",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w137",
+            "from": {
+              "component": "s",
+              "port": "f2"
+            },
+            "to": {
+              "component": "g14",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w138",
+            "from": {
+              "component": "s",
+              "port": "f3"
+            },
+            "to": {
+              "component": "g14",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w139",
+            "from": {
+              "component": "g14",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f14"
+            }
+          },
+          {
+            "id": "w140",
+            "from": {
+              "component": "s",
+              "port": "f4"
+            },
+            "to": {
+              "component": "g15",
+              "port": "a"
+            }
+          },
+          {
+            "id": "w141",
+            "from": {
+              "component": "s",
+              "port": "f5"
+            },
+            "to": {
+              "component": "g15",
+              "port": "b"
+            }
+          },
+          {
+            "id": "w142",
+            "from": {
+              "component": "s",
+              "port": "f6"
+            },
+            "to": {
+              "component": "g15",
+              "port": "c"
+            }
+          },
+          {
+            "id": "w143",
+            "from": {
+              "component": "s",
+              "port": "f7"
+            },
+            "to": {
+              "component": "g15",
+              "port": "d"
+            }
+          },
+          {
+            "id": "w144",
+            "from": {
+              "component": "s",
+              "port": "f0"
+            },
+            "to": {
+              "component": "g15",
+              "port": "e"
+            }
+          },
+          {
+            "id": "w145",
+            "from": {
+              "component": "s",
+              "port": "f1"
+            },
+            "to": {
+              "component": "g15",
+              "port": "f"
+            }
+          },
+          {
+            "id": "w146",
+            "from": {
+              "component": "s",
+              "port": "f2"
+            },
+            "to": {
+              "component": "g15",
+              "port": "g"
+            }
+          },
+          {
+            "id": "w147",
+            "from": {
+              "component": "s",
+              "port": "f3"
+            },
+            "to": {
+              "component": "g15",
+              "port": "h"
+            }
+          },
+          {
+            "id": "w148",
+            "from": {
+              "component": "g15",
+              "port": "out"
+            },
+            "to": {
+              "component": "m",
+              "port": "f15"
+            }
+          },
+          {
+            "id": "w149",
+            "from": {
+              "component": "m",
+              "port": "out"
+            },
+            "to": {
+              "component": "y",
+              "port": "in"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

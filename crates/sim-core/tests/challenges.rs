@@ -69,7 +69,7 @@ fn refusal(report: Report) -> String {
 }
 
 #[test]
-fn there_are_twelve_challenges() {
+fn there_are_fourteen_challenges() {
     assert_eq!(
         all(),
         [
@@ -84,7 +84,9 @@ fn there_are_twelve_challenges() {
             "09-alu",
             "10-cpu",
             "11-program",
-            "12-display"
+            "12-display",
+            "13-decoder",
+            "14-shifter"
         ]
     );
 }
@@ -335,6 +337,35 @@ fn plausible_wrong_circuits_fail() {
     // A zero flag that reads bit 6 twice and never bit 7.
     Mutant::new("09-alu")
         .rewire(("o3", "b"), ("sy", "f6"))
+        .fails();
+
+    // A decoder that ignores the high nibble: each line reads its low bit 0 in place of bits 4 to 7.
+    (0..16)
+        .fold(Mutant::new("13-decoder"), |m, k| {
+            let bit0 = if k & 1 == 1 {
+                ("s", "f0")
+            } else {
+                ("n0", "out")
+            };
+            let gate = format!("g{k}");
+            ["a", "b", "c", "d"]
+                .iter()
+                .fold(m, |m, input| m.rewire((gate.as_str(), input), bit0))
+        })
+        .fails();
+
+    // A decoder with two lines swapped.
+    Mutant::new("13-decoder")
+        .rewire(("m", "f2"), ("g3", "out"))
+        .rewire(("m", "f3"), ("g2", "out"))
+        .fails();
+
+    // A shifter whose C going left is bit 6, and one whose bit 7 going left is bit 7.
+    Mutant::new("14-shifter")
+        .rewire(("l8", "a"), ("sa", "f6"))
+        .fails();
+    Mutant::new("14-shifter")
+        .rewire(("l7", "a"), ("sa", "f7"))
         .fails();
 }
 
