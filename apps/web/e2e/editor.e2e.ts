@@ -202,6 +202,8 @@ const checked = (page: Page) => challenge(page).locator(".challenge-result");
 // A bench check takes about 0.2 s alone; the margin is for a loaded machine (a WSL run took over 5 s), and its
 // tests are marked slow so their budget holds several checks.
 const BENCH_CHECK = { timeout: 15_000 };
+// The two biggest examples (about 170 KB each) are fetched and read when opened; a loaded machine took over 5 s.
+const BIG_EXAMPLE = { timeout: 15_000 };
 
 test("start the inverter challenge, build it from a NAND gate, Check passes; a link reopens it with its panel (ADR 0025)", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
@@ -1323,7 +1325,7 @@ test("Reference CPU 2 draws its line one pixel at a time, calling one routine 32
   await page.goto("/");
   await openTab(page, "Learn");
   await page.getByRole("region", { name: "EXAMPLES" }).getByRole("button", { name: "Reference CPU 2" }).click();
-  await expect(page.getByRole("textbox", { name: "Notes" })).toHaveValue(/^Reference CPU 2 \(docs\/reference-cpu-2\.md\)/);
+  await expect(page.getByRole("textbox", { name: "Notes" })).toHaveValue(/^Reference CPU 2 \(docs\/reference-cpu-2\.md\)/, BIG_EXAMPLE);
   await expect(counter(page)).toHaveText("Cycle 0, clock low");
   // The stack pointer is on the sheet, with its LED.
   await expect(readout(page, "LED SP")).toHaveText("LED SP: 0 (0x0)");
@@ -1647,7 +1649,7 @@ test("game demo: in Catch 2 the paddle moves a pixel at a time, under a block in
   await page.goto("/");
   await openTab(page, "Learn");
   await page.getByRole("region", { name: "EXAMPLES" }).getByRole("button", { name: "Catch 2" }).click();
-  await expect(page.getByRole("textbox", { name: "Notes" })).toHaveValue(/^Catch, drawn in single pixels/);
+  await expect(page.getByRole("textbox", { name: "Notes" })).toHaveValue(/^Catch, drawn in single pixels/, BIG_EXAMPLE);
   await expect(counter(page)).toHaveText("Cycle 0, clock low");
   const at = await grid(page);
   const button = (name: string) => page.getByRole("button", { name, exact: true });
@@ -2132,7 +2134,8 @@ test("a push button is held by the pointer on its cap, and by its key once the c
   await expect(button).toHaveText("Push button 1: held");
   await touch("touchStart", [cap, led]);
   for (let i = 1; i <= 5; i++) await touch("touchMove", [{ x: cap.x + 1, y: cap.y }, { x: led.x, y: led.y + ((to.y - led.y) * i) / 5 }]);
-  await touch("touchEnd", [cap]);
+  // A touchEnd names the points that lift, not those that stay: this lifts the LED's finger, and the cap stays held.
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [{ x: to.x, y: to.y, id: 1 }] });
   await expect(button).toHaveText("Push button 1: held");
   await touch("touchEnd", []);
   await expect(button).toHaveText("Push button 1: let go");
