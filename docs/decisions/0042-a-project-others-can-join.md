@@ -217,6 +217,15 @@ What there is today:
    `benchmarks/` and `scripts/`. `CONTRIBUTING.md` gives Playwright's
    `--with-deps` for Linux; step 5's runs test it.
 
+   *As built (step 5):* both runs pass at `main` 1d54e28, recorded with
+   their versions and times in the roadmap. They called for two fixes:
+   pnpm through npm first, since Node 26, the LTS by then, has no
+   Corepack; and the bench challenges' checks, about 0.2 s alone, wait up
+   to 15 s in tests marked slow, since a loaded WSL machine missed the
+   default 5 s. The Linux run installed its toolchains as
+   `CONTRIBUTING.md` says, after the machine's own broken apt packages
+   were repaired.
+
 ## Alternatives considered
 
 - **Hosted CI now,** so a Linux run happens on every push. ADR 0009 chose

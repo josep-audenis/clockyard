@@ -835,7 +835,25 @@ is rewritten from the project as it is, with the setup, every check
 README's storage row, layout and setup are brought up to date; and there
 are a code of conduct (the Contributor Covenant 2.1, by link), a security
 policy, issue templates and a pull request template, with reports going
-through GitHub alone. Next is step 5, the two fresh-clone runs.
+through GitHub alone. Step 5 is done, and with it increment 5 and Phase
+7: a fresh clone of `main` at 1d54e28 (PR #150), set up from
+`CONTRIBUTING.md` alone, runs `pnpm verify` to the end on both machines.
+
+| Run | Date | Versions | Setup | `pnpm verify` |
+|-----|------|----------|-------|---------------|
+| Windows 11, a new directory outside the checkout | 2026-11-26 | Node 25.3.0, pnpm 10.28.1, Rust 1.99.1, wasm-bindgen 0.2.130 | 21 s (toolchains present) | 404 s, 76 browser tests |
+| Ubuntu 22.04 under WSL 2, in the Linux file system | 2026-11-26 | Node 26.13.1 (fnm), pnpm 10.28.1, Rust 1.100.0, wasm-bindgen 0.2.130 | about 10 min the first time, most of it building `wasm-bindgen-cli`; 29 s once installed | 336 s, 76 browser tests |
+
+The runs called for two fixes (PR #150): Node 26, the LTS, has no
+Corepack, so `CONTRIBUTING.md` installs pnpm with npm first; and the
+bench challenges' checks, about 0.2 s alone, missed the default 5 s on a
+loaded WSL machine, so their tests are marked slow and wait 15 s. The WSL
+machine's own apt was broken before the run (a PPA's Python packages) and
+was repaired with `apt --fix-broken install`; that is the machine, not
+the instructions. Once, on a loaded Windows run, the push-button test
+(ADR 0038) missed its hold after a two-finger touch drag; it passed on
+every run since. What comes after Phase 7 is not decided.
+
 Rough edges still open, each by design (ADR 0040):
 
 - Wires kept after an edit can stay longer than needed until the file is

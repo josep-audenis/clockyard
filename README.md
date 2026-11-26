@@ -14,7 +14,7 @@ execute it — one clock edge at a time.
 
 Everything runs locally in your browser. No accounts, no servers, no cloud.
 
-> **Status: pre-alpha — Phases 0–6 done.** Build circuits from gates, buses,
+> **Status: pre-alpha — Phases 0–7 done.** Build circuits from gates, buses,
 > tri-state buffers, custom components, clocks, flip-flops and memories, and
 > run the bundled 8-bit reference CPUs, programmed in their own assembly, with
 > a keyboard, screen and hex display mapped into memory, and play Catch and
