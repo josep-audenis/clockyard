@@ -40,6 +40,10 @@ format v5, editor and Playwright (PRs #26–#31). Named connections (net
 labels, ADR 0015) are built too (PRs #33–#36), so every addition the brief
 plans for Phase 2 is in.
 
+**Phase 7 — ✅ done** (ADR 0037): the playground's gaps, readable
+computers, rough edges, challenges 13 to 16, and a project others can join
+(ADR 0042), recorded under Next increment.
+
 ## Phase 0 — Foundation ✅
 
 Goal: repository set up; browser ↔ Rust/WASM round trip proven.
@@ -842,17 +846,17 @@ through GitHub alone. Step 5 is done, and with it increment 5 and Phase
 | Run | Date | Versions | Setup | `pnpm verify` |
 |-----|------|----------|-------|---------------|
 | Windows 11, a new directory outside the checkout | 2026-11-26 | Node 25.3.0, pnpm 10.28.1, Rust 1.99.1, wasm-bindgen 0.2.130 | 21 s (toolchains present) | 404 s, 76 browser tests |
-| Ubuntu 22.04 under WSL 2, in the Linux file system | 2026-11-26 | Node 26.13.1 (fnm), pnpm 10.28.1, Rust 1.100.0, wasm-bindgen 0.2.130 | about 10 min the first time, most of it building `wasm-bindgen-cli`; 29 s once installed | 336 s, 76 browser tests |
+| Ubuntu 22.04 under WSL 2, in the Linux file system | 2026-11-26 | Node 26.13.1 (fnm), pnpm 10.28.1 (npm), Rust 1.100.0, wasm-bindgen 0.2.130 | 578 s the first time, installing rustup, `wasm-bindgen-cli`, fnm and pnpm, stopped at Playwright's `--with-deps` by the machine's broken apt; 29 s on the rerun, toolchains installed | 336 s, 76 browser tests |
 
-The runs called for two fixes (PR #150): Node 26, the LTS, has no
-Corepack, so `CONTRIBUTING.md` installs pnpm with npm first; and the
+The runs called for two fixes (PR #150): Node 25 and later (26 is the
+LTS) have no Corepack, so `CONTRIBUTING.md` installs pnpm with npm first; and the
 bench challenges' checks, about 0.2 s alone, missed the default 5 s on a
 loaded WSL machine, so their tests are marked slow and wait 15 s. The WSL
 machine's own apt was broken before the run (a PPA's Python packages) and
 was repaired with `apt --fix-broken install`; that is the machine, not
 the instructions. Once, on a loaded Windows run, the push-button test
-(ADR 0038) missed its hold after a two-finger touch drag; it passed on
-every run since. What comes after Phase 7 is not decided.
+(ADR 0038) failed once after a two-finger touch drag; it passed 3 of 3
+alone and on every full run since. What comes after Phase 7 is not decided.
 
 Rough edges still open, each by design (ADR 0040):
 
