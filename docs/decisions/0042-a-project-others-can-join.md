@@ -214,9 +214,8 @@ What there is today:
    tab, saying they are about conduct; abusive content can also go to
    GitHub's own *Report content*. The README's setup points to
    `CONTRIBUTING.md` for the rest, and its layout gains `crates/asm`,
-   `benchmarks/` and `scripts/`. `CONTRIBUTING.md` installs pnpm through
-   Corepack, or npm where Corepack is missing, and gives Playwright's
-   `--with-deps` for Linux; step 5's runs test both.
+   `benchmarks/` and `scripts/`. `CONTRIBUTING.md` gives Playwright's
+   `--with-deps` for Linux; step 5's runs test it.
 
 ## Alternatives considered
 
