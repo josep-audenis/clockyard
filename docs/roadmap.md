@@ -854,7 +854,7 @@ bench challenges' checks, about 0.2 s alone, missed the default 5 s on a
 loaded WSL machine, so their tests are marked slow and wait 15 s. The WSL
 machine's own apt was broken before the run (a PPA's Python packages) and
 was repaired with `apt --fix-broken install`; that is the machine, not
-the instructions. Once, on a loaded Windows run, the push-button test
+the instructions. On a loaded Windows run, the push-button test
 (ADR 0038) failed once after a two-finger touch drag; it passed 3 of 3
 alone and on every full run since. What comes after Phase 7 is not decided.
 
