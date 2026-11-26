@@ -57,21 +57,15 @@ You need Git, and:
    version manager such as fnm or nvm; distribution packages, such as Ubuntu's
    `nodejs`, are older than 22.18.
 
-4. **pnpm** 10, the version `package.json` names in `packageManager`. With
-   Corepack, which Node 22 and 24 include:
-
-   ```bash
-   corepack enable
-   ```
-
-   Or without it (Node 25 and later no longer include Corepack):
+4. **pnpm** 10, the version `package.json` names in `packageManager`:
 
    ```bash
    npm install -g pnpm@10.28.1
    ```
 
-   Either may need an administrator shell on Windows, or `sudo` on Linux with a
-   system-wide Node.
+   On Node 22 or 24, `corepack enable` works too; Node 25 and later no
+   longer include Corepack. Either may need an administrator
+   shell on Windows, or `sudo` on Linux with a system-wide Node.
 
 5. **The dependencies**, from the repository's root. This also points Git at
    the repository's hooks (`.githooks/`):
