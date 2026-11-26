@@ -63,9 +63,9 @@ You need Git, and:
    npm install -g pnpm@10.28.1
    ```
 
-   On Node 22 or 24, `corepack enable` works too; Node 25 and later no
-   longer include Corepack. Either may need an administrator
-   shell on Windows, or `sudo` on Linux with a system-wide Node.
+   On Node 22 or 24, `corepack enable` works too; Node 25 and later no longer
+   include Corepack. Either may need an administrator shell on Windows, or
+   `sudo` on Linux with a system-wide Node.
 
 5. **The dependencies**, from the repository's root. This also points Git at
    the repository's hooks (`.githooks/`):

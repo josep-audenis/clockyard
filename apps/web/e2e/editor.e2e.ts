@@ -199,8 +199,9 @@ test("a link the clipboard refuses is shown to copy by hand (ADR 0024)", async (
 const challenges = (page: Page) => page.getByRole("region", { name: "CHALLENGES" });
 const challenge = (page: Page) => page.getByRole("region", { name: "Challenge", exact: true });
 const checked = (page: Page) => challenge(page).locator(".challenge-result");
-// A bench check runs a CPU through its gates, up to 4,000 cycles a run: seconds on a slow machine, not milliseconds.
-const BENCH_CHECK = { timeout: 30_000 };
+// A bench check takes about 0.2 s alone; the margin is for a loaded machine (a WSL run took over 5 s), and its
+// tests are marked slow so their budget holds several checks.
+const BENCH_CHECK = { timeout: 15_000 };
 
 test("start the inverter challenge, build it from a NAND gate, Check passes; a link reopens it with its panel (ADR 0025)", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
@@ -278,6 +279,7 @@ test("the one-bit register: the starter fails at the first edge that loads; the 
 });
 
 test("the program challenge: a program written in the ROM's editor is checked on the CPU's gates (ADR 0034)", async ({ page }) => {
+  test.slow();
   await page.goto("/");
   await openTab(page, "Learn");
   await challenges(page).getByRole("button", { name: "11. Program" }).click();
@@ -307,6 +309,7 @@ test("the program challenge: a program written in the ROM's editor is checked on
 });
 
 test("the display challenge: its starter draws nothing, and the reference screen interface passes (ADR 0034)", async ({ page }) => {
+  test.slow();
   await page.goto("/");
   await openTab(page, "Learn");
   await challenges(page).getByRole("button", { name: "12. Display" }).click();
@@ -321,6 +324,7 @@ test("the display challenge: its starter draws nothing, and the reference screen
 });
 
 test("the CPU challenge: its starter never halts, and the reference CPU passes every run on the bench (ADR 0034)", async ({ page }) => {
+  test.slow();
   await page.goto("/");
   await openTab(page, "Learn");
   await challenges(page).getByRole("button", { name: "10. CPU" }).click();
@@ -2379,6 +2383,7 @@ test("challenges 13 to 15: each starter fails and each solution passes (ADR 0041
 });
 
 test("challenge 16: the starter never halts, and the reference drawing passes every run on Reference CPU 2 (ADR 0041)", async ({ page }) => {
+  test.slow();
   await page.goto("/");
   await openTab(page, "Learn");
   await challenges(page).getByRole("button", { name: "16. Drawing" }).click();
