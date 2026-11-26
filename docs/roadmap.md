@@ -858,10 +858,11 @@ the instructions. On a loaded Windows run, the push-button test
 (ADR 0038) failed once after a two-finger touch drag. The cause was the
 test: Chrome's `touchEnd` names the touch points that lift, so it lifted
 the cap's finger, not the LED's, and the test had passed only while the
-readout lagged (PR #152 lifts the LED's finger, 16 of 16 under load).
-The same PR gives the two biggest examples 15 s to open. A keyboard test's
-`?` failed once and did not recur in 12 loaded runs. What comes after
-Phase 7 is not decided.
+readout lagged. PR #152 lifts the LED's finger and reads the hold after a
+Step (16 of 16 under load; the old lift now fails 8 of 8), and gives the
+two biggest examples 15 s to open. The keyboard test's `?` dialog
+(ADR 0032) failed once and did not recur in 12 loaded runs. What comes
+after Phase 7 is not decided.
 
 Rough edges still open, each by design (ADR 0040):
 

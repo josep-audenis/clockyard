@@ -2134,9 +2134,13 @@ test("a push button is held by the pointer on its cap, and by its key once the c
   await expect(button).toHaveText("Push button 1: held");
   await touch("touchStart", [cap, led]);
   for (let i = 1; i <= 5; i++) await touch("touchMove", [{ x: cap.x + 1, y: cap.y }, { x: led.x, y: led.y + ((to.y - led.y) * i) / 5 }]);
-  // A touchEnd names the points that lift, not those that stay: this lifts the LED's finger, and the cap stays held.
+  // Chrome's touchEnd names the points that lift, not those that stay: this lifts the LED's finger.
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [{ x: to.x, y: to.y, id: 1 }] });
+  // The readout already said held, so it is read after a Step the engine has answered: the cap's finger still holds it.
+  await page.getByRole("button", { name: "Step", exact: true }).click();
+  await expect(counter(page)).toHaveText("Cycle 2, clock low");
   await expect(button).toHaveText("Push button 1: held");
+  await expectStates(page, { "LED 1": 1 });
   await touch("touchEnd", []);
   await expect(button).toHaveText("Push button 1: let go");
   // The drag did not take the button with it: its cap is where it was.
