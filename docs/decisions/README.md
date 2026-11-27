@@ -48,7 +48,7 @@ replacement.
 | [0040](0040-rough-edges.md) | Rough edges: Make component, the readout, bench reports, and a list that holds only what stays | Accepted |
 | [0041](0041-challenges-13-to-16.md) | Challenges 13 to 16: a decoder, a shifter, a stack, and a program that draws with `CALL` | Accepted |
 | [0042](0042-a-project-others-can-join.md) | A project others can join: contributor docs, community files, a license check, and a documented core | Accepted |
-| [0043](0043-phase-8-plan.md) | Phase 8: a computer with registers | Proposed |
+| [0043](0043-phase-8-plan.md) | Phase 8: a computer with registers | Accepted |
 
 ## Template
 
