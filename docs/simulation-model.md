@@ -6,7 +6,9 @@ values, the tri-state buffer and nets with several drivers. See Four-state
 signals. Gates with 2 to 8 inputs and the push button (ADR 0038) are
 built: the engine (step 2), gates with more inputs in the editor (step
 3), and the push button in the editor with the worker's report of a short
-press (step 4).
+press (step 4). Bus conflicts named (ADR 0044) are **specified, not
+built yet**: the passages marked *ADR 0044* say what the engine will do
+once they are.
 
 ## Terms
 
@@ -273,7 +275,7 @@ and asynchronous reset (asynchronous reset acts like a combinational input).
 
 | Control | Engine meaning |
 |---------|----------------|
-| Run / Pause | The worker ticks in slices, each 16 ms after the last finished: as many ticks as the speed calls for since then, in chunks of 64, starting no new chunk after 8 ms. Ticks that do not fit are dropped, so a circuit too heavy for the speed runs slower rather than catching up. A tick that is unstable pauses the run; the warning that a loop's `X` remains does not |
+| Run / Pause | The worker ticks in slices, each 16 ms after the last finished: as many ticks as the speed calls for since then, in chunks of 64, starting no new chunk after 8 ms. Ticks that do not fit are dropped, so a circuit too heavy for the speed runs slower rather than catching up. A tick that is unstable pauses the run; the warning that a loop's `X` remains does not, nor (*ADR 0044*) a bus conflict |
 | Run until | Run, stopping at the tick where a chosen LED's net rises: a known 0 just before the tick (after any switch change), and a bit at a known 1 after it, so an LED lit at the start must go dark first, and one that leaves `X` for 1 has not risen (`tick_until`, ADR 0019). Where it stops does not depend on how the run is split into slices |
 | Step | `step_cycle`: ticks until the clock has risen once and is low again (2 ticks from low, 3 from high) |
 | Reset | Flip-flops, RAM, the clock and time to 0, switch values (and push buttons, ADR 0038) and ROM kept; nets to 0, then pre-settle and settle as a load does |
@@ -457,6 +459,54 @@ a delta or two whenever its enables change.** A flip-flop is safe, since it
 samples the snapshot. A latch built from gates, or a derived clock, that
 reads the bus can take that `X` and keep it.
 
+### A bus in conflict
+
+*ADR 0044.* When a settle ends, the engine looks at every resolver's
+inputs, the buffers' own nets. A bit is **in conflict** when one input
+drives a known `0` there and another a known `1`.
+
+- Drivers that agree are no conflict, however many are enabled.
+- An unknown bit on an input is no conflict: the bus reads `X` already,
+  and a conflict that might be is not reported as one that is.
+- Only settled values are read. The delta or two of conflict while
+  enables change is never seen, and neither is any conflict that comes
+  and goes inside one settle, such as a glitch a latch built from gates
+  could take.
+- A settle that reaches its delta limit reports `unstable` alone; its
+  values are `X` where the loop was, so its conflicts are not looked for.
+- Only a circuit with a tri-state buffer has resolvers, so only it is
+  checked.
+- Flip-flops start at `0`, so control logic that enables two buffers in
+  its reset state is in conflict from the first settle, and is reported.
+
+Each bus in conflict gives one warning, `busConflict`. It stops nothing,
+and the bus still reads `X`. Its IDs are the buffers in conflict (those
+with a known bit another contradicts); a buffer inside an instance is
+named by the instance on the open sheet, as in every runtime diagnostic.
+Its message names each of them as the open sheet shows it, a top-level
+ID or an instance and the path inside it, with the value
+it drives written as the readout writes one (hex, `X` for a digit with an
+unknown bit): "tri-state buffers tb1 (0x12) and tb2 (0x34) drive one bus
+at once; it reads X where they differ". Three or more are listed the
+same way ("tb1 (0x12), tb2 (0x34) and tb3 (0x56)"), and a buffer inside
+an instance by its path ("cpu1/rA (0x12)"). A bus is named by its
+drivers: the engine keeps no net names.
+
+A settle reports a list: its error alone when it has one, else its
+warnings, `unsettled` first, then each bus in conflict in the order of
+its resolver. The engine keeps the last settle's conflicts, so `tick`
+with no clock, which settles nothing, still returns them.
+
+A call that settles many times (`tick`, `tick_until`, and the worker's
+chunks of one frame) keeps, for each bus, a conflict seen at any settle
+of the call. A conflict that lasts to the call's last settle is
+reported as that settle found it; one that has ended is reported as it
+was first seen, with the tick it came at added to its message (" at
+tick 41"). That is the one case where a warning outlives what it
+reports: otherwise a conflict that lasts one clock phase of each
+instruction would come and go between frames. An error still ends the
+call and comes alone.
+
 ### A loop that does not settle
 
 When a settle reaches its delta limit, it goes on in two stages:
@@ -506,6 +556,14 @@ certain edge loads known data, or Reset.
   `unsettled` warning. `tick` stops at an error and otherwise returns the
   last tick's warning; the worker's run and a challenge check stop on errors
   only.
+- *ADR 0044:* a settle will return a list instead: the `unstable` error
+  alone, or its warnings (`unsettled`, then each `busConflict`). A load
+  reports its first settle's error if it has one, else its last settle's
+  warnings. `tick` stops at an error and otherwise returns the last
+  tick's warnings with the conflicts earlier ticks saw (above).
+  `sim-wasm`'s load puts `unsettled` and `busConflict` in its runtime
+  list beside `unstable`, so the next settle's report replaces them
+  rather than doubling them.
 - A waveform record is `(time, value, unknown)`, made when either word
   changes.
 - `memory_unknown()` beside `memory()`, empty while every cell is known.
@@ -531,7 +589,7 @@ Two distinct categories:
 | Category | When | Examples |
 |----------|------|----------|
 | Validation (compile time) | Loading a circuit | Unknown kind, missing port, output-to-output connection, width mismatch, invalid width or fields, multiple drivers, missing or recursive definition, circuit too large; warnings: unconnected input, unmatched label |
-| Runtime | During simulation | Unstable/oscillating loop, delta limit exceeded (`unstable`, an error); a warning while that loop's `X` remains (`unsettled`) |
+| Runtime | During simulation | Unstable/oscillating loop, delta limit exceeded (`unstable`, an error); a warning while that loop's `X` remains (`unsettled`); *ADR 0044:* a warning for two enabled drivers that disagree on a bus (`busConflict`) |
 
 Document-level problems (corrupt JSON, unsupported file version) are caught by
 `storage/` before the engine sees anything.
@@ -550,6 +608,14 @@ so the editor can highlight the culprit. Neither category crashes the app.
   refused; kept by `load_keeping` and by Reset; a switch replaced by a
   button under the same ID starting at 0; a definition pin naming a button
   refused; a button driving a flip-flop's `clk` clocking it between ticks.
+- *ADR 0044:* two buffers that disagree are named with their values; two
+  that agree, one disabled, and an unknown enable report nothing; one
+  select driving both enables, one through a NOT, reports nothing either
+  way; a conflict in one tick of many is reported by `tick` and
+  `tick_until` with its tick; `tick` with no clock keeps a standing
+  conflict; two buffers inside one instance are named by it with their
+  paths; `unstable` comes alone; a load that starts in conflict reports
+  it once.
 - Cascades, fan-out, re-evaluation after toggles.
 - Order independence: shuffling component order at compile time gives
   identical results.

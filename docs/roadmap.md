@@ -46,7 +46,8 @@ computers, rough edges, challenges 13 to 16, and a project others can join
 
 **Phase 8 — planned** (ADR  0043): bus conflicts named, Reference CPU 3
 with registers, then challenges 17 and 18. Increment 1, bus conflicts
-named, is designed in ADR 0044 (accepted).
+named, is designed in ADR 0044 (accepted). Step 1 is done: the rule
+is in `docs/simulation-model.md`.
 
 ## Phase 0 — Foundation ✅
 
