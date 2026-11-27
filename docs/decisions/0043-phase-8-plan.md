@@ -1,6 +1,6 @@
 # 0043. Phase 8: a computer with registers
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-27
 - Depends on: ADR 0037 (the Phase 7 plan, now built); ADRs 0019, 0025,
   0034, 0035, 0036, 0039; brief §2.2, §2.3, §16

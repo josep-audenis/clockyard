@@ -44,6 +44,9 @@ plans for Phase 2 is in.
 computers, rough edges, challenges 13 to 16, and a project others can join
 (ADR 0042), recorded under Next increment.
 
+**Phase 8 — planned** (ADR  0043): bus conflicts named, Reference CPU 3
+with registers, then challenges 17 and 18.
+
 ## Phase 0 — Foundation ✅
 
 Goal: repository set up; browser ↔ Rust/WASM round trip proven.
@@ -862,7 +865,8 @@ readout lagged. PR #152 lifts the LED's finger and reads the hold after a
 Step (16 of 16 under load; the old lift now fails 8 of 8), and gives the
 two biggest examples 15 s to open. The keyboard test's `?` dialog
 (ADR 0032) failed once and did not recur in 12 loaded runs. Phase 8,
-a computer with registers, is proposed in ADR 0043.
+a computer with registers, is planned in ADR 0043 (accepted): bus
+conflicts named, then Reference CPU 3, then challenges 17 and 18.
 
 Rough edges still open, each by design (ADR 0040):
 
@@ -899,11 +903,9 @@ and native scrollbars that follow the theme.
 
 Out of scope for now: global labels across sheets and the other items ADR
 0015 leaves out; editing several parts' widths at once, signed display and
-widths above 32 (ADR 0014); a benchmark with a bus, two bus drivers
-in conflict named by a diagnostic, a challenge mismatch's width (needed
-once a challenge allows a tri-state buffer), the program editor for ROMs
+widths above 32 (ADR 0014); the program editor for ROMs
 other than 16 bits wide (ADR 0019: each machine needs its own assembler),
 and Make component on a pass-through whose output reaches the selection's
 edge through an inside junction, which still joins it to the input pin
-(ADR 0040); and the items ADR 0037 leaves out of Phase 7, such as a 16-bit
+(ADR 0040); and the items ADR 0043 leaves out of Phase 8, such as a 16-bit
 CPU, several clocks, Markdown in notes and a guided tutorial.
