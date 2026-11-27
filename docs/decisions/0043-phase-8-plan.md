@@ -26,11 +26,10 @@ What is still open, from the brief and from the roadmap:
     titles, net labels in place of long wires, and a jump to each region
     at 100%.
 - **A register file needs a shared bus.** Registers that share one bus
-  drive it through tri-state buffers (ADR 0035). When two
-  are enabled at once, the bus reads `X` where they differ, and nothing
-  says which drivers are in conflict. ADR 0035 left that diagnostic out
-  of scope. A user debugging their own control logic would meet it
-  first.
+  drive it through tri-state buffers (ADR 0035). When two are enabled at
+  once, the bus reads `X` where they differ, and nothing says which
+  drivers are in conflict. ADR 0035 left that diagnostic out of scope. A
+  user debugging their own control logic would meet it first.
 - **The program editor knows two instruction sets,** and they are one
   family: Reference CPU 2's adds to the first's (`needs_cpu_2`, ADR 0036).
   The editor cannot know which CPU a ROM feeds, so it warns when a
@@ -97,9 +96,9 @@ What is still open, from the brief and from the roadmap:
       around it, as challenge 16's is around Reference CPU 2. Each is
       checked by behavioural tests, as ADRs 0025 and 0034 do; the
       increment's ADR chooses them.
-      - A register file on one bus allows tri-state buffers, so a
-        mismatch reports its width, which ADR 0040 left until a
-        challenge allowed one.
+      - A challenge with a register file on one bus allows tri-state
+        buffers, so a mismatch reports its width, which ADR 0040 left
+        until a challenge allowed one.
       - The about page's list of challenges grows with them.
       - Target: each starter fails and each solution passes in the
         browser.
