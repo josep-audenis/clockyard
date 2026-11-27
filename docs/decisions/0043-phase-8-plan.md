@@ -25,8 +25,8 @@ What is still open, from the brief and from the roadmap:
     circuit should be laid out. ADR 0039 has shown it: regions with
     titles, net labels in place of long wires, and a jump to each region
     at 100%.
-- **A register file needs a shared bus.** Several registers that each
-  drive one bus are built from tri-state buffers (ADR 0035). When two
+- **A register file needs a shared bus.** Registers that share one bus
+  drive it through tri-state buffers (ADR 0035). When two
   are enabled at once, the bus reads `X` where they differ, and nothing
   says which drivers are in conflict. ADR 0035 left that diagnostic out
   of scope. A user debugging their own control logic would meet it
@@ -51,21 +51,29 @@ What is still open, from the brief and from the roadmap:
       - When two or more enabled drivers put different known values on
         one net, the engine reports a diagnostic that names the net and
         each driver. The problems dialog lists it, and its Select button
-        selects the drivers (ADR 0032). The rule (what counts as a conflict when a value is `X`,
-        or when the drivers agree) is written in
-        `docs/simulation-model.md` before any code.
+        selects the drivers (ADR 0032).
+      - The rule is written in `docs/simulation-model.md` before any
+        code: what counts as a conflict when a value is `X` or when the
+        drivers agree; when it counts, since a bus is in conflict for a
+        delta or two whenever its enables change (ADR 0035) and that must
+        not be reported; and the problem's severity, whether it stops a
+        run, and how it sits beside `unstable`.
       - The value stays `X`, as ADR 0035 says. Only the report is new.
-      - The cost is measured on the benchmarks. The two-state path has
-        no `Z` and no shared buses, so it is unchanged.
+      - No benchmark has a bus yet (ADR 0040 left it until needed), so
+        this increment adds one and measures the check's cost on it. The
+        two-state path has no `Z` and no shared buses, so it is
+        unchanged.
       - Target: two tri-state buffers on one bus, both enabled with
         different values, are named in the problems dialog. With one
-        disabled, the report goes.
+        disabled, nothing is reported, and switching which one is enabled
+        reports nothing either.
    2. **Reference CPU 3: an 8-bit CPU with registers.**
       - Its instruction set is specified first, in
-        `docs/reference-cpu-3.md`, and it has an assembler in
-        `crates/asm` and a model in `scripts/`, as the first two have.
-        The increment's ADR chooses the number of registers and the
-        encoding.
+        `docs/reference-cpu-3.md`. It has an assembler in `crates/asm`,
+        a generator in `scripts/` and a model in the native tests, as the
+        first two have. The increment's ADR chooses the number of
+        registers and the encoding. Its instructions stay 16 bits wide,
+        the width the program editor assembles (ADR 0019).
       - The registers share a bus through tri-state buffers, so
         increment 1's diagnostic covers its control logic.
       - The sheet is generated and laid out in regions, as ADR 0039 does
@@ -89,6 +97,9 @@ What is still open, from the brief and from the roadmap:
       around it, as challenge 16's is around Reference CPU 2. Each is
       checked by behavioural tests, as ADRs 0025 and 0034 do; the
       increment's ADR chooses them.
+      - A register file on one bus allows tri-state buffers, so a
+        mismatch reports its width, which ADR 0040 left until a
+        challenge allowed one.
       - The about page's list of challenges grows with them.
       - Target: each starter fails and each solution passes in the
         browser.
@@ -106,8 +117,10 @@ What is still open, from the brief and from the roadmap:
    (for now)": a 16-bit CPU; several clocks, and stepping one delta;
    project previews; Markdown in notes; global labels across sheets;
    installing the app for offline use (PWA); a guided tutorial for the
-   first visit; and a character display (ADR 0021: a pixel screen can
-   draw characters from a ROM the user writes).
+   first visit; a character display (ADR 0021: a pixel screen can
+   draw characters from a ROM the user writes); and the roadmap's other
+   out-of-scope items from ADRs 0014, 0015 and 0040, except the two this
+   plan takes up (a benchmark with a bus, and a mismatch's width).
 
 ## Alternatives considered
 
@@ -143,4 +156,8 @@ What is still open, from the brief and from the roadmap:
 - A third instruction set means the program editor no longer assumes one
   family. The warning that a program needs Reference CPU 2 (ADR 0036)
   is replaced by the choice increment 2's ADR makes.
+- If a ROM says which instruction set it holds, the file format changes
+  with a new version.
+- Once this ADR is accepted, the roadmap's out-of-scope list drops a
+  benchmark with a bus and a mismatch's width.
 - Each target is concrete enough to check, so "done" stays checkable.
