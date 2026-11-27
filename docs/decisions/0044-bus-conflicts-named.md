@@ -1,6 +1,6 @@
 # 0044. Bus conflicts named
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-27
 - Depends on: ADR 0043 (the Phase 8 plan, increment 1); ADRs 0030,
   0032, 0035; amends ADR 0043 item 2.1
