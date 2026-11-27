@@ -45,7 +45,8 @@ computers, rough edges, challenges 13 to 16, and a project others can join
 (ADR 0042), recorded under Next increment.
 
 **Phase 8 — planned** (ADR  0043): bus conflicts named, Reference CPU 3
-with registers, then challenges 17 and 18.
+with registers, then challenges 17 and 18. Increment 1, bus conflicts
+named, is designed in ADR 0044 (accepted).
 
 ## Phase 0 — Foundation ✅
 

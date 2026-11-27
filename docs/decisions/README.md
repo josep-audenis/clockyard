@@ -49,6 +49,7 @@ replacement.
 | [0041](0041-challenges-13-to-16.md) | Challenges 13 to 16: a decoder, a shifter, a stack, and a program that draws with `CALL` | Accepted |
 | [0042](0042-a-project-others-can-join.md) | A project others can join: contributor docs, community files, a license check, and a documented core | Accepted |
 | [0043](0043-phase-8-plan.md) | Phase 8: a computer with registers | Accepted |
+| [0044](0044-bus-conflicts-named.md) | Bus conflicts named | Accepted |
 
 ## Template
 

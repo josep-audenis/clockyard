@@ -50,7 +50,8 @@ What is still open, from the brief and from the roadmap:
       - When two or more enabled drivers put different known values on
         one net, the engine reports a diagnostic that names the net and
         each driver. The problems dialog lists it, and its Select button
-        selects the drivers (ADR 0032).
+        selects the drivers (ADR 0032). *Amended by ADR 0044:* the net is
+        named by its drivers, since the engine keeps no net names.
       - The rule is written in `docs/simulation-model.md` before any
         code: what counts as a conflict when a value is `X` or when the
         drivers agree; when it counts, since a bus is in conflict for a
